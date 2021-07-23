@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Telemetry</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="lib/uPlot.min.css">
+		<link rel="stylesheet" href="style.css">
+        <script src="lib/vue.js"></script>
+	</head>
+	<body>
+        <h2>Teleplot</h2>
+
+        <div id="app">
+            <div class="telem-container">
+                <div v-for="telem in telemetries" v-bind:key="telem.name" class="telem-vue">
+                    <span class="telem-vue-title">{{telem.name}}: {{telem.value}}</span>
+                    <uplot-vue v-bind:data="telem.data" v-bind:options="telem.config"/>
+                </div>
+            </div>
+        </div>
+
+    </body>
+    <script src="lib/uPlot.iife.min.js"></script>
+    <script src="lib/socket.io.js"></script>
+    <script src="lib/uplot-component.js"></script>
+    <script src="./main.js"></script>
+</html>

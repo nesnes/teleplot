@@ -1,0 +1,19 @@
+.telem-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: center;
+	align-content: stretch;
+	align-items: center;
+}
+
+.telem-vue {
+	flex: 0 1 auto;
+	align-self: auto;
+}
+
+.telem-vue-title {
+	display: block;
+	font-size: 20px;
+	text-align: center;
+}
