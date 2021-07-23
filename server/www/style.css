@@ -8,8 +8,9 @@
 }
 
 .telem-vue {
-	flex: 0 1 auto;
+	flex: 1 1;
 	align-self: auto;
+	min-width: 450px;
 }
 
 .telem-vue-title {

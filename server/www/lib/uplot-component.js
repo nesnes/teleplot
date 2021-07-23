@@ -1,44 +1,3 @@
-const stringify = (obj) =>
-    JSON.stringify(obj, (key, value) =>
-        typeof value === 'function' ? value.toString() : value
-    )
-
-const optionsUpdateState = (_lhs, _rhs) => {
-    const {width: lhsWidth, height: lhsHeight, ...lhs} = _lhs;
-    const {width: rhsWidth, height: rhsHeight, ...rhs} = _rhs;
-
-    let state = 'keep';
-    if (lhsHeight !== rhsHeight || lhsWidth !== rhsWidth) {
-        state = 'update';
-    }
-    if (Object.keys(lhs).length !== Object.keys(rhs).length) {
-        return 'create';
-    }
-    for (const k of Object.keys(lhs)) {
-        if (stringify(lhs[k]) !== stringify(rhs[k])) {
-            state = 'create';
-            break;
-        }
-    }
-    return state;
-}
-
-const dataMatch = (lhs, rhs) => {
-    if (lhs.length !== rhs.length) {
-        return false;
-    }
-    for(let i=0;i<lhs.length;i++){
-        if( !(i in rhs) || lhs[i].length != rhs[i].length) return false;
-    }
-    return lhs.every((lhsOneSeries, seriesIdx) => {
-        const rhsOneSeries = rhs[seriesIdx];
-        if (lhsOneSeries.length !== rhsOneSeries.length) {
-            return false;
-        }
-        return lhsOneSeries.every((value, valueIdx) => value === rhsOneSeries[valueIdx]);
-    });
-}
-
 Vue.component('uplot-vue', {
     name: 'uplot-vue',
     props: {
@@ -54,17 +13,18 @@ Vue.component('uplot-vue', {
     },
     data() {
         // eslint-disable-next-line
-        return {_chart: null, _size: 0};
+        return {_chart: null, div_: null, _size: 0, width_:0, height_:0};
     },
     watch: {
         options(options, prevOptions) {
-            const optionsState = optionsUpdateState(prevOptions, options);
-            if (!this._chart || optionsState === 'create') {
+            if (!this._chart) {
                 this._destroy();
                 this._create();
-            } else if (optionsState === 'update') {
+            } else if (this.width_ != options.width || this.height_ != options.height) {
                 this._chart.setSize({width: options.width, height: options.height});
             }
+            this.width_ = options.width;
+            this.height_ = options.height;
         },
         target() {
             this._destroy();
@@ -77,6 +37,7 @@ Vue.component('uplot-vue', {
                 this._chart.setData(data);
                 this._size = data[0].length;
             }
+            this._resize();
         }
     },
     mounted() {
@@ -97,8 +58,20 @@ Vue.component('uplot-vue', {
             }
         },
         _create() {
-            this._chart = new uPlot(this.$props.options, this.$props.data, this.$props.target || this.$refs.targetRef);
+            this.div_ = this.$props.target || this.$refs.targetRef;
+            this._chart = new uPlot(this.$props.options, this.$props.data, this.div_);
+            this.width_ = this.$props.options.width;
+            this.height_ = this.$props.options.height;
             this.$emit('create', this._chart);
+            window.addEventListener("resize", e => { this._resize(); });
+        },
+        _resize() {
+            let parentWidth = this.div_.offsetWidth;
+            console.log(parentWidth, this.width_, this.div_)
+            if(parentWidth != this.width_){
+                this.width_ = parentWidth;
+                this._chart.setSize({width: this.width_, height: this.height_});
+            }
         }
     },
     render(h) {

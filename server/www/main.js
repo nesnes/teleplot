@@ -10,7 +10,7 @@ var app = new Vue({
 var defaultPlotOpts = {
     title: "",
     width: 400,
-    height: 200,
+    height: 400,
     scales: {
         x: {
             time: true,
@@ -29,20 +29,21 @@ var defaultPlotOpts = {
 var socket = new WebSocket("ws://"+window.location.host);
 socket.onmessage = function(msg) {
     //parse msg
-    var str = ""+msg.data;
+    var str = (""+msg.data).replaceAll('\n','');
     if(!str.includes(':') || !str.includes('|')) return;
     try{
-        let arr1 = str.split(':');
-        let name = arr1[0];
-        let arr2 = arr1[1].split('|');
-        let value = arr2[0];
-        let type = arr2[1].split('\n')[0];
-        appendData(name, value, type);
+        let arrA = str.split('|');
+        let arrB = arrA[0].split(':');
+        let name = arrB[0];
+        let value = arrB[1];
+        let timestamp = arrB.length==3 ? arrB[2] : 0;
+        let type = arrA[1];
+        appendData(name, value, timestamp, type);
     }
     catch(e){}
 };
 
-function appendData(key, value, type) {
+function appendData(key, value, timestamp, type) {
     if(key.substring(0, 6) === "statsd") return;
     if(telemetries[key] == undefined){
         let config = JSON.parse(JSON.stringify(defaultPlotOpts));
@@ -56,7 +57,7 @@ function appendData(key, value, type) {
         };
         Vue.set(app.telemetries, key, obj)
     }
-    telemetries[key].data[0].push(new Date().getTime()/1000);
+    telemetries[key].data[0].push(timestamp/1000);
     telemetries[key].data[1].push(value);
     telemetries[key].value = value;
 }

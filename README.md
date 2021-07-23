@@ -37,6 +37,16 @@ Open your navigator at [127.0.0.1:8080](127.0.0.1:8080)
 
 # Publish telemetry
 
+## Format
+
+The telemetry format is inspired by `statsd` and *to some extents* compatible with it.
+
+The expected format is `A:B:C|D` where:
+- **A** is the name of the telemetry variable (be kind and avoid `:|` special chars in it!)
+- **B** is the integer or floating point value
+- **C** is optional and represents the timestamp in milliseconds. If omitted like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
+- **D** is the data type/representation wich is currently *completely unused*, but requested!
+
 ## Bash
 
 ```bash
@@ -55,9 +65,13 @@ int main(int argc, char* argv[])
 {
     for(float i=0;i<1000;i+=0.1)
     {
+        // Use instanciated object
         teleplot.update("sin", sin(i));
-        teleplot.update("cos", cos(i));
-        teleplot.update("tan", tan(i));
+        teleplot.update("cos", cos(i), 10); // Limit at 10Hz
+
+        // Use static localhost object
+        Teleplot::localhost().update("tan", tan(i));
+        
         usleep(10000);
     }
     return 0;
