@@ -15,8 +15,21 @@ Open your navigator at [127.0.0.1:8080](127.0.0.1:8080)
 
 ## Using docker
 ```bash
-TODO
+cd server
+docker build -t teleplot .
+docker run -d -p 8080:8080 -p 47269:47269/udp teleplot
 ```
+
+Open your navigator at [127.0.0.1:8080](127.0.0.1:8080)
+
+## Using docker-compose
+```bash
+cd server
+docker-compose build
+docker-compose up
+```
+
+Open your navigator at [127.0.0.1:8080](127.0.0.1:8080)
 
 # Publish telemetry
 
