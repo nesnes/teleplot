@@ -2,6 +2,10 @@
 
 A ridiculously simple tool to plot telemetry data from a running program.
 
+![](preview.jpg)
+
+`echo "myData:4|g" | nc -u -w0 127.0.0.1 47269`
+
 # Start the server
 
 ## Using node
