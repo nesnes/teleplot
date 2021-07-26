@@ -8,6 +8,16 @@ A ridiculously simple tool to plot telemetry data from a running program.
 
 # Start the server
 
+## As a binary
+```bash
+cd server
+npm i
+sudo npm run-script make
+./build/teleplot
+```
+
+> Current target is x64 and configurable in `package.json -> pkg/targets`
+
 ## Using node
 ```bash
 cd server
@@ -55,7 +65,7 @@ echo "myValue:1234|g" | nc -u -w0 127.0.0.1 47269
 
 ## C++
 
-Copy `Teleplot.h` in your project and use its object.
+Copy `Teleplot.h` (from `clients/cpp`) in your project and use its object.
 ```cpp
 #include <math.h>
 #include "Teleplot.h"
