@@ -8,7 +8,6 @@ var app = new Vue({
     },
     methods: {
         updateStats: function(telem){
-            console.log(telem);
             Vue.set(telem, "stats", computeStats(telem.data[1]))
         }
     }
@@ -64,7 +63,6 @@ socket.onmessage = function(msg) {
 function appendData(key, value, timestamp, type) {
     if(key.substring(0, 6) === "statsd") return;
     if(telemetries[key] == undefined){
-        //let config = JSON.parse(JSON.stringify(defaultPlotOpts));
         let config = Object.assign({}, defaultPlotOpts);
         config.name = key;
         var obj = {
