@@ -92,14 +92,8 @@ int main(int argc, char* argv[])
 
 # Desired futur features/improvments
 
- - Better visual style (css/html)
- - Get a logo
  - Create a visual explaining how it works
- - Export data in multiple formats: csv, JSON
- - Import data in JSON format
- - Display calculated values on data (mean/median/std/etc.)
+ - Export data in CSV format
  - Select data to display
  - allow X/Y plots rather than forcing a timescale on X
  - Add a clear button or a notion of session
- - Increase time resolution in hover legend
- - Implement syncronized X zoom on all charts

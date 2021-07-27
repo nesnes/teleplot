@@ -9,12 +9,24 @@
         <script src="lib/vue.js"></script>
 	</head>
 	<body>
-        <header class="top-banner">
-            <span class="top-banner-title">Teleplot</span>
-        </header>
-
+        
         <div id="app">
-            <div v-if="showHelp" class="help-container">
+            <header class="top-banner">
+                <div>
+                    <img src="images/logo-color.svg"/>
+                </div>
+                <div>
+                    <span class="top-banner-title">Teleplot</span>
+                </div>
+                <div v-if="dataAvailable">
+                    <button onclick="exportSessionJSON()">Download JSON</button>
+                </div>
+                <div v-else>
+                    <input type="file" onchange="importSessionJSON(event)" id="session-json-input" />
+                </div>
+            </header>
+
+            <div v-if="!dataAvailable" class="help-container">
                 <img src="images/logo-color.svg"/>
                 <span>Ready to plot incomming telemetry.</span>
             </div>
@@ -27,7 +39,22 @@
                         </div>
                         <div class="telem-stat">
                             <span class="telem-stat-name">Value</span>
-                            <span class="telem-stat-value">{{telem.value}}</span>
+                            <span class="telem-stat-value">{{telem.value.toFixed(4)}}</span>
+                        </div>
+                        <div v-if="telem.stats" class="telem-stat">
+                            <span class="telem-stat-name">Mean</span>
+                            <span class="telem-stat-value">{{telem.stats.mean.toFixed(4)}}</span>
+                        </div>
+                        <div v-if="telem.stats"  class="telem-stat">
+                            <span class="telem-stat-name">Median</span>
+                            <span class="telem-stat-value">{{telem.stats.med.toFixed(4)}}</span>
+                        </div>
+                        <div v-if="telem.stats"  class="telem-stat">
+                            <span class="telem-stat-name">Stdev</span>
+                            <span class="telem-stat-value">{{telem.stats.stdev.toFixed(4)}}</span>
+                        </div>
+                        <div class="">
+                            <button @click="updateStats(telem)">stats</button>
                         </div>
                     </div>
                     <uplot-vue v-bind:data="telem.data" v-bind:options="telem.config"/>

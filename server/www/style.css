@@ -2,14 +2,31 @@ html {
 	font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
 
+button {
+	background-color: #ecf0f1;
+	border: 1px solid #bdc3c7;
+	border-radius: 3px;
+	color: #2c3e50;
+	padding: 0.5em 1em;
+	text-align: center;
+	text-decoration: none;
+	display: inline-block;
+}
+
 .top-banner {
 	display: flex;
 	background-color: #2980b9;
-	padding: 3px;
+	padding-top: 3px;
+	padding-bottom: 3px;
+	padding-left: 10px;
+	padding-right: 10px;
 	color: white;
-	justify-content: center;
+	justify-content: space-between;
 	align-items: center;
 	height: 50px;
+}
+.top-banner > div {
+	min-width: 150px;
 }
 
 .top-banner-title {
