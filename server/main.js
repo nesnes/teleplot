@@ -8,7 +8,7 @@ var app = express();
 var expressWs = require('express-ws')(app);
 
 //Setup file server
-app.use(express.static('www'))
+app.use(express.static(__dirname + '/www'))
 
 //Setup websocket server
 app.ws('/', (ws, req)=>{});

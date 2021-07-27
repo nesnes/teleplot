@@ -17,7 +17,7 @@
   },
   "pkg": {
     "scripts": "main.js",
-    "assets": "www/",
+    "assets": "www/**",
     "targets": [ "node14-linux-x64" ],
     "outputPath": "build"
   }

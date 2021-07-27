@@ -3,7 +3,8 @@ var telemetries = {};
 var app = new Vue({
     el: '#app',
     data: {
-        telemetries: telemetries
+        telemetries: telemetries,
+        showHelp: true
     }
 })
 
@@ -41,6 +42,7 @@ socket.onmessage = function(msg) {
         appendData(name, value, timestamp, type);
     }
     catch(e){}
+    if(app.showHelp && Object.entries(telemetries).length>0) app.showHelp = false;
 };
 
 function appendData(key, value, timestamp, type) {

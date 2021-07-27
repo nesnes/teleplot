@@ -67,7 +67,6 @@ Vue.component('uplot-vue', {
         },
         _resize() {
             let parentWidth = this.div_.offsetWidth;
-            console.log(parentWidth, this.width_, this.div_)
             if(parentWidth != this.width_){
                 this.width_ = parentWidth;
                 this._chart.setSize({width: this.width_, height: this.height_});

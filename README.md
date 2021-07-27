@@ -1,8 +1,10 @@
+<img src="images/logo-color.svg" width="300px" alt="Teleplot logo"/>
+
 # Teleplot
 
 A ridiculously simple tool to plot telemetry data from a running program.
 
-![](preview.jpg)
+![](images/preview.jpg)
 
 `echo "myData:4|g" | nc -u -w0 127.0.0.1 47269`
 
@@ -87,3 +89,17 @@ int main(int argc, char* argv[])
     return 0;
 }
 ```
+
+# Desired futur features/improvments
+
+ - Better visual style (css/html)
+ - Get a logo
+ - Create a visual explaining how it works
+ - Export data in multiple formats: csv, JSON
+ - Import data in JSON format
+ - Display calculated values on data (mean/median/std/etc.)
+ - Select data to display
+ - allow X/Y plots rather than forcing a timescale on X
+ - Add a clear button or a notion of session
+ - Increase time resolution in hover legend
+ - Implement syncronized X zoom on all charts

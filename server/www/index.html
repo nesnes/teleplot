@@ -9,12 +9,27 @@
         <script src="lib/vue.js"></script>
 	</head>
 	<body>
-        <h2>Teleplot</h2>
+        <header class="top-banner">
+            <span class="top-banner-title">Teleplot</span>
+        </header>
 
         <div id="app">
+            <div v-if="showHelp" class="help-container">
+                <img src="images/logo-color.svg"/>
+                <span>Ready to plot incomming telemetry.</span>
+            </div>
             <div class="telem-container">
                 <div v-for="telem in telemetries" v-bind:key="telem.name" class="telem-vue">
-                    <span class="telem-vue-title">{{telem.name}}: {{telem.value}}</span>
+                    <div class="telem-vue-header">
+                        <div class="telem-stat">
+                            <span class="telem-stat-name">Name</span>
+                            <span class="telem-stat-value">{{telem.name}}</span>
+                        </div>
+                        <div class="telem-stat">
+                            <span class="telem-stat-name">Value</span>
+                            <span class="telem-stat-value">{{telem.value}}</span>
+                        </div>
+                    </div>
                     <uplot-vue v-bind:data="telem.data" v-bind:options="telem.config"/>
                 </div>
             </div>
