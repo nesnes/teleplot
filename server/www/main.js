@@ -8,6 +8,7 @@ var app = new Vue({
     },
     methods: {
         updateStats: function(telem){
+            console.log(telem);
             Vue.set(telem, "stats", computeStats(telem.data[1]))
         }
     }
@@ -102,7 +103,7 @@ function importSessionJSON(event) {
     reader.onload = function(e) {
         try{
             let content = JSON.parse(e.target.result);
-            Object.assign(telemetries, content);
+            for(let key in content) Vue.set(app.telemetries, key, content[key]);
             if(Object.entries(telemetries).length>0) app.dataAvailable = true;
             setTimeout(()=>{ // Trigger a resize event after initial chart display
                 window.dispatchEvent(new Event('resize'));
