@@ -44,39 +44,60 @@ var defaultPlotOpts = {
 // Init sockets
 var socket = new WebSocket("ws://"+window.location.host);
 socket.onmessage = function(msg) {
+    let now = new Date().getTime();
     //parse msg
-    var str = (""+msg.data).replaceAll('\n','');
-    if(!str.includes(':') || !str.includes('|')) return;
     try{
-        let arrA = str.split('|');
-        let arrB = arrA[0].split(':');
-        let name = arrB[0];
-        let value = parseFloat(arrB[1]);
-        let timestamp = arrB.length==3 ? parseFloat(arrB[2]) : 0;
-        let type = arrA[1];
-        appendData(name, value, timestamp, type);
+        // Extract series
+        let seriesList = (""+msg.data).split("\n");
+        //console.log(seriesList)
+        for(let serie of seriesList){
+            if(!serie.includes(':') || !serie.includes('|')) return;
+            let startIdx = serie.indexOf(':');
+            let name = serie.substr(0,serie.indexOf(':'));
+            let endIdx = serie.indexOf('|');
+            let flags = serie.substr(endIdx+1);
+            // Extract values array
+            let values = serie.substr(startIdx+1, endIdx-startIdx-1).split(';')
+            for(let value of values){
+                if(value.length==0) continue;
+                let valueX = 0;
+                let sepIdx = value.indexOf(':');
+                if(sepIdx==-1){
+                    valueX = now;
+                    valueY = parseFloat(value);
+                }
+                else {
+                    valueX = parseFloat(value.substr(0, sepIdx));
+                    valueY = parseFloat(value.substr(sepIdx+1));
+                }
+                appendData(name, valueX, valueY, flags)
+            }            
+        }
     }
-    catch(e){}
+    catch(e){console.log(e)}
     if(!app.dataAvailable && Object.entries(telemetries).length>0) app.dataAvailable = true;
 };
 
-function appendData(key, value, timestamp, type) {
+function appendData(key, valueX, valueY, flags) {
     if(key.substring(0, 6) === "statsd") return;
+    let isTimeBased = !flags.includes("xy");
     if(telemetries[key] == undefined){
         let config = Object.assign({}, defaultPlotOpts);
         config.name = key;
+        config.scales.x.time = isTimeBased;
         var obj = {
             name: key,
-            type: type,
+            flags: flags,
             data: [[],[]],
             value: 0,
             config: config
         };
         Vue.set(app.telemetries, key, obj)
     }
-    telemetries[key].data[0].push(timestamp/1000);
-    telemetries[key].data[1].push(value);
-    telemetries[key].value = value;
+    if(isTimeBased) telemetries[key].data[0].push(valueX/1000); // timestamp
+    else telemetries[key].data[0].push(valueX); // raw XY chart
+    telemetries[key].data[1].push(valueY);
+    telemetries[key].value = valueY;
 }
 
 function exportSessionJSON() {

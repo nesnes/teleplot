@@ -47,17 +47,49 @@ docker-compose up
 
 Open your navigator at [127.0.0.1:8080](127.0.0.1:8080)
 
-# Publish telemetry
+# Telemetry Format
 
-## Format
+A telemetry gets published by sending a text-based UDP packet on the port `47269`. As it's a trivial thing to do on the vast majority of languages, it makes it very easy to publish from anywhere.
 
 The telemetry format is inspired by `statsd` and *to some extents* compatible with it.
 
 The expected format is `A:B:C|D` where:
 - **A** is the name of the telemetry variable (be kind and avoid `:|` special chars in it!)
-- **B** is the integer or floating point value
-- **C** is optional and represents the timestamp in milliseconds. If omitted like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
-- **D** is the data type/representation wich is currently *completely unused*, but requested!
+- **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
+- **C** is the integer or floating point value to be plotted
+- **D** is containing flags that carry information on how to read and display the data.
+
+Examples:
+- `myValue:1234|g`
+- `myValue:1627551892437:1234|g`
+
+### Plot XY rather than time-based
+
+Using the `xy` flag, and providing a value in both **B** and **C** field, teleplot will display an YX line chart. 
+
+- `trajectory:12.3:45.67|xy`
+
+### Publishing multiple points
+
+Multiple values of a single telemetry can be sent in a signle packet if separated by a `;`
+
+- `trajectory:1:1;2:2;3:3;4:4|xy`
+- `myValue:1627551892444:1;1627551892555:2;1627551892666:3|g`
+
+### Publishing multiple telemetries
+
+Multiple telemetries can be sent in a single packet if separated by a `\n`
+
+```
+myValue:1234|g
+mySecondValue:1234|g
+myThirdValue:1627551892437:1234|g
+trajectory:1:1;2:2;3:3;4:4|xy
+```
+
+> Notice that your data needs to fit in a single UPD packet whick can be limited to 512(Internet), 1432(Intranets) or 8932(Jumbo frames) Bytes depending on the network.
+
+# Publish telemetries
 
 ## Bash
 
@@ -95,5 +127,4 @@ int main(int argc, char* argv[])
  - Create a visual explaining how it works
  - Export data in CSV format
  - Select data to display
- - allow X/Y plots rather than forcing a timescale on X
  - Add a clear button or a notion of session
