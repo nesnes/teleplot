@@ -1,3 +1,6 @@
+// Teleplot
+// Source: https://github.com/nesnes/teleplot
+
 #ifndef TELEPLOT_H
 #define TELEPLOT_H
 
@@ -14,6 +17,7 @@
 #include <chrono>
 
 // Enable/Disable implementation optimisations:
+//#define TELEPLOT_DISABLE // Would prevent teleplot from doing anything, useful for production builds
 #define TELEPLOT_USE_FREQUENCY // Allows to set a maxFrequency on updates (per key) but will instanciate a dynamic map
 #define TELEPLOT_USE_BUFFERING // Allows to group updates sent, but will use a dynamic buffer map
 
@@ -23,6 +27,10 @@ public:
         : address_(address)
         , bufferingFrequencyHz_(bufferingFrequencyHz)
     {
+        #ifdef TELEPLOT_DISABLE
+            return ;
+        #endif
+        // Create UDP socket
         sockfd_ = socket(AF_INET, SOCK_DGRAM, 0);
         serv_.sin_family = AF_INET;
         serv_.sin_port = htons(47269);
@@ -34,16 +42,35 @@ public:
     static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
     
     template<typename T>
-    void update(std::string const& key, T value, unsigned int maxFrequencyHz=0) {
+    void update(std::string const& key, T const& value, unsigned int maxFrequencyHz=0) {
+        #ifdef TELEPLOT_DISABLE
+            return ;
+        #endif
+        int64_t nowMs = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        updateData(key, nowMs, value, "g", maxFrequencyHz);
+    }
+
+    template<typename T1, typename T2>
+    void update2D(std::string const& key, T1 const& valueX, T2 const& valueY, unsigned int maxFrequencyHz=0) {
+        #ifdef TELEPLOT_DISABLE
+            return ;
+        #endif
+        updateData(key, valueX, valueY, "xy", maxFrequencyHz);
+    }
+
+private:
+    template<typename T1, typename T2>
+    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, std::string const& flags, unsigned int maxFrequencyHz) {
+        #ifdef TELEPLOT_DISABLE
+            return ;
+        #endif
         // Filter
         #ifdef TELEPLOT_USE_FREQUENCY
             if(not shouldUpdateData(key ,maxFrequencyHz)) return; // may be used to reduce the update frequency by ignoring some values
         #endif
 
         // Format
-        int64_t nowMs = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        std::string valueStr = formatValues(std::to_string(nowMs), std::to_string(value));
-        std::string flags = "g";
+        std::string valueStr = formatValues(valueX, valueY);
 
         // Emit
         #ifdef TELEPLOT_USE_BUFFERING
@@ -51,11 +78,10 @@ public:
         #else
             emit(formatPacket(key, valueStr, flags));    
         #endif
-        
     }
 
-private:
-    std::string formatValues(std::string const& valueX, std::string const& valueY){
+    template<typename T1, typename T2>
+    std::string formatValues(T1 const& valueX, T2 const& valueY){
         std::ostringstream oss;
         oss << valueX << ":" << valueY;
         return oss.str();

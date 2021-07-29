@@ -23,6 +23,7 @@ var defaultPlotOpts = {
         x: {
             time: true
         },
+        y:{}
     },
     series: [
         {},
@@ -85,6 +86,9 @@ function appendData(key, valueX, valueY, flags) {
         let config = Object.assign({}, defaultPlotOpts);
         config.name = key;
         config.scales.x.time = isTimeBased;
+        if(!isTimeBased){
+            config.cursor.sync = undefined;
+        }
         var obj = {
             name: key,
             flags: flags,
