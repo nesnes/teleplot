@@ -2,7 +2,7 @@
 
 # Teleplot
 
-A ridiculously simple tool to plot telemetry data from a running program.
+A ridiculously simple tool to plot telemetry data from a running program and trigger function calls.
 
 ![](images/preview.jpg)
 
@@ -121,6 +121,46 @@ int main(int argc, char* argv[])
     return 0;
 }
 ```
+
+# Remote function calls
+
+Remote function calls is an optional feature that opens an UDP socket between the program and the Teleplot server to pull the list of registered functions and call them.
+
+# Register a function
+
+## C++
+
+Copy `Telecmd.h` (from `clients/cpp`) in your project and use its object.
+`Telecmd.h` and `Teleplot.h` can be used at the same time.
+
+```cpp
+#include "Telecmd.h"
+
+int main(int argc, char* argv[])
+{
+    bool keepRunning = true;
+
+    Telecmd::localhost().registerCmd("sayHello",[](){
+        std::cout << "Hello world!" << std::endl;
+    });
+
+    Telecmd::localhost().registerCmd("stop",[&](){
+        keepRunning = false
+    });
+
+    // Main program loop
+    while(keepRunning){
+        Telecmd::localhost().run();
+    }
+    return 0;
+}
+```
+
+## Call a function
+
+Functions can be called from the Teleplot interface and will be auto-discovered, however, they can also be triggered by a simple UDP packet:
+
+`echo "|sayHello|" | nc -u -w0 127.0.0.1 47268`
 
 # Desired futur features/improvments
 

@@ -58,6 +58,10 @@ public:
         updateData(key, valueX, valueY, "xy", maxFrequencyHz);
     }
 
+    void log(std::string const& log){
+        emit(">"+log);
+    }
+
 private:
     template<typename T1, typename T2>
     void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, std::string const& flags, unsigned int maxFrequencyHz) {
@@ -93,7 +97,7 @@ private:
         return oss.str();
     }
 
-    void emit(std::string data){
+    void emit(std::string const& data){
         int rp = sendto(sockfd_, data.c_str(), data.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
     }
 

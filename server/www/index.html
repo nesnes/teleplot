@@ -26,40 +26,68 @@
                 </div>
             </header>
 
-            <div v-if="!dataAvailable" class="help-container">
-                <img src="images/logo-color.svg"/>
-                <span>Ready to plot incomming telemetry.</span>
-            </div>
-            <div class="telem-container">
-                <div v-for="telem in telemetries" v-bind:key="telem.name" class="telem-vue">
-                    <div class="telem-vue-header">
-                        <div class="telem-stat">
-                            <span class="telem-stat-name">Name</span>
-                            <span class="telem-stat-value">{{telem.name}}</span>
-                        </div>
-                        <div class="telem-stat">
-                            <span class="telem-stat-name">Value</span>
-                            <span class="telem-stat-value">{{telem.value.toFixed(4)}}</span>
-                        </div>
-                        <div v-if="telem.stats" class="telem-stat">
-                            <span class="telem-stat-name">Mean</span>
-                            <span class="telem-stat-value">{{telem.stats.mean.toFixed(4)}}</span>
-                        </div>
-                        <div v-if="telem.stats"  class="telem-stat">
-                            <span class="telem-stat-name">Median</span>
-                            <span class="telem-stat-value">{{telem.stats.med.toFixed(4)}}</span>
-                        </div>
-                        <div v-if="telem.stats"  class="telem-stat">
-                            <span class="telem-stat-name">Stdev</span>
-                            <span class="telem-stat-value">{{telem.stats.stdev.toFixed(4)}}</span>
-                        </div>
-                        <div class="">
-                            <button @click="updateStats(telem)">stats</button>
+            <div class="main-body">
+                <!--<div class="left-col"></div>-->
+
+                <!-- PLOTS -->
+                <div class="center-col">
+                    <div v-if="!dataAvailable" class="help-container">
+                        <img src="images/logo-color.svg"/>
+                        <span>Ready to plot incomming telemetry.</span>
+                    </div>
+                    <div class="telem-container">
+                        <div v-for="telem in telemetries" v-bind:key="telem.name" class="telem-vue">
+                            <div class="telem-vue-header">
+                                <div class="telem-stat">
+                                    <span class="telem-stat-name">Name</span>
+                                    <span class="telem-stat-value">{{telem.name}}</span>
+                                </div>
+                                <div class="telem-stat">
+                                    <span class="telem-stat-name">Value</span>
+                                    <span class="telem-stat-value">{{telem.value.toFixed(4)}}</span>
+                                </div>
+                                <div v-if="telem.stats" class="telem-stat">
+                                    <span class="telem-stat-name">Mean</span>
+                                    <span class="telem-stat-value">{{telem.stats.mean.toFixed(4)}}</span>
+                                </div>
+                                <div v-if="telem.stats"  class="telem-stat">
+                                    <span class="telem-stat-name">Median</span>
+                                    <span class="telem-stat-value">{{telem.stats.med.toFixed(4)}}</span>
+                                </div>
+                                <div v-if="telem.stats"  class="telem-stat">
+                                    <span class="telem-stat-name">Stdev</span>
+                                    <span class="telem-stat-value">{{telem.stats.stdev.toFixed(4)}}</span>
+                                </div>
+                                <div class="">
+                                    <button @click="updateStats(telem)">stats</button>
+                                </div>
+                            </div>
+                            <uplot-vue v-bind:data="telem.data" v-bind:options="telem.config"/>
                         </div>
                     </div>
-                    <uplot-vue v-bind:data="telem.data" v-bind:options="telem.config"/>
                 </div>
+
+                <!-- CMD -->
+                <div class="right-col cmd-container" v-if="cmdAvailable">
+                    <span class="cmd-container-title">Commands</span>
+                    <div v-for="cmd in commands" v-bind:key="cmd.name" class="cmd-vue">
+                        <button @click="sendCmd(cmd)">{{cmd.name}}</button>
+                    </div>
+
+                    <!-- LOG -->
+                    <div class="log-container" v-if="logAvailable">
+                        <span v-for="log of logs" v-bind:key="log" class="log-vue">
+                            {{log}}
+                        </span>
+                    </div>
+                </div>
+
             </div>
+
+            
+
+
+            
         </div>
 
     </body>

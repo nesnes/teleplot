@@ -1,14 +1,23 @@
 // Init Vue
 var telemetries = {};
+var commands = {};
+var logs = [];
 var app = new Vue({
     el: '#app',
     data: {
         telemetries: telemetries,
-        dataAvailable: false
+        commands: commands,
+        logs: logs,
+        dataAvailable: false,
+        cmdAvailable: false,
+        logAvailable: false
     },
     methods: {
         updateStats: function(telem){
             Vue.set(telem, "stats", computeStats(telem.data[1]))
+        },
+        sendCmd: function(cmd) {
+            socket.send(`|${cmd.name}|`);
         }
     }
 })
@@ -48,31 +57,51 @@ socket.onmessage = function(msg) {
     let now = new Date().getTime();
     //parse msg
     try{
-        // Extract series
-        let seriesList = (""+msg.data).split("\n");
-        //console.log(seriesList)
-        for(let serie of seriesList){
-            if(!serie.includes(':') || !serie.includes('|')) return;
-            let startIdx = serie.indexOf(':');
-            let name = serie.substr(0,serie.indexOf(':'));
-            let endIdx = serie.indexOf('|');
-            let flags = serie.substr(endIdx+1);
-            // Extract values array
-            let values = serie.substr(startIdx+1, endIdx-startIdx-1).split(';')
-            for(let value of values){
-                if(value.length==0) continue;
-                let valueX = 0;
-                let sepIdx = value.indexOf(':');
-                if(sepIdx==-1){
-                    valueX = now;
-                    valueY = parseFloat(value);
+        if(msg.data.startsWith("|")){
+            // Parse command list
+            let cmdList = msg.data.split("|");
+            for(let cmd of cmdList){
+                if(cmd.length==0) continue;
+                if(commands[cmd] == undefined){
+                    let newCmd = {
+                        name: cmd
+                    };
+                    Vue.set(app.commands, cmd, newCmd);
                 }
-                else {
-                    valueX = parseFloat(value.substr(0, sepIdx));
-                    valueY = parseFloat(value.substr(sepIdx+1));
-                }
-                appendData(name, valueX, valueY, flags)
-            }            
+            }
+            if(!app.cmdAvailable && Object.entries(commands).length>0) app.cmdAvailable = true;
+        }
+        else if(msg.data.startsWith(">")){
+            logs.unshift(msg.data.substr(1));//prepend log to list
+            if(!app.logAvailable && logs.length>0) app.logAvailable = true;
+        }
+        else {
+            // Extract series
+            let seriesList = (""+msg.data).split("\n");
+            //console.log(seriesList)
+            for(let serie of seriesList){
+                if(!serie.includes(':') || !serie.includes('|')) return;
+                let startIdx = serie.indexOf(':');
+                let name = serie.substr(0,serie.indexOf(':'));
+                let endIdx = serie.indexOf('|');
+                let flags = serie.substr(endIdx+1);
+                // Extract values array
+                let values = serie.substr(startIdx+1, endIdx-startIdx-1).split(';')
+                for(let value of values){
+                    if(value.length==0) continue;
+                    let valueX = 0;
+                    let sepIdx = value.indexOf(':');
+                    if(sepIdx==-1){
+                        valueX = now;
+                        valueY = parseFloat(value);
+                    }
+                    else {
+                        valueX = parseFloat(value.substr(0, sepIdx));
+                        valueY = parseFloat(value.substr(sepIdx+1));
+                    }
+                    appendData(name, valueX, valueY, flags)
+                }            
+            }
         }
     }
     catch(e){console.log(e)}
@@ -170,3 +199,7 @@ function computeStats(values) {
 	stats.med = midSize % 1 ? arr[midSize - 0.5] : (arr[midSize - 1] + arr[midSize]) / 2;
     return stats;
 }
+
+setInterval(()=>{
+    socket.send(`|_telecmd_list_cmd|`);
+}, 3000);

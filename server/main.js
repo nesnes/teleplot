@@ -1,4 +1,5 @@
 const UDP_PORT = 47269;
+const CMD_UDP_PORT = 47268;
 const HTTP_WS_PORT = 8080;
 
 const { Console } = require('console');
@@ -11,7 +12,11 @@ var expressWs = require('express-ws')(app);
 app.use(express.static(__dirname + '/www'))
 
 //Setup websocket server
-app.ws('/', (ws, req)=>{});
+app.ws('/', (ws, req)=>{
+    ws.on('message', function(msg) {
+        udpServer.send(msg, CMD_UDP_PORT);
+    });
+});
 app.listen(HTTP_WS_PORT);
 
 // Setup UDP server
