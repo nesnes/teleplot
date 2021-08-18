@@ -21,6 +21,10 @@
 #define TELEPLOT_USE_FREQUENCY // Allows to set a maxFrequency on updates (per key) but will instanciate a dynamic map
 #define TELEPLOT_USE_BUFFERING // Allows to group updates sent, but will use a dynamic buffer map
 
+#define TELEPLOT_FLAG_DEFAULT "g"
+#define TELEPLOT_FLAG_NOPLOT "np"
+#define TELEPLOT_FLAG_2D "xy"
+
 class Teleplot {
 public:
     Teleplot(std::string address, unsigned int bufferingFrequencyHz = 30)
@@ -42,20 +46,20 @@ public:
     static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
     
     template<typename T>
-    void update(std::string const& key, T const& value, unsigned int maxFrequencyHz=0) {
+    void update(std::string const& key, T const& value, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
         int64_t nowMs = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        updateData(key, nowMs, value, "g", maxFrequencyHz);
+        updateData(key, nowMs, value, flags, maxFrequencyHz);
     }
 
     template<typename T1, typename T2>
-    void update2D(std::string const& key, T1 const& valueX, T2 const& valueY, unsigned int maxFrequencyHz=0) {
+    void update2D(std::string const& key, T1 const& valueX, T2 const& valueY, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_2D) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
-        updateData(key, valueX, valueY, "xy", maxFrequencyHz);
+        updateData(key, valueX, valueY, flags, maxFrequencyHz);
     }
 
     void log(std::string const& log){

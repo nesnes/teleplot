@@ -27,7 +27,17 @@
             </header>
 
             <div class="main-body">
-                <!--<div class="left-col"></div>-->
+                <!--Variables-->
+                <div class="left-col var-container" v-if="dataAvailable">
+                    <div v-for="telem in telemetries" v-bind:key="'var-'+telem.name"
+                    class="var-vue" @click="toggleVisibility(telem)"
+                    v-bind:class="{ 'var-vue-visible': telem.visible }">
+                        <div class="var-vue-name">{{telem.name}}</div>
+                        <div class="var-vue-value">
+                            {{telem.value.toFixed(4)}}
+                        </div>
+                    </div>
+                </div>
 
                 <!-- PLOTS -->
                 <div class="center-col">
@@ -36,7 +46,7 @@
                         <span>Ready to plot incomming telemetry.</span>
                     </div>
                     <div class="telem-container">
-                        <div v-for="telem in telemetries" v-bind:key="telem.name" class="telem-vue">
+                        <div v-for="telem in telemetries" v-bind:key="'telem-'+telem.name" class="telem-vue" v-if="telem.visible">
                             <div class="telem-vue-header">
                                 <div class="telem-stat">
                                     <span class="telem-stat-name">Name</span>

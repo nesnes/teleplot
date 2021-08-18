@@ -96,6 +96,7 @@ body {
 	display: flex;
 	flex-direction: row;
 	justify-content: space-around;
+	flex-wrap: wrap;
 }
 
 .telem-vue-title {
@@ -117,6 +118,46 @@ body {
 .telem-stat-name {
 	font-size: 12px;
 	color: #7f8c8d;
+}
+
+.var-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.var-vue {
+	border-bottom: 1px solid rgba(0,0,0,0.12);
+	padding: 5px;
+	font-size: 14px;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	cursor: pointer;
+}
+
+.var-vue-name {
+	color : #7f8c8d;
+	max-width: 250px;
+	word-break: break-all;
+}
+
+.var-vue-visible > .var-vue-name {
+	color: black;
+}
+
+.var-vue-value {
+	background-color: #7f8c8d;
+	border-radius: 5px;
+	padding: 2px 5px 2px 5px;
+	color: white;
+	margin-left: 5px;
+	width: 60px;
+	text-align: center;
+}
+
+.var-vue-visible  > .var-vue-value {
+	background-color: #2ecc71;
+	color: white;
 }
 
 .cmd-container {
@@ -141,6 +182,7 @@ body {
 	height: 400px;
 	min-width: 500px;
 	overflow: auto;
+	margin-top: 1em;
 }
 
 .log-vue {

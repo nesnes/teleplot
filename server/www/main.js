@@ -18,16 +18,29 @@ var app = new Vue({
         },
         sendCmd: function(cmd) {
             socket.send(`|${cmd.name}|`);
+        },
+        toggleVisibility: function(telem) {
+            telem.visible = !telem.visible;
+            triggerChartResize();
         }
     }
 })
 
 // Init cursor sync
 window.cursorSync = uPlot.sync("cursorSync");
+window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
+    if(type=="mousemove"){
+        if(i != null) updateDisplayedVarValues(self.cursor.sync.values[0], self.cursor.sync.values[1]);
+        else resetDisplayedVarValues();
+    }
+    return true;
+}});
+
 var defaultPlotOpts = {
     title: "",
     width: 400,
     height: 400,
+    //hooks: {setCursor: [function(e){console.log(e);}]},
     scales: {
         x: {
             time: true
@@ -111,6 +124,7 @@ socket.onmessage = function(msg) {
 function appendData(key, valueX, valueY, flags) {
     if(key.substring(0, 6) === "statsd") return;
     let isTimeBased = !flags.includes("xy");
+    let shouldPlot = !flags.includes("np");
     if(telemetries[key] == undefined){
         let config = Object.assign({}, defaultPlotOpts);
         config.name = key;
@@ -123,7 +137,8 @@ function appendData(key, valueX, valueY, flags) {
             flags: flags,
             data: [[],[]],
             value: 0,
-            config: config
+            config: config,
+            visible: shouldPlot
         };
         Vue.set(app.telemetries, key, obj)
     }
@@ -157,15 +172,20 @@ function importSessionJSON(event) {
             let content = JSON.parse(e.target.result);
             for(let key in content) Vue.set(app.telemetries, key, content[key]);
             if(Object.entries(telemetries).length>0) app.dataAvailable = true;
-            setTimeout(()=>{ // Trigger a resize event after initial chart display
-                window.dispatchEvent(new Event('resize'));
-            }, 250);
+             // Trigger a resize event after initial chart display
+                triggerChartResize();
         }
         catch(e) {
             alert("Importation failed: "+e.toString());
         }
     };
     reader.readAsText(file);
+}
+
+function triggerChartResize(){
+    setTimeout(()=>{
+        window.dispatchEvent(new Event('resize'));
+    }, 100);
 }
 
 function computeStats(values) {
@@ -198,6 +218,50 @@ function computeStats(values) {
     var midSize = arr.length / 2;
 	stats.med = midSize % 1 ? arr[midSize - 0.5] : (arr[midSize - 1] + arr[midSize]) / 2;
     return stats;
+}
+
+function findClosestLowerByIdx(arr, n) {
+    let from = 0,
+        to = arr.length - 1,
+        idx;
+  
+    while (from <= to) {
+        idx = Math.floor((from + to) / 2);
+  
+        let isLowerLast = arr[idx] <= n && idx == arr.length-1;
+        let isClosestLower = (idx+1 < arr.length-1) && (arr[idx] <= n) && (arr[idx+1] > n);
+        if (isClosestLower || isLowerLast) {
+            return idx;
+        }
+        else {
+            if (arr[idx] > n)  to = idx - 1;
+            else  from = idx + 1;
+        }
+    }
+    return 0;
+}
+
+  function resetDisplayedVarValues(){
+    //for each telem, set latest value
+    let telemList = Object.keys(telemetries);
+    for(let telemName of telemList) {
+        let telem = telemetries[telemName];
+        let idx = telem.data[0].length-1;
+        if(0 <= idx && idx < telem.data[0].length) {
+            telem.value = telem.data[1][idx];
+        }
+    }
+}
+function updateDisplayedVarValues(valueX, valueY){
+    //for each telem, find closest value (before valueX and valueY)
+    let telemList = Object.keys(telemetries);
+    for(let telemName of telemList) {
+        let telem = telemetries[telemName];
+        let idx = findClosestLowerByIdx(telem.data[0], valueX);
+        if(idx < telem.data[0].length) {
+            telem.value = telem.data[1][idx];
+        }
+    }
 }
 
 setInterval(()=>{
