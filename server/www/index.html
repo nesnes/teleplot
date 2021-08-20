@@ -43,7 +43,7 @@
                 <div class="center-col">
                     <div v-if="!dataAvailable" class="help-container">
                         <img src="images/logo-color.svg"/>
-                        <span>Ready to plot incomming telemetry.</span>
+                        <span>Ready to plot incoming telemetry.</span>
                     </div>
                     <div class="telem-container">
                         <div v-for="telem in telemetries" v-bind:key="'telem-'+telem.name" class="telem-vue" v-if="telem.visible">
@@ -78,13 +78,14 @@
                 </div>
 
                 <!-- CMD -->
-                <div class="right-col cmd-container" v-if="cmdAvailable">
+                <div class="right-col cmd-container" v-if="cmdAvailable || logAvailable">
                     <span class="cmd-container-title">Commands</span>
                     <div v-for="cmd in commands" v-bind:key="cmd.name" class="cmd-vue">
                         <button @click="sendCmd(cmd)">{{cmd.name}}</button>
                     </div>
 
                     <!-- LOG -->
+                    <span class="cmd-container-title">Logs</span>
                     <div class="log-container" v-if="logAvailable">
                         <span v-for="log of logs" v-bind:key="log" class="log-vue">
                             {{log}}
