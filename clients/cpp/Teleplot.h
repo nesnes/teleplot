@@ -63,7 +63,8 @@ public:
     }
 
     void log(std::string const& log){
-        emit(">"+log);
+        int64_t nowMs = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        emit(">"+std::to_string(nowMs)+":"+log);
     }
 
 private:

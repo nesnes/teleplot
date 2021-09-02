@@ -183,9 +183,15 @@ body {
 	min-width: 500px;
 	overflow: auto;
 	margin-top: 1em;
+	padding-left: 5px;
+	padding-bottom: 5px;
 }
 
 .log-vue {
 	display: block;
 	color: #ecf0f1;
+	cursor: pointer;
+}
+.log-vue-selected {
+	background-color: #27ae60;
 }

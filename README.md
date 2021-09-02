@@ -156,6 +156,16 @@ int main(int argc, char* argv[])
 }
 ```
 
+## Send a text log
+
+Along with telemetries, you can also send text logs to be display in a console-like manner:
+
+`echo ">:Hello world" | nc -u -w0 127.0.0.1 47269`
+
+By adding a millisecond timestamp to your log, you can sync them with the charts.
+
+`echo ">1627551892437:Hello world" | nc -u -w0 127.0.0.1 47269`
+
 ## Call a function
 
 Functions can be called from the Teleplot interface and will be auto-discovered, however, they can also be triggered by a simple UDP packet:

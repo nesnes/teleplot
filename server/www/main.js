@@ -22,14 +22,51 @@ var app = new Vue({
         toggleVisibility: function(telem) {
             telem.visible = !telem.visible;
             triggerChartResize();
+        },
+        onLogClick: function(log, index) {
+            for(l of app.logs) l.selected = log.timestamp > 0 && l.timestamp == log.timestamp;
+            logCursor.pub(log);
         }
     }
 })
 
+logCursor = {
+    cursor:{
+        show: true,
+        sync:{
+            values:[0,0],
+            scales:["x"],
+            key: "cursorSync",
+            filters: {pub: function(...e){return true}, sub: function(...e){return true}},
+            match: [function(a,b){return a==b}],
+            setSeries: true,
+        },
+        left: 10,
+        top: 10,
+        x: true,
+        y: false
+    },
+    scales: {
+        x:{ori:0, _max: 1, _min: 1, key:"x", time:true},
+    },
+    clientX: -10,
+    clientY: -10,
+    pub: function(log) {
+        logCursor.cursor.sync.values[0] = log.timestamp/1000;
+        logCursor.cursor.sync.values[1] = 0;
+        window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, -42);
+    }
+};
+
 // Init cursor sync
 window.cursorSync = uPlot.sync("cursorSync");
+//window.cursorSync.sub(logCursor);
 window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
     if(type=="mousemove"){
+        if(i != -42){
+            let timestamp = self.cursor.sync.values[0];
+            for(l of app.logs) l.selected = Math.abs(l.timestamp/1000 - timestamp) < 0.1; // within 10ms difference (20ms window)
+        }
         if(i != null) updateDisplayedVarValues(self.cursor.sync.values[0], self.cursor.sync.values[1]);
         else resetDisplayedVarValues();
     }
@@ -75,23 +112,33 @@ socket.onmessage = function(msg) {
             let cmdList = msg.data.split("|");
             for(let cmd of cmdList){
                 if(cmd.length==0) continue;
-                if(commands[cmd] == undefined){
+                if(app.commands[cmd] == undefined){
                     let newCmd = {
                         name: cmd
                     };
                     Vue.set(app.commands, cmd, newCmd);
                 }
             }
-            if(!app.cmdAvailable && Object.entries(commands).length>0) app.cmdAvailable = true;
+            if(!app.cmdAvailable && Object.entries(app.commands).length>0) app.cmdAvailable = true;
         }
         else if(msg.data.startsWith(">")){
-            logs.unshift(msg.data.substr(1));//prepend log to list
-            if(!app.logAvailable && logs.length>0) app.logAvailable = true;
+            let currLog = {
+                timestamp: now,
+                text: ""
+            }
+            
+            let logStart = msg.data.indexOf(":")+1;
+            currLog.text = msg.data.substr(logStart);
+            currLog.timestamp = parseInt(msg.data.substr(1, logStart-2));
+            if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = 0;
+            app.logs.unshift(currLog);//prepend log to list
+
+            //logs.unshift(msg.data.substr(1));//prepend log to list
+            if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
         }
         else {
             // Extract series
             let seriesList = (""+msg.data).split("\n");
-            //console.log(seriesList)
             for(let serie of seriesList){
                 if(!serie.includes(':') || !serie.includes('|')) return;
                 let startIdx = serie.indexOf(':');
@@ -118,14 +165,14 @@ socket.onmessage = function(msg) {
         }
     }
     catch(e){console.log(e)}
-    if(!app.dataAvailable && Object.entries(telemetries).length>0) app.dataAvailable = true;
+    if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
 };
 
 function appendData(key, valueX, valueY, flags) {
     if(key.substring(0, 6) === "statsd") return;
     let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
-    if(telemetries[key] == undefined){
+    if(app.telemetries[key] == undefined){
         let config = Object.assign({}, defaultPlotOpts);
         config.name = key;
         config.scales.x.time = isTimeBased;
@@ -142,14 +189,19 @@ function appendData(key, valueX, valueY, flags) {
         };
         Vue.set(app.telemetries, key, obj)
     }
-    if(isTimeBased) telemetries[key].data[0].push(valueX/1000); // timestamp
-    else telemetries[key].data[0].push(valueX); // raw XY chart
-    telemetries[key].data[1].push(valueY);
-    telemetries[key].value = valueY;
+    if(isTimeBased) app.telemetries[key].data[0].push(valueX/1000); // timestamp
+    else app.telemetries[key].data[0].push(valueX); // raw XY chart
+    app.telemetries[key].data[1].push(valueY);
+    app.telemetries[key].value = valueY;
 }
 
 function exportSessionJSON() {
-    let content = JSON.stringify(telemetries);
+    let content = JSON.stringify({
+        telemetries: app.telemetries,
+        logs: app.logs,
+        dataAvailable: app.dataAvailable,
+        logAvailable: app.logAvailable
+    });
     let now = new Date();
     let filename = `teleplot_${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.json`;
     var element = document.createElement('a');
@@ -170,9 +222,11 @@ function importSessionJSON(event) {
     reader.onload = function(e) {
         try{
             let content = JSON.parse(e.target.result);
-            for(let key in content) Vue.set(app.telemetries, key, content[key]);
-            if(Object.entries(telemetries).length>0) app.dataAvailable = true;
-             // Trigger a resize event after initial chart display
+            for(let key in content) {
+                Object.ass
+                Vue.set(app, key, content[key]);
+            }
+            // Trigger a resize event after initial chart display
                 triggerChartResize();
         }
         catch(e) {
@@ -243,9 +297,9 @@ function findClosestLowerByIdx(arr, n) {
 
   function resetDisplayedVarValues(){
     //for each telem, set latest value
-    let telemList = Object.keys(telemetries);
+    let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {
-        let telem = telemetries[telemName];
+        let telem = app.telemetries[telemName];
         let idx = telem.data[0].length-1;
         if(0 <= idx && idx < telem.data[0].length) {
             telem.value = telem.data[1][idx];
@@ -254,9 +308,9 @@ function findClosestLowerByIdx(arr, n) {
 }
 function updateDisplayedVarValues(valueX, valueY){
     //for each telem, find closest value (before valueX and valueY)
-    let telemList = Object.keys(telemetries);
+    let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {
-        let telem = telemetries[telemName];
+        let telem = app.telemetries[telemName];
         let idx = findClosestLowerByIdx(telem.data[0], valueX);
         if(idx < telem.data[0].length) {
             telem.value = telem.data[1][idx];

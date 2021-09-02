@@ -87,8 +87,9 @@
                     <!-- LOG -->
                     <span class="cmd-container-title">Logs</span>
                     <div class="log-container" v-if="logAvailable">
-                        <span v-for="log of logs" v-bind:key="log" class="log-vue">
-                            {{log}}
+                        <span v-for="(log, index) in logs" v-bind:key="index" class="log-vue" @click="onLogClick(log, index)"
+                            v-bind:class="{ 'log-vue-selected': log.selected }">
+                            {{log.text}}
                         </span>
                     </div>
                 </div>
