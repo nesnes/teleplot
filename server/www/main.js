@@ -3,6 +3,7 @@ var telemetries = {};
 var commands = {};
 var logs = [];
 var telemBuffer = {};
+var logBuffer = [];
 var app = new Vue({
     el: '#app',
     data: {
@@ -137,10 +138,9 @@ socket.onmessage = function(msg) {
             currLog.text = msg.data.substr(logStart);
             currLog.timestamp = parseInt(msg.data.substr(1, logStart-2));
             if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = 0;
-            app.logs.unshift(currLog);//prepend log to list
+            logBuffer.unshift(currLog);//prepend log to buffer
 
             //logs.unshift(msg.data.substr(1));//prepend log to list
-            if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
         }
         // Data
         else {
@@ -175,7 +175,6 @@ socket.onmessage = function(msg) {
         }
     }
     catch(e){console.log(e)}
-    if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
 };
 
 function appendData(key, valuesX, valuesY, flags) {
@@ -210,7 +209,9 @@ function appendData(key, valuesX, valuesY, flags) {
 }
 
 function updateView() {
-    //Flush buffer into app data
+    // Flush buffer into app model
+
+    // Telemetry
     for(let key in telemBuffer) {
         if(telemBuffer[key].data[0].length == 0) continue; // nothing to flush
         app.telemetries[key].data[0].push(...telemBuffer[key].data[0]);
@@ -219,6 +220,14 @@ function updateView() {
         telemBuffer[key].data[0].length = 0;
         telemBuffer[key].data[1].length = 0;
     }
+    if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
+
+    //Logs
+    if(logBuffer.length>0) {
+        app.logs.unshift(...logBuffer);//prepend log to list
+        logBuffer.length = 0;
+    }
+    if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
 }
 
 function exportSessionJSON() {
