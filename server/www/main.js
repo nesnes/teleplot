@@ -2,6 +2,7 @@
 var telemetries = {};
 var commands = {};
 var logs = [];
+var telemBuffer = {};
 var app = new Vue({
     el: '#app',
     data: {
@@ -29,6 +30,9 @@ var app = new Vue({
         }
     }
 })
+
+//Init refresh rate
+setInterval(updateView, 30); // 30fps
 
 logCursor = {
     cursor:{
@@ -107,6 +111,7 @@ socket.onmessage = function(msg) {
     let now = new Date().getTime();
     //parse msg
     try{
+        // Command
         if(msg.data.startsWith("|")){
             // Parse command list
             let cmdList = msg.data.split("|");
@@ -121,6 +126,7 @@ socket.onmessage = function(msg) {
             }
             if(!app.cmdAvailable && Object.entries(app.commands).length>0) app.cmdAvailable = true;
         }
+        // Log
         else if(msg.data.startsWith(">")){
             let currLog = {
                 timestamp: now,
@@ -136,6 +142,7 @@ socket.onmessage = function(msg) {
             //logs.unshift(msg.data.substr(1));//prepend log to list
             if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
         }
+        // Data
         else {
             // Extract series
             let seriesList = (""+msg.data).split("\n");
@@ -147,20 +154,23 @@ socket.onmessage = function(msg) {
                 let flags = serie.substr(endIdx+1);
                 // Extract values array
                 let values = serie.substr(startIdx+1, endIdx-startIdx-1).split(';')
+                let xArray = [];
+                let yArray = [];
                 for(let value of values){
                     if(value.length==0) continue;
-                    let valueX = 0;
                     let sepIdx = value.indexOf(':');
                     if(sepIdx==-1){
-                        valueX = now;
-                        valueY = parseFloat(value);
+                        xArray.push(now);
+                        yArray.push(parseFloat(value));
                     }
                     else {
-                        valueX = parseFloat(value.substr(0, sepIdx));
-                        valueY = parseFloat(value.substr(sepIdx+1));
+                        xArray.push(parseFloat(value.substr(0, sepIdx)));
+                        yArray.push(parseFloat(value.substr(sepIdx+1)));
                     }
-                    appendData(name, valueX, valueY, flags)
-                }            
+                }
+                if(xArray.length>0){
+                    appendData(name, xArray, yArray, flags)
+                }
             }
         }
     }
@@ -168,7 +178,7 @@ socket.onmessage = function(msg) {
     if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
 };
 
-function appendData(key, valueX, valueY, flags) {
+function appendData(key, valuesX, valuesY, flags) {
     if(key.substring(0, 6) === "statsd") return;
     let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
@@ -188,11 +198,27 @@ function appendData(key, valueX, valueY, flags) {
             visible: shouldPlot
         };
         Vue.set(app.telemetries, key, obj)
+        telemBuffer[key] = {data:[[],[]], value:0};
     }
-    if(isTimeBased) app.telemetries[key].data[0].push(valueX/1000); // timestamp
-    else app.telemetries[key].data[0].push(valueX); // raw XY chart
-    app.telemetries[key].data[1].push(valueY);
-    app.telemetries[key].value = valueY;
+    if(isTimeBased) valuesX.forEach((elem, idx, arr)=>arr[idx] = elem/1000); // convert timestamps to seconds
+
+    // Flush data into buffer (to be flushed by updateView)
+    telemBuffer[key].data[0].push(...valuesX);
+    telemBuffer[key].data[1].push(...valuesY);
+    telemBuffer[key].value = valuesY[valuesY.length-1];
+    return;
+}
+
+function updateView() {
+    //Flush buffer into app data
+    for(let key in telemBuffer) {
+        if(telemBuffer[key].data[0].length == 0) continue; // nothing to flush
+        app.telemetries[key].data[0].push(...telemBuffer[key].data[0]);
+        app.telemetries[key].data[1].push(...telemBuffer[key].data[1]);
+        app.telemetries[key].value = telemBuffer[key].value
+        telemBuffer[key].data[0].length = 0;
+        telemBuffer[key].data[1].length = 0;
+    }
 }
 
 function exportSessionJSON() {
