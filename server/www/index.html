@@ -19,6 +19,7 @@
                     <span class="top-banner-title">Teleplot</span>
                 </div>
                 <div v-if="dataAvailable">
+                    <span title="Telemetry and logs ingest rate">{{(telemRate+logRate).toFixed(0)}}/s </span>
                     <button onclick="exportSessionJSON()">Download JSON</button>
                 </div>
                 <div v-else>

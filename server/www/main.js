@@ -12,7 +12,9 @@ var app = new Vue({
         logs: logs,
         dataAvailable: false,
         cmdAvailable: false,
-        logAvailable: false
+        logAvailable: false,
+        telemRate: 0,
+        logRate: 0
     },
     methods: {
         updateStats: function(telem){
@@ -208,12 +210,14 @@ function appendData(key, valuesX, valuesY, flags) {
     return;
 }
 
+var lastUpdateViewTimestamp = 0;
 function updateView() {
     // Flush buffer into app model
-
     // Telemetry
+    let dataSum = 0;
     for(let key in telemBuffer) {
         if(telemBuffer[key].data[0].length == 0) continue; // nothing to flush
+        dataSum += telemBuffer[key].data[0].length;
         app.telemetries[key].data[0].push(...telemBuffer[key].data[0]);
         app.telemetries[key].data[1].push(...telemBuffer[key].data[1]);
         app.telemetries[key].value = telemBuffer[key].value
@@ -222,12 +226,23 @@ function updateView() {
     }
     if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
 
-    //Logs
+    // Logs
+    var logSum = logBuffer.length;
     if(logBuffer.length>0) {
         app.logs.unshift(...logBuffer);//prepend log to list
         logBuffer.length = 0;
     }
     if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
+
+    // Stats
+    let now = new Date().getTime();
+    if(lastUpdateViewTimestamp==0) lastUpdateViewTimestamp = now;
+    let diff = now - lastUpdateViewTimestamp
+    if(diff>0){
+        app.telemRate = app.telemRate*0.8 + (1000/diff*dataSum)*0.2;
+        app.logRate = app.logRate *0.8 + (1000/diff*logSum)*0.2;
+    }
+    lastUpdateViewTimestamp = now;
 }
 
 function exportSessionJSON() {
