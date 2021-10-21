@@ -13,7 +13,7 @@ Vue.component('uplot-vue', {
     },
     data() {
         // eslint-disable-next-line
-        return {_chart: null, div_: null, _size: 0, width_:0, height_:0};
+        return {_chart: null, div_: null, width_:0, height_:0};
     },
     watch: {
         options(options, prevOptions) {
@@ -33,9 +33,8 @@ Vue.component('uplot-vue', {
         data(data, prevData) {
             if (!this._chart) {
                 this._create();
-            } else if ((0 in data) && this._size != data[0].length) {
+            } else if ((0 in data)) {
                 this._chart.setData(data);
-                this._size = data[0].length;
             }
             this._resize();
         }

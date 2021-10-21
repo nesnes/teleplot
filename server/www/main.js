@@ -14,7 +14,8 @@ var app = new Vue({
         cmdAvailable: false,
         logAvailable: false,
         telemRate: 0,
-        logRate: 0
+        logRate: 0,
+        viewDuration: 0
     },
     methods: {
         updateStats: function(telem){
@@ -35,7 +36,7 @@ var app = new Vue({
 })
 
 //Init refresh rate
-setInterval(updateView, 30); // 30fps
+setInterval(updateView, 60); // 15fps
 
 logCursor = {
     cursor:{
@@ -229,6 +230,21 @@ function updateView() {
         telemBuffer[key].data[0].length = 0;
         telemBuffer[key].data[1].length = 0;
     }
+    //Clear older data from viewDuration
+    if(parseFloat(app.viewDuration)>0)
+    {
+        for(let key in app.telemetries) {
+            let data = app.telemetries[key].data;
+            let latestTimestamp = data[0][data[0].length-1];
+            let minTimestamp = latestTimestamp - parseFloat(app.viewDuration);
+            let minIdx = findClosestLowerByIdx(data[0], minTimestamp);
+            if(data[0][minIdx]<minTimestamp) minIdx += 1;
+            //if(minIdx>=data[0].length) break;
+            app.telemetries[key].data[0].splice(0, minIdx);
+            app.telemetries[key].data[1].splice(0, minIdx);
+        }
+    }
+
     if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
 
     // Logs
@@ -313,7 +329,7 @@ function computeStats(data) {
     {
         minIdx = findClosestLowerByIdx(data[0], timestampWindow.min) + 1;
         maxIdx = findClosestLowerByIdx(data[0], timestampWindow.max);
-        if(maxIdx<=minIdx || maxIdx>data[0].length) return stats;
+        if(maxIdx<=minIdx || maxIdx>=data[0].length) return stats;
         values = data[1].slice(minIdx, maxIdx);
     }
     if(values.length==0) return stats;
