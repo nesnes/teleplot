@@ -18,7 +18,7 @@ var app = new Vue({
     },
     methods: {
         updateStats: function(telem){
-            Vue.set(telem, "stats", computeStats(telem.data[1]))
+            Vue.set(telem, "stats", computeStats(telem.data))
         },
         sendCmd: function(cmd) {
             socket.send(`|${cmd.name}|`);
@@ -66,8 +66,8 @@ logCursor = {
 };
 
 // Init cursor sync
+var timestampWindow = {min:0, max:0};
 window.cursorSync = uPlot.sync("cursorSync");
-//window.cursorSync.sub(logCursor);
 window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
     if(type=="mousemove"){
         if(i != -42){
@@ -77,6 +77,11 @@ window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
         if(i != null) updateDisplayedVarValues(self.cursor.sync.values[0], self.cursor.sync.values[1]);
         else resetDisplayedVarValues();
     }
+    // let some time to update the axes min/max
+    setTimeout(()=>{
+        timestampWindow.min = self.scales.x._min;
+        timestampWindow.max = self.scales.x._max;
+    }, 10);
     return true;
 }});
 
@@ -292,7 +297,7 @@ function triggerChartResize(){
     }, 100);
 }
 
-function computeStats(values) {
+function computeStats(data) {
     let stats = {
         min:0,
         max:0,
@@ -301,6 +306,16 @@ function computeStats(values) {
         med:0,
         stdev:0,
     };
+    let values = data[1];
+    //Find min/max indexes from timestampWindow
+    let minIdx = 0, maxIdx = data[1].length;
+    if(timestampWindow.min !=0 && timestampWindow.max != 0)
+    {
+        minIdx = findClosestLowerByIdx(data[0], timestampWindow.min) + 1;
+        maxIdx = findClosestLowerByIdx(data[0], timestampWindow.max);
+        if(maxIdx<=minIdx || maxIdx>data[0].length) return stats;
+        values = data[1].slice(minIdx, maxIdx);
+    }
     if(values.length==0) return stats;
     // Sort
     let arr = values.slice().sort(function(a, b){return a - b;});
