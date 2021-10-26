@@ -49,7 +49,7 @@
                     class="var-vue" @click="toggleVisibility(telem)"
                     v-bind:class="{ 'var-vue-visible': telem.visible }">
                         <div class="var-vue-name">{{telem.name}}</div>
-                        <div class="var-vue-value">
+                        <div class="var-vue-value" v-if="telem.value != null">
                             {{telem.value.toFixed(4)}}
                         </div>
                     </div>
@@ -70,19 +70,19 @@
                                 </div>
                                 <div class="telem-stat">
                                     <span class="telem-stat-name">Value</span>
-                                    <span class="telem-stat-value">{{telem.value.toFixed(4)}}</span>
+                                    <span class="telem-stat-value" v-if="telem.value != null">{{telem.value.toFixed(4)}}</span>
                                 </div>
                                 <div v-if="telem.stats" class="telem-stat">
                                     <span class="telem-stat-name">Mean</span>
-                                    <span class="telem-stat-value">{{telem.stats.mean.toFixed(4)}}</span>
+                                    <span class="telem-stat-value" v-if="telem.stats.mean != null">{{telem.stats.mean.toFixed(4)}}</span>
                                 </div>
                                 <div v-if="telem.stats"  class="telem-stat">
                                     <span class="telem-stat-name">Median</span>
-                                    <span class="telem-stat-value">{{telem.stats.med.toFixed(4)}}</span>
+                                    <span class="telem-stat-value" v-if="telem.stats.med != null">{{telem.stats.med.toFixed(4)}}</span>
                                 </div>
                                 <div v-if="telem.stats"  class="telem-stat">
                                     <span class="telem-stat-name">Stdev</span>
-                                    <span class="telem-stat-value">{{telem.stats.stdev.toFixed(4)}}</span>
+                                    <span class="telem-stat-value" v-if="telem.stats.stdev != null">{{telem.stats.stdev.toFixed(4)}}</span>
                                 </div>
                                 <div class="">
                                     <button @click="updateStats(telem)">stats</button>
