@@ -50,7 +50,8 @@ public:
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
-        int64_t nowMs = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        double nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        double nowMs = nowUs/1000.f;
         updateData(key, nowMs, value, flags, maxFrequencyHz);
     }
 
@@ -92,7 +93,7 @@ private:
     template<typename T1, typename T2>
     std::string formatValues(T1 const& valueX, T2 const& valueY){
         std::ostringstream oss;
-        oss << valueX << ":" << valueY;
+        oss << std::fixed << valueX << ":" << valueY;
         return oss.str();
     }
 

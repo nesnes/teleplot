@@ -144,7 +144,7 @@ socket.onmessage = function(msg) {
             
             let logStart = msg.data.indexOf(":")+1;
             currLog.text = msg.data.substr(logStart);
-            currLog.timestamp = parseInt(msg.data.substr(1, logStart-2));
+            currLog.timestamp = parseFloat(msg.data.substr(1, logStart-2));
             if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = 0;
             logBuffer.unshift(currLog);//prepend log to buffer
 
