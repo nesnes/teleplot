@@ -15,7 +15,9 @@ var app = new Vue({
         logAvailable: false,
         telemRate: 0,
         logRate: 0,
-        viewDuration: 0
+        viewDuration: 0,
+        leftPanelVisible: true,
+        rightPanelVisible: true
     },
     methods: {
         updateStats: function(telem){
@@ -31,7 +33,14 @@ var app = new Vue({
         onLogClick: function(log, index) {
             for(l of app.logs) l.selected = log.timestamp > 0 && l.timestamp == log.timestamp;
             logCursor.pub(log);
+        },
+        showLeftPanel: function(show) {
+            app.leftPanelVisible=show;
+        },
+        showRightPanel: function(show) {
+            app.rightPanelVisible=show;
         }
+
     }
 })
 
