@@ -122,6 +122,39 @@ int main(int argc, char* argv[])
 }
 ```
 
+## Python
+
+```python
+import socket
+import math
+import time
+
+teleplotAddr = ("127.0.0.1",47269)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+def sendTelemetry(name, value):
+	now = time.time() * 1000
+	msg = name+":"+str(now)+":"+str(value)+"|g"
+	sock.sendto(msg.encode(), teleplotAddr)
+
+i=0
+while i < 1000:
+	
+	sendTelemetry("sin", math.sin(i))
+	sendTelemetry("cos", math.cos(i))
+
+	i+=0.1
+	time.sleep(0.01)
+```
+
+## Not listed?
+
+You just need to send a UDP packet with the proper text in it. Open your web browser, search for `my_language send UDP packet`, and copy-paste the first sample you find before editing it with the following options:
+	
+- address: `127.0.0.1`
+- port: `47269`
+- your test message: `myValue:1234|g` 
+
 # Remote function calls
 
 Remote function calls is an optional feature that opens an UDP socket between the program and the Teleplot server to pull the list of registered functions and call them.
