@@ -13,8 +13,12 @@ app.use(express.static(__dirname + '/www'))
 
 //Setup websocket server
 app.ws('/', (ws, req)=>{
-    ws.on('message', function(msg) {
-        udpServer.send(msg, CMD_UDP_PORT);
+    ws.on('message', function(msgStr) {
+        try {
+            let msg = JSON.parse(msgStr);
+            udpServer.send(msg.cmd, CMD_UDP_PORT);
+        }
+        catch(e){}
     });
 });
 app.listen(HTTP_WS_PORT);
@@ -26,7 +30,7 @@ udpServer.bind(UDP_PORT);
 // Relay UDP packets to Websocket
 udpServer.on('message',function(msg,info){
     expressWs.getWss().clients.forEach((client)=>{
-        client.send(msg.toString(), { binary: false });
+        client.send(JSON.stringify({data: msg.toString(), fromSerial:false, timestamp: new Date().getTime()}), { binary: false });
     });
 });
 

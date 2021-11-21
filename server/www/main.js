@@ -1,4 +1,10 @@
 // Init Vue
+
+var vscode = null;
+if("acquireVsCodeApi" in window) vscode = acquireVsCodeApi();
+
+var connections = [];
+var widgets = [];
 var telemetries = {};
 var commands = {};
 var logs = [];
@@ -7,6 +13,8 @@ var logBuffer = [];
 var app = new Vue({
     el: '#app',
     data: {
+        connections: connections,
+        widgets: widgets,
         telemetries: telemetries,
         commands: commands,
         logs: logs,
@@ -17,18 +25,20 @@ var app = new Vue({
         logRate: 0,
         viewDuration: 0,
         leftPanelVisible: true,
-        rightPanelVisible: true
+        rightPanelVisible: true,
+        textToSend: "",
+        sendTextLineEnding: "\\r\\n",
+        newChartDropZoneOver: false,
+        newConnectionAddress: "",
+        creatingConnection: false
     },
     methods: {
-        updateStats: function(telem){
-            Vue.set(telem, "stats", computeStats(telem.data))
+        updateStats: function(widget){
+            widget.updateStats();
+            //Vue.set(telem, "stats", computeStats(telem.data))
         },
         sendCmd: function(cmd) {
             socket.send(`|${cmd.name}|`);
-        },
-        toggleVisibility: function(telem) {
-            telem.visible = !telem.visible;
-            triggerChartResize();
         },
         onLogClick: function(log, index) {
             for(l of app.logs) l.selected = log.timestamp > 0 && l.timestamp == log.timestamp;
@@ -36,13 +46,131 @@ var app = new Vue({
         },
         showLeftPanel: function(show) {
             app.leftPanelVisible=show;
+            triggerChartResize();
         },
         showRightPanel: function(show) {
             app.rightPanelVisible=show;
+            triggerChartResize();
+        },
+        clearAll: function() {
+            logs.length = 0;
+            Vue.set(app, 'logs', logs);
+            logBuffer.length = 0;
+            telemetries = {};
+            Vue.set(app, 'telemetries', telemetries);
+            commands = {};
+            Vue.set(app, 'commands', commands);
+            telemBuffer = {};
+            widgets.length = 0;
+            Vue.set(app, 'widgets', widgets);
+            app.dataAvailable = false;
+            app.cmdAvailable = false;
+            app.logAvailable = false;
+        },
+        sendText: function(text) {
+            let escape = app.sendTextLineEnding.replace("\\n","\n");
+            escape = escape.replace("\\r","\r");
+            vscode.postMessage({ cmd: "sendToSerial", text: text+escape});
+        },
+        onDragTelemetry: function(e, telemetryName){
+            e.dataTransfer.dropEffect = 'copy'
+            e.dataTransfer.effectAllowed = 'copy'
+            e.dataTransfer.setData("telemetryName", telemetryName);
+        },
+        onDropInWidget: function(e, widget){            
+            widget.draggedOver = false;
+            let telemetryName = e.dataTransfer.getData("telemetryName");
+            let serie = new DataSerie(telemetryName);
+            serie.sourceNames = [telemetryName];
+            widget.addSerie(serie);
+        },
+        onWidgetDragOver: function(e, widget){
+            e.preventDefault();
+            widget.draggedOver = true;
+        },
+        onWidgetDragLeave: function(e, widget){
+            e.preventDefault();
+            widget.draggedOver = false;
+        },
+        showWidget: function(widget, show){
+            widget.hidden = show;
+            console.log(widget, show)
+            triggerChartResize();
+        },
+        removeWidget: function(widget){
+            let idx = widgets.findIndex((w)=>w.id==widget.id);
+            if(idx>=0) app.widgets.splice(idx, 1);
+            triggerChartResize();
+        },
+        onDropInNewChart: function(e){            
+            newChartDropZoneOver = false;
+            let telemetryName = e.dataTransfer.getData("telemetryName");
+            let chart = new ChartWidget();
+            let serie = new DataSerie(telemetryName);
+            serie.sourceNames = [telemetryName];
+            chart.addSerie(serie);
+            widgets.unshift(chart); // prepend chart
+        },
+        onNewChartDragOver: function(e){
+            e.preventDefault();
+            newChartDropZoneOver = true;
+        },
+        onNewChartDragLeave: function(e){
+            e.preventDefault();
+            newChartDropZoneOver = false;
+        },
+        createConnection: function(){
+            let conn = new ConnectionTeleplotWebsocket();
+            let addr = app.newConnectionAddress;
+            let port = 8080;
+            if(addr.includes(":")) {
+                port = parseInt(addr.split(":")[1]);
+                addr = addr.split(":")[0];
+            }
+            conn.connect(addr, port);
+            app.connections.push(conn);
+            app.creatingConnection = false;
+            app.newConnectionAddress = "";
+        },
+        removeConnection: function(conn){
+            for(let i=0;i<app.connections.length;i++){
+                if(app.connections[i] == conn) {
+                    app.connections[i].disconnect();
+                    app.connections.splice(i,1);
+                    break;
+                }
+            }
         }
-
     }
 })
+function rgba(r,g,b,a){
+    return {r,g,b,a, toString: function(){ return `rgba(${this.r},${this.g},${this.b},${this.a})`}};
+}
+var ColorPalette = {
+    colors: [
+        rgba(231, 76, 60,1.0), //red
+        rgba(52, 152, 219,1.0), //blue
+        rgba(46, 204, 113,1.0), //green
+        rgba(155, 89, 182,1.0), //violet
+        rgba(241, 196, 15,1.0), //yellow
+        rgba(26, 188, 156,1.0), //turquoise
+        rgba(230, 126, 34,1.0), //orange
+        rgba(52, 73, 94,1.0), //blueish grey
+        rgba(127, 140, 141,1.0), //gray
+        rgba(192, 57, 43,1.0), //dark red
+        rgba(41, 128, 185,1.0), //darkblue
+        rgba(39, 174, 96,1.0), //darkgreen
+        rgba(142, 68, 173,1.0), // darkviolet
+        rgba(211, 84, 0,1.0), //darkorange
+        rgba(44, 62, 80,1.0), //blueish darkgrey
+        rgba(0, 0, 0,1.0), //black
+    ],
+    getColor: function(index, alpha=1.0){
+        let color = Object.assign({}, this.colors[index % this.colors.length]);
+        color.a = alpha;
+        return color;
+    }
+}
 
 //Init refresh rate
 setInterval(updateView, 60); // 15fps
@@ -98,7 +226,7 @@ window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
 var defaultPlotOpts = {
     title: "",
     width: 400,
-    height: 400,
+    height: 250,
     //hooks: {setCursor: [function(e){console.log(e);}]},
     scales: {
         x: {
@@ -120,57 +248,472 @@ var defaultPlotOpts = {
             key: window.cursorSync.key,
             setSeries: true
         }
+    },
+    legend: {
+        show: false
     }
 };
 
-// Init sockets
-var socket = new WebSocket("ws://"+window.location.host);
-socket.onmessage = function(msg) {
-    let now = new Date().getTime();
-    //parse msg
-    try{
-        // Command
-        if(msg.data.startsWith("|")){
-            // Parse command list
-            let cmdList = msg.data.split("|");
-            for(let cmd of cmdList){
-                if(cmd.length==0) continue;
-                if(app.commands[cmd] == undefined){
-                    let newCmd = {
-                        name: cmd
-                    };
-                    Vue.set(app.commands, cmd, newCmd);
+var ConnectionCount = 0;
+class Connection{
+    constructor(){
+        this.name = "";
+        this.id = "connection-"+ConnectionCount++;
+        this.type = "";
+        this.connected = false;
+        this.inputs = [];
+    }
+
+    connect(){
+
+    }
+
+    removeInput(input){
+        for(let i=0;i<this.inputs.length;i++){
+            if(this.inputs[i] == input) {
+                this.inputs[i].disconnect();
+                this.inputs.splice(i,1);
+                break;
+            }
+        }
+    }
+}
+
+class ConnectionTeleplotVSCode extends Connection{
+    constructor() {
+        super();
+        this.name="localhost-VSCode"
+        this.type = "teleplot-vscode";
+        this.vscode = vscode;
+        this.udp = new DataInputUDP(this, "UDP");
+        this.udp.address = "localhost";
+        this.udp.port = 47269;
+        this.inputs.push(this.udp);
+        
+        this.supportSerial = true;
+        let serialIn = new DataInputSerial(this, "Serial");
+        this.inputs.push(serialIn);
+    }
+
+    connect() {
+        if(!this.vscode) return false;
+        window.addEventListener('message', message => {
+            let msg = message.data;
+            if("id" in msg){
+                for(let input of this.inputs){
+                    if(input.id == msg.id){
+                        input.onMessage(msg);
+                        break;
+                    }
                 }
             }
-            if(!app.cmdAvailable && Object.entries(app.commands).length>0) app.cmdAvailable = true;
-        }
-        // Log
-        else if(msg.data.startsWith(">")){
-            let currLog = {
-                timestamp: now,
-                text: ""
+            else{
+                if("data" in msg) {
+                    parseData(msg); //update server so it keeps track of connection IDs when forwarding data
+                }
+                else if("cmd" in msg) {
+                    //nope
+                }
             }
-            
-            let logStart = msg.data.indexOf(":")+1;
-            currLog.text = msg.data.substr(logStart);
-            currLog.timestamp = parseFloat(msg.data.substr(1, logStart-2));
-            if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = 0;
-            logBuffer.unshift(currLog);//prepend log to buffer
+        });
+        this.vscode.postMessage({ cmd: "listSerialPorts"});
+        //Report UDP input as connected
+        this.udp.connected = true;
+        this.connected = true;
+        return true;
+    }
 
-            //logs.unshift(msg.data.substr(1));//prepend log to list
+    disconnect() {
+        for(let input of this.inputs){
+            input.disconnect();
         }
-        // Data
+        this.connected = false;
+    }
+
+    sendServerCommand(command) {
+        this.vscode.postMessage(command);
+    }
+
+    updateCMDList() {
+        for(let input of this.inputs){
+            input.updateCMDList();
+        }
+    }
+
+    createInput(type) {
+        if(type=="serial") {
+            let serialIn = new DataInputSerial(this, "Serial");
+            this.inputs.push(serialIn);
+        }
+    }
+}
+
+class ConnectionTeleplotWebsocket extends Connection{
+    constructor(){
+        super();
+        this.name=""
+        this.type = "teleplot-websocket";
+        this.inputs = [];
+        this.socket = null;
+        this.address = "";
+        this.port = "";
+        this.udp = new DataInputUDP(this, "UDP");
+        this.udp.address = "";
+        this.udp.port = 47269;
+        this.inputs.push(this.udp);
+    }
+
+    connect(_address, _port){
+        this.name = _address+":"+_port;
+        this.address = _address;
+        this.port = _port;
+        this.udp.address = this.address;
+        this.socket = new WebSocket("ws://"+this.address+":"+this.port);
+        this.socket.onopen = (event) => {
+            this.udp.connected = true;
+            this.connected = true;
+            this.sendServerCommand({ cmd: "listSerialPorts"});
+        };
+        this.socket.onclose = (event) => {
+            this.udp.connected = false;
+            this.connected = false;
+            for(let input of this.inputs){
+                input.disconnect();
+            }
+        };
+        this.socket.onmessage = (msgWS) => {
+            let msg = JSON.parse(msgWS.data);
+            if("id" in msg){
+                for(let input of this.inputs){
+                    if(input.id == msg.id){
+                        input.onMessage(msg);
+                        break;
+                    }
+                }
+            }
+            else{
+                this.udp.onMessage(msg);
+            }
+        };
+        return true;
+    }
+
+    disconnect(){
+        if(this.socket){
+            this.socket.close();
+            this.socket = null;
+        }
+    }
+
+    sendServerCommand(command){
+        if(this.socket)
+            this.socket.send(JSON.stringify(command));
+    }
+
+    updateCMDList(){
+        for(let input of this.inputs){
+            input.updateCMDList();
+        }
+    }
+
+    createInput(type) {
+        if(type=="serial") {
+            let serialIn = new DataInputSerial(this, "Serial");
+            this.inputs.push(serialIn);
+        }
+    }
+}
+
+var DataInputCount = 0;
+class DataInput{
+    constructor(_connection, _name){
+        this.connection = _connection;
+        this.name = _name;
+        this.id = "data-input-"+DataInputCount++;
+        this.type = "";
+        this.connected = false;
+    }
+}
+
+class DataInputUDP extends DataInput{
+    constructor(_connection, _name) {
+        super(_connection, _name);
+        this.type = "UDP";
+        this.address = "";
+        this.port = 47269;
+    }
+
+    connect(){}
+    disconnect(){}
+
+    onMessage(msg){
+        if("data" in msg) {
+            msg.input = this;
+            parseData(msg);
+        }
+        else if("cmd" in msg) {
+            //nope
+        }
+    }
+
+    updateCMDList(){
+        this.connection.sendServerCommand({ id: this.id, data: `|_telecmd_list_cmd|`});
+    }
+}
+
+class DataInputSerial extends DataInput{
+    constructor(_connection, _name) {
+        super(_connection, _name);
+        this.port = null;
+        this.baudrate = 115200;
+        this.type = "serial";
+        this.portList = [];
+        this.listPorts();
+        this.textToSend = "";
+        this.endlineToSend = "";
+    }
+
+    connect(){
+        let baud = parseInt(this.baudrate);
+        this.connection.sendServerCommand({ id: this.id, cmd: "connectSerialPort", port: this.port, baud: baud})
+    }
+
+    disconnect(){
+        this.connection.sendServerCommand({ id: this.id, cmd: "disconnectSerialPort"})
+    }
+
+    onMessage(msg){
+        if("data" in msg) {
+            msg.input = this;
+            parseData(msg);
+        }
+        else if("cmd" in msg) {
+            if(msg.cmd == "serialPortList"){
+                this.portList.length = 0;
+                for(let serial of msg.list){
+                    if( serial.locationId
+                     || serial.serialNumber
+                     || serial.pnpId
+                     || serial.vendorId
+                     || serial.productId ){
+                        this.portList.push(serial);
+                    }
+                }
+            }
+            else if(msg.cmd == "serialPortConnect"){
+                this.connected = true;
+            }
+            else if(msg.cmd == "serialPortDisconnect"){
+                this.connected = false;
+            }
+        }
+    }
+
+    listPorts(){
+        this.connection.sendServerCommand({ id: this.id, cmd: "listSerialPorts"});
+    }
+
+    updateCMDList(){
+        //nope
+    }
+
+    sendText(text, lineEndings) {
+        let escape = lineEndings.replace("\\n","\n");
+        escape = escape.replace("\\r","\r");
+        this.connection.sendServerCommand({ id: this.id, cmd: "sendToSerial", text: text+escape});
+    }
+}
+
+var DataSerieIdCount = 0;
+class DataSerie{
+    constructor(_name){
+        this.name = _name;
+        this.sourceNames = [];
+        this.formula = "";
+        this.initialized = false;
+        this.data = [[],[]];
+        this.pendingData = [[],[]];
+        this.options = {};
+        this.value = null;
+        this.id = "data-serie-" + DataSerieIdCount++;
+        this.stats = null;
+    }
+
+    update(){
+        // no formula, simple data reference
+        if(this.formula=="" && this.sourceNames.length==1){
+            this.data[0] = app.telemetries[this.sourceNames[0]].data[0];
+            this.data[1] = app.telemetries[this.sourceNames[0]].data[1];
+            this.pendingData[0] = app.telemetries[this.sourceNames[0]].pendingData[0];
+            this.pendingData[1] = app.telemetries[this.sourceNames[0]].pendingData[1];
+            this.value = app.telemetries[this.sourceNames[0]].value;
+        }
+    }
+
+    updateStats(){
+        this.stats = computeStats(this.data);
+    }
+}
+
+var DataWidgetIdCount = 0;
+class DataWidget{
+    constructor() {
+        this.series = []; // DataSerie
+        this.type = "chart";
+        this.id = "widget-chart-" + DataWidgetIdCount++;
+        this.gridPos = {h:3, w:3, x:0, y:0};   
+    }
+
+    isUsingSource(name){
+        for(let s of this.series)
+            if(s.sourceNames.includes(name)) return true;
+        return false;
+    }
+
+    _getSourceList(){
+        let sourceList = {};
+        for(let s of this.series)
+            for(let n of s.sourceNames)
+                sourceList[n] = app.telemetries[n];
+        return sourceList;
+    }
+
+    updateStats(){
+        for(let s of this.series)
+            s.updateStats();
+    }
+}
+
+class ChartWidget extends DataWidget{
+    constructor() {
+        super();
+        this.data = [[]];
+        this.options = {
+            title: "",
+            width: 400,
+            height: 250,
+            scales: { x: {  time: true }, y:{} },
+            series: [ {} ],
+            focus: { alpha: 1.0, },
+            cursor: {
+                lock: false,
+                focus: { prox: 16, },
+                sync: {  key: window.cursorSync.key,  setSeries: true }
+            },
+            legend: { show: false }
+        }
+        this.forceUpdate = true;
+    }
+
+    addSerie(_serie){
+        _serie.options._serie = _serie.name;
+        _serie.options.stroke = ColorPalette.getColor(this.series.length).toString();
+        _serie.options.fill = ColorPalette.getColor(this.series.length, 0.1).toString();
+        this.options.series.push(_serie.options);
+        _serie.dataIdx = this.data.length;
+        //this.data.push([]);
+        this.series.push(_serie);
+        this.forceUpdate = true;
+    }
+
+    update(){
+        // Update each series
+        for(let s of this.series) s.update();
+        //Create data with common x axis
+        if(this.data[0].length==0 || this.forceUpdate) {
+            let dataList = [];
+            for(let s of this.series) dataList.push(s.data);
+            this.data.length = 0;
+            this.data = uPlot.join(dataList)
+            this.id += "-" //dummy way to force update
+            triggerChartResize();
+            this.forceUpdate = false;
+        }
         else {
-            // Extract series
-            let seriesList = (""+msg.data).split("\n");
-            for(let serie of seriesList){
-                if(!serie.includes(':') || !serie.includes('|')) return;
-                let startIdx = serie.indexOf(':');
-                let name = serie.substr(0,serie.indexOf(':'));
-                let endIdx = serie.indexOf('|');
-                let flags = serie.substr(endIdx+1);
+            //Iterate on all series, adding timestamps and values
+            let dataList = [];
+            for(let s of this.series) dataList.push(s.pendingData);
+            let pending = uPlot.join(dataList);
+            if(pending[0].length){
+                for(let i=0;i<pending.length;i++){
+                    this.data[i].push(...pending[i]);
+                }
+                   // Vue.set(widgets, "data", this.data);
+            }
+        }        
+        //Clear older data from viewDuration
+        if(parseFloat(app.viewDuration)>0)
+        {
+            let latestTimestamp = this.data[0][this.data[0].length-1];
+            let minTimestamp = latestTimestamp - parseFloat(app.viewDuration);
+            let minIdx = findClosestLowerByIdx(this.data[0], minTimestamp);
+            if(this.data[0][minIdx]<minTimestamp)
+            {
+                minIdx += 1;
+                for(let i=0;i<this.data.length;i++){
+                    this.data[i].splice(0, minIdx);
+                }
+            }
+        }
+    }
+}
+
+function parseData(msgIn){
+    let now = new Date().getTime();
+    let fromSerial = msgIn.fromSerial || (msgIn.input && msgIn.input.type=="serial");
+    if(fromSerial) now = msgIn.timestamp;
+    //parse msg
+    let msgList = (""+msgIn.data).split("\n");
+    for(let msg of msgList){
+        try{
+            // Inverted logic on serial port for usability
+            if(fromSerial && msg.startsWith(">")) msg = msg.substring(1);// remove '>' to consider as variable
+            else if(fromSerial && !msg.startsWith(">")) msg = ">:"+msg;// add '>' to consider as log
+
+            // Command
+            if(msg.startsWith("|")){
+                // Parse command list
+                let cmdList = msg.split("|");
+                for(let cmd of cmdList){
+                    if(cmd.length==0) continue;
+                    if(app.commands[cmd] == undefined){
+                        let newCmd = {
+                            name: cmd
+                        };
+                        Vue.set(app.commands, cmd, newCmd);
+                    }
+                }
+                if(!app.cmdAvailable && Object.entries(app.commands).length>0) app.cmdAvailable = true;
+            }
+            // Log
+            else if(msg.startsWith(">")){
+                let currLog = {
+                    timestamp: now,
+                    text: ""
+                }
+                
+                let logStart = msg.indexOf(":")+1;
+                currLog.text = msg.substr(logStart);
+                currLog.timestamp = parseFloat(msg.substr(1, logStart-2));
+                if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = now;
+                logBuffer.unshift(currLog);//prepend log to buffer
+
+                //logs.unshift(msg.substr(1));//prepend log to list
+            }
+            // Data
+            else {
+                // Extract series
+                if(!msg.includes(':')) return;
+                let startIdx = msg.indexOf(':');
+                let name = msg.substr(0,msg.indexOf(':'));
+                let endIdx = msg.indexOf('|');
+                let flags = msg.substr(endIdx+1);
+                if(endIdx == -1){
+                    flags = "g";
+                    endIdx = msg.length;
+                }
                 // Extract values array
-                let values = serie.substr(startIdx+1, endIdx-startIdx-1).split(';')
+                let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
                 let xArray = [];
                 let yArray = [];
                 for(let value of values){
@@ -190,9 +733,9 @@ socket.onmessage = function(msg) {
                 }
             }
         }
+        catch(e){console.log(e)}
     }
-    catch(e){console.log(e)}
-};
+}
 
 function appendData(key, valuesX, valuesY, flags) {
     if(key.substring(0, 6) === "statsd") return;
@@ -209,11 +752,21 @@ function appendData(key, valuesX, valuesY, flags) {
             name: key,
             flags: flags,
             data: [[],[]],
+            pendingData: [[],[]],
             value: 0,
-            config: config,
-            visible: shouldPlot
+            config: config
         };
         Vue.set(app.telemetries, key, obj)
+        // Create widget
+        if(shouldPlot){
+            let chart = new ChartWidget();
+            let serie = new DataSerie(key);
+            serie.sourceNames = [key];
+            chart.addSerie(serie);
+            widgets.push(chart);
+        }
+    }
+    if(telemBuffer[key] == undefined){
         telemBuffer[key] = {data:[[],[]], value:0};
     }
     if(isTimeBased) valuesX.forEach((elem, idx, arr)=>arr[idx] = elem/1000); // convert timestamps to seconds
@@ -227,6 +780,11 @@ function appendData(key, valuesX, valuesY, flags) {
 
 var lastUpdateViewTimestamp = 0;
 function updateView() {
+    // Clear Telemetries pendingData
+    for(let key in app.telemetries) {
+        app.telemetries[key].pendingData[0].length = 0;
+        app.telemetries[key].pendingData[1].length = 0;
+    }
     // Flush buffer into app model
     // Telemetry
     let dataSum = 0;
@@ -235,6 +793,8 @@ function updateView() {
         dataSum += telemBuffer[key].data[0].length;
         app.telemetries[key].data[0].push(...telemBuffer[key].data[0]);
         app.telemetries[key].data[1].push(...telemBuffer[key].data[1]);
+        app.telemetries[key].pendingData[0].push(...telemBuffer[key].data[0]);
+        app.telemetries[key].pendingData[1].push(...telemBuffer[key].data[1]);
         app.telemetries[key].value = telemBuffer[key].value
         telemBuffer[key].data[0].length = 0;
         telemBuffer[key].data[1].length = 0;
@@ -248,10 +808,15 @@ function updateView() {
             let minTimestamp = latestTimestamp - parseFloat(app.viewDuration);
             let minIdx = findClosestLowerByIdx(data[0], minTimestamp);
             if(data[0][minIdx]<minTimestamp) minIdx += 1;
+            else continue;
             //if(minIdx>=data[0].length) break;
             app.telemetries[key].data[0].splice(0, minIdx);
             app.telemetries[key].data[1].splice(0, minIdx);
         }
+    }
+    // Update widgets
+    for(let w of widgets){
+        w.update();
     }
 
     if(!app.dataAvailable && Object.entries(app.telemetries).length>0) app.dataAvailable = true;
@@ -284,13 +849,50 @@ function exportSessionJSON() {
     });
     let now = new Date();
     let filename = `teleplot_${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.json`;
-    var element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
-    element.setAttribute('download', filename);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    saveFile(content, filename);
+}
+
+function exportSessionCSV() {
+
+    let csv = "timestamp(ms),";
+    let dataList = [];
+    for(let key in app.telemetries) {
+        csv += key+",";
+        dataList.push(app.telemetries[key].data);
+    }
+    csv += "\n";
+    let joinedData = uPlot.join(dataList);
+
+    for(let i=0;i<joinedData[0].length;i++) {
+        for(let j=0;j<joinedData.length;j++) {
+            let value = joinedData[j][i];
+            if(isFinite(value) && !isNaN(value))
+                csv += '"'+(""+joinedData[j][i]).replace('.',',')+'"';
+            csv += ","
+        }
+        csv += "\n";
+    }
+    let now = new Date();
+    let filename = `teleplot_${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.csv`;
+    saveFile(csv, filename);
+}
+
+function saveFile(content, filename) {
+    if(vscode){
+        vscode.postMessage({ cmd: "saveFile", file: {
+            name: filename,
+            content: content
+        }});
+    }
+    else {
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+        element.setAttribute('download', filename);
+        element.style.display = 'none';
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+    }
 }
 
 function importSessionJSON(event) {
@@ -302,8 +904,13 @@ function importSessionJSON(event) {
     reader.onload = function(e) {
         try{
             let content = JSON.parse(e.target.result);
+            for(let key in content.telemetries){
+                // Add pendingData field if missing
+                if(!("pendingData" in content.telemetries[key])){
+                    content.telemetries[key].pendingData = [[],[]];
+                }
+            }
             for(let key in content) {
-                Object.ass
                 Vue.set(app, key, content[key]);
             }
             // Trigger a resize event after initial chart display
@@ -316,8 +923,10 @@ function importSessionJSON(event) {
     reader.readAsText(file);
 }
 
+var chartResizeTimeout = null;
 function triggerChartResize(){
-    setTimeout(()=>{
+    if(chartResizeTimeout) clearTimeout(chartResizeTimeout);
+    chartResizeTimeout = setTimeout(()=>{
         window.dispatchEvent(new Event('resize'));
     }, 100);
 }
@@ -344,6 +953,13 @@ function computeStats(data) {
     if(values.length==0) return stats;
     // Sort
     let arr = values.slice().sort(function(a, b){return a - b;});
+    for(let i=0;i<arr.length;i++) {
+        if(!isFinite(arr[i]) || isNaN(arr[i])) {
+            arr.splice(i,1);
+            i--;
+        }
+    }
+    if(arr.length==0) return stats;
     // Min, Max
     stats.min = arr[0];
     stats.max = arr[arr.length-1];
@@ -408,6 +1024,21 @@ function updateDisplayedVarValues(valueX, valueY){
     }
 }
 
+if(vscode) {
+    let conn = new ConnectionTeleplotVSCode();
+    conn.connect();
+    app.connections.push(conn);
+}
+else {
+    let conn = new ConnectionTeleplotWebsocket();
+    let addr = window.location.hostname;
+    let port = window.location.port;
+    conn.connect(addr, port);
+    app.connections.push(conn);
+}
+
 setInterval(()=>{
-    socket.send(`|_telecmd_list_cmd|`);
+    for(let conn of app.connections){
+        conn.updateCMDList();
+    }
 }, 3000);
