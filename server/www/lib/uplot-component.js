@@ -59,7 +59,7 @@ Vue.component('uplot-vue', {
         _create() {
             this.div_ = this.$props.target || this.$refs.targetRef;
             this._chart = new uPlot(this.$props.options, this.$props.data, this.div_);
-            if("sync" in this.$props.options.cursor) window.cursorSync.sub(this._chart);
+            if(this.$props.options.cursor && "sync" in this.$props.options.cursor) window.cursorSync.sub(this._chart);
             this.width_ = this.$props.options.width;
             this.height_ = this.$props.options.height;
             this.$emit('create', this._chart);
@@ -68,8 +68,9 @@ Vue.component('uplot-vue', {
         _resize() {
             if(!this._chart) return;
             let parentWidth = this.div_.offsetWidth;
-            if(parentWidth != this.width_){
+            if(parentWidth != this.width_ || this.$props.options.height != this.height_){
                 this.width_ = parentWidth;
+                this.height_ = this.$props.options.height;
                 this._chart.setSize({width: this.width_, height: this.height_});
             }
         }

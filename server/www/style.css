@@ -62,6 +62,14 @@ button {
     border: 0px;
     font-size: 11px;
     margin: 1px;
+	line-height: 15px;
+}
+
+.play-pause-button {
+	width: 34px;
+	height: 34px;
+	font-size: 16px;
+	margin-right: 10px;
 }
 
 body {
@@ -268,24 +276,22 @@ body {
 
 
 .widget-container {
-	display: flex;
-	flex-direction: row;
-	flex-wrap: wrap;
-	justify-content: center;
-	align-content: stretch;
-	align-items: center;
 	padding: 5px;
+	display:grid;
+	grid-template-columns: repeat(12,calc(100% / 12));
+	grid-auto-rows: 50px;
 }
 
 .widget-vue {
 	flex: 1 1;
 	align-self: auto;
-	min-width: max(300px, 45%);
-	box-shadow: 0px 0px 8px rgba(0,0,0,0.2);
+	min-width: max(150px, 45%);
+	box-shadow: 0px 0px 8px rgba(0,0,0,0.15);
 	border-radius: 3px;
-	margin: 5px;
+	margin: 3px;
 	border: 1px solid transparent;
 }
+
 .widget-drag-over {
 	border: 1px solid #009aff;
 }
@@ -311,8 +317,6 @@ body {
 }
 
 .serie-color {
-	width: 0.75em;
-	height: 0.75em;
 	display: inline-block;
 	border-width: 2px;
     border-style: solid;
@@ -325,10 +329,17 @@ body {
 
 .serie-value {
 	margin-left: 3px;
-    background-color: rgba(50,50,50,0.1);
     border-radius: 3px;
     color: black;
     padding: 0px 4px;
+}
+.serie-header-small {
+	font-size: 8px;
+}
+
+.serie-header-small .serie-value {
+	margin-left: 0px;
+    padding: 0px 1px;
 }
 
 .widget-option-container {
@@ -486,20 +497,30 @@ body {
 
 .connection-new-container {
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	font-size: 12px;
     margin-left: 10px;
 	align-items: center;
 	justify-content: center;
 }
 
-.connection-new-container > button {
+.connection-new-plus-button {
 	background-color: #216490;
 	color: white;
 	border: 0;
 	height: 30px;
 	width: 30px;
 	border-radius: 15px;
+}
+
+
+.pre-defined-connection-create-button {
+	background-color: #216490;
+	color: white;
+	border: 0;
+	height: 30px;
+	border-radius: 15px;
+	margin-right: 5px;
 }
 
 .flex-row {
