@@ -45,7 +45,7 @@ public:
         struct timeval timeout;
         timeout.tv_sec = 0;
         timeout.tv_usec = 100;
-        setsockopt(sockfd_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        setsockopt(sockfd_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
 
         // Create Answer UDP socket
         sockfdOut_ = socket(AF_INET, SOCK_DGRAM, 0);
@@ -73,7 +73,7 @@ public:
         // Read input socket
         if(!serverReady_) return;
         socklen_t socklen = sizeof(client_);
-        int n = recvfrom(sockfd_, (char *)inputBuffer_, sizeof(inputBuffer_), MSG_WAITALL, ( struct sockaddr *) &client_, &socklen);
+        ssize_t n = recvfrom(sockfd_, (char *)inputBuffer_, sizeof(inputBuffer_), MSG_DONTWAIT, ( struct sockaddr *) &client_, &socklen);
         if(n<=0 or n>= TELECMD_INPUT_BUFFER_SIZE) return;
         std::string cmd(inputBuffer_, n);
 
@@ -86,7 +86,7 @@ public:
         }
     }
 
-    void registerCmd(std::string name, std::function<void()> func){
+    void registerCmd(std::string name, std::function<void(std::string)> func){
         functionMap_[name] = func;
     }
 
@@ -103,20 +103,29 @@ private:
     void parseFunctionCall(std::string const& cmd) {
         try {
             if(cmd.size() == 0 || cmd[0] != '|') return;
-            int nameEnd = cmd.find("|", 1);
+            // Function Name
+            size_t nameEnd = cmd.find("|", 1);
             if(nameEnd == std::string::npos) return;
             std::string name = cmd.substr(1, nameEnd-1);
-            callFunction(name);
+            // Function Params
+            std::string params = "";
+            size_t paramStart = nameEnd+1;
+            if(paramStart<cmd.size())
+            {
+                size_t paramsEnd = cmd.find("|", paramStart);
+                if(paramsEnd != std::string::npos) { params = cmd.substr(paramStart, paramsEnd-paramStart); }
+            }
+            callFunction(name, params);
         }
         catch(const std::exception& e){
             std::cout << e.what() << std::endl;
         }
     }
 
-    void callFunction(std::string const& name){
+    void callFunction(std::string const& name, std::string const& params){
         // Find function in map
         if(functionMap_.find(name) == functionMap_.end()) return;
-        functionMap_[name]();   
+        functionMap_[name](params);   
     }
 
     int sockfd_;
@@ -125,7 +134,7 @@ private:
     std::string address_;
     sockaddr_in serv_, client_, servOut_;
     char inputBuffer_[TELECMD_INPUT_BUFFER_SIZE];
-    std::map<std::string, std::function<void()>> functionMap_;
+    std::map<std::string, std::function<void(std::string const)>> functionMap_;
 };
 
 #endif

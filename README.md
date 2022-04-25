@@ -69,6 +69,10 @@ Using the `xy` flag, and providing a value in both **B** and **C** field, telepl
 
 - `trajectory:12.3:45.67|xy`
 
+A timestamp can be associated with the xy point by adding an extra `:1627551892437` after the **C** field.
+
+- `trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy`
+
 ### Publishing multiple points
 
 Multiple values of a single telemetry can be sent in a signle packet if separated by a `;`
@@ -85,6 +89,7 @@ myValue:1234|g
 mySecondValue:1234|g
 myThirdValue:1627551892437:1234|g
 trajectory:1:1;2:2;3:3;4:4|xy
+trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy
 ```
 
 > Notice that your data needs to fit in a single UPD packet whick can be limited to 512(Internet), 1432(Intranets) or 8932(Jumbo frames) Bytes depending on the network.
@@ -173,11 +178,12 @@ int main(int argc, char* argv[])
 {
     bool keepRunning = true;
 
-    Telecmd::localhost().registerCmd("sayHello",[](){
-        std::cout << "Hello world!" << std::endl;
+    Telecmd::localhost().registerCmd("sayHello",[](std::string params){
+        std::cout << "Hello " << params << std::endl;
     });
 
-    Telecmd::localhost().registerCmd("stop",[&](){
+    Telecmd::localhost().registerCmd("stop",[&](std::string){
+        std::cout << "Stopping..." << std::endl;
         keepRunning = false
     });
 
@@ -189,6 +195,13 @@ int main(int argc, char* argv[])
 }
 ```
 
+## Call a function
+
+Functions can be called from the Teleplot interface and will be auto-discovered, however, they can also be triggered by a simple UDP packet:
+
+- With a string as parameter: `echo "|sayHello|world|" | nc -u -w0 127.0.0.1 47268`
+- Without parameters: `echo "|stop|" | nc -u -w0 127.0.0.1 47268`
+
 ## Send a text log
 
 Along with telemetries, you can also send text logs to be display in a console-like manner:
@@ -198,16 +211,3 @@ Along with telemetries, you can also send text logs to be display in a console-l
 By adding a millisecond timestamp to your log, you can sync them with the charts.
 
 `echo ">1627551892437:Hello world" | nc -u -w0 127.0.0.1 47269`
-
-## Call a function
-
-Functions can be called from the Teleplot interface and will be auto-discovered, however, they can also be triggered by a simple UDP packet:
-
-`echo "|sayHello|" | nc -u -w0 127.0.0.1 47268`
-
-# Desired futur features/improvments
-
- - Create a visual explaining how it works
- - Export data in CSV format
- - Select data to display
- - Add a clear button or a notion of session

@@ -50,9 +50,9 @@ public:
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
-        double nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        double nowMs = nowUs/1000.f;
-        updateData(key, nowMs, value, flags, maxFrequencyHz);
+        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        double nowMs = static_cast<double>(nowUs)/1000.d;
+        updateData(key, nowMs, value, 0, flags, maxFrequencyHz);
     }
 
     template<typename T1, typename T2>
@@ -60,7 +60,9 @@ public:
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
-        updateData(key, valueX, valueY, flags, maxFrequencyHz);
+        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        double nowMs = static_cast<double>(nowUs)/1000.d;
+        updateData(key, valueX, valueY, nowMs, flags, maxFrequencyHz);
     }
 
     void log(std::string const& log){
@@ -68,19 +70,45 @@ public:
         emit(">"+std::to_string(nowMs)+":"+log);
     }
 
+    bool shouldUpdateData(std::string const& key, unsigned int frequency)
+    {
+#ifdef TELEPLOT_USE_FREQUENCY 
+        if(frequency<=0) return true;
+        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        if(updateTimestampsUs_.find(key) == updateTimestampsUs_.end()) {
+            return true;
+        }
+        int64_t elasped = nowUs - updateTimestampsUs_[key];
+        if(elasped >= static_cast<int64_t>(1e6/frequency)) {
+            return true;
+        }
+        return false;
+#else
+        return true;
+#endif
+    }
+
 private:
-    template<typename T1, typename T2>
-    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, std::string const& flags, unsigned int maxFrequencyHz) {
+    #ifdef TELEPLOT_USE_FREQUENCY
+    void saveUpdateDataTime(std::string const& key) {
+        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        updateTimestampsUs_[key] = nowUs;
+    }
+    #endif
+
+    template<typename T1, typename T2, typename T3>
+    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
         // Filter
         #ifdef TELEPLOT_USE_FREQUENCY
             if(not shouldUpdateData(key ,maxFrequencyHz)) return; // may be used to reduce the update frequency by ignoring some values
+            saveUpdateDataTime(key);
         #endif
 
         // Format
-        std::string valueStr = formatValues(valueX, valueY);
+        std::string valueStr = formatValues(valueX, valueY, valueZ, flags);
 
         // Emit
         #ifdef TELEPLOT_USE_BUFFERING
@@ -90,10 +118,11 @@ private:
         #endif
     }
 
-    template<typename T1, typename T2>
-    std::string formatValues(T1 const& valueX, T2 const& valueY){
+    template<typename T1, typename T2, typename T3>
+    std::string formatValues(T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags){
         std::ostringstream oss;
         oss << std::fixed << valueX << ":" << valueY;
+        if(flags.find(TELEPLOT_FLAG_2D) != std::string::npos){ oss << std::fixed << ":" << valueZ; }
         return oss.str();
     }
 
@@ -104,27 +133,8 @@ private:
     }
 
     void emit(std::string const& data){
-        int rp = sendto(sockfd_, data.c_str(), data.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
+        (void) sendto(sockfd_, data.c_str(), data.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
     }
-
-    #ifdef TELEPLOT_USE_FREQUENCY 
-        bool shouldUpdateData(std::string const& key, unsigned int frequency)
-        {
-            if(frequency==0) return true;
-            int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-            if(updateTimestampsUs_.find(key) == updateTimestampsUs_.end()) {
-                updateTimestampsUs_[key] = nowUs;
-                return true;
-            }
-            int64_t elasped = nowUs - updateTimestampsUs_[key];
-            if(elasped >= 1e6/frequency) {
-                updateTimestampsUs_[key] = nowUs;
-                return true;
-            }
-            return false;
-        }
-        std::map<std::string, int64_t> updateTimestampsUs_;
-    #endif
 
     #ifdef TELEPLOT_USE_BUFFERING
         void buffer(std::string const &key, std::string const& values, std::string const& flags) {
@@ -149,7 +159,7 @@ private:
             // Flush the buffer if the frequency is reached
             int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
             int64_t elasped = nowUs - bufferingFlushTimestampsUs_[key];
-            if(force || elasped >= 1e6/bufferingFrequencyHz_) {
+            if(force || elasped >= static_cast<int64_t>(1e6/bufferingFrequencyHz_)) {
                 emit(formatPacket(key, bufferingMap_[key], flags));
                 bufferingMap_[key].clear();
                 bufferingFlushTimestampsUs_[key] = nowUs;
@@ -158,6 +168,9 @@ private:
         std::map<std::string, std::string> bufferingMap_;
         std::map<std::string, int64_t> bufferingFlushTimestampsUs_;
         size_t maxBufferingSize_ = 1432; // from https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+    #endif
+    #ifdef TELEPLOT_USE_FREQUENCY 
+        std::map<std::string, int64_t> updateTimestampsUs_;
     #endif
 
     int sockfd_;
