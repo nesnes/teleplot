@@ -94,6 +94,12 @@ trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy
 
 > Notice that your data needs to fit in a single UPD packet whick can be limited to 512(Internet), 1432(Intranets) or 8932(Jumbo frames) Bytes depending on the network.
 
+### Prevent auto-plot of telemetry
+
+By default, teleplot will display all the incoming telemetry as a chart, while this is handy for new user with small amount of data, this might not be desired with lots of data.
+The `np` (for no-plot) flag can be used to prevent this behavior:
+- `myValue:1627551892437:1234|np`
+- `trajectory:12.3:45.67|xynp`
 # Publish telemetries
 
 ## Bash
