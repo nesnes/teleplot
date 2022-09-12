@@ -290,6 +290,7 @@ body {
 	border-radius: 3px;
 	margin: 3px;
 	border: 1px solid transparent;
+	position: relative;
 }
 
 .widget-drag-over {
@@ -352,6 +353,26 @@ body {
 	margin-left: 4px;
 	margin-right: 4px;
 	cursor: pointer;
+
+	/* user can't highlight the element ( useful for when resizing ) */
+	user-select: none;
+}
+
+.widget-option-resize{
+	display: inline-block;  
+   	z-index: 1;     
+   	padding: 1.5em;
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	color: #bdc3c7;
+	cursor: pointer;
+	
+	/* negative margin, to make the clickable zone bigger */
+	margin: -2em;
+
+	/* user can't highlight the element ( useful for when resizing ) */
+	user-select: none;
 }
 
 .new-chart-drop-zone {
@@ -360,6 +381,8 @@ body {
     border-radius: 5px;
     padding: 5px;
     color: #3498db;
+	text-align: center;
+
 }
 
 .serie-name-container {
