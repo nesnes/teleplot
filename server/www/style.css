@@ -366,7 +366,7 @@ body {
 	right: 10px;
 	bottom: 10px;
 	color: #bdc3c7;
-	cursor: pointer;
+	cursor: nwse-resize;
 	
 	/* negative margin, to make the clickable zone bigger */
 	margin: -2em;

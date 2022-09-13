@@ -2,13 +2,13 @@ var widgetCount = 0; // counts the number of DataWidgets instanciated, it is use
 
 /*
 if the resize button of a certain widget is clicked 
-then, widgetBeingResized will contain a copy of this particular widget
+then, widgetBeingResized will contain a reference to this particular widget
 otherwise, it is equal to null
 */
 var widgetBeingResized = null;
 
-window.addEventListener('mouseup', onMouseUp, false);
-window.addEventListener('mousemove', onMouseMove, false)
+window.addEventListener('mouseup', widgetOnMouseUp, false);
+window.addEventListener('mousemove', widgetOnMouseMove, false)
 
 class DataWidget{
     constructor() {
@@ -30,6 +30,7 @@ class DataWidget{
         // the height and width of the dataWidget just before the user resizes it :
         this.initialHeight = undefined;
         this.initialWidth = undefined;
+        this.isResized = false;
     }
 
     isUsingSource(name){
@@ -59,14 +60,20 @@ function onMouseDownOnResizeButton_(event, widget)
     widget.initialHeight = widget.gridPos.h;
     widget.initialWidth = widget.gridPos.w;
     widgetBeingResized = widget;
+    widget.isResized = true;
 }
 
-function onMouseUp()
+function widgetOnMouseUp()
 {
-    widgetBeingResized = null;
+    if(widgetBeingResized)
+    {
+        widgetBeingResized.isResized = false;
+        updateWidgetSize_(widgetBeingResized);
+        widgetBeingResized = null;
+    }
 }
 
-function onMouseMove(event)
+function widgetOnMouseMove(event)
 {
     if (widgetBeingResized)
     {
@@ -82,7 +89,6 @@ function onMouseMove(event)
         widgetBeingResized.gridPos.h = widgetBeingResized.initialHeight + Math.round(heightExtension/minWidgetHeight);
         widgetBeingResized.gridPos.w = widgetBeingResized.initialWidth + Math.round(widthExtension/minWidgetWidth);
 
-        updateWidgetSize_(widgetBeingResized);
     }
 }
 

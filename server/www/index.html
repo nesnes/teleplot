@@ -134,7 +134,7 @@
 
                     <div class="new-chart-drop-zone" v-bind:class="{ 'new-chart-drop-zone-over': newChartDropZoneOver }"
                     @drop="onDropInNewChart($event)" @dragover="onNewChartDragOver($event)" @dragenter.prevent @dragleave="onNewChartDragLeave($event)">
-                        <span>Drop here to copy chart</span>
+                        <span>🞢 Drop here for new chart</span>
                     </div>
                     <input type="text" placeholder="Telemetry filter (ex: a*c* )" v-model="telemetryFilterString"/>
 
@@ -211,7 +211,7 @@
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)">⇲</span>
                             
-                            <uplot-vue v-if="widget.type == 'chart'" v-bind:data="widget.data" v-bind:options="widget.options"/>
+                            <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
                             
 
                         </div>
@@ -293,21 +293,20 @@
 
     </body>
     
-    <script src="lib/wheelZoom.js"></script>
     <script src="lib/uPlot.iife.js"></script>
     <script src="lib/uplot-component.js"></script>
     <script src="./config.js"></script>
-    <script src="./classes/communicationRelatedClasses/connection/Connection.js"></script>
-    <script src="./classes/communicationRelatedClasses/connection/ConnectionTeleplotVSCode.js"></script>
-    <script src="./classes/communicationRelatedClasses/connection/ConnectionTeleplotWebsocket.js"></script>
+    <script src="./classes/communication/connection/Connection.js"></script>
+    <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
+    <script src="./classes/communication/connection/ConnectionTeleplotWebsocket.js"></script>
     <script src="./utils/view/cursor.js"></script>
-    <script src="./classes/communicationRelatedClasses/serverMessageReading.js"></script>
-    <script src="./classes/plotRelatedClasses/DataWidget.js"></script>
-    <script src="./classes/plotRelatedClasses/ChartWidget.js"></script>
-    <script src="./classes/communicationRelatedClasses/data/DataInput.js"></script>
-    <script src="./classes/communicationRelatedClasses/data/DataInputSerial.js"></script>
-    <script src="./classes/communicationRelatedClasses/data/DataInputUDP.js"></script>
-    <script src="./classes/plotRelatedClasses/DataSerie.js"></script>
+    <script src="./classes/communication/serverMessageReading.js"></script>
+    <script src="./classes/widgets/DataWidget.js"></script>
+    <script src="./classes/widgets/ChartWidget.js"></script>
+    <script src="./classes/communication/data/DataInput.js"></script>
+    <script src="./classes/communication/data/DataInputSerial.js"></script>
+    <script src="./classes/communication/data/DataInputUDP.js"></script>
+    <script src="./classes/DataSerie.js"></script>
     <script src="./utils/view/paint.js"></script>
     <script src="./utils/import_export/fileManagement.js"></script>
     <script src="./utils/import_export/layout.js"></script>

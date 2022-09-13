@@ -3,14 +3,15 @@ var DataSerieIdCount = 0;
 class DataSerie{
     constructor(_name){
         this.name = _name;
+        this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence
         this.formula = "";
         this.initialized = false;
+        this.dataIdx = undefined;
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         this.options = {};
         this.value = null;
-        this.id = "data-serie-" + DataSerieIdCount++;
         this.stats = null;
     }
 
