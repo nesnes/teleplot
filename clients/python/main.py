@@ -11,7 +11,7 @@ def sendTelemetry(name, value):
 	sock.sendto(msg.encode(), teleplotAddr)
 
 i=0
-while i < 1000:
+while True:
 	
 	sendTelemetry("sin", math.sin(i))
 	sendTelemetry("cos", math.cos(i))

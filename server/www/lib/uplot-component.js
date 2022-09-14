@@ -57,6 +57,7 @@ Vue.component('uplot-vue', {
             }
         },
         _create() {
+            
             this.div_ = this.$props.target || this.$refs.targetRef;
             this._chart = new uPlot(this.$props.options, this.$props.data, this.div_);
             if(this.$props.options.cursor && "sync" in this.$props.options.cursor) window.cursorSync.sub(this._chart);
@@ -64,6 +65,7 @@ Vue.component('uplot-vue', {
             this.height_ = this.$props.options.height;
             this.$emit('create', this._chart);
             window.addEventListener("resize", e => { this._resize(); });
+
         },
         _resize() {
             if(!this._chart) return;
@@ -81,3 +83,4 @@ Vue.component('uplot-vue', {
         });
     }
 });
+
