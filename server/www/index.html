@@ -9,7 +9,6 @@
         <script src="lib/vue.js"></script>
 	</head>
 	<body>
-        
         <div id="app">
             <header class="top-banner">
                 <div class="top-banner-left">
@@ -18,7 +17,7 @@
                         <div v-for="conn in connections" class="connection">
                             <div class="connection-header">
                                 <span class="connection-name">{{conn.name}}</span>
-                                <span v-if="conn.type!='teleplot-vscode'" @click="removeConnection(conn)" style="cursor: pointer;font-size: 8px;">╳</span>
+                                <span v-if="conn.type!='teleplot-vscode'" @click="removeConnection(conn)" style="cursor: pointer;font-size: 8px;" title="Remove connection">╳</span>
                                 <div class="connection-button-container">
                                     <span v-if="conn.supportSerial" class="connection-button" @click="conn.createInput('serial')" >🞢 New Serial</span>
                                 </div>
@@ -71,23 +70,23 @@
                             </div>
                         </div>
                         <div class="connection-new-container">
-                            <button v-if="!creatingConnection" @click="creatingConnection=true" class="connection-new-plus-button">🞢</button>
+                            <button v-if="!creatingConnection" @click="creatingConnection=true" class="connection-new-plus-button" title="Add a new connection">🞢</button>
                             <div v-if="creatingConnection">
-                                <input v-on:keyup.enter="createConnection()" type="text" placeholder="IP of teleplot server" v-model="newConnectionAddress"/>
-                                <button @click="createConnection()">Connect</button>
-                                <button @click="creatingConnection=false">Cancel</button>
+                                <input v-on:keyup.enter="createConnection()" type="text" placeholder="IP of teleplot server" v-model="newConnectionAddress" title="IP on which teleplot should try to connect"/>
+                                <button @click="createConnection()" title="Connect to new telepot server">Connect</button>
+                                <button @click="creatingConnection=false" title="Cancel new connection">Cancel</button>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div v-if="dataAvailable" class="flex-row" style="align-items: center;">
                     <button @click="isViewPaused = !isViewPaused" class="header-button play-pause-button" style="width:34px;height:34px">
-                        <span v-if="!isViewPaused">⏸</span>
-                        <span v-if="isViewPaused">▶</span>
+                        <span v-if="!isViewPaused" title ="Pause">⏸</span>
+                        <span v-if="isViewPaused" title="Display live telemetries">▶</span>
                     </button>
                     <div class="flex-col">
                         <span title="Telemetry and logs ingest rate">{{(telemRate+logRate).toFixed(0)}}/s </span>
-                        <select v-model="viewDuration">
+                        <select v-model="viewDuration" title ="Select duration of window">
                             <option value="0">no window</option>
                             <option value="1">1 second</option>
                             <option value="5">5 seconds</option>
@@ -105,33 +104,35 @@
                         </select>
                     </div>
                     <div class="flex-col">
-                        <button onclick="exportLayout()" class="header-button">⛶ Save layout</button>
+                        <button onclick="exportLayout()" class="header-button" title="Save current layout in a .json file">⛶ Save layout</button>
                         <div class="header-button">
-                            <label for="layout-json-input">🗁 Import layout</label>
+                            <label for="layout-json-input" title="Import a layout from a .json file">🗁 Import layout</label>
                             <input type="file" onchange="importLayoutJSON(event)" id="layout-json-input" style="width:0px;height:0px;visibility:hidden;position:absolute;top:-100px;left:-100px;" />
                         </div>
                     </div>
                     <div class="flex-col">
-                        <button onclick="exportSessionJSON()" class="header-button">🖫 Save as JSON</button>
-                        <button onclick="exportSessionCSV()" class="header-button">➦ Export to CSV</button>
+                        <button onclick="exportSessionJSON()" class="header-button" title="Export current session in a .json file">🖫 Export as JSON</button>
+                        <button onclick="exportSessionCSV()" class="header-button" title ="Export current session in a .csv file">➦ Export to CSV</button>
                     </div>
-                    <button @click="clearAll()" class="header-button">Clear</button>
+                    <button @click="clearAll()" class="header-button" title="Clear everything">Clear</button>
                 </div>
                 <div v-else>
-                    <label for="session-json-input" class="header-button">🗁 Open JSON</label>
+                    <label for="session-json-input" class="header-button" title="Open a past session from a .json file">🗁 Open JSON</label>
                     <input type="file" onchange="importSessionJSON(event)" id="session-json-input" />
                 </div>
             </header>
 
             <div class="main-body">
+                
                 <!--Variables-->
                 <div class="var-container" v-if="!leftPanelVisible">
                     <button @click="showLeftPanel(true)" class="left-rounded-btn">></button>
                 </div>
 
                 <div class="left-col var-container" v-if="dataAvailable && leftPanelVisible">
-                    <button @click="showLeftPanel(false)" class="left-reduce-btn">Reduce</button>
+                    <button @click="showLeftPanel(false)" class="left-reduce-btn" title ="Reduce left panel">Reduce</button>
 
+                   
                     <div class="new-chart-drop-zone" v-bind:class="{ 'new-chart-drop-zone-over': newChartDropZoneOver }"
                     @drop="onDropInNewChart($event)" @dragover="onNewChartDragOver($event)" @dragenter.prevent @dragleave="onNewChartDragLeave($event)">
                         <span>🞢 Drop here for new chart</span>
@@ -204,16 +205,15 @@
                                 <div class="widget-option-container">
                                     <!--<span class="widget-option" v-if="!widget.hidden" @click="showWidget(widget, false)">—</span>
                                     <span class="widget-option" v-if="widget.hidden" @click="showWidget(widget, true)">▭</span>-->
-                                    <span class="widget-option" @click="updateStats(widget)">‱</span>
-                                    <span class="widget-option" @click="removeWidget(widget)">╳</span>
+                                    <span class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
+                                    <span id ="closeWidgetButton" class="widget-option" @click="removeWidget(widget)" title="Close widget">╳</span>
                                     
                                 </div>
                             </div>
-                            <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)">⇲</span>
+                            <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
                             
                             <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
                             
-
                         </div>
                     </div>
                     <!-- PLOTS -->
@@ -295,7 +295,7 @@
     
     <script src="lib/uPlot.iife.js"></script>
     <script src="lib/uplot-component.js"></script>
-    <script src="./config.js"></script>
+    <script src="./constants.js"></script>
     <script src="./classes/communication/connection/Connection.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotWebsocket.js"></script>
