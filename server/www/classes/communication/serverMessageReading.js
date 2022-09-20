@@ -1,4 +1,4 @@
-const defaultPlotOpts = {
+/* const defaultPlotOpts = {
     title: "",
     width: 400,
     height: 250,
@@ -29,7 +29,7 @@ const defaultPlotOpts = {
         show: false
     }
 };
-
+ */
 
 //parses the message we received from the server
 function parseData(msgIn){
@@ -45,118 +45,141 @@ function parseData(msgIn){
             // Inverted logic on serial port for usability
             if(fromSerial && msg.startsWith(">")) msg = msg.substring(1);// remove '>' to consider as variable
             else if(fromSerial && !msg.startsWith(">")) msg = ">:"+msg;// add '>' to consider as log
-
+            
             // Command
-            if(msg.startsWith("|")){
-                // Parse command list
-                let cmdList = msg.split("|");
-                for(let cmd of cmdList){
-                    if(cmd.length==0) continue;
-                    if(cmd.startsWith("_")) continue;
-                    if(app.commands[cmd] == undefined){
-                        let newCmd = {
-                            name: cmd
-                        };
-                        Vue.set(app.commands, cmd, newCmd);
-                    }
-                }
-                if(!app.cmdAvailable && Object.entries(app.commands).length>0) app.cmdAvailable = true;
-            }
+            if(msg.startsWith("|"))
+                parseCommandList(msg);
             // Log
-            else if(msg.startsWith(">")){
-                let currLog = {
-                    timestamp: now,
-                    text: ""
-                }
-                
-                let logStart = msg.indexOf(":")+1;
-                currLog.text = msg.substr(logStart);
-                currLog.timestamp = parseFloat(msg.substr(1, logStart-2));
-                if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = now;
-                logBuffer.unshift(currLog);//prepend log to buffer
-            }
+            else if(msg.startsWith(">"))
+                parseLog(msg, now);
             // Data
-            else {
-                // Extract series
-                if(!msg.includes(':')) return;
-                let startIdx = msg.indexOf(':');
-                let name = msg.substr(0,msg.indexOf(':'));
-                let endIdx = msg.indexOf('|');
-                let flags = msg.substr(endIdx+1);
-                if(endIdx == -1){
-                    flags = "g";
-                    endIdx = msg.length;
-                }
-                // Extract values array
-                let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
-                let xArray = [];
-                let yArray = [];
-                let zArray = [];
-                for(let value of values){
-                    if(value.length==0) continue;
-                    let dims = value.split(":");
-                    if(dims.length == 1){
-                        xArray.push(now);
-                        yArray.push(parseFloat(dims[0]));
-                    }
-                    else if(dims.length == 2){
-                        xArray.push(parseFloat(dims[0]));
-                        yArray.push(parseFloat(dims[1]));
-                        zArray.push(now);
-                    }
-                    else if(dims.length == 3){
-                        xArray.push(parseFloat(dims[0]));
-                        yArray.push(parseFloat(dims[1]));
-                        zArray.push(parseFloat(dims[2]));
-                    }
-                    /*let sepIdx = value.indexOf(':');
-                    if(sepIdx==-1){
-                        xArray.push(now);
-                        yArray.push(parseFloat(value));
-                    }
-                    else {
-                        xArray.push(parseFloat(value.substr(0, sepIdx)));
-                        yArray.push(parseFloat(value.substr(sepIdx+1)));
-                    }*/
-                }
-                if(xArray.length>0){
-                    appendData(name, xArray, yArray, zArray, flags)
-                }
-            }
+            else 
+                parseVariablesData(msg, now);
         }
         catch(e){console.log(e)}
     }
 }
 
+function parseCommandList(msg) // a String containing a list of commands, ex : "|sayHello|world|"
+{
+    let cmdList = msg.split("|");
+    for(let cmd of cmdList){
+        if(cmd.length==0) continue;
+        if(cmd.startsWith("_")) continue;
+        if(app.commands[cmd] == undefined){
+            let newCmd = {
+                name: cmd
+            };
+            Vue.set(app.commands, cmd, newCmd);
+        }
+    }
+    if(!app.cmdAvailable && Object.entries(app.commands).length>0) app.cmdAvailable = true;
+
+}
+
+// msg : a String containing a log message, ex : ">:Hello world"
+// now : a Number representing a timestamp
+function parseLog(msg, now) 
+{
+    let currLog = {
+        timestamp: now,
+        text: ""
+    }
+    
+    let logStart = msg.indexOf(":")+1;
+    currLog.text = msg.substr(logStart);
+    currLog.timestamp = parseFloat(msg.substr(1, logStart-2));
+    if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = now;
+    logBuffer.unshift(currLog);//prepend log to buffer
+}
+
+// valid characters for unit : anything but ':' '.' ',' ';' '|' and digits 
+function isValidUnitChar(character)
+{
+    return (character<'0' || character>'9') && character!=':' && character!='.' && character!=',' && character!=';' && character!='|' ;
+}
+
+// msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
+// now : a Number representing a timestamp 
+function parseVariablesData(msg, now)
+{
+    if(!msg.includes(':')) return;
+    let startIdx = msg.indexOf(':');
+    let name = msg.substr(0,msg.indexOf(':'));
+    let endIdx = msg.indexOf('|');
+    let flags = msg.substr(endIdx+1);
+    let unit = "";
+    if(endIdx == -1){
+        flags = "g";
+        endIdx = msg.length;
+    }
+    while (endIdx-1 > startIdx && isValidUnitChar(msg[endIdx-1]))
+        unit = msg[--endIdx] + unit;
+
+    if (msg[endIdx-1]==':')endIdx--;
+
+    console.log('unit : '+unit);
+    // Extract values array
+    let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
+    let xArray = [];
+    let yArray = [];
+    let zArray = [];
+    for(let value of values){
+        if(value.length==0) continue;
+        let dims = value.split(":");
+        if(dims.length == 1){
+            xArray.push(now);
+            yArray.push(parseFloat(dims[0]));
+        }
+        else if(dims.length == 2){
+            xArray.push(parseFloat(dims[0]));
+            yArray.push(parseFloat(dims[1]));
+            zArray.push(now);
+        }
+        else if(dims.length == 3){
+            xArray.push(parseFloat(dims[0]));
+            yArray.push(parseFloat(dims[1]));
+            zArray.push(parseFloat(dims[2]));
+        }
+        /*let sepIdx = value.indexOf(':');
+        if(sepIdx==-1){
+            xArray.push(now);
+            yArray.push(parseFloat(value));
+        }
+        else {
+            xArray.push(parseFloat(value.substr(0, sepIdx)));
+            yArray.push(parseFloat(value.substr(sepIdx+1)));
+        }*/
+    }
+    if(xArray.length>0){
+        appendData(name, xArray, yArray, zArray, unit, flags)
+    }
+}
 // adds
-function appendData(key, valuesX, valuesY, valuesZ, flags) {
+function appendData(key, valuesX, valuesY, valuesZ, unit,flags) {
     if(key.substring(0, 6) === "statsd") return;
     let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
     if(app.telemetries[key] == undefined){
-        let config = Object.assign({}, defaultPlotOpts);
+        /*let config = Object.assign({}, defaultPlotOpts);
         config.name = key;
         config.scales.x.time = isTimeBased;
         if(!isTimeBased){
             config.mode = 2;
             config.cursor.sync = undefined;
             config.series[1].paths = drawXYPoints;
-        }
-        var obj = {
-            name: key,
-            flags: flags,
-            data: [[],[]],
-            pendingData: [[],[]],
-            value: 0,
-            config: config,
-            xy: !isTimeBased,
-            usageCount: 0
-        };
+        }*/
+   
+        let newDataSerie = new DataSerie(key);
+        //newDataSerie.config = config;
+        newDataSerie.xy = !isTimeBased;//TODO: make this in constructor
+        if (unit != "") newDataSerie.unit = unit;
+
         if(!isTimeBased){
-            obj.data.push([]);
-            obj.pendingData.push([]);
+            newDataSerie.data.push([]);
+            newDataSerie.pendingData.push([]);
         }
-        Vue.set(app.telemetries, key, obj)
+        Vue.set(app.telemetries, key, newDataSerie)
         // Create widget
         if(shouldPlot){
             let chart = new ChartWidget(!isTimeBased);

@@ -13,6 +13,7 @@ class DataSerie{
         this.options = {};
         this.value = null;
         this.stats = null;
+        this.unit = undefined;
     }
 
     destroy(){
@@ -73,11 +74,9 @@ class DataSerie{
 function onTelemetryUsed(name, force=false){
     let telem = app.telemetries[name];
     if(telem == undefined) return;
-    if(!force) telem.usageCount++;
 }
 
 function onTelemetryUnused(name, force=false){
     let telem = app.telemetries[name];
     if(telem == undefined) return;
-    if(telem.usageCount>0)telem.usageCount--;
 }
