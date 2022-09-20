@@ -121,7 +121,8 @@ abstract class DataWidget {
   - initialCursorYPos : Number
   - initialHeight : Number
   - initialWidth : Number
-  
+  - isResized : Number
+
   void isUsingSource(name : String)
   DataSerie [] _getSourceList(void)
   void updateStats(void)
@@ -135,8 +136,6 @@ Connection <|-- ConnectionTeleplotWebSocket
 Connection "1" <--> "0..*" DataInput
 
 DataWidget --> "0..*" DataSerie
-ChartWidget --> "0..*" DataSerie
-
 
 DataInput <|-- DataInputUDP
 DataInput <|-- DataInputSerial
