@@ -146,7 +146,7 @@
                     draggable @dragstart="onDragTelemetry($event, telem.name)">
                         <div class="var-vue-name">
                             <span class="serie-name">{{telem.name}}</span>
-                            <span class="serie-unit">({{telem.unit}})</span>
+                            <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
                         <div class="var-vue-value" v-if="typeof telem.value == 'number'">{{telem.value.toFixed(4)}}</div>
                         <div class="var-vue-value" v-if="typeof telem.value == 'string'">{{telem.value}}</div>
