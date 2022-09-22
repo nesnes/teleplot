@@ -1,7 +1,7 @@
 var DataSerieIdCount = 0;
 // this class respresents a sequence or "serie"
 class DataSerie{
-    constructor(_name, isTimeBased, unit = undefined){
+    constructor(_name = undefined, isTimeBased = undefined, unit = undefined){
         this.name = _name;
         this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence
@@ -15,12 +15,8 @@ class DataSerie{
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.xy = !isTimeBased;
-
-        if(!isTimeBased){
-            this.data.push([]);
-            this.pendingData.push([]);
-        }
     }
+
 
     destroy(){
         for(let name of this.sourceNames){
@@ -76,13 +72,29 @@ class DataSerie{
     }
 }
 
+function getSerieInstanceFromTelemetry(telemetryName)
+{
+    let serie = new DataSerie();
 
+    let telemetry = app.telemetries[telemetryName];
+    if (telemetry == undefined)
+        throw new Error(`Trying to instanciate a DataSerie from a non existant telemetry name : ${telemetryName}`);
+    
+    serie.name = telemetryName;
+    serie.xy = telemetry.xy;
+    serie.unit = telemetry.unit;
+    serie.addSource(telemetryName);
+
+    return serie;
+}
 function onTelemetryUsed(name, force=false){
     let telem = app.telemetries[name];
     if(telem == undefined) return;
+    if(!force) telem.usageCount++;
 }
 
 function onTelemetryUnused(name, force=false){
     let telem = app.telemetries[name];
     if(telem == undefined) return;
+    if(telem.usageCount>0)telem.usageCount--;
 }

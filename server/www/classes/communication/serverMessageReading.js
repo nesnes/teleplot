@@ -123,14 +123,11 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
     let shouldPlot = !flags.includes("np");
     if(app.telemetries[key] == undefined){
                 
-        let newDataSerie = new DataSerie(key, isTimeBased, unit);
-
-        Vue.set(app.telemetries, key, newDataSerie)
+        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit))
         // Create widget
         if(shouldPlot){
             let chart = new ChartWidget(!isTimeBased);
-            let serie = app.telemetries[key];
-            serie.addSource(key);
+            let serie = getSerieInstanceFromTelemetry(key);
             chart.addSerie(serie);
             widgets.push(chart);
         }

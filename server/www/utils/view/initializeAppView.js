@@ -96,8 +96,7 @@ function initializeAppView()
                     && app.telemetries[widget.series[0].sourceNames[0]].xy
                 );
                 if(newIsXY != chartIsXY) return;
-                let serie = app.telemetries[telemetryName];
-                serie.addSource(telemetryName);
+                let serie = getSerieInstanceFromTelemetry(telemetryName);
                 widget.addSerie(serie);
             },
             onWidgetDragOver: function(e, widget){

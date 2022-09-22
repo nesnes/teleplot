@@ -5,4 +5,4 @@ const widgetFPS = 15;
 const UDPport = 47269;
 
 // tells whether new telemetries should be ploted by default if sent without any flag
-const shouldPlotByDefault = false;
+const shouldPlotByDefault = true;
