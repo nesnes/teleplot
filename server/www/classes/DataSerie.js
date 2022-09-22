@@ -1,7 +1,7 @@
 var DataSerieIdCount = 0;
 // this class respresents a sequence or "serie"
 class DataSerie{
-    constructor(_name){
+    constructor(_name, isTimeBased, unit = undefined){
         this.name = _name;
         this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence
@@ -13,7 +13,13 @@ class DataSerie{
         this.options = {};
         this.value = null;
         this.stats = null;
-        this.unit = undefined;
+        this.unit = ( unit != "" ) ? unit : undefined;
+        this.xy = !isTimeBased;
+
+        if(!isTimeBased){
+            this.data.push([]);
+            this.pendingData.push([]);
+        }
     }
 
     destroy(){

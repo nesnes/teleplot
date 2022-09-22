@@ -4,19 +4,33 @@ function exportSessionJSON() {
         logs: app.logs,
         dataAvailable: app.dataAvailable,
         logAvailable: app.logAvailable
-    });
-    let now = new Date();
-    let filename = `teleplot_${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.json`;
-    saveFile(content, filename);
+    }, null, 3);
+    saveFile(content, buildFileName("session", "json"));
 }
+
+// dataSerie is of type DataSerie, we check that unit exists for this dataSerie
+// if it does, we return it between parentheses.
+function getFormatedSerieUnit(dataSerie)
+{
+    if (dataSerie.unit != undefined)
+    {
+        if (dataSerie.unit.includes(','))
+            throw new Error("Invalid unit name: " + dataSerie.unit+" ( units shouldn't contain comas )");
+
+        return " (" + dataSerie.unit + ") ";
+    }
+    
+    return "";
+} 
 
 function exportSessionCSV() {
 
     let csv = "timestamp(ms),";
     let dataList = [];
     for(let key in app.telemetries) {
-        csv += key+",";
-        dataList.push(app.telemetries[key].data);
+        let dataSerie = app.telemetries[key];
+        csv += (key + getFormatedSerieUnit(dataSerie) + ",");
+        dataList.push(dataSerie.data);
     }
     csv += "\n";
     let joinedData = uPlot.join(dataList);
@@ -30,9 +44,7 @@ function exportSessionCSV() {
         }
         csv += "\n";
     }
-    let now = new Date();
-    let filename = `teleplot_${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.csv`;
-    saveFile(csv, filename);
+    saveFile(csv, buildFileName("session", "csv"));
 }
 
 function importSessionJSON(event) {

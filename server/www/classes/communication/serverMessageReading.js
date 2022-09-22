@@ -1,37 +1,5 @@
-/* const defaultPlotOpts = {
-    title: "",
-    width: 400,
-    height: 250,
-    
-    //hooks: {setCursor: [function(e){console.log(e);}]},
-    scales: {
-        x: {
-            time: false
-        },
-        y:{}
-    },
-    series: [
-        {},
-        {
-            stroke: "red",
-            fill: "rgba(255,0,0,0.1)"
-        }
-    ],
-    cursor: {
-        lock: false,
-        focus: { prox: 16, },
-        sync: {
-            key: window.cursorSync.key,
-            setSeries: true
-        }
-    },
-    legend: {
-        show: false
-    }
-};
- */
-
 //parses the message we received from the server
+
 function parseData(msgIn){
 
     if(app.isViewPaused) return; // Do not buffer incomming data while paused
@@ -104,13 +72,14 @@ function isValidUnitChar(character)
 function parseVariablesData(msg, now)
 {
     if(!msg.includes(':')) return;
+
     let startIdx = msg.indexOf(':');
     let name = msg.substr(0,msg.indexOf(':'));
     let endIdx = msg.indexOf('|');
     let flags = msg.substr(endIdx+1);
     let unit = "";
     if(endIdx == -1){
-        flags = "g";
+        flags = shouldPlotByDefault?"g":"np";
         endIdx = msg.length;
     }
     while (endIdx-1 > startIdx && isValidUnitChar(msg[endIdx-1]))
@@ -118,7 +87,6 @@ function parseVariablesData(msg, now)
 
     if (msg[endIdx-1]==':')endIdx--;
 
-    console.log('unit : '+unit);
     // Extract values array
     let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
     let xArray = [];
@@ -141,49 +109,27 @@ function parseVariablesData(msg, now)
             yArray.push(parseFloat(dims[1]));
             zArray.push(parseFloat(dims[2]));
         }
-        /*let sepIdx = value.indexOf(':');
-        if(sepIdx==-1){
-            xArray.push(now);
-            yArray.push(parseFloat(value));
-        }
-        else {
-            xArray.push(parseFloat(value.substr(0, sepIdx)));
-            yArray.push(parseFloat(value.substr(sepIdx+1)));
-        }*/
+      
     }
+    //console.log("name : "+name+", xArray : "+xArray+", yArray : "+yArray+", zArray : "+zArray+", unit : "+unit+", flags : "+flags);
     if(xArray.length>0){
         appendData(name, xArray, yArray, zArray, unit, flags)
     }
 }
 // adds
-function appendData(key, valuesX, valuesY, valuesZ, unit,flags) {
+function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
     if(key.substring(0, 6) === "statsd") return;
     let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
     if(app.telemetries[key] == undefined){
-        /*let config = Object.assign({}, defaultPlotOpts);
-        config.name = key;
-        config.scales.x.time = isTimeBased;
-        if(!isTimeBased){
-            config.mode = 2;
-            config.cursor.sync = undefined;
-            config.series[1].paths = drawXYPoints;
-        }*/
-   
-        let newDataSerie = new DataSerie(key);
-        //newDataSerie.config = config;
-        newDataSerie.xy = !isTimeBased;//TODO: make this in constructor
-        if (unit != "") newDataSerie.unit = unit;
+                
+        let newDataSerie = new DataSerie(key, isTimeBased, unit);
 
-        if(!isTimeBased){
-            newDataSerie.data.push([]);
-            newDataSerie.pendingData.push([]);
-        }
         Vue.set(app.telemetries, key, newDataSerie)
         // Create widget
         if(shouldPlot){
             let chart = new ChartWidget(!isTimeBased);
-            let serie = new DataSerie(key);
+            let serie = app.telemetries[key];
             serie.addSource(key);
             chart.addSerie(serie);
             widgets.push(chart);
@@ -199,8 +145,13 @@ function appendData(key, valuesX, valuesY, valuesZ, unit,flags) {
     else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
 
     // Flush data into buffer (to be flushed by updateView)
+    
+   /* console.log("value X : "+JSON.stringify(valuesX) + " length X : "+valuesX.length + "type : "+typeof(valuesX));
+    console.log("value y : " + JSON.stringify(valuesY) + " length y : " + valuesY.length + "type : "+typeof(valuesY));
+*/
     telemBuffer[key].data[0].push(...valuesX);
     telemBuffer[key].data[1].push(...valuesY);
+    
     if(app.telemetries[key].xy) {
         telemBuffer[key].value = ""+valuesX[valuesX.length-1].toFixed(4)+" "+valuesY[valuesY.length-1].toFixed(4)+"";
         telemBuffer[key].data[2].push(...valuesZ);
