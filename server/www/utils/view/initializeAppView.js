@@ -124,8 +124,7 @@ function initializeAppView()
                 newChartDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 let chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
-                let serie = app.telemetries[telemetryName];
-                serie.addSource(telemetryName);
+                let serie = getSerieInstanceFromTelemetry(telemetryName);    
                 chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);

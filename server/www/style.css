@@ -88,6 +88,8 @@ body {
 }
 .center-col {
 	min-width: min(400px, 50%);
+	/*Thanks to this padding, the zone to drop new widget goes even under already existant widgets*/
+	padding-bottom: 200px;
 	flex: 3;
 }
 .right-col {
