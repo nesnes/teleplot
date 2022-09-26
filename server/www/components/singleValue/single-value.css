@@ -1,0 +1,43 @@
+.single-value-container
+{
+	width: 500px;
+	height: 200px;
+	resize: both;
+	overflow: hidden;
+	position: relative;
+	background-color: aqua;
+}
+
+.single-value-telem-div, .single-value-unit-div, .single-value-value-div
+{
+	display: flex;
+	align-items: center;
+	width: 100%;
+	position: absolute;
+}
+
+.single-value-telem-div
+{
+	width: 90%;
+	left: 10%;
+	height: 15%;
+
+	background-color:blue;
+}
+
+.single-value-value-div
+{
+	top: 20%;
+	height: 60%;
+	width: 100%;
+	background-color:orange;
+}
+
+.single-value-unit-div
+{
+	height: 15%;
+	width: 50%;
+	left: 25%;
+	top: 85%;
+	background-color:yellow;
+}

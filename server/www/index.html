@@ -4,12 +4,18 @@
 		<meta charset="utf-8">
 		<title>Telemetry</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<link rel="stylesheet" href="lib/uPlot.min.css">
+		<link rel="stylesheet" href="components/uPlot/uPlot.min.css">
+        <link rel="stylesheet" href="components/vueResponsiveText/vue-responsive-text.css">
+        <link rel="stylesheet" href="components/singleValue/single-value.css">
 		<link rel="stylesheet" href="style.css">
-        <script src="lib/vue.js"></script>
+        <script src="vue/vue.js"></script>
+
 	</head>
 	<body>
+
         <div id="app">
+        <single-value ref = "single_value" v-bind:value="15.025" v-bind:unit="'km²'" v-bind:telem="'myValue'"></single-value>
+
             <header class="top-banner">
                 <div class="top-banner-left">
                     <img src="images/logo-color.svg"/>
@@ -297,8 +303,10 @@
 
     </body>
     
-    <script src="lib/uPlot.iife.js"></script>
-    <script src="lib/uplot-component.js"></script>
+    <script src="components/uPlot/uPlot.iife.js"></script>
+    <script src="components/uPlot/uplot-component.js"></script>
+    <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
+    <script src="components/singleValue/singleValue.js"></script>
     <script src="./constants.js"></script>
     <script src="./classes/communication/connection/Connection.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
@@ -320,4 +328,5 @@
     <script src="./utils/view/updateView.js"></script>
     <script src="./utils/stats/computeStats.js"></script>
     <script src="./main.js"></script>
+
 </html>

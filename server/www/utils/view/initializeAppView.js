@@ -74,6 +74,9 @@ function initializeAppView()
                 app.logAvailable = false;
                 app.isViewPaused = false;
                 app.telemetryFilterString = "";
+
+                app.$refs.single_value.onContainerResized();
+
             },
             sendText: function(text) {
                 let escape = app.sendTextLineEnding.replace("\\n","\n");

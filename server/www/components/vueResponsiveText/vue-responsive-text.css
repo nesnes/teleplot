@@ -1,0 +1,13 @@
+.responsive-text-wrapper {
+  display: inline-block;
+  white-space: nowrap;
+  -ms-transform-origin: left;
+  -webkit-transform-origin: left;
+  -o-transform-origin: left;
+  -moz-transform-origin: left;
+  transform-origin: left;
+}
+
+.responsive-text-wrapper-center {
+  margin: auto;
+}
