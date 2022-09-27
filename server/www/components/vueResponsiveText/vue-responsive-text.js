@@ -26,9 +26,11 @@ function getNodeHeight(node) {
 Vue.component('vue-responsive-text', {
   name: 'vue-responsive-text',
   props: {
-    isTelem: {type: Boolean, required: true},
-    fillColor : {type: String, required: false},
-    strokeColor : {type: String, required: false},
+    isTelem: {type: Boolean, required: false},
+    isUnit: {type: Boolean, required: false},
+    isValue: {type: Boolean, required: false},
+    // fillColor : {type: String, required: false},
+    // strokeColor : {type: String, required: false},
   },
   data() {
     return {
@@ -51,7 +53,7 @@ Vue.component('vue-responsive-text', {
       };
     },
   },
-  mounted() {
+  /*mounted() {
     if (this.isTelem)
     {
       const theTelem = document.getElementById('current-responsive-text-wrapper');
@@ -61,7 +63,7 @@ Vue.component('vue-responsive-text', {
       theTelem.style.borderStyle = "solid";
       theTelem.style.padding = "1px"
     }
-},
+    },*/
   methods: {
     updateScale(currentWidth, maxWidth, currentHeight, maxHeight) {
       this.scale = Math.min(maxWidth / currentWidth, maxHeight/ currentHeight);
@@ -79,7 +81,7 @@ Vue.component('vue-responsive-text', {
     }
   },
   
-  template:'<span id="current-responsive-text-wrapper" v-bind:class="{ \'responsive-text-wrapper-center\' : !isTelem, \'responsive-text-wrapper\' : isTelem }" :style="{ ...scaleStyle }"> \
+  template:'<span id="current-responsive-text-wrapper" v-bind:class="{ \'responsive-text-wrapper-telem\' : isTelem, \'responsive-text-wrapper-unit\' : isUnit, \'responsive-text-wrapper-value\' : isValue }" :style="{ ...scaleStyle }"> \
               <slot></slot> \
             </span>'
 });

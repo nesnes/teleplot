@@ -43,9 +43,9 @@ unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
 },
 template:'<div id="single-value-container-id" class="single-value-container">\
-            <div id="single-value-telem-id" class="single-value-telem-div"> <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" v-bind:fillColor="this.fillColor" v-bind:strokeColor="this.strokeColor" >{{telem}}</vue-responsive-text> </div>\
-            <div @click="widget.changeValuePrecision()" class="single-value-value-div"> <vue-responsive-text ref="value_responsive_text" v-bind:isTelem="false">{{value}}</vue-responsive-text> </div>\
-            <div class="single-value-unit-div"> <vue-responsive-text ref="unit_responsive_text" v-bind:isTelem="false" >{{unit}}</vue-responsive-text> </div>\
+            <div id="single-value-telem-id" class="single-value-telem-div"> <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text> </div>\
+            <div @click="widget.changeValuePrecision()" class="single-value-value-div"> <vue-responsive-text ref="value_responsive_text" v-bind:isValue="true">{{value}}</vue-responsive-text> </div>\
+            <div class="single-value-unit-div"> <vue-responsive-text ref="unit_responsive_text" v-bind:isUnit="true" >{{unit}}</vue-responsive-text> </div>\
             </div>',
 });
 

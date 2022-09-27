@@ -90,7 +90,12 @@ function initializeAppView()
             onDropInWidget: function(e, widget){
                 e.preventDefault();
                 e.stopPropagation();
+                this.newChartDropZoneOver = false;
                 widget.draggedOver = false;
+
+                if (widget.type != "chart")
+                    return;
+
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 let newIsXY = app.telemetries[telemetryName].xy;
                 let chartIsXY = (widget.series.length
@@ -103,10 +108,12 @@ function initializeAppView()
             },
             onWidgetDragOver: function(e, widget){
                 e.preventDefault();
+                this.newChartDropZoneOver = true;
                 widget.draggedOver = true;
             },
             onWidgetDragLeave: function(e, widget){
                 e.preventDefault();
+                this.newChartDropZoneOver = false;
                 widget.draggedOver = false;
             },
             showWidget: function(widget, show){
@@ -120,7 +127,7 @@ function initializeAppView()
                 if(idx>=0) app.widgets.splice(idx, 1);
                 triggerChartResize();
             },
-            onDropInNewChart: function(e, prepend=true){      
+            onDropInNewChart: function(e, prepend=true){    
                 e.preventDefault();
                 e.stopPropagation();      
                 this.newChartDropZoneOver = false;
