@@ -375,7 +375,11 @@ body {
 	margin-left: 4px;
 	margin-right: 4px;
 	cursor: pointer;
+<<<<<<< HEAD
 	z-index: 10;
+=======
+	z-index: 2;
+>>>>>>> a first well working version
 
 	/* user can't highlight the element ( useful for when resizing ) */
 	user-select: none;

@@ -178,6 +178,19 @@ function initializeAppView()
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
+            onDropInLastValue: function(e, prepend=true){      
+                e.preventDefault();
+                e.stopPropagation();      
+                this.lastValueDropZoneOver = false;
+                let telemetryName = e.dataTransfer.getData("telemetryName");
+                
+                let chart = new SingleValueWidget("last");// currently, we only support last values 
+                let serie = new DataSerie(telemetryName);
+                serie.addSource(telemetryName);
+                chart.setSerie(serie);
+                if(prepend) widgets.unshift(chart);
+                else widgets.push(chart);
+            },
             onNewChartDragOver: function(e){
                 e.preventDefault();
                 this.newChartDropZoneOver = true;
