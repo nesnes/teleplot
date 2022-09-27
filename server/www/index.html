@@ -12,10 +12,7 @@
 
 	</head>
 	<body>
-
         <div id="app">
-        <single-value ref = "single_value" v-bind:value="15.025" v-bind:unit="'km²'" v-bind:telem="'myValue'"></single-value>
-
             <header class="top-banner">
                 <div class="top-banner-left">
                     <img src="images/logo-color.svg"/>
@@ -143,6 +140,10 @@
                     @drop="onDropInNewChart($event)" @dragover="onNewChartDragOver($event)" @dragenter.prevent @dragleave="onNewChartDragLeave($event)">
                         <span>🞢 Drop here for new chart</span>
                     </div>
+                    <div class="last-value-drop-zone" v-bind:class="{ 'last-value-drop-zone-over': lastValueDropZoneOver }"
+                    @drop="onDropInLastValue($event)" @dragover="onLastValueDragOver($event)" @dragenter.prevent @dragleave="onLastValueDragLeave($event)">
+                        <span>🞢 Drop here for last value</span>
+                    </div>
                     <input type="text" placeholder="Telemetry filter (ex: a*c* )" v-model="telemetryFilterString"/>
 
 
@@ -180,7 +181,7 @@
                                 </div>
                                 <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
-                                        <div class="serie-name-container">
+                                        <div v-if="widget.type == 'chart'" class="serie-name-container">
                                             <span class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
                                                 <span class="serie-value" v-if="typeof serie.value == 'number'">{{serie.value.toFixed(4)}}</span>
                                                 <span class="serie-value" v-if="typeof serie.value == 'string'">{{serie.value}}</span>
@@ -215,14 +216,17 @@
                                 <div class="widget-option-container">
                                     <!--<span class="widget-option" v-if="!widget.hidden" @click="showWidget(widget, false)">—</span>
                                     <span class="widget-option" v-if="widget.hidden" @click="showWidget(widget, true)">▭</span>-->
-                                    <span class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
+                                    <span v-if="widget.type == 'chart'" class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
                                     <span id ="closeWidgetButton" class="widget-option" @click="removeWidget(widget)" title="Close widget">╳</span>
                                     
                                 </div>
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
                             
+                            <single-value v-if="widget.type == 'single_value'" v-bind:widget="widget"></single-value>
+                            
                             <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
+
                             
                         </div>
                     </div>
@@ -315,6 +319,7 @@
     <script src="./classes/communication/serverMessageReading.js"></script>
     <script src="./classes/widgets/DataWidget.js"></script>
     <script src="./classes/widgets/ChartWidget.js"></script>
+    <script src="./classes/widgets/SingleValueWidget.js"></script>
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>
     <script src="./classes/communication/data/DataInputUDP.js"></script>

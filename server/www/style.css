@@ -359,6 +359,7 @@ body {
 	margin-left: 4px;
 	margin-right: 4px;
 	cursor: pointer;
+	z-index: 2;
 
 	/* user can't highlight the element ( useful for when resizing ) */
 	user-select: none;
@@ -381,15 +382,33 @@ body {
 	user-select: none;
 }
 
-.new-chart-drop-zone {
+.new-chart-drop-zone, .new-chart-drop-zone-over  {
 	margin: 5px;
-    border: 2px dashed #3498db;
-    border-radius: 5px;
     padding: 5px;
+	border: 2px dashed #3498db;
+    border-radius: 5px;
     color: #3498db;
 	text-align: center;
 
+	border-bottom: 1px dashed #3498db;
+	margin-bottom: 0px;
 }
+
+.last-value-drop-zone, .last-value-drop-zone-over   {
+	margin: 5px;
+    padding: 5px;
+    border: 2px dashed #3498db;
+    border-radius: 5px;
+    color: #3498db;
+	text-align: center;
+
+	border-top: 1px dashed #3498db;
+	margin-top: 0px;
+}
+
+.new-chart-drop-zone-over, .last-value-drop-zone-over {
+	background-color: rgb(255, 255, 0,0.1);
+} 
 
 .serie-name-container {
 	display: flex;

@@ -1,18 +1,23 @@
+/* lot of text is commented out here, it code that might be used, if we suport average, min and max feature for singleValueWidget*/
+
 class SingleValueWidget extends DataWidget{
     constructor(widgetMode_) {
         super();
-        this.type = "singleValue";
-        this.options = {
-            serie_name : "untitled", // type : String, the name of the serie (useful to display the serie name in the component)
-            singlevalue : 0,// type : Number, the value of the widget ( so the average, the max or the min ... according to widgetMode )
-            number_precision : 5,
-            widgetMode : widgetMode_// type : String, what our widget singlevalue is going to be ( either "average", "max", "min" or "last")
-        }
-        this.currentLastIndex = -1;// type : Number, the value of the last index at which singleValue was calculated
-        this.valueSum = 0;
-        this.forceUpdate = true;
 
-        updateWidgetSize_(this);
+        this.type = "single_value";
+        this.singlevalue = '0'; // type : Number, the value of the widget ( so the average, the max or the min ... according to widgetMode )
+        this.precision_mode = 0; // either 0 (default), 1 (good) or 2 (very good)
+        //this.widgetMode = widgetMode_ ; // type : String, what our widget singlevalue is going to be ( either "average", "max", "min" or "last")
+        
+        this.options = {
+            width: undefined,
+            height: undefined,
+        }
+        //this.currentLastIndex = -1;// type : Number, the value of the last index at which singleValue was calculated
+        //this.valueSum = 0;
+        //this.forceUpdate = true;
+
+        //updateWidgetSize_(this);
     }
 
     setSerie(serie)
@@ -23,7 +28,6 @@ class SingleValueWidget extends DataWidget{
         if (this.series.length != 0)
             throw new Error("SingleValueWidget should contain only one serie");
         this.series.push(serie);
-        this.options.serie_name = serie.name;
     }
 
     destroy(){
@@ -31,25 +35,46 @@ class SingleValueWidget extends DataWidget{
             this.series[0].destroy();
     }
 
-    getSerieMaxIdxAccordingToCursor(serie)
-    {
-        /*if (cursorXValueOnWidget != undefined)
-        {
-            return getClosestSerieIdx(serie, cursorXValueOnWidget);
-        }*/
-        
-        return serie.data[0].length -1;
-    }
-
+    
     update(){  
         this.series[0].update();
-        this.updateWidgetValue()
+
+        let nb = this.series[0].value;
+        let significant_digits = 3;
+
+        switch (this.precision_mode)
+        {
+            case 0 : // default
+                significant_digits = 3;
+                break;
+            case 1 : // good precision
+                significant_digits = 7;
+                break;
+            case 2 : // maximal precision
+                significant_digits = undefined;
+                break;
+        }
+        this.singlevalue = nb.toPrecision(significant_digits);
+
+        //this.updateWidgetValue()
     } 
 
-    toogleValuePrecision()
+
+    changeValuePrecision()
     {
-        if (this.options.number_precision != 5) this.options.number_precision = 5;
-        else this.options.number_precision = 12;
+        this.precision_mode = (this.precision_mode + 1) % 3;
+    }
+
+    /*
+    
+    getSerieMaxIdxAccordingToCursor(serie)
+    {
+        // if (cursorXValueOnWidget != undefined)
+        // {
+        //     return getClosestSerieIdx(serie, cursorXValueOnWidget);
+        // }
+        
+        return serie.data[0].length -1;
     }
 
     updateWidgetValue()
@@ -90,10 +115,10 @@ class SingleValueWidget extends DataWidget{
                 break;
                 
         }
-    }
-
+    }*/
 }
 
+/*
 function updateWidgetContentSize()
 {
     let child = document.getElementById("single_value_el_id");
@@ -113,3 +138,4 @@ function updateWidgetContentSize()
     } while ((textHeight > maxHeight || textWidth > maxWidth) && new_fontSize > 3);
 
 }
+*/

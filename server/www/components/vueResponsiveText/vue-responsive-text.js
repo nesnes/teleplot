@@ -2,21 +2,10 @@ function getNodeWidth(node) {
   const nodeStyles = window.getComputedStyle(node, null);
   const width = node.offsetWidth;
 
-  const borderLeftWidth = nodeStyles.borderLeftWidth
-    ? parseFloat(nodeStyles.borderLeftWidth)
-    : 0;
-
-  const borderRightWidth = nodeStyles.borderRightWidth
-    ? parseFloat(nodeStyles.borderRightWidth)
-    : 0;
-
-  const paddingLeft = nodeStyles.paddingLeft
-    ? parseFloat(nodeStyles.paddingLeft)
-    : 0;
-
-  const paddingRight = nodeStyles.paddingRight
-    ? parseFloat(nodeStyles.paddingRight)
-    : 0;
+  const borderLeftWidth = nodeStyles.borderLeftWidth ? parseFloat(nodeStyles.borderLeftWidth): 0;
+  const borderRightWidth = nodeStyles.borderRightWidth ? parseFloat(nodeStyles.borderRightWidth) : 0;
+  const paddingLeft = nodeStyles.paddingLeft ? parseFloat(nodeStyles.paddingLeft) : 0;
+  const paddingRight = nodeStyles.paddingRight ? parseFloat(nodeStyles.paddingRight) : 0;
 
   return (width - borderRightWidth - borderLeftWidth - paddingLeft - paddingRight);
 }
@@ -27,11 +16,8 @@ function getNodeHeight(node) {
   const height = node.offsetHeight;
 
   const borderTopHeight = nodeStyles.borderTopHeight ? parseFloat(nodeStyles.borderTopHeight): 0;
-
   const borderBottomHeight = nodeStyles.borderBottomHeight ? parseFloat(nodeStyles.borderBottomHeight): 0;
-
   const paddingTop = nodeStyles.paddingTop ? parseFloat(nodeStyles.paddingTop): 0;
-
   const paddingBottom = nodeStyles.paddingBottom ? parseFloat(nodeStyles.paddingBottom): 0;
 
   return (height - borderBottomHeight - borderTopHeight - paddingTop - paddingBottom);
@@ -39,7 +25,11 @@ function getNodeHeight(node) {
 
 Vue.component('vue-responsive-text', {
   name: 'vue-responsive-text',
-  props: {},
+  props: {
+    isTelem: {type: Boolean, required: true},
+    fillColor : {type: String, required: false},
+    strokeColor : {type: String, required: false},
+  },
   data() {
     return {
       scale: 1,
@@ -61,6 +51,17 @@ Vue.component('vue-responsive-text', {
       };
     },
   },
+  mounted() {
+    if (this.isTelem)
+    {
+      const theTelem = document.getElementById('current-responsive-text-wrapper');
+      theTelem.style.backgroundColor = this.fillColor;
+      theTelem.style.borderColor = this.strokeColor;
+      theTelem.style.borderWidth = "1.5px";
+      theTelem.style.borderStyle = "solid";
+      theTelem.style.padding = "1px"
+    }
+},
   methods: {
     updateScale(currentWidth, maxWidth, currentHeight, maxHeight) {
       this.scale = Math.min(maxWidth / currentWidth, maxHeight/ currentHeight);
@@ -77,13 +78,9 @@ Vue.component('vue-responsive-text', {
       this.updateScale(this.currentWidth, this.maxWidth, this.currentHeight, this.maxHeight);
     }
   },
-  mounted() {
-    this.triggerTextResize();
-  },
-  updated() {
-    this.triggerTextResize();
-  },
-  template:'<span v-bind:class="{ \'responsive-text-wrapper-center\' : textIsCenter }" :style="{ ...scaleStyle }"> <slot> </slot> </span>'
-  //todo : SHOW responsive-text-wrapper-center if textIsCenter is true, and responsive-text-wrapper otherwise, (should be a prop)
+  
+  template:'<span id="current-responsive-text-wrapper" v-bind:class="{ \'responsive-text-wrapper-center\' : !isTelem, \'responsive-text-wrapper\' : isTelem }" :style="{ ...scaleStyle }"> \
+              <slot></slot> \
+            </span>'
 });
 
