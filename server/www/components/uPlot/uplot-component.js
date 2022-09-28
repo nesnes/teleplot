@@ -40,8 +40,12 @@ Vue.component('uplot-vue', {
         }
     },
     mounted() {
+<<<<<<< HEAD
         // removing this call because this.$props.data seems not ready yet for xy charts
         // this._create();
+=======
+        //this._create();
+>>>>>>> rebase + import/export fixed + bug xy fixed + rebase bug fixed + code refractor
     },
     beforeUnmount() {
         this._destroy();

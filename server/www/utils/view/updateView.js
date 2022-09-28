@@ -22,22 +22,8 @@ function updateView() {
             if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].push(...telemBuffer[key].data[2]);
             telemBuffer[key].data[0].length = 0;
             telemBuffer[key].data[1].length = 0;
-            if(app.telemetries[key].type=="xy") telemBuffer[key].data[2].length = 0;
-
-            app.telemetries[key].values.length = 0;
-
-            if (telemBuffer[key].values.length > 0)
-                app.telemetries[key].values.push(telemBuffer[key].values[0]);
-
-            if (telemBuffer[key].values.length > 1)
-                app.telemetries[key].values.push(telemBuffer[key].values[1]);
-
-
-            
-            // console.log(JSON.stringify(app.telemetries["my_cube_0"].values[0], null, 3));
-
-            // console.log(JSON.stringify(app.telemetries[key].values, null, 3));
-
+            if(app.telemetries[key].xy) telemBuffer[key].data[2].length = 0;
+            app.telemetries[key].values = copyArray(telemBuffer[key].values);
         }
     }
 
