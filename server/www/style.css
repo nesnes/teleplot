@@ -88,6 +88,8 @@ body {
 }
 .center-col {
 	min-width: min(400px, 50%);
+	/*Thanks to this padding, the zone to drop new widget goes even under already existant widgets*/
+	padding-bottom: 200px;
 	flex: 3;
 }
 .right-col {
@@ -168,6 +170,7 @@ body {
     flex: 1;
     padding: 0px 0px 1px 3px;
     border-radius: 5px 0px 0px 5px;
+	text-align: center;
 }
 
 .var-vue-value {
@@ -324,8 +327,11 @@ body {
 	margin-right: 3px;
 }
 
-.serie-name {
+.serie-name, .serie-unit {
 	color: black;
+	margin-right: 3px;
+	margin-left: 3px;
+	text-align: center;
 }
 
 .serie-value {

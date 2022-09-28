@@ -96,8 +96,7 @@ function initializeAppView()
                     && app.telemetries[widget.series[0].sourceNames[0]].xy
                 );
                 if(newIsXY != chartIsXY) return;
-                let serie = new DataSerie(telemetryName);
-                serie.addSource(telemetryName);
+                let serie = getSerieInstanceFromTelemetry(telemetryName);
                 widget.addSerie(serie);
             },
             onWidgetDragOver: function(e, widget){
@@ -125,8 +124,7 @@ function initializeAppView()
                 newChartDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 let chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
-                let serie = new DataSerie(telemetryName);
-                serie.addSource(telemetryName);
+                let serie = getSerieInstanceFromTelemetry(telemetryName);    
                 chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);

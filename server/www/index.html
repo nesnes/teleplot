@@ -144,7 +144,10 @@
                     v-if="isMatchingTelemetryFilter(telem.name)"
                     class="var-vue" @click="toggleVisibility(telem)"
                     draggable @dragstart="onDragTelemetry($event, telem.name)">
-                        <div class="var-vue-name">{{telem.name}}</div>
+                        <div class="var-vue-name">
+                            <span class="serie-name">{{telem.name}}</span>
+                            <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
+                        </div>
                         <div class="var-vue-value" v-if="typeof telem.value == 'number'">{{telem.value.toFixed(4)}}</div>
                         <div class="var-vue-value" v-if="typeof telem.value == 'string'">{{telem.value}}</div>
                     </div>
@@ -177,6 +180,7 @@
                                                 <span class="serie-value" v-if="typeof serie.value == 'string'">{{serie.value}}</span>
                                             </span>
                                             <span class="serie-name" >{{serie.name}}</span>
+                                            <span v-if="serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
                                         </div>
                                         <div v-if="serie.stats" class="serie-stat-container">
                                             <div class="serie-stat">
@@ -306,6 +310,7 @@
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>
     <script src="./classes/communication/data/DataInputUDP.js"></script>
+    <script src="./classes/Telemetry.js"></script>
     <script src="./classes/DataSerie.js"></script>
     <script src="./utils/view/paint.js"></script>
     <script src="./utils/import_export/fileManagement.js"></script>

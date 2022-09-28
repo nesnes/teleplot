@@ -15,3 +15,18 @@ function saveFile(content, filename) {
         document.body.removeChild(element);
     }
 }
+
+function buildFileName(fileContentType, fileExtension)
+{
+    let fileName = "teleplot_";
+
+    if (fileContentType === "layout")
+        fileName += "layout_";
+    
+    let now = new Date();
+
+    fileName +=  (now.getFullYear() + "-" + (now.getMonth()+1) + "-" + now.getDate() + "_" + now.getHours() + "-" + now.getMinutes());
+    fileName += ( "." + fileExtension );
+
+    return fileName;
+}

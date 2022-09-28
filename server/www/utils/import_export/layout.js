@@ -14,15 +14,15 @@ function exportLayout() {
                 name: s.name,
                 sourceNames: s.sourceNames,
                 formula: s.formula,
-                options: s.options
+                options: s.options,
+                unit: s.unit
             }
             widget.series.push(serie);
         }
         obj.widgets.push(widget);
     }
-    let content = JSON.stringify(obj);
-    let now = new Date();
-    let filename = `teleplot_layout_${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}.json`;
+    let content = JSON.stringify(obj, null, 3);
+    let filename = buildFileName("layout", "json");
     saveFile(content, filename);
 }
 
@@ -41,7 +41,7 @@ function importLayoutJSON(event) {
                     let newSeries = []
                     let isXY = false;
                     for(let s of w.series){
-                        let serie = new DataSerie(s.name);
+                        let serie = new DataSerie(s.name, s.xy, s.unit);
                         for(let sn of s.sourceNames){
                             if(sn in app.telemetries && app.telemetries[sn].xy) {
                                 isXY = true;
