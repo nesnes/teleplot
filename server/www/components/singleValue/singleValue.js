@@ -1,3 +1,6 @@
+var resizingFont = null;
+
+
 Vue.component('single-value', {
 name: 'single-value',
 props: {
@@ -15,7 +18,7 @@ methods: {
     {
         if (this.$refs.telem_responsive_text == undefined)
             return;
-        //console.log("trigger 3 text resize");
+        console.log("trigger 3 text resize");
         
         this.$refs.telem_responsive_text.triggerTextResize();
         this.$refs.value_responsive_text.triggerTextResize();
@@ -32,19 +35,26 @@ mounted() {
       
     resizeObserverForSingleValue.observe(singleValueContainer);
 
-
 },
 updated() {
-    // TODO:, this is a bit overkilling as updated() is called very often and the resizeObserver is already triggered in most cases, 
-    // this might be optimizable
-    this.onContainerResized();
+    if (!resizingFont)
+    {
+        resizingFont = true;
+
+        setTimeout(()=>
+        {
+            this.onContainerResized();
+            resizingFont = false;
+        }, 100);
+    }
+        
 },
 unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
 },
 template:'<div id="single-value-container-id" class="single-value-container">\
             <div id="single-value-telem-id" class="single-value-telem-div"> <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text> </div>\
-            <div @click="widget.changeValuePrecision()" class="single-value-value-div"> <vue-responsive-text ref="value_responsive_text" v-bind:isValue="true">{{value}}</vue-responsive-text> </div>\
+            <div @click="widget.changeValuePrecision()" title="Click to change precision" class="single-value-value-div"> <vue-responsive-text ref="value_responsive_text" v-bind:isValue="true">{{value}}</vue-responsive-text> </div>\
             <div class="single-value-unit-div"> <vue-responsive-text ref="unit_responsive_text" v-bind:isUnit="true" >{{unit}}</vue-responsive-text> </div>\
             </div>',
 });

@@ -21,7 +21,7 @@ function updateView() {
             telemBuffer[key].data[0].length = 0;
             telemBuffer[key].data[1].length = 0;
             if(app.telemetries[key].xy) telemBuffer[key].data[2].length = 0;
-            app.telemetries[key].value = telemBuffer[key].value
+            app.telemetries[key].values = copyArray(telemBuffer[key].values);
         }
     }
 

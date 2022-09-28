@@ -40,7 +40,7 @@ Vue.component('uplot-vue', {
         }
     },
     mounted() {
-        this._create();
+        //this._create();
     },
     beforeUnmount() {
         this._destroy();

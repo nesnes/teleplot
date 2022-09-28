@@ -36,12 +36,10 @@ class SingleValueWidget extends DataWidget{
     }
 
     
-    update(){  
-        this.series[0].update();
-
-        let nb = this.series[0].value;
-        let significant_digits = 3;
-
+    convertNumberToGoodFormat(nb)
+    {
+        
+        let significant_digits = 21;
         switch (this.precision_mode)
         {
             case 0 : // default
@@ -51,11 +49,24 @@ class SingleValueWidget extends DataWidget{
                 significant_digits = 7;
                 break;
             case 2 : // maximal precision
-                significant_digits = undefined;
+                significant_digits = 21;
                 break;
         }
-        this.singlevalue = nb.toPrecision(significant_digits);
+        return nb.toPrecision(significant_digits);
+    }
 
+    update(){  
+        let currentSerie = this.series[0];
+        currentSerie.update();
+
+        if (currentSerie == undefined || currentSerie.values[0] == undefined)
+            return;
+
+        if (currentSerie.xy && currentSerie.values[1] != undefined)
+            this.singlevalue = (this.convertNumberToGoodFormat(currentSerie.values[0]) + " | " + this.convertNumberToGoodFormat(currentSerie.values[1]));
+        else
+            this.singlevalue = this.convertNumberToGoodFormat(currentSerie.values[0]);
+        
         //this.updateWidgetValue()
     } 
 

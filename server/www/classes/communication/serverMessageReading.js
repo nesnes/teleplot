@@ -133,7 +133,7 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
         }
     }
     if(telemBuffer[key] == undefined){
-        telemBuffer[key] = {data:[[],[]], value:0};
+        telemBuffer[key] = {data:[[],[]], values:[]};
         if(!isTimeBased) telemBuffer[key].data.push([]);
     }
 
@@ -148,13 +148,16 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
 */
     telemBuffer[key].data[0].push(...valuesX);
     telemBuffer[key].data[1].push(...valuesY);
+    telemBuffer[key].values = [];
     
     if(app.telemetries[key].xy) {
-        telemBuffer[key].value = ""+valuesX[valuesX.length-1].toFixed(4)+" "+valuesY[valuesY.length-1].toFixed(4)+"";
+        telemBuffer[key].values.push(valuesX[valuesX.length-1]);
+        telemBuffer[key].values.push(valuesY[valuesY.length-1]);
+
         telemBuffer[key].data[2].push(...valuesZ);
     }
     else {
-        telemBuffer[key].value = valuesY[valuesY.length-1];
+        telemBuffer[key].values.push(valuesY[valuesY.length-1]);
     }
     return;
 }

@@ -155,8 +155,8 @@
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value" v-if="typeof telem.value == 'number'">{{telem.value.toFixed(4)}}</div>
-                        <div class="var-vue-value" v-if="typeof telem.value == 'string'">{{telem.value}}</div>
+                        <div class="var-vue-value" v-if="telem.values.length == 1">{{telem.values[0].toFixed(4)}}</div>
+                        <div class="var-vue-value" v-if="telem.values.length == 2">{{telem.values[0].toFixed(4)}} {{telem.values[1].toFixed(4)}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -183,8 +183,7 @@
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
                                         <div v-if="widget.type == 'chart'" class="serie-name-container">
                                             <span class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
-                                                <span class="serie-value" v-if="typeof serie.value == 'number'">{{serie.value.toFixed(4)}}</span>
-                                                <span class="serie-value" v-if="typeof serie.value == 'string'">{{serie.value}}</span>
+                                                <span class="serie-value">{{serie.getFormattedValue()}}</span>
                                             </span>
                                             <span class="serie-name" >{{serie.name}}</span>
                                             <span v-if="serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
@@ -306,7 +305,7 @@
         </div>
 
     </body>
-    
+    <script src="utils/javascriptUtils.js"></script>"
     <script src="components/uPlot/uPlot.iife.js"></script>
     <script src="components/uPlot/uplot-component.js"></script>
     <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
