@@ -169,8 +169,7 @@ function initializeAppView()
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
                 let chart = new SingleValueWidget("last");// currently, we only support last values 
-                let serie = new DataSerie(telemetryName);
-                serie.addSource(telemetryName);
+                let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.setSerie(serie);
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
