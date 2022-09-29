@@ -1,12 +1,14 @@
 /* lot of text is commented out here, this is code that might be useful, if we support the average, min and max features for singleValueWidget*/
 
 class SingleValueWidget extends DataWidget{
-    constructor(widgetMode_) {
+    constructor(containsTextFormat=false) {
         super();
 
         this.type = "single_value";
         this.singlevalue = '0'; // type : Number, the value of the widget ( so the average, the max or the min ... according to widgetMode )
         this.precision_mode = 0; // either 0 (default), 1 (good) or 2 (very good)
+        this.containsTextFormat = containsTextFormat;
+        
         //this.widgetMode = widgetMode_ ; // type : String, what our widget singlevalue is going to be ( either "average", "max", "min" or "last")
         
         //this.currentLastIndex = -1;// type : Number, the value of the last index at which singleValue was calculated

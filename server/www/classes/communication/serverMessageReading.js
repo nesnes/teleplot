@@ -67,6 +67,13 @@ function isValidUnitChar(character)
     return (character<'0' || character>'9') && character!=':' && character!='.' && character!=',' && character!=';' && character!='|' ;
 }
 
+function isTextFormatTelemetry(msg, startIdx)
+{
+    let firstChar = msg[startIdx+1];
+
+    return (firstChar < '0' || firstChar > '9');
+}
+
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
 // now : a Number representing a timestamp 
 function parseVariablesData(msg, now)
@@ -74,7 +81,7 @@ function parseVariablesData(msg, now)
     if(!msg.includes(':')) return;
 
     let startIdx = msg.indexOf(':');
-    let name = msg.substr(0,msg.indexOf(':'));
+    let name = msg.substr(0,msg.indexOf(':')); if(name.substring(0, 6) === "statsd") return;
     let endIdx = msg.indexOf('|');
     let flags = msg.substr(endIdx+1);
     let unit = "";
@@ -82,6 +89,34 @@ function parseVariablesData(msg, now)
         flags = shouldPlotByDefault?"g":"np";
         endIdx = msg.length;
     }
+
+    if (isTextFormatTelemetry(msg, startIdx))
+    {
+        let textFormatMsg = msg.substring(startIdx+1, endIdx);
+
+        let shouldPlot = !flags.includes("np");
+        if(app.telemetries[name] == undefined){
+            
+            let telem = new Telemetry(name, undefined, undefined, "textBased");
+            telem.textFormatValue = textFormatMsg;
+
+            Vue.set(app.telemetries, name, telem)
+            // Create widget
+            if(shouldPlot)
+            {
+                let chart = new SingleValueWidget(true);
+                let serie = getSerieInstanceFromTelemetry(name);
+                chart.setSerie(serie);
+                widgets.push(chart);
+            }
+        }
+        else
+            app.telemetries[name].textFormatValue = textFormatMsg;
+
+        return;
+    }
+
+  
     while (endIdx-1 > startIdx && isValidUnitChar(msg[endIdx-1]))
         unit = msg[--endIdx] + unit;
 
@@ -118,14 +153,14 @@ function parseVariablesData(msg, now)
 }
 // adds
 function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
-    if(key.substring(0, 6) === "statsd") return;
     let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
     if(app.telemetries[key] == undefined){
                 
         Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit))
         // Create widget
-        if(shouldPlot){
+        if(shouldPlot)
+        {
             let chart = new ChartWidget(!isTimeBased);
             let serie = getSerieInstanceFromTelemetry(key);
             chart.addSerie(serie);
@@ -143,9 +178,6 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
 
     // Flush data into buffer (to be flushed by updateView)
     
-   /* console.log("value X : "+JSON.stringify(valuesX) + " length X : "+valuesX.length + "type : "+typeof(valuesX));
-    console.log("value y : " + JSON.stringify(valuesY) + " length y : " + valuesY.length + "type : "+typeof(valuesY));
-*/
     telemBuffer[key].data[0].push(...valuesX);
     telemBuffer[key].data[1].push(...valuesY);
     telemBuffer[key].values = [];

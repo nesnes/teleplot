@@ -8,10 +8,16 @@ props: {
 },
 computed: {
     telem() { return this.widget.series[0].name; },
-    value() { return this.widget.singlevalue; },
+    value() 
+    {
+        if (this.widget.containsTextFormat)
+            return app.telemetries[this.widget.series[0].name].textFormatValue;
+        else
+            return this.widget.singlevalue; 
+    },
     unit() { return this.widget.series[0].unit; },
-    fillColor() { return this.widget.series[0].options.fill; },
-    strokeColor() { return this.widget.series[0].options.stroke; }
+    /*fillColor() { return this.widget.series[0].options.fill; },
+    strokeColor() { return this.widget.series[0].options.stroke; }*/
 },
 methods: {
     onContainerResized()
