@@ -73,6 +73,13 @@ function isTextFormatTelemetry(msg)
     return (Array.from(msg)).some((mchar) => ((mchar < '0' || mchar > '9') && mchar!='-' && mchar!=':' && mchar!='.' && mchar!=';' && mchar!= ',' && mchar!= '§'));
 }
 
+function isTextFormatTelemetry(msg, startIdx)
+{
+    let firstChar = msg[startIdx+1];
+
+    return (firstChar < '0' || firstChar > '9');
+}
+
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
 // now : a Number representing a timestamp 
 function parseVariablesData(msg, now)
