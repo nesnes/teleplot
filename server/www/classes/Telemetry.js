@@ -16,4 +16,13 @@ class Telemetry{
             this.pendingData.push([]);
         }
     }
+
+    getValuesFormatted() {
+        let res = this.values[0].toFixed(4);
+        
+        if (this.xy && this.values.length == 2)
+            res += ("  " + this.values[1].toFixed(4));
+
+        return res;
+    }
 }

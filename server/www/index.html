@@ -4,11 +4,11 @@
 		<meta charset="utf-8">
 		<title>Telemetry</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<link rel="stylesheet" href="components/uPlot/uPlot.min.css">
+		<link rel="stylesheet" href="lib/uPlot.min.css">
         <link rel="stylesheet" href="components/vueResponsiveText/vue-responsive-text.css">
         <link rel="stylesheet" href="components/singleValue/single-value.css">
 		<link rel="stylesheet" href="style.css">
-        <script src="vue/vue.js"></script>
+        <script src="lib/vue.js"></script>
 
 	</head>
 	<body>
@@ -155,8 +155,7 @@
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value" v-if="telem.values.length == 1">{{telem.values[0].toFixed(4)}}</div>
-                        <div class="var-vue-value" v-if="telem.values.length == 2">{{telem.values[0].toFixed(4)}} {{telem.values[1].toFixed(4)}}</div>
+                        <div class="var-vue-value">{{telem.getValuesFormatted()}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -300,7 +299,7 @@
 
     </body>
     <script src="utils/javascriptUtils.js"></script>"
-    <script src="components/uPlot/uPlot.iife.js"></script>
+    <script src="lib/uPlot.iife.js"></script>
     <script src="components/uPlot/uplot-component.js"></script>
     <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
     <script src="components/singleValue/singleValue.js"></script>

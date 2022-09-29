@@ -1,26 +1,32 @@
-function getNodeWidth(node) {
+function getNodeSize(node, whatWeMeasure)// node : the html element we want to measure, whatWeMeasure : a String (either "width" or "height")
+{
   const nodeStyles = window.getComputedStyle(node, null);
-  const width = node.offsetWidth;
 
-  const borderLeftWidth = nodeStyles.borderLeftWidth ? parseFloat(nodeStyles.borderLeftWidth): 0;
-  const borderRightWidth = nodeStyles.borderRightWidth ? parseFloat(nodeStyles.borderRightWidth) : 0;
-  const paddingLeft = nodeStyles.paddingLeft ? parseFloat(nodeStyles.paddingLeft) : 0;
-  const paddingRight = nodeStyles.paddingRight ? parseFloat(nodeStyles.paddingRight) : 0;
+  let pureSize, border1, border2, padding1, padding2 = undefined;
+  let convertToFloat = (nb_str) => { return nb_str?parseFloat(nb_str):0 };
 
-  return (width - borderRightWidth - borderLeftWidth - paddingLeft - paddingRight);
-}
+  if (whatWeMeasure == "width")
+  {
+    pureSize = node.offsetWidth;
+
+    border1 = nodeStyles.borderLeftWidth;
+    border2 = nodeStyles.borderRightWidth;
+    padding1 = nodeStyles.paddingLeft;
+    padding2 = nodeStyles.paddingRight;
+  }
+  else if (whatWeMeasure == "height")
+  {
+    pureSize = node.offsetHeight;
+
+    border1 = nodeStyles.borderTopHeight;
+    border2 = nodeStyles.borderBottomHeight;
+    padding1 = nodeStyles.paddingTop;
+    padding2 = nodeStyles.paddingBottom;
+  }
 
 
-function getNodeHeight(node) {
-  const nodeStyles = window.getComputedStyle(node, null);
-  const height = node.offsetHeight;
+  return (pureSize - convertToFloat(border1) - convertToFloat(border2) - convertToFloat(padding1) - convertToFloat(padding2));
 
-  const borderTopHeight = nodeStyles.borderTopHeight ? parseFloat(nodeStyles.borderTopHeight): 0;
-  const borderBottomHeight = nodeStyles.borderBottomHeight ? parseFloat(nodeStyles.borderBottomHeight): 0;
-  const paddingTop = nodeStyles.paddingTop ? parseFloat(nodeStyles.paddingTop): 0;
-  const paddingBottom = nodeStyles.paddingBottom ? parseFloat(nodeStyles.paddingBottom): 0;
-
-  return (height - borderBottomHeight - borderTopHeight - paddingTop - paddingBottom);
 }
 
 Vue.component('vue-responsive-text', {
@@ -69,10 +75,10 @@ Vue.component('vue-responsive-text', {
       this.scale = Math.min(maxWidth / currentWidth, maxHeight/ currentHeight);
     },
     updateNodeWidth() {
-      this.currentWidth = getNodeWidth(this.$el);
-      this.maxWidth = getNodeWidth(this.$el.parentElement);
-      this.currentHeight = getNodeHeight(this.$el);
-      this.maxHeight = getNodeHeight(this.$el.parentElement);
+      this.currentWidth = getNodeSize(this.$el, "width");
+      this.maxWidth = getNodeSize(this.$el.parentElement, "width");
+      this.currentHeight = getNodeSize(this.$el, "height");
+      this.maxHeight = getNodeSize(this.$el.parentElement, "height");
     },
     triggerTextResize()
     {

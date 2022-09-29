@@ -25,14 +25,12 @@ methods: {
     }
 },
 mounted() {
-    var singleValueContainer = document.getElementById('single-value-container-id');
     
     const resizeObserverForSingleValue = new ResizeObserver((entries) => {
-        //console.log('Size changed');
         this.onContainerResized();
     });
       
-    resizeObserverForSingleValue.observe(singleValueContainer);
+    resizeObserverForSingleValue.observe(document.getElementById('single-value-container-id'));
 
 },
 updated() {
@@ -46,8 +44,10 @@ updated() {
             resizingFont = false;
         }, 100);
     }*/
-    this.onContainerResized(); // doing that at every updated() call might be a bit expensive (but singleValueComponents are way less expensive than plots anyway)
-        
+
+    // doing that at every updated() call might be a bit expensive, 
+    // but singleValueComponents are way less expensive than plots anyway
+    this.onContainerResized();
 },
 unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);

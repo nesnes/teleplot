@@ -1,4 +1,4 @@
-/* lot of text is commented out here, it code that might be used, if we suport average, min and max feature for singleValueWidget*/
+/* lot of text is commented out here, this is code that might be useful, if we support the average, min and max features for singleValueWidget*/
 
 class SingleValueWidget extends DataWidget{
     constructor(widgetMode_) {
@@ -9,10 +9,6 @@ class SingleValueWidget extends DataWidget{
         this.precision_mode = 0; // either 0 (default), 1 (good) or 2 (very good)
         //this.widgetMode = widgetMode_ ; // type : String, what our widget singlevalue is going to be ( either "average", "max", "min" or "last")
         
-        this.options = {
-            width: undefined,
-            height: undefined,
-        }
         //this.currentLastIndex = -1;// type : Number, the value of the last index at which singleValue was calculated
         //this.valueSum = 0;
         //this.forceUpdate = true;
@@ -36,7 +32,7 @@ class SingleValueWidget extends DataWidget{
     }
 
     
-    convertNumberToGoodFormat(nb)
+    trimNumberAccordingToPrecision(nb)
     {
         
         let significant_digits = 21;
@@ -55,17 +51,24 @@ class SingleValueWidget extends DataWidget{
         return nb.toPrecision(significant_digits);
     }
 
-    update(){  
-        let currentSerie = this.series[0];
-        currentSerie.update();
-
+    // updates this.singleValue according to the last value of the serie,
+    // and also write it in a string format ready to be displayed
+    updateSingleValue(currentSerie)
+    {
         if (currentSerie == undefined || currentSerie.values[0] == undefined)
             return;
 
         if (currentSerie.xy && currentSerie.values[1] != undefined)
-            this.singlevalue = (this.convertNumberToGoodFormat(currentSerie.values[0]) + " | " + this.convertNumberToGoodFormat(currentSerie.values[1]));
+            this.singlevalue = (this.trimNumberAccordingToPrecision(currentSerie.values[0]) + " | " + this.trimNumberAccordingToPrecision(currentSerie.values[1]));
         else
-            this.singlevalue = this.convertNumberToGoodFormat(currentSerie.values[0]);
+            this.singlevalue = this.trimNumberAccordingToPrecision(currentSerie.values[0]);
+    }
+
+    update(){  
+        let currentSerie = this.series[0];
+        currentSerie.update();
+
+        this.updateSingleValue(currentSerie);
         
         //this.updateWidgetValue()
     } 
