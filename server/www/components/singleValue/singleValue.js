@@ -1,4 +1,4 @@
-var resizingFont = null;
+//var resizingFont = false;// tells whether or nor we have already planned a onContainerResized()
 
 
 Vue.component('single-value', {
@@ -18,7 +18,6 @@ methods: {
     {
         if (this.$refs.telem_responsive_text == undefined)
             return;
-        console.log("trigger 3 text resize");
         
         this.$refs.telem_responsive_text.triggerTextResize();
         this.$refs.value_responsive_text.triggerTextResize();
@@ -37,7 +36,7 @@ mounted() {
 
 },
 updated() {
-    if (!resizingFont)
+    /*if (!resizingFont)
     {
         resizingFont = true;
 
@@ -46,16 +45,24 @@ updated() {
             this.onContainerResized();
             resizingFont = false;
         }, 100);
-    }
+    }*/
+    this.onContainerResized(); // doing that at every updated() call might be a bit expensive (but singleValueComponents are way less expensive than plots anyway)
         
 },
 unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
 },
-template:'<div id="single-value-container-id" class="single-value-container">\
-            <div id="single-value-telem-id" class="single-value-telem-div"> <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text> </div>\
-            <div @click="widget.changeValuePrecision()" title="Click to change precision" class="single-value-value-div"> <vue-responsive-text ref="value_responsive_text" v-bind:isValue="true">{{value}}</vue-responsive-text> </div>\
-            <div class="single-value-unit-div"> <vue-responsive-text ref="unit_responsive_text" v-bind:isUnit="true" >{{unit}}</vue-responsive-text> </div>\
-            </div>',
+template:'\
+        <div id="single-value-container-id" class="single-value-container">\
+            <div id="single-value-telem-id" class="single-value-telem-div">\
+                <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text>\
+            </div>\
+            <div @click="widget.changeValuePrecision()" title="Click to change precision" class="single-value-value-div">\
+                <vue-responsive-text ref="value_responsive_text" v-bind:isValue="true">{{value}}</vue-responsive-text>\
+            </div>\
+            <div class="single-value-unit-div">\
+                <vue-responsive-text ref="unit_responsive_text" v-bind:isUnit="true" >{{unit}}</vue-responsive-text>\
+            </div>\
+        </div>',
 });
 
