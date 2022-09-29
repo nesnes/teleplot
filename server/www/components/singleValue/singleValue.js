@@ -72,7 +72,6 @@ updated() {
     // doing that at every updated() call might be a bit expensive, 
     // but singleValueComponents are way less expensive than plots anyway
     this.onContainerResized();
-
 },
 unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
