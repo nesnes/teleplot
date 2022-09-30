@@ -152,7 +152,11 @@
                     class="var-vue" @click="toggleVisibility(telem)"
                     draggable @dragstart="onDragTelemetry($event, telem.name)">
                         <div class="var-vue-name">
+<<<<<<< HEAD
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
+=======
+                            <span v-if="telem.type =='textBased' " class="symbol-text-format-telem">T</span>
+>>>>>>> telem text format working+ single value improved
 
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
@@ -301,10 +305,14 @@
 
     </body>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <script src="utils/javascriptUtils.js"></script>
 =======
     <script src="utils/javascriptUtils.js"></script>"
 >>>>>>> code refractoring + file moved into a cleaner hierarchie + python test changed
+=======
+    <script src="utils/javascriptUtils.js"></script>
+>>>>>>> telem text format working+ single value improved
     <script src="lib/uPlot.iife.js"></script>
     <script src="components/uPlot/uplot-component.js"></script>
     <script src="components/vueResponsiveText/vue-responsive-text.js"></script>

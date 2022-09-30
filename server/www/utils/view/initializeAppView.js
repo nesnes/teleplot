@@ -134,11 +134,19 @@ function initializeAppView()
                 let telemetryName = e.dataTransfer.getData("telemetryName");
 
                 let chart = undefined;
+<<<<<<< HEAD
                 if (app.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
+=======
+                if (app.telemetries[telemetryName].textFormatValue)
+                {
+                    chart = new SingleValueWidget(true);
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.setSerie(serie);
+>>>>>>> telem text format working+ single value improved
                 }
                 else
                 {
@@ -147,6 +155,7 @@ function initializeAppView()
                     chart.addSerie(serie);
                 }
                 
+<<<<<<< HEAD
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
@@ -159,16 +168,18 @@ function initializeAppView()
                 let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);
+=======
+>>>>>>> telem text format working+ single value improved
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
             onDropInLastValue: function(e, prepend=true){      
                 e.preventDefault();
-                e.stopPropagation();      
+                e.stopPropagation();   
                 this.lastValueDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                let chart = new SingleValueWidget("last");// currently, we only support last values 
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].textFormatValue); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.setSerie(serie);
                 if(prepend) widgets.unshift(chart);
