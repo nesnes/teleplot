@@ -56,7 +56,7 @@ The telemetry format is inspired by `statsd` and *to some extents* compatible wi
 The expected format is `A:B:C:D|E` where:
 - **A** is the name of the telemetry variable (be kind and avoid **`:|`** special chars in it!)
 - **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
-- **C** is the integer or floating point value to be plotted.
+- **C** is either the integer or floating point value to be plotted or a text format value to be displayed.
 - **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|`** special chars and **digits** in it!).
 - **E** is containing flags that carry information on how to read and display the data.
 
@@ -75,7 +75,13 @@ A timestamp can be associated with the xy point by adding an extra `:16275518924
 
 - `trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy`
 
+### Publishing text format telemetries
+- text format telemetries contain a string rather than numbers.
+
+- `motor_4_state:Turned On|g`
+
 ### Publishing multiple points
+/!\ does not work for text format telemetries.
 
 Multiple values of a single telemetry can be sent in a single packet if separated by a `;`
 

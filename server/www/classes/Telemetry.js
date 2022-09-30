@@ -38,7 +38,7 @@ class Telemetry{
 
     getValuesFormatted() {
 
-        if (this.type == "default")
+        if (this.type == "default" && this.values[0] != undefined)
         {
             let res = this.values[0].toFixed(4);
         
@@ -51,6 +51,8 @@ class Telemetry{
         {
             return this.textFormatValue;
         }
+
+        return "";
        
     }
 }

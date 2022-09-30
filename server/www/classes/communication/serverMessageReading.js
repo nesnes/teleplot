@@ -71,7 +71,7 @@ function isTextFormatTelemetry(msg, startIdx)
 {
     let firstChar = msg[startIdx+1];
 
-    return (firstChar < '0' || firstChar > '9');
+    return ((firstChar < '0' || firstChar > '9') && firstChar!='-');
 }
 
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"

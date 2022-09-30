@@ -171,6 +171,7 @@ body {
     padding: 0px 0px 1px 3px;
     border-radius: 5px 0px 0px 5px;
 	text-align: center;
+	position: relative;
 }
 
 .var-vue-value {
@@ -183,6 +184,13 @@ body {
     justify-content: center;
     align-items: center;
 	border-radius: 0px 5px 5px 0px;
+}
+
+.symbol-text-format-telem{
+	position: absolute;
+	left: 3px;
+	color: #2ecc71;
+
 }
 
 .cmd-container {
@@ -331,7 +339,6 @@ body {
 	color: black;
 	margin-right: 3px;
 	margin-left: 3px;
-	text-align: center;
 }
 
 .serie-value {

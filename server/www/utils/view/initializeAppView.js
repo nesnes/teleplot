@@ -132,19 +132,31 @@ function initializeAppView()
                 e.stopPropagation();      
                 this.newChartDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
-                let chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
-                let serie = getSerieInstanceFromTelemetry(telemetryName);    
-                chart.addSerie(serie);
+
+                let chart = undefined;
+                if (app.telemetries[telemetryName].textFormatValue)
+                {
+                    chart = new SingleValueWidget(true);
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.setSerie(serie);
+                }
+                else
+                {
+                    chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.addSerie(serie);
+                }
+                
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
             onDropInLastValue: function(e, prepend=true){      
                 e.preventDefault();
-                e.stopPropagation();      
+                e.stopPropagation();   
                 this.lastValueDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                let chart = new SingleValueWidget("last");// currently, we only support last values 
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].textFormatValue); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.setSerie(serie);
                 if(prepend) widgets.unshift(chart);

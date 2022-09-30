@@ -5,7 +5,8 @@ class SingleValueWidget extends DataWidget{
         super();
 
         this.type = "single_value";
-        this.singlevalue = '0'; // type : Number, the value of the widget ( so the average, the max or the min ... according to widgetMode )
+        this.singlevalue = [0]; // type : array of Number, the value of the widget ( so the average, the max or the min ... according to widgetMode )
+        // should contain two numbers if represents a xy serie, one otherwise.
         this.precision_mode = 0; // either 0 (default), 1 (good) or 2 (very good)
         this.containsTextFormat = containsTextFormat;
         
@@ -61,9 +62,16 @@ class SingleValueWidget extends DataWidget{
             return;
 
         if (currentSerie.xy && currentSerie.values[1] != undefined)
-            this.singlevalue = (this.trimNumberAccordingToPrecision(currentSerie.values[0]) + " | " + this.trimNumberAccordingToPrecision(currentSerie.values[1]));
+        {
+            this.singlevalue = [];
+            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
+            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[1]))
+        }
         else
-            this.singlevalue = this.trimNumberAccordingToPrecision(currentSerie.values[0]);
+        {
+            this.singlevalue = [];
+            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
+        }
     }
 
     update(){  
