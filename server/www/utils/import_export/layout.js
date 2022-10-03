@@ -76,7 +76,7 @@ function importLayoutJSON(event) {
                 {
                     widget = new SingleValueWidget(); 
                     widget.precision_mode = w.precision_mode
-                    widget.setSerie(newSeries[0]);
+                    widget.addSerie(newSeries[0]);
                 }
 
                 else throw new Error("widget should either be of type chart or single_value");

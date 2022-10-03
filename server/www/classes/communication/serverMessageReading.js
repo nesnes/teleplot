@@ -67,11 +67,18 @@ function isValidUnitChar(character)
     return (character<'0' || character>'9') && character!=':' && character!='.' && character!=',' && character!=';' && character!='|' ;
 }
 
-function isTextFormatTelemetry(msg, startIdx)
+function isTextFormatTelemetry(msg, startIdx, endIdx, flags)
 {
-    let firstChar = msg[startIdx+1];
+    if (flags.includes("unit"))
+        return false;
 
-    return ((firstChar < '0' || firstChar > '9') && firstChar!='-');
+    for (let i = startIdx; i < endIdx; i++)
+    {
+        if ((msg[i] < '0' || msg[i] > '9') && msg[i]!='-' && msg[i]!=':' && msg[i]!='.' && msg[i]!=';' && msg[i]!= ',')
+            return true;
+    }
+
+    return false;
 }
 
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
@@ -89,38 +96,19 @@ function parseVariablesData(msg, now)
         flags = shouldPlotByDefault?"g":"np";
         endIdx = msg.length;
     }
+    let isTextFormatTelem = isTextFormatTelemetry(msg, startIdx, endIdx, flags);
 
-    if (isTextFormatTelemetry(msg, startIdx))
+
+
+    if (flags.includes("unit"))
     {
-        let textFormatMsg = msg.substring(startIdx+1, endIdx);
-
-        let shouldPlot = !flags.includes("np");
-        if(app.telemetries[name] == undefined){
-            
-            let telem = new Telemetry(name, undefined, undefined, "textBased");
-            telem.textFormatValue = textFormatMsg;
-
-            Vue.set(app.telemetries, name, telem)
-            // Create widget
-            if(shouldPlot)
-            {
-                let chart = new SingleValueWidget(true);
-                let serie = getSerieInstanceFromTelemetry(name);
-                chart.setSerie(serie);
-                widgets.push(chart);
-            }
-        }
-        else
-            app.telemetries[name].textFormatValue = textFormatMsg;
-
-        return;
-    }
-
-  
-    while (endIdx-1 > startIdx && isValidUnitChar(msg[endIdx-1]))
+        
+        while (endIdx-1 > startIdx && isValidUnitChar(msg[endIdx-1]))
         unit = msg[--endIdx] + unit;
 
-    if (msg[endIdx-1]==':')endIdx--;
+        if (msg[endIdx-1]==':')endIdx--;
+    }
+    
 
     // Extract values array
     let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
@@ -130,44 +118,48 @@ function parseVariablesData(msg, now)
     for(let value of values){
         if(value.length==0) continue;
         let dims = value.split(":");
+
         if(dims.length == 1){
             xArray.push(now);
-            yArray.push(parseFloat(dims[0]));
+            yArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
         }
         else if(dims.length == 2){
-            xArray.push(parseFloat(dims[0]));
-            yArray.push(parseFloat(dims[1]));
+            xArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
+            yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
             zArray.push(now);
         }
         else if(dims.length == 3){
-            xArray.push(parseFloat(dims[0]));
-            yArray.push(parseFloat(dims[1]));
+            xArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
+            yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
             zArray.push(parseFloat(dims[2]));
         }
       
     }
     //console.log("name : "+name+", xArray : "+xArray+", yArray : "+yArray+", zArray : "+zArray+", unit : "+unit+", flags : "+flags);
     if(xArray.length>0){
-        appendData(name, xArray, yArray, zArray, unit, flags)
+        appendData(name, xArray, yArray, zArray, unit, flags, isTextFormatTelem)
     }
 }
 // adds
-function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
+function appendData(key, valuesX, valuesY, valuesZ, unit, flags, isTextFormatTelem) {
     let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
+
     if(app.telemetries[key] == undefined){
                 
-        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit))
+        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, isTextFormatTelem?"textBased":"default"));
         // Create widget
         if(shouldPlot)
         {
-            let chart = new ChartWidget(!isTimeBased);
+            let chart = isTextFormatTelem ? new SingleValueWidget(key, true) : new ChartWidget(!isTimeBased);
+
             let serie = getSerieInstanceFromTelemetry(key);
             chart.addSerie(serie);
             widgets.push(chart);
         }
     }
-    if(telemBuffer[key] == undefined){
+    if(telemBuffer[key] == undefined)
+    {
         telemBuffer[key] = {data:[[],[]], values:[]};
         if(!isTimeBased) telemBuffer[key].data.push([]);
     }
@@ -182,13 +174,15 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags) {
     telemBuffer[key].data[1].push(...valuesY);
     telemBuffer[key].values = [];
     
-    if(app.telemetries[key].xy) {
+    if(app.telemetries[key].xy)
+    {
         telemBuffer[key].values.push(valuesX[valuesX.length-1]);
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);
 
         telemBuffer[key].data[2].push(...valuesZ);
     }
-    else {
+    else 
+    {
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);
     }
     return;

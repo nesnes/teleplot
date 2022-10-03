@@ -19,7 +19,7 @@ class SingleValueWidget extends DataWidget{
         //updateWidgetSize_(this);
     }
 
-    setSerie(serie)
+    addSerie(serie)
     {
         serie.options.stroke = ColorPalette.getColor(0).toString(); // we take the first color of the ColorPalette, so 0
         serie.options.fill = ColorPalette.getColor(0, 0.1).toString();
@@ -58,7 +58,7 @@ class SingleValueWidget extends DataWidget{
     // and also write it in a string format ready to be displayed
     updateSingleValue(currentSerie)
     {
-        if (currentSerie == undefined || currentSerie.values[0] == undefined)
+        if (this.containsTextFormat || currentSerie == undefined || currentSerie.values[0] == undefined)
             return;
 
         if (currentSerie.xy && currentSerie.values[1] != undefined)

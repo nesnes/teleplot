@@ -25,10 +25,6 @@ class Telemetry{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         
-        // type : String, if telemetry is of type "textFormatted", contains the last received value
-        this.textFormatValue = undefined;
-        
-
         if(!isTimeBased){
             this.data.push([]);
             this.pendingData.push([]);
@@ -49,7 +45,7 @@ class Telemetry{
         }
         else if (this.type == "textBased")
         {
-            return this.textFormatValue;
+            return this.values[0];
         }
 
         return "";

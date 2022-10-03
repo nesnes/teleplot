@@ -134,11 +134,11 @@ function initializeAppView()
                 let telemetryName = e.dataTransfer.getData("telemetryName");
 
                 let chart = undefined;
-                if (app.telemetries[telemetryName].textFormatValue)
+                if (app.telemetries[telemetryName].type == "textBased")
                 {
                     chart = new SingleValueWidget(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
-                    chart.setSerie(serie);
+                    chart.addSerie(serie);
                 }
                 else
                 {
@@ -156,9 +156,9 @@ function initializeAppView()
                 this.lastValueDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                let chart = new SingleValueWidget(app.telemetries[telemetryName].textFormatValue); 
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "textBased"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
-                chart.setSerie(serie);
+                chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },

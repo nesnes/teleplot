@@ -11,11 +11,11 @@ computed: {
     value1() 
     {
         if (this.widget.containsTextFormat)
-            return app.telemetries[this.widget.series[0].name].textFormatValue;
+            return app.telemetries[this.widget.series[0].name].values[0];
         else
             return this.widget.singlevalue[0]; 
     },
-    value2() 
+    value2()
     {
         if (this.widget.containsTextFormat || this.widget.singlevalue.length <= 1)
             return undefined;
@@ -29,6 +29,8 @@ computed: {
 methods: {
     onContainerResized()
     {
+        console.log("here");
+
         if (this.$refs.telem_responsive_text == undefined)
             return;
         
@@ -45,7 +47,7 @@ mounted() {
         this.onContainerResized();
     });
       
-    resizeObserverForSingleValue.observe(document.getElementById('single-value-container-id'));
+    resizeObserverForSingleValue.observe(document.getElementById('single-value-container-id'));//todo make single ids
 
 },
 updated() {

@@ -57,13 +57,14 @@ The expected format is `A:B:C:D|E` where:
 - **A** is the name of the telemetry variable (be kind and avoid **`:|`** special chars in it!)
 - **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
 - **C** is either the integer or floating point value to be plotted or a text format value to be displayed.
-- **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|`** special chars and **digits** in it!).
+- **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|`** special chars and **digits** in it!) and add the flag "unit".
 - **E** is containing flags that carry information on how to read and display the data.
 
 Examples:
 - `myValue:1234|g`
 - `myValue:1627551892437:1234|g`
-- `myValue:1234:km²|g`
+- `myValue:hello|g`
+- `myValue:1234:km²|unit,g`
 
 ### Plot XY rather than time-based
 
@@ -76,9 +77,10 @@ A timestamp can be associated with the xy point by adding an extra `:16275518924
 - `trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy`
 
 ### Publishing text format telemetries
-- text format telemetries contain a string rather than numbers.
+- text format telemetries contain a string rather than numbers (with or without timestamp).
 
 - `motor_4_state:Turned On|g`
+- `motor_4_state:1627551892437:Turned On|g`
 
 ### Publishing multiple points
 /!\ does not work for text format telemetries.
@@ -94,7 +96,7 @@ Multiple telemetries can be sent in a single packet if separated by a `\n`
 
 ```
 myValue:1234|g
-mySecondValue:1234:m/s|g
+mySecondValue:1234:m/s|g,unit
 myThirdValue:1627551892437:1234|g
 trajectory:1:1;2:2;3:3;4:4|xy
 trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy
