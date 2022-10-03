@@ -135,6 +135,7 @@ function initializeAppView()
 
                 let chart = undefined;
 <<<<<<< HEAD
+<<<<<<< HEAD
                 if (app.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
@@ -147,6 +148,13 @@ function initializeAppView()
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.setSerie(serie);
 >>>>>>> telem text format working+ single value improved
+=======
+                if (app.telemetries[telemetryName].type == "textBased")
+                {
+                    chart = new SingleValueWidget(true);
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.addSerie(serie);
+>>>>>>> text format telemetry synced
                 }
                 else
                 {
@@ -179,9 +187,9 @@ function initializeAppView()
                 this.lastValueDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                let chart = new SingleValueWidget(app.telemetries[telemetryName].textFormatValue); 
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "textBased"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
-                chart.setSerie(serie);
+                chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },

@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 function getNodeSize(node)// node : the html element we want to measure
 {
   const nodeStyles = window.getComputedStyle(node, null);
@@ -15,33 +16,21 @@ function getNodeSize(node)// node : the html element we want to measure
 
 =======
 function getNodeSize(node, whatWeMeasure)// node : the html element we want to measure, whatWeMeasure : a String (either "width" or "height")
+=======
+function getNodeSize(node)// node : the html element we want to measure
+>>>>>>> text format telemetry synced
 {
   const nodeStyles = window.getComputedStyle(node, null);
 
-  let pureSize, border1, border2, padding1, padding2 = undefined;
   let convertToFloat = (nb_str) => { return nb_str?parseFloat(nb_str):0 };
 
-  if (whatWeMeasure == "width")
-  {
-    pureSize = node.offsetWidth;
+  return {
+    width : (node.offsetWidth - convertToFloat(nodeStyles.borderLeftWidth) - convertToFloat(nodeStyles.borderRightWidth) 
+    - convertToFloat(nodeStyles.paddingLeft) - convertToFloat(nodeStyles.paddingRight)),
 
-    border1 = nodeStyles.borderLeftWidth;
-    border2 = nodeStyles.borderRightWidth;
-    padding1 = nodeStyles.paddingLeft;
-    padding2 = nodeStyles.paddingRight;
+    height : (node.offsetHeight - convertToFloat(nodeStyles.borderTopHeight) - convertToFloat(nodeStyles.borderBottomHeight) 
+    - convertToFloat(nodeStyles.paddingTop) - convertToFloat(nodeStyles.paddingBottom))
   }
-  else if (whatWeMeasure == "height")
-  {
-    pureSize = node.offsetHeight;
-
-    border1 = nodeStyles.borderTopHeight;
-    border2 = nodeStyles.borderBottomHeight;
-    padding1 = nodeStyles.paddingTop;
-    padding2 = nodeStyles.paddingBottom;
-  }
-
-
-  return (pureSize - convertToFloat(border1) - convertToFloat(border2) - convertToFloat(padding1) - convertToFloat(padding2));
 
 >>>>>>> code refractoring + file moved into a cleaner hierarchie + python test changed
 }
@@ -93,6 +82,9 @@ Vue.component('vue-responsive-text', {
     },
     updateNodeWidth() {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> text format telemetry synced
       let parentNodeSize = getNodeSize(this.$el.parentElement);
       let thisNodeSize = getNodeSize(this.$el);
 
@@ -100,12 +92,15 @@ Vue.component('vue-responsive-text', {
       this.maxWidth = parentNodeSize.width;
       this.currentHeight = thisNodeSize.height;
       this.maxHeight = parentNodeSize.height;
+<<<<<<< HEAD
 =======
       this.currentWidth = getNodeSize(this.$el, "width");
       this.maxWidth = getNodeSize(this.$el.parentElement, "width");
       this.currentHeight = getNodeSize(this.$el, "height");
       this.maxHeight = getNodeSize(this.$el.parentElement, "height");
 >>>>>>> code refractoring + file moved into a cleaner hierarchie + python test changed
+=======
+>>>>>>> text format telemetry synced
     },
     triggerTextResize()
     {

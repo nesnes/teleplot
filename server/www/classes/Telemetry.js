@@ -42,12 +42,15 @@ class Telemetry{
         this.pendingData = [[],[]];
         
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         // type : String, if telemetry is of type "textFormatted", contains the last received value
         this.textFormatValue = undefined;
         
 
 >>>>>>> first version
+=======
+>>>>>>> text format telemetry synced
         if(!isTimeBased){
             this.data.push([]);
             this.pendingData.push([]);
@@ -91,7 +94,7 @@ class Telemetry{
         }
         else if (this.type == "textBased")
         {
-            return this.textFormatValue;
+            return this.values[0];
         }
 
         return "";
