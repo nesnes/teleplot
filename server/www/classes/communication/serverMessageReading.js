@@ -73,11 +73,18 @@ function isTextFormatTelemetry(msg)
     return (Array.from(msg)).some((mchar) => ((mchar < '0' || mchar > '9') && mchar!='-' && mchar!=':' && mchar!='.' && mchar!=';' && mchar!= ',' && mchar!= '§'));
 }
 
-function isTextFormatTelemetry(msg, startIdx)
+function isTextFormatTelemetry(msg, startIdx, endIdx, flags)
 {
-    let firstChar = msg[startIdx+1];
+    if (flags.includes("unit"))
+        return false;
 
-    return ((firstChar < '0' || firstChar > '9') && firstChar!='-');
+    for (let i = startIdx; i < endIdx; i++)
+    {
+        if ((msg[i] < '0' || msg[i] > '9') && msg[i]!='-' && msg[i]!=':' && msg[i]!='.' && msg[i]!=';' && msg[i]!= ',')
+            return true;
+    }
+
+    return false;
 }
 
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"

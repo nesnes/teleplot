@@ -98,7 +98,7 @@ Multiple telemetries can be sent in a single packet if separated by a `\n`
 
 ```
 myValue:1234|g
-mySecondValue:1234:m/s|g
+mySecondValue:1234:m/s|g,unit
 myThirdValue:1627551892437:1234|g
 state:state_a|g
 trajectory:1:1;2:2;3:3;4:4|xy
