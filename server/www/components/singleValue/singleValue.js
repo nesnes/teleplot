@@ -1,6 +1,5 @@
 //var resizingFont = false;// tells whether or nor we have already planned a onContainerResized()
 
-
 Vue.component('single-value', {
 name: 'single-value',
 props: {
@@ -23,13 +22,13 @@ computed: {
             return this.widget.singlevalue[1]; 
     },
     unit() { return this.widget.series[0].unit; },
+
     /*fillColor() { return this.widget.series[0].options.fill; },
     strokeColor() { return this.widget.series[0].options.stroke; }*/
 },
 methods: {
     onContainerResized()
     {
-        console.log("here");
 
         if (this.$refs.telem_responsive_text == undefined)
             return;
@@ -44,10 +43,11 @@ methods: {
 mounted() {
     
     const resizeObserverForSingleValue = new ResizeObserver((entries) => {
+
         this.onContainerResized();
     });
       
-    resizeObserverForSingleValue.observe(document.getElementById('single-value-container-id'));//todo make single ids
+    resizeObserverForSingleValue.observe(this.$refs.single_value_container_ref);
 
 },
 updated() {
@@ -70,7 +70,7 @@ unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
 },
 template:'\
-        <div id="single-value-container-id" class="single-value-container">\
+        <div ref="single_value_container_ref" class="single-value-container">\
             <div id="single-value-telem-id" class="single-value-telem-div">\
                 <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text>\
             </div>\

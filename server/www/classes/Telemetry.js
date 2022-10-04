@@ -17,7 +17,7 @@ class Telemetry{
         this.usageCount = 0;
 
         
-        // an array of Number containing the last value recieved of the telemetry
+        // an array of Number or String containing the last value recieved of the telemetry
         // contains either one (if !xy) or two values (if xy).
         this.values = [];
 

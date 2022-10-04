@@ -88,7 +88,8 @@ function parseVariablesData(msg, now)
     if(!msg.includes(':')) return;
 
     let startIdx = msg.indexOf(':');
-    let name = msg.substr(0,msg.indexOf(':')); if(name.substring(0, 6) === "statsd") return;
+    let name = msg.substr(0,msg.indexOf(':'));
+    if(name.substring(0, 6) === "statsd") return;
     let endIdx = msg.indexOf('|');
     let flags = msg.substr(endIdx+1);
     let unit = "";

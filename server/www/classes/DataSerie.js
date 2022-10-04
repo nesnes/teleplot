@@ -11,7 +11,7 @@ class DataSerie{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         this.options = {};
-        this.values = undefined; // an array of Number containing either one (if !xy) or two values (if xy).
+        this.values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.xy = !isTimeBased;
