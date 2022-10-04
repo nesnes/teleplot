@@ -30,10 +30,14 @@ class Telemetry{
 
         
 <<<<<<< HEAD
+<<<<<<< HEAD
         // an array of Number or String containing the last value recieved of the telemetry
 =======
         // an array of Number containing the last value recieved of the telemetry
 >>>>>>> first version
+=======
+        // an array of Number or String containing the last value recieved of the telemetry
+>>>>>>> README update + single value component contains ref rather than id
         // contains either one (if !xy) or two values (if xy).
         this.values = [];
 
