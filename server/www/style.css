@@ -193,6 +193,13 @@ body {
 
 }
 
+.symbol-3d-telem{
+	position: absolute;
+	left: 3px;
+	color: #b91897;
+
+}
+
 .cmd-container {
 	display: flex;
 	flex-direction: column;

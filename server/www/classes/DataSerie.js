@@ -52,7 +52,7 @@ class DataSerie{
             this.pendingData[0] = app.telemetries[this.sourceNames[0]].pendingData[0];
             this.pendingData[1] = app.telemetries[this.sourceNames[0]].pendingData[1];
             if(isXY) this.pendingData[2] = app.telemetries[this.sourceNames[0]].pendingData[2];
-            this.values = copyArray(app.telemetries[this.sourceNames[0]].values);
+            this.values = my_copyArray(app.telemetries[this.sourceNames[0]].values);
         }
         else if (this.formula != "" && this.sourceNames.length>=1)
         {
@@ -91,7 +91,7 @@ function getSerieInstanceFromTelemetry(telemetryName)
         throw new Error(`Trying to instanciate a DataSerie from a non existant telemetry name : ${telemetryName}`);
     
     serie.name = telemetryName;
-    serie.values = copyArray(telemetry.values);
+    serie.values = my_copyArray(telemetry.values);
     serie.xy = telemetry.xy;
     serie.unit = telemetry.unit;
     serie.addSource(telemetryName);

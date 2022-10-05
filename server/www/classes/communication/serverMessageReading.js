@@ -4,10 +4,16 @@ function parseData(msgIn){
 
     if(app.isViewPaused) return; // Do not buffer incomming data while paused
     let now = new Date().getTime();
+
+
     let fromSerial = msgIn.fromSerial || (msgIn.input && msgIn.input.type=="serial");
     if(fromSerial) now = msgIn.timestamp;
     //parse msg
     let msgList = (""+msgIn.data).split("\n");
+
+    test3d(msgList[0], now);
+    return;
+
     for(let msg of msgList){
         try{
             // Inverted logic on serial port for usability
@@ -21,7 +27,7 @@ function parseData(msgIn){
             else if(msg.startsWith(">"))
                 parseLog(msg, now);
             // Data
-            else 
+            else
                 parseVariablesData(msg, now);
         }
         catch(e){console.log(e)}
@@ -137,6 +143,49 @@ function parseVariablesData(msg, now)
         appendData(name, xArray, yArray, zArray, unit, flags, isTextFormatTelem)
     }
 }
+
+function test3d(msg, now)
+{
+    let key = "my_square_0";
+    let isTimeBased = false;
+    let unit = undefined;
+    
+    Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, "3D"));
+
+    let chart = new Widget3D();
+    let serie = getSerieInstanceFromTelemetry(key);
+    chart.addSerie(serie);
+    widgets.push(chart);
+
+    let shapeName = "my_square_0";
+    let jsonObject = {
+        rotation : {x :0, y :0, z:0},
+        position : {x :0, y :0, z:0},
+        shape : "square",
+        center : undefined,
+        radius : undefined,
+        precision : undefined,
+
+
+        width : 5,
+        height : 5,
+        depth : 5,
+    };
+
+    let shape3D = new Shape3D().initializeFromJson(shapeName, jsonObject);
+
+
+    if(telemBuffer[key] == undefined)
+    {
+        telemBuffer[key] = {data:[[],[]], values:[]};
+    }
+
+    telemBuffer[key].data[0].push(now);
+    telemBuffer[key].data[1].push(shape3D);
+
+    telemBuffer[key].values.push(shape3D);
+}
+
 // adds
 function appendData(key, valuesX, valuesY, valuesZ, unit, flags, isTextFormatTelem) {
     let isTimeBased = !flags.includes("xy");

@@ -4,9 +4,10 @@
 		<meta charset="utf-8">
 		<title>Telemetry</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<link rel="stylesheet" href="lib/uPlot.min.css">
+		<link rel="stylesheet" href="lib/uPlot/uPlot.min.css">
         <link rel="stylesheet" href="components/vueResponsiveText/vue-responsive-text.css">
         <link rel="stylesheet" href="components/singleValue/single-value.css">
+        <link rel="stylesheet" href="components/3dComponent/3dComponent.css">
 		<link rel="stylesheet" href="style.css">
         <script src="lib/vue.js"></script>
 
@@ -152,11 +153,8 @@
                     class="var-vue" @click="toggleVisibility(telem)"
                     draggable @dragstart="onDragTelemetry($event, telem.name)">
                         <div class="var-vue-name">
-<<<<<<< HEAD
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
-=======
-                            <span v-if="telem.type =='textBased' " class="symbol-text-format-telem">T</span>
->>>>>>> telem text format working+ single value improved
+                            <span v-if="telem.type =='3D' " class="symbol-3d-telem">3D</span>
 
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
@@ -227,6 +225,8 @@
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
                             
+                            <comp-3d v-if="widget.type == 'widget3D'" v-bind:series="widget.series"></comp-3d>
+
                             <single-value v-if="widget.type == 'single_value'" v-bind:widget="widget"></single-value>
                             
                             <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
@@ -307,6 +307,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
     <script src="utils/javascriptUtils.js"></script>
+<<<<<<< HEAD
 =======
     <script src="utils/javascriptUtils.js"></script>"
 >>>>>>> code refractoring + file moved into a cleaner hierarchie + python test changed
@@ -314,9 +315,16 @@
     <script src="utils/javascriptUtils.js"></script>
 >>>>>>> telem text format working+ single value improved
     <script src="lib/uPlot.iife.js"></script>
+=======
+    <script src="lib/uPlot/uPlot.iife.js"></script>
+    <script src="lib/three/three.min.js"></script>
+    <script src="lib/three/three.module.js"></script>
+    <script src="lib/three/OrbitControls.js"></script>
+>>>>>>> simple 3d widget
     <script src="components/uPlot/uplot-component.js"></script>
     <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
     <script src="components/singleValue/singleValue.js"></script>
+    <script src="components/3dComponent/3dComponent.js"></script>
     <script src="./constants.js"></script>
     <script src="./classes/communication/connection/Connection.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
@@ -326,11 +334,14 @@
     <script src="./classes/widgets/DataWidget.js"></script>
     <script src="./classes/widgets/ChartWidget.js"></script>
     <script src="./classes/widgets/SingleValueWidget.js"></script>
+    <script src="./classes/widgets/Widget3D.js"></script>
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>
     <script src="./classes/communication/data/DataInputUDP.js"></script>
     <script src="./classes/Telemetry.js"></script>
     <script src="./classes/DataSerie.js"></script>
+    <script src="./classes/3d/Shape3D.js"></script>
+    <script src="./classes/3d/World.js"></script>
     <script src="./utils/view/paint.js"></script>
     <script src="./utils/import_export/fileManagement.js"></script>
     <script src="./utils/import_export/layout.js"></script>
