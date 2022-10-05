@@ -22,6 +22,13 @@ computed: {
             return this.widget.singlevalue[1]; 
     },
     unit() { return this.widget.series[0].unit; },
+    getWidgetTitle() 
+    {
+        if (this.widget.containsTextFormat)
+            return "";
+        else
+            return "Click to change precision";
+    }
 
     /*fillColor() { return this.widget.series[0].options.fill; },
     strokeColor() { return this.widget.series[0].options.stroke; }*/
@@ -65,6 +72,7 @@ updated() {
     // doing that at every updated() call might be a bit expensive, 
     // but singleValueComponents are way less expensive than plots anyway
     this.onContainerResized();
+
 },
 unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
@@ -74,7 +82,7 @@ template:'\
             <div id="single-value-telem-id" class="single-value-telem-div">\
                 <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text>\
             </div>\
-            <div @click="widget.changeValuePrecision()" title="Click to change precision" class="single-value-value-div">\
+            <div @click="widget.changeValuePrecision()" v-bind:title="getWidgetTitle" class="single-value-value-div">\
                 <div class="value1-solo" v-bind:class="{ \'value1-2-duo\': value2!=undefined }">\
                     <vue-responsive-text ref="value_responsive_text1" v-bind:isValue="true">{{value1}}</vue-responsive-text>\
                 </div>\
