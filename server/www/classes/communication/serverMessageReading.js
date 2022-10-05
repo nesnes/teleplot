@@ -11,6 +11,9 @@ function parseData(msgIn){
     //parse msg
     let msgList = (""+msgIn.data).split("\n");
 
+    test3d(msgList[0], now);
+    return;
+
     for(let msg of msgList){
         try{
             // Inverted logic on serial port for usability
@@ -145,45 +148,46 @@ function parseVariablesData(msg, now)
     }
 }
 
-function convertToJson(rawMsg)
+function test3d(msg, now)
 {
-    /*
-    let jsonRes = "";
+    let key = "my_square_0";
+    let isTimeBased = false;
+    let unit = undefined;
+    
+    Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, "3D"));
 
-    for (let i = 0; i < rawMsg.length; i++)
+    let chart = new Widget3D();
+    let serie = getSerieInstanceFromTelemetry(key);
+    chart.addSerie(serie);
+    widgets.push(chart);
+
+    let shapeName = "my_square_0";
+    let jsonObject = {
+        rotation : {x :0, y :0, z:0},
+        position : {x :0, y :0, z:0},
+        shape : "square",
+        center : undefined,
+        radius : undefined,
+        precision : undefined,
+
+
+        width : 5,
+        height : 5,
+        depth : 5,
+    };
+
+    let shape3D = new Shape3D().initializeFromJson(shapeName, jsonObject);
+
+
+    if(telemBuffer[key] == undefined)
     {
+        telemBuffer[key] = {data:[[],[]], values:[]};
+    }
 
-    }*/
+    telemBuffer[key].data[0].push(now);
+    telemBuffer[key].data[1].push(shape3D);
 
-    return rawMsg;
-}
-
-function parse3D(msg, now)
-{
-    // 3D|my_cube_0:12145641658484:{...}|g
-
-    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},
-    //"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
-
-    //'3D|myDataa:{R:{0,0,_},P:{0,_,0},S:cube,W:7,H:5,D:5,PR:15,RA:5}|g'
-
-    //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
-
-    let startIdx = msg.indexOf(':');
-    let key = msg.substring(msg.indexOf("|")+1,startIdx);
-
-    let objStartIdx = msg.indexOf("{");
-    let objEndIdx = msg.lastIndexOf("}");
-    let rawMessage = msg.substring(objStartIdx, objEndIdx+1);
-    //console.log("rawMessage : " + rawMessage);
-
-    let timestamp = (startIdx+1 == objStartIdx) ? now : (msg.substring(startIdx+1, objStartIdx-1));
-
-    let flags = msg.substr(objEndIdx+2);
-
-    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(convertToJson(rawMessage)));
-
-    appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
+    telemBuffer[key].values.push(shape3D);
 }
 
 // adds

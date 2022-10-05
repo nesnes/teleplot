@@ -1,12 +1,11 @@
 function drawAllWords()
 {
-
     requestAnimationFrame(drawAllWords);
 
     for (let i = 0; i<worlds.length; i++)
     {
         worlds[i].render();
-        //console.log("drawingWorld : "+i)
+        console.log("drawingWorld : "+i)
     }
 }
 
@@ -16,14 +15,31 @@ Vue.component('comp-3d', {
     name: 'comp-3d',
     props: {
         series: {type: Array, required: true},
-        widget: {type: Object, required: true},
     },
     data() {
-        return { world : undefined};
+        return {isWorldInitialized : false, world : undefined};
     },
+    watch : {
+        series: {
+            handler(val, val2){
+                if (!this.isWorldInitialized)
+                {
+                    this.isWorldInitialized  = true;
+                    //console.log("init")
+                    this.initializeWorld();
 
-    mounted() {
-        this.initializeWorld();
+                    // setTimeout(() => {
+                    //     this.reDrawShapes();
+                    // }, 1000);
+                }
+                if (val != val2)
+                {
+                    this.reDrawShapes();
+                }
+            },
+            deep: true
+         }
+
     },
     methods: {
         initializeWorld()
@@ -31,57 +47,35 @@ Vue.component('comp-3d', {
             let containerDiv = this.$refs.div_3d_container;
             this.world = new World(containerDiv);
             worlds.push(this.world);
-            this.widget.worldId = this.world.id;
 
-            this.reDrawShapes(-1);// passing -1 means to redraw everything
-
-            this.setUpSeriesObserver();
-
-            //console.log("init : worlds : "+worlds);
-            drawAllWords();
-        },
-        setUpSeriesObserver()
-        {
-            this.widget.onNewSerieAdded = () => {
-                let newSerie = this.series[this.series.length-1]; 
-                this.reDrawShapes(newSerie.id)
-
-                newSerie.onSerieChanged = () => {this.reDrawShapes(newSerie.id)}
-            };
-
-
-            for (let i = 0; i< this.series.length; i++)
+            for (let i = 0; i<this.series.length; i++)
             {
-               this.series[i].onSerieChanged = () => this.reDrawShapes(this.series[i].id);
-            }
-            
-        },
-        reDrawShapes(serieId) // passing -1 means to redraw everything
-        {
-
-            let i = 0;
-            stop_loop = false;
-
-            while (i < this.series.length && !stop_loop)
-            {
-
                 let currSerie = this.series[i];
     
-                if (currSerie.id == serieId || serieId == -1)
-                {
-                    if (currSerie.values[0] != undefined)
-                    {
-                        this.world.setObject(currSerie.values[0]);
-
-                        // console.log("world : " + this.widget.worldId+", "+JSON.stringify(currSerie.values[0]));
-
-                    }
-                    
-                    if (serieId != -1)
-                        stop_loop = true;
-                }    
-                i++;
+                let myShape = currSerie.values[0];
+    
+                if (myShape != undefined)
+                    this.world.setObject(myShape);
             }
+
+            console.log("init : worlds : "+worlds);
+            drawAllWords();
+        },
+
+        reDrawShapes()
+        {
+            //console.log("redraw");
+
+            for (let i = 0; i<this.series.length; i++)
+            {
+                let currSerie = this.series[i];
+    
+                let myShape = currSerie.values[0];
+    
+                if (myShape != undefined)
+                    this.world.setObject(myShape);
+            }
+    
         },
     },
     template:'\

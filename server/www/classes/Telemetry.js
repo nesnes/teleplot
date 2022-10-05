@@ -22,8 +22,12 @@ class Telemetry{
         this.type = type; // either "number" or "text"
 =======
     constructor(_name, isTimeBased, unit = undefined, type = "default"){
+<<<<<<< HEAD
         this.type = type; // either "default" or "textBased"
 >>>>>>> first version
+=======
+        this.type = type; // either "default", "textBased" or "3D"
+>>>>>>> simple 3d widget
         this.name = _name;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.usageCount = 0;
@@ -41,6 +45,7 @@ class Telemetry{
         // contains either one (if !xy) or two values (if xy).
         this.values = [];
 
+        this.xy = !isTimeBased && this.type == "default";
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         
@@ -106,6 +111,12 @@ class Telemetry{
         else if (this.type == "textBased")
         {
             return this.values[0];
+        }
+        else if (this.type == "3D")
+        {
+            return "coucou"
+            // this.values[0] contains a Shape3D object
+            //return this.values[0].shapeName;
         }
 
         return "";

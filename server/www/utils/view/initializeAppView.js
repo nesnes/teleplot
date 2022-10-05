@@ -134,27 +134,19 @@ function initializeAppView()
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
                 let chart = undefined;
-<<<<<<< HEAD
-<<<<<<< HEAD
+
                 if (app.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
-=======
-                if (app.telemetries[telemetryName].textFormatValue)
+
+                }
+                else if (app.telemetries[telemetryName].type == "3D")
                 {
-                    chart = new SingleValueWidget(true);
-                    serie = getSerieInstanceFromTelemetry(telemetryName);    
-                    chart.setSerie(serie);
->>>>>>> telem text format working+ single value improved
-=======
-                if (app.telemetries[telemetryName].type == "textBased")
-                {
-                    chart = new SingleValueWidget(true);
+                    chart = new Widget3D(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
->>>>>>> text format telemetry synced
                 }
                 else
                 {
@@ -163,7 +155,6 @@ function initializeAppView()
                     chart.addSerie(serie);
                 }
                 
-<<<<<<< HEAD
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
@@ -181,20 +172,6 @@ function initializeAppView()
                     return;
                 }
 
-                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
-                let serie = getSerieInstanceFromTelemetry(telemetryName);
-                chart.addSerie(serie);
-=======
->>>>>>> telem text format working+ single value improved
-                if(prepend) widgets.unshift(chart);
-                else widgets.push(chart);
-            },
-            onDropInLastValue: function(e, prepend=true){      
-                e.preventDefault();
-                e.stopPropagation();   
-                this.lastValueDropZoneOver = false;
-                let telemetryName = e.dataTransfer.getData("telemetryName");
-                
                 let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "textBased"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);
