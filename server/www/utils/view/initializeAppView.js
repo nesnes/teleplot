@@ -134,7 +134,7 @@ function initializeAppView()
                 let telemetryName = e.dataTransfer.getData("telemetryName");
 
                 let chart = undefined;
-                if (app.telemetries[telemetryName].type == "textBased")
+                if (app.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
@@ -156,7 +156,7 @@ function initializeAppView()
                 this.lastValueDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "textBased"); 
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);

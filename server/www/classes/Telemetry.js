@@ -1,17 +1,17 @@
 /*Telemetries can be of two types: 
  
-- "default"
+- "number"
     in this case, data, pendingData, values and xy are used and textFormatValue is undefined
 
-- "textBased"
+- "text"
     in this case, data, pendingData, values and xy are not used and textFormatValue is used
   
  */
 
 
 class Telemetry{
-    constructor(_name, isTimeBased, unit = undefined, type = "default"){
-        this.type = type; // either "default" or "textBased"
+    constructor(_name, isTimeBased, unit = undefined, type = "number"){
+        this.type = type; // either "number" or "text"
         this.name = _name;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.usageCount = 0;
@@ -34,7 +34,7 @@ class Telemetry{
 
     getValuesFormatted() {
 
-        if (this.type == "default" && this.values[0] != undefined)
+        if (this.type == "number" && this.values[0] != undefined)
         {
             let res = this.values[0].toFixed(4);
         
@@ -43,7 +43,7 @@ class Telemetry{
     
             return res;
         }
-        else if (this.type == "textBased")
+        else if (this.type == "text")
         {
             return this.values[0];
         }

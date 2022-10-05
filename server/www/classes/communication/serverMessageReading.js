@@ -72,13 +72,7 @@ function isTextFormatTelemetry(msg, startIdx, endIdx, flags)
     if (flags.includes("unit"))
         return false;
 
-    for (let i = startIdx; i < endIdx; i++)
-    {
-        if ((msg[i] < '0' || msg[i] > '9') && msg[i]!='-' && msg[i]!=':' && msg[i]!='.' && msg[i]!=';' && msg[i]!= ',')
-            return true;
-    }
-
-    return false;
+    return msg.some((mchar) => ((mchar < '0' || mchar > '9') && mchar!='-' && mchar!=':' && mchar!='.' && mchar!=';' && mchar!= ','));
 }
 
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
@@ -148,11 +142,11 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, isTextFormatTel
 
     if(app.telemetries[key] == undefined){
                 
-        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, isTextFormatTelem?"textBased":"default"));
+        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, isTextFormatTelem?"text":"number"));
         // Create widget
         if(shouldPlot)
         {
-            let chart = isTextFormatTelem ? new SingleValueWidget(key, true) : new ChartWidget(!isTimeBased);
+            let chart = isTextFormatTelem ? new SingleValueWidget(true) : new ChartWidget(!isTimeBased);
 
             let serie = getSerieInstanceFromTelemetry(key);
             chart.addSerie(serie);
