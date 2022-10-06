@@ -225,7 +225,7 @@
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
                             
-                            <comp-3d v-if="widget.type == 'widget3D'" v-bind:series="widget.series"></comp-3d>
+                            <comp-3d v-if="widget.type == 'widget3D'" v-bind:widget="widget" v-bind:series="widget.series"></comp-3d>
 
                             <single-value v-if="widget.type == 'single_value'" v-bind:widget="widget"></single-value>
                             

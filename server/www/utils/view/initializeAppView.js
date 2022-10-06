@@ -132,9 +132,10 @@ function initializeAppView()
                 e.stopPropagation();      
                 this.newChartDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
-
+                
                 let chart = undefined;
-
+                let serie = undefined;
+                
                 if (app.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
@@ -144,9 +145,8 @@ function initializeAppView()
                 }
                 else if (app.telemetries[telemetryName].type == "3D")
                 {
-                    chart = new Widget3D(true);
-                    serie = getSerieInstanceFromTelemetry(telemetryName);    
-                    chart.addSerie(serie);
+                    chart = new Widget3D();
+                    chart.addSerie(getSerieInstanceFromTelemetry(telemetryName));
                 }
                 else
                 {

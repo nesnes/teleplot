@@ -20,6 +20,18 @@ class Shape3D
 
 	}
 
+	isSame(shape2)
+	{
+		if (shape2.shapeName!= this.shapeName || shape2.shapeType != this.shapeType)
+			return false;
+		
+		let areSameRotAndPos = JSON.stringify(this.position) == JSON.stringify(shape2.position) && JSON.stringify(this.rotation) == JSON.stringify(shape2.rotation);
+		
+		if (this.shapeType == "square")
+			return areSameRotAndPos && this.height == shape2.height && this.width == shape2.width && this.depth == shape2.depth;
+		else if (this.shapeType == "sphere")
+			return areSameRotAndPos && this.center == shape2.center && this.radius == shape2.radius && this.precision == shape2.precision;
+	}
 	initializeFromJson(shapeName, jsonObj)
 	{
 		this.shapeName = shapeName;
@@ -41,6 +53,27 @@ class Shape3D
 		return this;
 	}
 
+	initializeFromShape3D(shape3D)
+	{
+		this.shapeName = shape3D.name;
+
+		this.position = shape3D.position;
+		this.rotation = shape3D.rotation;
+		this.shapeType = shape3D.shape;
+
+		this.center = shape3D.center;
+		this.radius = shape3D.radius;
+		this.precision = shape3D.precision;
+
+		this.width = shape3D.width;
+		this.height = shape3D.height;	
+		this.depth = shape3D.depth;
+
+		this.buildThreeObject();
+
+		return this;
+
+	}
 
 	buildThreeObject()
 	{
