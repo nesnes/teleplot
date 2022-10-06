@@ -1,8 +1,8 @@
 var DataSerieIdCount = 0;
 // this class respresents a sequence or "serie"
 class DataSerie{
-    constructor(_name = undefined, unit = undefined, type = "text"){
-        this.type = type;// either text, number, 3D or xy
+    constructor(_name = undefined, isTimeBased = undefined, unit = undefined){
+        this.type = "text";// either text, number of 3D
         this.name = _name;
         this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence
@@ -15,18 +15,18 @@ class DataSerie{
         this.values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
+        this.xy = !isTimeBased;
         this.onSerieChanged = undefined;
     }
 
     getFormattedValue()
     {
-        if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[0] == undefined)
+        if (this.type != "number" || this.values == undefined || this.values[0] == undefined)
             return "";
 
-        if (this.type == "xy" && this.values[1] != undefined && typeof(this.values[0]) == 'number') 
+        if (this.type == "number" && this.xy && this.values[1] != undefined) 
             return ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
-        else if (this.type == "number" && typeof(this.values[0]) == 'number')
-        {
+        else if (this.type == "number")
             return (this.values[0].toFixed(4));
         }
     }
@@ -63,7 +63,10 @@ class DataSerie{
             this.pendingData[0] = app.telemetries[this.sourceNames[0]].pendingData[0];
             this.pendingData[1] = app.telemetries[this.sourceNames[0]].pendingData[1];
             if(isXY) this.pendingData[2] = app.telemetries[this.sourceNames[0]].pendingData[2];
+
+            let serieChanged = (this.type == "3D" && !areShape3DArraySame(this.values, app.telemetries[this.sourceNames[0]].values));
             this.values = my_copyArray(app.telemetries[this.sourceNames[0]].values);
+            if (serieChanged && this.onSerieChanged != undefined ) this.onSerieChanged();
         }
         else if (this.formula != "" && this.sourceNames.length>=1)
         {

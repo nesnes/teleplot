@@ -4,10 +4,10 @@
 // 	requestAnimationFrame(animateWorld);
 // 	world.render();
 // }
-
+var worldCount = 0
 class World {
 	constructor(div3D){
-
+		this.id = worldCount++;
         this.containerDiv = div3D;
 		this.scene = this.initializeScene();
 		this.initializeLight(this.scene);

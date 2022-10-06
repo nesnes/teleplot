@@ -11,9 +11,6 @@ function parseData(msgIn){
     //parse msg
     let msgList = (""+msgIn.data).split("\n");
 
-    test3d(msgList[0], now);
-    return;
-
     for(let msg of msgList){
         try{
             // Inverted logic on serial port for usability
@@ -148,69 +145,44 @@ function parseVariablesData(msg, now)
     }
 }
 
-function test3d(msg, now)
+function parse3D(msg, now)
 {
-    let key = "my_square_0";
-    let isTimeBased = false;
-    let unit = undefined;
-    
-    Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, "3D"));
+    // 3D|my_square_0:12145641658484:{...}|g
+    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"square","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
 
-    let chart = new Widget3D();
-    let serie = getSerieInstanceFromTelemetry(key);
-    chart.addSerie(serie);
-    widgets.push(chart);
+    let startIdx = msg.indexOf(':');
+    let key = msg.substring(msg.indexOf("|")+1,startIdx);
 
-    let shapeName = "my_square_0";
-    let jsonObject = {
-        rotation : {x :0, y :0, z:0},
-        position : {x :0, y :0, z:0},
-        shape : "square",
-        center : undefined,
-        radius : undefined,
-        precision : undefined,
+    let objStartIdx = msg.indexOf("{");
+    let objEndIdx = msg.lastIndexOf("}");
+    let shapeJson = msg.substring(objStartIdx, objEndIdx+1);
+    //console.log("shapeJson : " + shapeJson);
 
+    let timestamp = (startIdx+1 == objStartIdx) ? now : (msg.substring(startIdx+1, objStartIdx-1));
 
-        width : 5,
-        height : 5,
-        depth : 5,
-    };
+    let flags = msg.substr(objEndIdx+2);
 
-    let shape3D = new Shape3D().initializeFromJson(shapeName, jsonObject);
+    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(shapeJson));
 
-
-    if(telemBuffer[key] == undefined)
-    {
-        telemBuffer[key] = {data:[[],[]], values:[]};
-    }
-
-    telemBuffer[key].data[0].push(now);
-    telemBuffer[key].data[1].push(shape3D);
-
-    telemBuffer[key].values.push(shape3D);
+    appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
 }
 
 // adds
 function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
-    let isXY = flags.includes("xy");
-    if (isXY) telemType = "xy";
-
+    let isTimeBased = !flags.includes("xy");
     let shouldPlot = !flags.includes("np");
 
     if(app.telemetries[key] == undefined){
                 
-        Vue.set(app.telemetries, key, new Telemetry(key, unit, telemType));
+        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, telemType));
         // Create widget
         if(shouldPlot)
         {
             let chart;
             switch(telemType)
             {
-                case "number": 
-                    chart = new ChartWidget(isXY);
-                    break;
-                case "xy": 
-                    chart = new ChartWidget(isXY);
+                case "number" : 
+                    chart = new ChartWidget(!isTimeBased);
                     break;
                 case "text" :
                     chart = new SingleValueWidget(true);
