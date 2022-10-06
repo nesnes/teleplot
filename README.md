@@ -57,7 +57,7 @@ The expected format is `A:B:C§D|E` where:
 - **A** is the name of the telemetry variable (be kind and avoid **`:|`** special chars in it!)
 - **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
 - **C** is either the integer or floating point value to be plotted or a text format value to be displayed.
-- **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|.`** special chars and **digits** in it!)
+- **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|.`** special chars in it!)
 - **E** is containing flags that carry information on how to read and display the data.
 
 Examples:
