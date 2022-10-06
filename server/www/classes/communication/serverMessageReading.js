@@ -61,18 +61,10 @@ function parseLog(msg, now)
     logBuffer.unshift(currLog);//prepend log to buffer
 }
 
-// valid characters for unit : anything but ':' '.' ',' ';' '|' and digits 
-function isValidUnitChar(character)
-{
-    return (character<'0' || character>'9') && character!=':' && character!='.' && character!=',' && character!=';' && character!='|' ;
-}
 
-function isTextFormatTelemetry(msg, startIdx, endIdx, flags)
+function isTextFormatTelemetry(msg)
 {
-    if (flags.includes("unit"))
-        return false;
-
-    return msg.some((mchar) => ((mchar < '0' || mchar > '9') && mchar!='-' && mchar!=':' && mchar!='.' && mchar!=';' && mchar!= ','));
+    return (Array.from(msg)).some((mchar) => ((mchar < '0' || mchar > '9') && mchar!='-' && mchar!=':' && mchar!='.' && mchar!=';' && mchar!= ',' && mchar!= '§'));
 }
 
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
@@ -91,19 +83,15 @@ function parseVariablesData(msg, now)
         flags = shouldPlotByDefault?"g":"np";
         endIdx = msg.length;
     }
-    let isTextFormatTelem = isTextFormatTelemetry(msg, startIdx, endIdx, flags);
 
-
-
-    if (flags.includes("unit"))
+    let unitIdx = msg.indexOf('§'); 
+    if (unitIdx!=-1)
     {
-        
-        while (endIdx-1 > startIdx && isValidUnitChar(msg[endIdx-1]))
-        unit = msg[--endIdx] + unit;
-
-        if (msg[endIdx-1]==':')endIdx--;
+        unit = msg.substring(unitIdx+1, endIdx);
+        endIdx = unitIdx;
     }
     
+    let isTextFormatTelem = isTextFormatTelemetry(msg.substring(startIdx+1, endIdx));
 
     // Extract values array
     let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
