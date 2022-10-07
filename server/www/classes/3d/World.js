@@ -108,6 +108,7 @@ class World {
 		}
 
 		this.scene.add(shape3d.three_object);
+
 	}
 	
 	render()

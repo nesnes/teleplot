@@ -22,7 +22,7 @@ function updateView() {
             if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].push(...telemBuffer[key].data[2]);
             telemBuffer[key].data[0].length = 0;
             telemBuffer[key].data[1].length = 0;
-            if(app.telemetries[key].xy) telemBuffer[key].data[2].length = 0;
+            if(app.telemetries[key].type=="xy") telemBuffer[key].data[2].length = 0;
             app.telemetries[key].values = my_copyArray(telemBuffer[key].values);
 
             // console.log(JSON.stringify(app.telemetries["my_square_0"].values[0], null, 3));

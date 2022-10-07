@@ -5,7 +5,8 @@ class Shape3D
 		this.shapeName = undefined; //ex : "my_square_0"
 		this.shapeType = undefined; // String, ex : "square"
 		this.three_object = null;
-		this.default_material = new MeshStandardMaterial({color : 'purple'});
+		this.default_material = undefined;
+		this.color = undefined;
 
 		this.position = undefined; // Object containing x, y, and z, its tree coordonates
 		this.rotation = undefined; // Object containing x, y, and z, its tree rotations
@@ -48,6 +49,9 @@ class Shape3D
 		this.height = jsonObj.height;	
 		this.depth = jsonObj.depth;
 
+		this.color = jsonObj.color == undefined ? 'purple' : jsonObj.color;
+		this.default_material = new MeshStandardMaterial({color : this.color});
+
 		this.buildThreeObject();
 
 		return this;
@@ -55,11 +59,11 @@ class Shape3D
 
 	initializeFromShape3D(shape3D)
 	{
-		this.shapeName = shape3D.name;
+		this.shapeName = shape3D.shapeName;
 
 		this.position = shape3D.position;
 		this.rotation = shape3D.rotation;
-		this.shapeType = shape3D.shape;
+		this.shapeType = shape3D.shapeType;
 
 		this.center = shape3D.center;
 		this.radius = shape3D.radius;
@@ -69,6 +73,9 @@ class Shape3D
 		this.height = shape3D.height;	
 		this.depth = shape3D.depth;
 
+		this.color = shape3D.color;
+		this.default_material = new MeshStandardMaterial({color : this.color});
+		
 		this.buildThreeObject();
 
 		return this;

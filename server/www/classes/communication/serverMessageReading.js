@@ -169,20 +169,25 @@ function parse3D(msg, now)
 
 // adds
 function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
-    let isTimeBased = !flags.includes("xy");
+    let isXY = flags.includes("xy");
+    if (isXY) telemType = "xy";
+
     let shouldPlot = !flags.includes("np");
 
     if(app.telemetries[key] == undefined){
                 
-        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, telemType));
+        Vue.set(app.telemetries, key, new Telemetry(key, unit, telemType));
         // Create widget
         if(shouldPlot)
         {
             let chart;
             switch(telemType)
             {
-                case "number" : 
-                    chart = new ChartWidget(!isTimeBased);
+                case "number": 
+                    chart = new ChartWidget(isXY);
+                    break;
+                case "xy": 
+                    chart = new ChartWidget(isXY);
                     break;
                 case "text" :
                     chart = new SingleValueWidget(true);

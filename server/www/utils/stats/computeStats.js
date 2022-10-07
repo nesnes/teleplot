@@ -47,3 +47,18 @@ function computeStats(data) {
     return stats;
 }
 
+
+// this function is called when our mouse leave the chart 
+function resetDisplayedVarValues(){
+    //for each telem, set latest value
+    let telemList = Object.keys(app.telemetries);
+    for(let telemName of telemList) {
+        let telem = app.telemetries[telemName];
+        if(telem.type=="xy") continue;
+        let idx = telem.data[0].length-1;
+        if(0 <= idx && idx < telem.data[0].length) {
+            telem.value = telem.data[1][idx];
+        }
+    }
+}
+
