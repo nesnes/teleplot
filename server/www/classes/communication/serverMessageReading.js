@@ -73,20 +73,6 @@ function isTextFormatTelemetry(msg)
     return (Array.from(msg)).some((mchar) => ((mchar < '0' || mchar > '9') && mchar!='-' && mchar!=':' && mchar!='.' && mchar!=';' && mchar!= ',' && mchar!= '§'));
 }
 
-function isTextFormatTelemetry(msg, startIdx, endIdx, flags)
-{
-    if (flags.includes("unit"))
-        return false;
-
-    for (let i = startIdx; i < endIdx; i++)
-    {
-        if ((msg[i] < '0' || msg[i] > '9') && msg[i]!='-' && msg[i]!=':' && msg[i]!='.' && msg[i]!=';' && msg[i]!= ',')
-            return true;
-    }
-
-    return false;
-}
-
 // msg : a String containing data of a variable, ex : "myValue:1627551892437:1234|g"
 // now : a Number representing a timestamp 
 function parseVariablesData(msg, now)
@@ -146,8 +132,8 @@ function parseVariablesData(msg, now)
 
 function parse3D(msg, now)
 {
-    // 3D|my_square_0:12145641658484:{...}|g
-    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"square","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
+    // 3D|my_cube_0:12145641658484:{...}|g
+    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
 
     let startIdx = msg.indexOf(':');
     let key = msg.substring(msg.indexOf("|")+1,startIdx);

@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 function getNodeSize(node)// node : the html element we want to measure
 {
   const nodeStyles = window.getComputedStyle(node, null);
@@ -14,25 +12,6 @@ function getNodeSize(node)// node : the html element we want to measure
     - convertToFloat(nodeStyles.paddingTop) - convertToFloat(nodeStyles.paddingBottom))
   }
 
-=======
-function getNodeSize(node, whatWeMeasure)// node : the html element we want to measure, whatWeMeasure : a String (either "width" or "height")
-=======
-function getNodeSize(node)// node : the html element we want to measure
->>>>>>> text format telemetry synced
-{
-  const nodeStyles = window.getComputedStyle(node, null);
-
-  let convertToFloat = (nb_str) => { return nb_str?parseFloat(nb_str):0 };
-
-  return {
-    width : (node.offsetWidth - convertToFloat(nodeStyles.borderLeftWidth) - convertToFloat(nodeStyles.borderRightWidth) 
-    - convertToFloat(nodeStyles.paddingLeft) - convertToFloat(nodeStyles.paddingRight)),
-
-    height : (node.offsetHeight - convertToFloat(nodeStyles.borderTopHeight) - convertToFloat(nodeStyles.borderBottomHeight) 
-    - convertToFloat(nodeStyles.paddingTop) - convertToFloat(nodeStyles.paddingBottom))
-  }
-
->>>>>>> code refractoring + file moved into a cleaner hierarchie + python test changed
 }
 
 Vue.component('vue-responsive-text', {
@@ -81,10 +60,6 @@ Vue.component('vue-responsive-text', {
       this.scale = Math.min(maxWidth / currentWidth, maxHeight/ currentHeight);
     },
     updateNodeWidth() {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> text format telemetry synced
       let parentNodeSize = getNodeSize(this.$el.parentElement);
       let thisNodeSize = getNodeSize(this.$el);
 
@@ -92,15 +67,6 @@ Vue.component('vue-responsive-text', {
       this.maxWidth = parentNodeSize.width;
       this.currentHeight = thisNodeSize.height;
       this.maxHeight = parentNodeSize.height;
-<<<<<<< HEAD
-=======
-      this.currentWidth = getNodeSize(this.$el, "width");
-      this.maxWidth = getNodeSize(this.$el.parentElement, "width");
-      this.currentHeight = getNodeSize(this.$el, "height");
-      this.maxHeight = getNodeSize(this.$el.parentElement, "height");
->>>>>>> code refractoring + file moved into a cleaner hierarchie + python test changed
-=======
->>>>>>> text format telemetry synced
     },
     triggerTextResize()
     {

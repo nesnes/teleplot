@@ -34,7 +34,7 @@ class Telemetry{
 
     getValuesFormatted() {
 
-        if (this.type == "number" && this.values[0] != undefined)
+        if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
         {
             let res = this.values[0].toFixed(4);
         

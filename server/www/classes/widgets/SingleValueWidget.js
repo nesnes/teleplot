@@ -67,7 +67,7 @@ class SingleValueWidget extends DataWidget{
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[1]))
         }
-        else
+        else if (currentSerie.type=="number")
         {
             this.singlevalue = [];
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))

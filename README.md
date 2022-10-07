@@ -113,6 +113,40 @@ By default, teleplot will display all the incoming telemetry as a chart, while t
 The `np` (for no-plot) flag can be used to prevent this behavior:
 - `myValue:1627551892437:1234|np`
 - `trajectory:12.3:45.67|xynp`
+
+### Publishing 3D telemetries
+
+To send 3D shapes to teleplot, use this syntax : `3D|A:B|E`, where
+**A** is the timestamp and is **optional**
+**B** is a json object representing the shape
+**E** is containing flags
+
+for the moment, there are only two shapes available, cubes and spheres.
+
+For a sphere, **B** should be as follow : 
+{
+    "shape" : "sphere",
+    "position" : {"x": _ , "y": _ , "z" : _ },
+    "rotation" : {"x": _ , "y": _ , "z" : _ },
+    "precision" : _ ,
+    "radius" : _ ,
+}
+
+For a cube, **B** should be as follow : 
+{
+    "shape" : "cube",
+    "position" : {"x": _ , "y": _ , "z" : _ },
+    "rotation" : {"x": _ , "y": _ , "z" : _ },
+    "height" : _ ,
+    "width" : _ ,
+    "depth" : _ ,
+}
+
+you can also add an optional color property
+
+- '3D|myData1:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"cube","width":5,"height":4,"depth":3,"color":"red"}|g'
+- '3D|myData2:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"precision":15,"radius":3, "shape":"sphere"}|g'
+
 # Publish telemetries
 
 ## Bash
