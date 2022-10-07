@@ -172,7 +172,7 @@ function initializeAppView()
                     return;
                 }
 
-                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "textBased"); 
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);

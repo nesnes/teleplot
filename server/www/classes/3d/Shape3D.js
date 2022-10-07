@@ -2,8 +2,8 @@ class Shape3D
 {
 	constructor ()
 	{
-		this.shapeName = undefined; //ex : "my_square_0"
-		this.shapeType = undefined; // String, ex : "square"
+		this.shapeName = undefined; //ex : "my_cube_0"
+		this.shapeType = undefined; // String, ex : "cube"
 		this.three_object = null;
 		this.default_material = undefined;
 		this.color = undefined;
@@ -15,9 +15,9 @@ class Shape3D
 		this.radius = undefined; // Number, the radius of the sphere
 		this.precision = undefined; // Number, the precision of the sphere
 
-		this.height = undefined; // Number, the height of the square
-		this.width = undefined; // Number, the width of the square
-		this.depth = undefined; // Number, the depth of the square
+		this.height = undefined; // Number, the height of the cube
+		this.width = undefined; // Number, the width of the cube
+		this.depth = undefined; // Number, the depth of the cube
 
 	}
 
@@ -28,7 +28,7 @@ class Shape3D
 		
 		let areSameRotAndPos = JSON.stringify(this.position) == JSON.stringify(shape2.position) && JSON.stringify(this.rotation) == JSON.stringify(shape2.rotation);
 		
-		if (this.shapeType == "square")
+		if (this.shapeType == "cube")
 			return areSameRotAndPos && this.height == shape2.height && this.width == shape2.width && this.depth == shape2.depth;
 		else if (this.shapeType == "sphere")
 			return areSameRotAndPos && this.center == shape2.center && this.radius == shape2.radius && this.precision == shape2.precision;
@@ -84,7 +84,7 @@ class Shape3D
 
 	buildThreeObject()
 	{
-		if (this.shapeType == "square")
+		if (this.shapeType == "cube")
 		{
 			
 			let objGeometry = new THREE.BoxGeometry( this.width, this.height, this.depth );
