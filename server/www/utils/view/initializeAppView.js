@@ -28,6 +28,7 @@ function initializeAppView()
             textToSend: "",
             sendTextLineEnding: "\\r\\n",
             newChartDropZoneOver: false,
+            lastValueDropZoneOver: false,
             newConnectionAddress: "",
             creatingConnection: false,
             telemetryFilterString: "",
@@ -74,6 +75,7 @@ function initializeAppView()
                 app.logAvailable = false;
                 app.isViewPaused = false;
                 app.telemetryFilterString = "";
+
             },
             sendText: function(text) {
                 let escape = app.sendTextLineEnding.replace("\\n","\n");
@@ -88,7 +90,12 @@ function initializeAppView()
             onDropInWidget: function(e, widget){
                 e.preventDefault();
                 e.stopPropagation();
+                this.newChartDropZoneOver = false;
                 widget.draggedOver = false;
+
+                if (widget.type != "chart")
+                    return;
+
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 let newIsXY = app.telemetries[telemetryName].xy;
                 let chartIsXY = (widget.series.length
@@ -101,10 +108,12 @@ function initializeAppView()
             },
             onWidgetDragOver: function(e, widget){
                 e.preventDefault();
+                this.newChartDropZoneOver = true;
                 widget.draggedOver = true;
             },
             onWidgetDragLeave: function(e, widget){
                 e.preventDefault();
+                this.newChartDropZoneOver = false;
                 widget.draggedOver = false;
             },
             showWidget: function(widget, show){
@@ -118,24 +127,56 @@ function initializeAppView()
                 if(idx>=0) app.widgets.splice(idx, 1);
                 triggerChartResize();
             },
-            onDropInNewChart: function(e, prepend=true){      
+            onDropInNewChart: function(e, prepend=true){    
                 e.preventDefault();
                 e.stopPropagation();      
-                newChartDropZoneOver = false;
+                this.newChartDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
-                let chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
-                let serie = getSerieInstanceFromTelemetry(telemetryName);    
+
+                let chart = undefined;
+                if (app.telemetries[telemetryName].type == "text")
+                {
+                    chart = new SingleValueWidget(true);
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.addSerie(serie);
+                }
+                else
+                {
+                    chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.addSerie(serie);
+                }
+                
+                if(prepend) widgets.unshift(chart);
+                else widgets.push(chart);
+            },
+            onDropInLastValue: function(e, prepend=true){      
+                e.preventDefault();
+                e.stopPropagation();   
+                this.lastValueDropZoneOver = false;
+                let telemetryName = e.dataTransfer.getData("telemetryName");
+                
+                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
+                let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
             onNewChartDragOver: function(e){
                 e.preventDefault();
-                newChartDropZoneOver = true;
+                this.newChartDropZoneOver = true;
+            },
+            onLastValueDragOver: function(e){
+                e.preventDefault();
+                this.lastValueDropZoneOver = true;
             },
             onNewChartDragLeave: function(e){
                 e.preventDefault();
-                newChartDropZoneOver = false;
+                this.newChartDropZoneOver = false;
+            },
+            onLastValueDragLeave: function(e){
+                e.preventDefault();
+                this.lastValueDropZoneOver = false;
             },
             onMouseDownOnResizeButton: function(event, widget){
                 onMouseDownOnResizeButton_(event, widget);                

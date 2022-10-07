@@ -11,12 +11,22 @@ class DataSerie{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         this.options = {};
-        this.value = null;
+        this.values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.xy = !isTimeBased;
     }
 
+    getFormattedValue()
+    {
+        if (this.values == undefined || this.values[0] == undefined)
+            return "";
+
+        if (this.xy && this.values[1] != undefined) 
+            return ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
+        else
+            return (this.values[0].toFixed(4));
+    }
 
     destroy(){
         for(let name of this.sourceNames){
@@ -42,7 +52,7 @@ class DataSerie{
             this.pendingData[0] = app.telemetries[this.sourceNames[0]].pendingData[0];
             this.pendingData[1] = app.telemetries[this.sourceNames[0]].pendingData[1];
             if(isXY) this.pendingData[2] = app.telemetries[this.sourceNames[0]].pendingData[2];
-            this.value = app.telemetries[this.sourceNames[0]].value;
+            this.values = copyArray(app.telemetries[this.sourceNames[0]].values);
         }
         else if (this.formula != "" && this.sourceNames.length>=1)
         {
@@ -81,6 +91,7 @@ function getSerieInstanceFromTelemetry(telemetryName)
         throw new Error(`Trying to instanciate a DataSerie from a non existant telemetry name : ${telemetryName}`);
     
     serie.name = telemetryName;
+    serie.values = copyArray(telemetry.values);
     serie.xy = telemetry.xy;
     serie.unit = telemetry.unit;
     serie.addSource(telemetryName);

@@ -171,6 +171,7 @@ body {
     padding: 0px 0px 1px 3px;
     border-radius: 5px 0px 0px 5px;
 	text-align: center;
+	position: relative;
 }
 
 .var-vue-value {
@@ -183,6 +184,13 @@ body {
     justify-content: center;
     align-items: center;
 	border-radius: 0px 5px 5px 0px;
+}
+
+.symbol-text-format-telem{
+	position: absolute;
+	left: 3px;
+	color: #2ecc71;
+
 }
 
 .cmd-container {
@@ -331,7 +339,6 @@ body {
 	color: black;
 	margin-right: 3px;
 	margin-left: 3px;
-	text-align: center;
 }
 
 .serie-value {
@@ -359,6 +366,7 @@ body {
 	margin-left: 4px;
 	margin-right: 4px;
 	cursor: pointer;
+	z-index: 10;
 
 	/* user can't highlight the element ( useful for when resizing ) */
 	user-select: none;
@@ -381,15 +389,33 @@ body {
 	user-select: none;
 }
 
-.new-chart-drop-zone {
+.new-chart-drop-zone, .new-chart-drop-zone-over  {
 	margin: 5px;
-    border: 2px dashed #3498db;
-    border-radius: 5px;
     padding: 5px;
+	border: 2px dashed #3498db;
+    border-radius: 5px;
     color: #3498db;
 	text-align: center;
 
+	border-bottom: 1px dashed #3498db;
+	margin-bottom: 0px;
 }
+
+.last-value-drop-zone, .last-value-drop-zone-over   {
+	margin: 5px;
+    padding: 5px;
+    border: 2px dashed #3498db;
+    border-radius: 5px;
+    color: #3498db;
+	text-align: center;
+
+	border-top: 1px dashed #3498db;
+	margin-top: 0px;
+}
+
+.new-chart-drop-zone-over, .last-value-drop-zone-over {
+	background-color: rgb(255, 255, 0,0.1);
+} 
 
 .serie-name-container {
 	display: flex;

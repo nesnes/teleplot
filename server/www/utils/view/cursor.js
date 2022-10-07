@@ -87,11 +87,14 @@ function updateDisplayedVarValues(valueX, valueY){
             idx +=1;
         }
         if(idx < telem.data[timeIdx].length) {
+            app.telemetries[telemName].values = [];
+
             if(telem.xy) {
-                app.telemetries[telemName].value = ""+telem.data[0][idx].toFixed(4)+" "+telem.data[1][idx].toFixed(4)+"";
+                app.telemetries[telemName].values.push(telem.data[0][idx]);
+                app.telemetries[telemName].values.push(telem.data[1][idx]);
             }
             else {
-                app.telemetries[telemName].value = telem.data[1][idx];
+                app.telemetries[telemName].values.push(telem.data[1][idx]);
             }
         }
     }

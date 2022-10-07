@@ -53,17 +53,18 @@ A telemetry gets published by sending a text-based UDP packet on the port `47269
 
 The telemetry format is inspired by `statsd` and *to some extents* compatible with it.
 
-The expected format is `A:B:C:D|E` where:
+The expected format is `A:B:C§D|E` where:
 - **A** is the name of the telemetry variable (be kind and avoid **`:|`** special chars in it!)
 - **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
-- **C** is the integer or floating point value to be plotted.
-- **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|`** special chars and **digits** in it!).
+- **C** is either the integer or floating point value to be plotted or a text format value to be displayed.
+- **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|.`** special chars in it!)
 - **E** is containing flags that carry information on how to read and display the data.
 
 Examples:
 - `myValue:1234|g`
 - `myValue:1627551892437:1234|g`
-- `myValue:1234:km²|g`
+- `myValue:hello|g`
+- `myValue:1234§km²|g`
 
 ### Plot XY rather than time-based
 
@@ -75,12 +76,21 @@ A timestamp can be associated with the xy point by adding an extra `:16275518924
 
 - `trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy`
 
+### Publishing text format telemetries
+- text format telemetries contain a string rather than a number (with or without timestamp).
+
+- `motor_4_state:Turned On|g`
+- `motor_4_state:1627551892437:Off|g`
+
 ### Publishing multiple points
+/!\ here, many values will be received at the same time by teleplot, therefore you must precise their timestamps.
 
 Multiple values of a single telemetry can be sent in a single packet if separated by a `;`
 
 - `trajectory:1:1;2:2;3:3;4:4|xy`
 - `myValue:1627551892444:1;1627551892555:2;1627551892666:3|g`
+- `myValue:1627551892444:1;1627551892555:2;1627551892666:3§rad|g`
+- `state:1627551892444:state_a;1627551892555:state_b|g`
 
 ### Publishing multiple telemetries
 
@@ -90,6 +100,7 @@ Multiple telemetries can be sent in a single packet if separated by a `\n`
 myValue:1234|g
 mySecondValue:1234:m/s|g
 myThirdValue:1627551892437:1234|g
+state:state_a|g
 trajectory:1:1;2:2;3:3;4:4|xy
 trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy
 ```

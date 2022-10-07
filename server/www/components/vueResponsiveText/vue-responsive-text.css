@@ -1,0 +1,24 @@
+/* .responsive-text-wrapper, .responsive-text-wrapper-telem, .responsive-text-wrapper-unit {
+  display: inline-block;
+  white-space: nowrap;
+  -ms-transform-origin: left;
+  -webkit-transform-origin: left;
+  -o-transform-origin: left;
+  -moz-transform-origin: left;
+  transform-origin: left;
+} */
+
+
+
+.responsive-text-wrapper-value, .responsive-text-wrapper-telem, .responsive-text-wrapper-unit {
+  margin: auto;
+}
+
+.responsive-text-wrapper-telem, .responsive-text-wrapper-unit {
+	color: #505252;
+}
+
+.responsive-text-wrapper-value{
+  font-weight: 100;
+  font-family: sans-serif;
+}

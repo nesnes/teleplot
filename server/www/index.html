@@ -5,8 +5,11 @@
 		<title>Telemetry</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="stylesheet" href="lib/uPlot.min.css">
+        <link rel="stylesheet" href="components/vueResponsiveText/vue-responsive-text.css">
+        <link rel="stylesheet" href="components/singleValue/single-value.css">
 		<link rel="stylesheet" href="style.css">
         <script src="lib/vue.js"></script>
+
 	</head>
 	<body>
         <div id="app">
@@ -137,6 +140,10 @@
                     @drop="onDropInNewChart($event)" @dragover="onNewChartDragOver($event)" @dragenter.prevent @dragleave="onNewChartDragLeave($event)">
                         <span>🞢 Drop here for new chart</span>
                     </div>
+                    <div class="last-value-drop-zone" v-bind:class="{ 'last-value-drop-zone-over': lastValueDropZoneOver }"
+                    @drop="onDropInLastValue($event)" @dragover="onLastValueDragOver($event)" @dragenter.prevent @dragleave="onLastValueDragLeave($event)">
+                        <span>🞢 Drop here for last value</span>
+                    </div>
                     <input type="text" placeholder="Telemetry filter (ex: a*c* )" v-model="telemetryFilterString"/>
 
 
@@ -145,11 +152,12 @@
                     class="var-vue" @click="toggleVisibility(telem)"
                     draggable @dragstart="onDragTelemetry($event, telem.name)">
                         <div class="var-vue-name">
+                            <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
+
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value" v-if="typeof telem.value == 'number'">{{telem.value.toFixed(4)}}</div>
-                        <div class="var-vue-value" v-if="typeof telem.value == 'string'">{{telem.value}}</div>
+                        <div class="var-vue-value">{{telem.getValuesFormatted()}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -174,10 +182,9 @@
                                 </div>
                                 <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
-                                        <div class="serie-name-container">
+                                        <div v-if="widget.type == 'chart'" class="serie-name-container">
                                             <span class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
-                                                <span class="serie-value" v-if="typeof serie.value == 'number'">{{serie.value.toFixed(4)}}</span>
-                                                <span class="serie-value" v-if="typeof serie.value == 'string'">{{serie.value}}</span>
+                                                <span class="serie-value">{{serie.getFormattedValue()}}</span>
                                             </span>
                                             <span class="serie-name" >{{serie.name}}</span>
                                             <span v-if="serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
@@ -209,14 +216,17 @@
                                 <div class="widget-option-container">
                                     <!--<span class="widget-option" v-if="!widget.hidden" @click="showWidget(widget, false)">—</span>
                                     <span class="widget-option" v-if="widget.hidden" @click="showWidget(widget, true)">▭</span>-->
-                                    <span class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
+                                    <span v-if="widget.type == 'chart'" class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
                                     <span id ="closeWidgetButton" class="widget-option" @click="removeWidget(widget)" title="Close widget">╳</span>
                                     
                                 </div>
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
                             
+                            <single-value v-if="widget.type == 'single_value'" v-bind:widget="widget"></single-value>
+                            
                             <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
+
                             
                         </div>
                     </div>
@@ -286,19 +296,15 @@
                         </div>
                     </div>
                 </div>
-
-            </div>
-
-            
-
-
-            
+            </div>            
         </div>
 
     </body>
-    
+    <script src="utils/javascriptUtils.js"></script>
     <script src="lib/uPlot.iife.js"></script>
-    <script src="lib/uplot-component.js"></script>
+    <script src="components/uPlot/uplot-component.js"></script>
+    <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
+    <script src="components/singleValue/singleValue.js"></script>
     <script src="./constants.js"></script>
     <script src="./classes/communication/connection/Connection.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
@@ -307,6 +313,7 @@
     <script src="./classes/communication/serverMessageReading.js"></script>
     <script src="./classes/widgets/DataWidget.js"></script>
     <script src="./classes/widgets/ChartWidget.js"></script>
+    <script src="./classes/widgets/SingleValueWidget.js"></script>
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>
     <script src="./classes/communication/data/DataInputUDP.js"></script>
@@ -320,4 +327,5 @@
     <script src="./utils/view/updateView.js"></script>
     <script src="./utils/stats/computeStats.js"></script>
     <script src="./main.js"></script>
+
 </html>

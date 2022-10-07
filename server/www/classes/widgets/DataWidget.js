@@ -17,6 +17,11 @@ class DataWidget{
             throw new Error("DataWidget is an abstract class, it should only be inherited and never instanciated !");
         }
 
+        this.options = {
+            width: undefined,
+            height: undefined,
+        }
+
         this.series = []; // DataSerie
         this.type = "chart";
         /*this way of generating ids may create two DataWidgets with same ids by accident :
