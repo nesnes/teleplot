@@ -2,7 +2,7 @@ var DataSerieIdCount = 0;
 // this class respresents a sequence or "serie"
 class DataSerie{
     constructor(_name = undefined, unit = undefined, type = "text"){
-        this.type = type;// either text, number or 3D or xy
+        this.type = type;// either text, number, 3D or xy
         this.name = _name;
         this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence

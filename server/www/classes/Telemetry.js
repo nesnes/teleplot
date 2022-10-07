@@ -1,16 +1,3 @@
-/*Telemetries can be of two types: 
- 
-
-- "number"
-    in this case, data, pendingData, values and xy are used and textFormatValue is undefined
-
-- "text"
-    currently fixing bug when creating tow charts from same telem (3d)
-    in this case, data, pendingData, values and xy are not used and textFormatValue is used
-  
- */
-
-
 class Telemetry{
     constructor(_name, unit = undefined, type = "number"){
         this.type = type; // either "number", "text", "3D" or "xy"
