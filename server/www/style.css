@@ -196,7 +196,8 @@ body {
 .symbol-3d-telem{
 	position: absolute;
 	left: 3px;
-	color: #b91897;
+	color: #2ecc71;
+	/* color: #b91897; */
 
 }
 
@@ -343,9 +344,10 @@ body {
 }
 
 .serie-name, .serie-unit {
-	color: black;
 	margin-right: 3px;
 	margin-left: 3px;
+    /* color: black; */
+
 }
 
 .serie-value {

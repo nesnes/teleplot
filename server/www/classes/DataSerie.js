@@ -1,8 +1,8 @@
 var DataSerieIdCount = 0;
 // this class respresents a sequence or "serie"
 class DataSerie{
-    constructor(_name = undefined, isTimeBased = undefined, unit = undefined){
-        this.type = "text";// either text, number of 3D
+    constructor(_name = undefined, unit = undefined, type = "text"){
+        this.type = type;// either text, number or 3D or xy
         this.name = _name;
         this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence
@@ -15,19 +15,25 @@ class DataSerie{
         this.values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
-        this.xy = !isTimeBased;
         this.onSerieChanged = undefined;
     }
 
     getFormattedValue()
     {
-        if (this.type != "number" || this.values == undefined || this.values[0] == undefined)
+        if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[0] == undefined)
             return "";
 
-        if (this.type == "number" && this.xy && this.values[1] != undefined) 
+        if (this.type == "xy" && this.values[1] != undefined) 
             return ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
         else if (this.type == "number")
             return (this.values[0].toFixed(4));
+    }
+
+    getNameColor()
+    {
+        if (this.type == "3D" && this.values[0] != undefined)
+            return this.values[0].color;
+        return "black";
     }
 
     destroy(){
@@ -47,7 +53,7 @@ class DataSerie{
         // no formula, simple data reference
         if(this.formula=="" && this.sourceNames.length==1){ // in this case our data serie matches a simple telemetry
 
-            let isXY = app.telemetries[this.sourceNames[0]].xy;
+            let isXY = app.telemetries[this.sourceNames[0]].type=="xy";
             this.data[0] = app.telemetries[this.sourceNames[0]].data[0];
             this.data[1] = app.telemetries[this.sourceNames[0]].data[1];
             if(isXY) this.data[2] = app.telemetries[this.sourceNames[0]].data[2];
@@ -74,7 +80,7 @@ class DataSerie{
         for(let key of this.sourceNames) {
             let d = app.telemetries[key].data;
             let timeIdx = 0;
-            if(app.telemetries[key].xy) timeIdx = 2;
+            if(app.telemetries[key].type=="xy") timeIdx = 2;
             let latestTimestamp = d[timeIdx][d[timeIdx].length-1];
             let minTimestamp = latestTimestamp - parseFloat(app.viewDuration);
             let minIdx = findClosestLowerByIdx(d[timeIdx], minTimestamp);
@@ -82,7 +88,7 @@ class DataSerie{
             else continue;
             app.telemetries[key].data[0].splice(0, minIdx);
             app.telemetries[key].data[1].splice(0, minIdx);
-            if(app.telemetries[key].xy) app.telemetries[key].data[2].splice(0, minIdx);
+            if(app.telemetries[key].type="xy") app.telemetries[key].data[2].splice(0, minIdx);
         }
     }
 }
@@ -97,7 +103,6 @@ function getSerieInstanceFromTelemetry(telemetryName)
     
     serie.name = telemetryName;
     serie.values = my_copyArray(telemetry.values);
-    serie.xy = telemetry.xy;
     serie.unit = telemetry.unit;
     serie.type = telemetry.type;
     serie.addSource(telemetryName);

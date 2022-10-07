@@ -3,11 +3,15 @@ class Widget3D extends DataWidget{
         super();
         this.type = "widget3D";
         this.worldId = undefined; // the id of the world instance linked to this widget
+        this.onNewSerieAdded = undefined;
     }
 
     addSerie(serie)
     {
         this.series.push(serie);
+              
+        if (this.onNewSerieAdded != undefined)
+            this.onNewSerieAdded();
     }
 
     destroy(){

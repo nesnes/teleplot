@@ -53,7 +53,7 @@ function importLayoutJSON(event) {
                 let isWidgetXY = false;
                 for(let s of w.series)
                 {
-                    let serie = new DataSerie(s.name, s.xy, s.unit);
+                    let serie = new DataSerie(s.name, s.unit, s.type);
                     for(let sn of s.sourceNames){
                         if(sn in app.telemetries && app.telemetries[sn].xy) isWidgetXY = true;
                         

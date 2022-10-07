@@ -54,7 +54,7 @@ function resetDisplayedVarValues(){
     let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {
         let telem = app.telemetries[telemName];
-        if(telem.xy) continue;
+        if(telem.type=="xy") continue;
         let idx = telem.data[0].length-1;
         if(0 <= idx && idx < telem.data[0].length) {
             telem.value = telem.data[1][idx];

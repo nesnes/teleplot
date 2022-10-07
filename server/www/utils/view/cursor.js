@@ -78,7 +78,7 @@ function updateDisplayedVarValues(valueX, valueY){
     for(let telemName of telemList) {
         let telem = app.telemetries[telemName];
         let timeIdx = 0;
-        if(telem.xy) { timeIdx = 2; }
+        if(telem.type=="xy") { timeIdx = 2; }
         let idx = findClosestLowerByIdx(telem.data[timeIdx], valueX);
         if(idx >= telem.data[timeIdx].length) continue;
         //Refine index, closer to timestamp
@@ -89,7 +89,7 @@ function updateDisplayedVarValues(valueX, valueY){
         if(idx < telem.data[timeIdx].length) {
             app.telemetries[telemName].values = [];
 
-            if(telem.xy) {
+            if(telem.type=="xy") {
                 app.telemetries[telemName].values.push(telem.data[0][idx]);
                 app.telemetries[telemName].values.push(telem.data[1][idx]);
             }

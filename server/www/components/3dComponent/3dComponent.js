@@ -20,33 +20,11 @@ Vue.component('comp-3d', {
     data() {
         return { world : undefined};
     },
-    // watch : {
-    //     series: {
-    //         handler(series0, series1){
 
-    //             if (series0.length != series1.length)
-    //                 this.reDrawShapes();
-    //             else
-    //             {
-    //                 for (let i = 0 ; i<series0.length; i++)
-    //                 {
-    //                     if (!series0[i].values[0].isSame(series1[i].values[0]))
-    //                     {
-    //                         this.reDrawShapes();
-    //                         break;
-    //                     }
-    //                     //console.log("same");
-    //                 }
-    //             }
-    //         },
-    //         deep: true
-    //     }
-
-    // },
-    mounted() {
+    mounted() { // TODO, this is not very clean, this.initializeWorld() should be called this way
         setTimeout(()=>{
             this.initializeWorld();
-        }, 200);
+        }, 100);
 
     },
     methods: {
@@ -62,9 +40,7 @@ Vue.component('comp-3d', {
                 let currSerie = this.series[i];
     
                 let myShape = ((new Shape3D).initializeFromShape3D(currSerie.values[0]));
-                //todo: working here...
-                //let myShape = currSerie.values[0];
-
+                
                 if (myShape != undefined)
                     this.world.setObject(myShape);
             }
@@ -74,29 +50,38 @@ Vue.component('comp-3d', {
             //console.log("init : worlds : "+worlds);
             drawAllWords();
         },
-
         setUpSeriesObserver()
         {
+            this.widget.onNewSerieAdded = () => {
+                let newSerie = this.series[this.series.length-1]; 
+                this.reDrawShapes(newSerie.id)
+
+                newSerie.onSerieChanged = () => {this.reDrawShapes(newSerie.id)}
+            };
+
+
             for (let i = 0; i< this.series.length; i++)
             {
-               this.series[i].onSerieChanged = this.reDrawShapes;
+               this.series[i].onSerieChanged = () => this.reDrawShapes(this.series[i].id);
             }
             
         },
-        reDrawShapes()
+        reDrawShapes(serieId)
         {
-            // console.log("redraw");
-
             for (let i = 0; i<this.series.length; i++)
             {
                 let currSerie = this.series[i];
     
-                let myShape = currSerie.values[0];
+                if (currSerie.id == serieId)
+                {
+                    let myShape = ((new Shape3D).initializeFromShape3D(currSerie.values[0]));
     
-                if (myShape != undefined)
-                    this.world.setObject(myShape);
+                    if (myShape != undefined)
+                        this.world.setObject(myShape);
+                    
+                    break;
+                }
             }
-    
         },
     },
     template:'\

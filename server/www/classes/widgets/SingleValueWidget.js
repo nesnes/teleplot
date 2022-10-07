@@ -61,7 +61,7 @@ class SingleValueWidget extends DataWidget{
         if (this.containsTextFormat || currentSerie == undefined || currentSerie.values[0] == undefined)
             return;
 
-        if (currentSerie.xy && currentSerie.values[1] != undefined)
+        if (currentSerie.type=="xy" && currentSerie.values[1] != undefined)
         {
             this.singlevalue = [];
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))

@@ -12,8 +12,8 @@
 
 
 class Telemetry{
-    constructor(_name, isTimeBased, unit = undefined, type = "number"){
-        this.type = type; // either "number", "text" or "3D"
+    constructor(_name, unit = undefined, type = "number"){
+        this.type = type; // either "number", "text", "3D" or "xy"
         this.name = _name;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.usageCount = 0;
@@ -22,11 +22,10 @@ class Telemetry{
         // contains either one (if !xy) or two values (if xy).
         this.values = [];
 
-        this.xy = !isTimeBased && this.type == "number";
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         
-        if(!isTimeBased){
+        if(this.type == "xy"){
             this.data.push([]);
             this.pendingData.push([]);
         }
@@ -39,7 +38,7 @@ class Telemetry{
         {
             let res = this.values[0].toFixed(4);
         
-            if (this.xy && this.values.length == 2)
+            if (this.type=="xy" && this.values.length == 2)
                 res += ("  " + this.values[1].toFixed(4));
     
             return res;

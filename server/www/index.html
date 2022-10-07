@@ -184,12 +184,12 @@
                                 </div>
                                 <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
-                                        <div v-if="widget.type == 'chart'" class="serie-name-container">
-                                            <span class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
+                                        <div v-if="widget.type == 'chart' || widget.type == 'widget3D'" class="serie-name-container">
+                                            <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
                                                 <span class="serie-value">{{serie.getFormattedValue()}}</span>
                                             </span>
-                                            <span class="serie-name" >{{serie.name}}</span>
-                                            <span v-if="serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
+                                            <span class="serie-name" v-bind:style="{'color':serie.getNameColor()}">{{serie.name}}</span>
+                                            <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
                                         </div>
                                         <div v-if="serie.stats" class="serie-stat-container">
                                             <div class="serie-stat">
@@ -234,37 +234,6 @@
                             
                         </div>
                     </div>
-                    <!-- PLOTS -->
-                    <!--<div class="telem-container">
-                        <div v-for="telem in telemetries" v-bind:key="'telem-'+telem.name" class="telem-vue" v-if="telem.visible">
-                            <div class="telem-vue-header">
-                                <div class="telem-stat">
-                                    <span class="telem-stat-name">Name</span>
-                                    <span class="telem-stat-value">{{telem.name}}</span>
-                                </div>
-                                <div class="telem-stat">
-                                    <span class="telem-stat-name">Value</span>
-                                    <span class="telem-stat-value" v-if="telem.value != null">{{telem.value.toFixed(4)}}</span>
-                                </div>
-                                <div v-if="telem.stats" class="telem-stat">
-                                    <span class="telem-stat-name">Mean</span>
-                                    <span class="telem-stat-value" v-if="telem.stats.mean != null">{{telem.stats.mean.toFixed(4)}}</span>
-                                </div>
-                                <div v-if="telem.stats"  class="telem-stat">
-                                    <span class="telem-stat-name">Median</span>
-                                    <span class="telem-stat-value" v-if="telem.stats.med != null">{{telem.stats.med.toFixed(4)}}</span>
-                                </div>
-                                <div v-if="telem.stats"  class="telem-stat">
-                                    <span class="telem-stat-name">Stdev</span>
-                                    <span class="telem-stat-value" v-if="telem.stats.stdev != null">{{telem.stats.stdev.toFixed(4)}}</span>
-                                </div>
-                                <div class="">
-                                    <button @click="updateStats(telem)">stats</button>
-                                </div>
-                            </div>
-                            <uplot-vue v-bind:data="telem.data" v-bind:options="telem.config"/>
-                        </div>
-                    </div>-->
                 </div>
 
                 <!-- CMD update to multi input-->

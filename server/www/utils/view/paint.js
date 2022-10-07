@@ -21,8 +21,14 @@ var ColorPalette = {
         rgba(44, 62, 80,1.0), //blueish darkgrey
         rgba(0, 0, 0,1.0), //black
     ],
-    getColor: function(index, alpha=1.0){
-        let color = Object.assign({}, this.colors[index % this.colors.length]);
+    getColor: function(index, alpha=1.0, strColor = undefined) {
+        let color = undefined;
+        
+        if (index == undefined)
+            color = Object.assign({},  rgba(44, 62, 80,1.0));
+        else
+            color = Object.assign({}, this.colors[index % this.colors.length]);
+
         color.a = alpha;
         return color;
     }
