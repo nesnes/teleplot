@@ -26,7 +26,9 @@ class DataSerie{
         if (this.type == "xy" && this.values[1] != undefined) 
             return ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
         else if (this.type == "number")
+        {
             return (this.values[0].toFixed(4));
+        }
     }
 
     getNameColor()
@@ -102,7 +104,8 @@ function getSerieInstanceFromTelemetry(telemetryName)
         throw new Error(`Trying to instanciate a DataSerie from a non existant telemetry name : ${telemetryName}`);
     
     serie.name = telemetryName;
-    serie.values = my_copyArray(telemetry.values);
+    // serie.values = my_copyArray(telemetry.values);
+    serie.values = telemetry.values;// we copy the reference, so when telemetry.values change, serie.values also changes (useful for when cursor leaves a chart)
     serie.unit = telemetry.unit;
     serie.type = telemetry.type;
     serie.addSource(telemetryName);

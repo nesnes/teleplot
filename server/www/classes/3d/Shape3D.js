@@ -50,9 +50,9 @@ class Shape3D
 		this.depth = jsonObj.depth;
 
 		this.color = jsonObj.color == undefined ? 'purple' : jsonObj.color;
-		this.default_material = new MeshStandardMaterial({color : this.color});
+		// this.default_material = new MeshStandardMaterial({color : this.color});
 
-		this.buildThreeObject();
+		// this.buildThreeObject();
 
 		return this;
 	}
@@ -74,9 +74,9 @@ class Shape3D
 		this.depth = shape3D.depth;
 
 		this.color = shape3D.color;
-		this.default_material = new MeshStandardMaterial({color : this.color});
+		// this.default_material = new MeshStandardMaterial({color : this.color});
 		
-		this.buildThreeObject();
+		// this.buildThreeObject();
 
 		return this;
 
@@ -84,6 +84,11 @@ class Shape3D
 
 	buildThreeObject()
 	{
+		if (this.three_object != null) // obj is already built
+			return
+
+		this.default_material = new MeshStandardMaterial({color : this.color});
+
 		if (this.shapeType == "cube")
 		{
 			

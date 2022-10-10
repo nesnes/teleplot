@@ -49,6 +49,8 @@ window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
 
 
 function findClosestLowerByIdx(arr, n) {
+
+    // console.log("findClosestLowerByIdx");
     let from = 0,
         to = arr.length - 1,
         idx;
@@ -71,19 +73,21 @@ function findClosestLowerByIdx(arr, n) {
 
 
 
-function updateDisplayedVarValues(valueX, valueY){
+function updateDisplayedVarValues(mouseX, mouseY){
 
-    //for each telem, find closest value (before valueX and valueY)
+
+    //for each telem, find closest value (before mouseX and mouseY)
     let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {
         let telem = app.telemetries[telemName];
         let timeIdx = 0;
         if(telem.type=="xy") { timeIdx = 2; }
-        let idx = findClosestLowerByIdx(telem.data[timeIdx], valueX);
+        let idx = findClosestLowerByIdx(telem.data[timeIdx], mouseX);
+
         if(idx >= telem.data[timeIdx].length) continue;
         //Refine index, closer to timestamp
         if(idx+1 < telem.data[timeIdx].length
-            && (valueX-telem.data[timeIdx][idx]) > (telem.data[timeIdx][idx+1]-valueX)){
+            && (mouseX-telem.data[timeIdx][idx]) > (telem.data[timeIdx][idx+1]-mouseX)){
             idx +=1;
         }
         if(idx < telem.data[timeIdx].length) {
@@ -99,3 +103,21 @@ function updateDisplayedVarValues(valueX, valueY){
         }
     }
 }
+
+
+
+// this function is called when our mouse leave the chart 
+function resetDisplayedVarValues(){
+    //for each telem, set latest value
+    let telemList = Object.keys(app.telemetries);
+    for(let telemName of telemList) {
+        let telem = app.telemetries[telemName];
+        if(telem.type=="xy") continue;
+        let idx = telem.data[0].length-1;
+        if(0 <= idx && idx < telem.data[0].length) {
+            telem.values = [];
+            (telem.values).push(telem.data[1][idx]);
+        }
+    }
+}
+

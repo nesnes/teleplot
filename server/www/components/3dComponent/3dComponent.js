@@ -1,5 +1,6 @@
 function drawAllWords()
 {
+
     requestAnimationFrame(drawAllWords);
 
     for (let i = 0; i<worlds.length; i++)
@@ -21,7 +22,7 @@ Vue.component('comp-3d', {
         return { world : undefined};
     },
 
-    mounted() { // TODO, this is not very clean, this.initializeWorld() should be called this way
+    mounted() { // TODO, this is not very clean, this.initializeWorld() should not be called this way
         setTimeout(()=>{
             this.initializeWorld();
         }, 100);

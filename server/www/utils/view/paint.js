@@ -42,38 +42,65 @@ const drawXYPoints = (u, seriesIdx, idx0, idx1) => {
         let d = u.data[seriesIdx];
         u.ctx.fillStyle = series.stroke();
         let deg360 = 2 * Math.PI;
-        let strokeStylebackup = u.ctx.strokeStyle;
-        let lineWidthbackup = u.ctx.lineWidth;
-        //let p = new Path2D();
-        let lastX=0, lastY=0;
-        for (let i = 0; i < d[0].length; i++) {
+        
+        let p = new Path2D();
+        for (let i = Math.max(d[0].length - 2000, 0); i < d[0].length; i++) {
             let xVal = d[0][i];
             let yVal = d[1][i];
             if (xVal >= scaleX.min && xVal <= scaleX.max && yVal >= scaleY.min && yVal <= scaleY.max) {
-                let cx = valToPosX(xVal, scaleX, xDim, xOff);
-                let cy = valToPosY(yVal, scaleY, yDim, yOff);
-                //p.moveTo(cx + size/2, cy);
-                //arc(p, cx, cy, size/2, 0, deg360);
-                u.ctx.beginPath();
-                u.ctx.globalAlpha = (1.0/d[0].length)*i;
-                u.ctx.fillStyle = series.stroke();
-                u.ctx.strokeStyle = series.stroke();
-                u.ctx.lineWidth = 1*devicePixelRatio;
-                if(i>0){
-                    u.ctx.moveTo(lastX, lastY);
-                    u.ctx.lineTo(cx, cy);
-                    u.ctx.stroke();
-                }
-                u.ctx.beginPath();
-                u.ctx.ellipse(cx, cy, size/2, size/2, 0, 0, deg360);
-                u.ctx.fill();
 
-                lastX = cx;
-                lastY = cy;
+                let cx = valToPosX(xVal, scaleX, xDim, xOff);
+				let cy = valToPosY(yVal, scaleY, yDim, yOff);
+
+				p.moveTo(cx + size/2, cy);
+                arc(p, cx, cy, size/2, 0, deg360);
+
             }
         }
-        u.ctx.strokeStyle = strokeStylebackup;
-        u.ctx.lineWidth = lineWidthbackup;
+        u.ctx.fill(p);
     });
     return null;
 };
+
+// const drawXYPoints = (u, seriesIdx, idx0, idx1) => {
+    
+//     const size = 5 * devicePixelRatio;
+//     uPlot.orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim, moveTo, lineTo, rect, arc) => {
+//         let d = u.data[seriesIdx];
+//         u.ctx.fillStyle = series.stroke();
+//         let deg360 = 2 * Math.PI;
+//         let strokeStylebackup = u.ctx.strokeStyle;
+//         let lineWidthbackup = u.ctx.lineWidth;
+//         //let p = new Path2D();
+//         let lastX=0, lastY=0;
+//         for (let i = 0; i < d[0].length; i++) {
+//             let xVal = d[0][i];
+//             let yVal = d[1][i];
+//             if (xVal >= scaleX.min && xVal <= scaleX.max && yVal >= scaleY.min && yVal <= scaleY.max) {
+//                 let cx = valToPosX(xVal, scaleX, xDim, xOff);
+//                 let cy = valToPosY(yVal, scaleY, yDim, yOff);
+//                 //p.moveTo(cx + size/2, cy);
+//                 //arc(p, cx, cy, size/2, 0, deg360);
+//                 u.ctx.beginPath();
+//                 u.ctx.globalAlpha = (1.0/d[0].length)*i;
+//                 u.ctx.fillStyle = series.stroke();
+//                 u.ctx.strokeStyle = series.stroke();
+//                 u.ctx.lineWidth = 1*devicePixelRatio;
+//                 if(i>0){
+//                     u.ctx.moveTo(lastX, lastY);
+//                     u.ctx.lineTo(cx, cy);
+//                     u.ctx.stroke();
+//                 }
+//                 u.ctx.beginPath();
+//                 u.ctx.ellipse(cx, cy, size/2, size/2, 0, 0, deg360);
+//                 u.ctx.fill();
+
+//                 lastX = cx;
+//                 lastY = cy;
+//             }
+//         }
+//         u.ctx.strokeStyle = strokeStylebackup;
+//         u.ctx.lineWidth = lineWidthbackup;
+//     });
+//     return null;
+// };

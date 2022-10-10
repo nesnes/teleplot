@@ -150,8 +150,7 @@
 
                     <div v-for="telem in telemetries" v-bind:key="'var-'+telem.name"
                     v-if="isMatchingTelemetryFilter(telem.name)"
-                    class="var-vue" @click="toggleVisibility(telem)"
-                    draggable @dragstart="onDragTelemetry($event, telem.name)">
+                    class="var-vue" draggable @dragstart="onDragTelemetry($event, telem.name)"> <!-- @click="toggleVisibility(telem)" -->
                         <div class="var-vue-name">
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
                             <span v-if="telem.type =='3D' " class="symbol-3d-telem">3D</span>
@@ -239,7 +238,7 @@
                 <!-- CMD update to multi input-->
 
                 <div class="var-container" v-if="!rightPanelVisible">
-                    <button @click="showRightPanel(true)" class="right-rounded-btn"><</button>
+                    <button @click="showRightPanel(true)" class="right-rounded-btn"></button>
                 </div>
                 <div class="right-col cmd-container" v-if="(cmdAvailable || logAvailable) && rightPanelVisible">
                     <button @click="showRightPanel(false)" class="right-reduce-btn" >Reduce</button>
