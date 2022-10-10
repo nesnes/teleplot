@@ -150,7 +150,7 @@ function initializeAppView()
                 }
                 else
                 {
-                    chart = new ChartWidget(!!app.telemetries[telemetryName].type=="xy");
+                    chart = new ChartWidget(app.telemetries[telemetryName].type=="xy");
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
                 }

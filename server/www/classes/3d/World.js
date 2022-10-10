@@ -86,6 +86,7 @@ class World {
 	
 	setObject(shape3d)
 	{
+
 		let found = false;
 		let i = 0;
 
@@ -107,6 +108,7 @@ class World {
 			this._3Dshapes.push(shape3d);
 		}
 
+		shape3d.buildThreeObject();
 		this.scene.add(shape3d.three_object);
 
 	}
