@@ -39,7 +39,7 @@ class Telemetry{
             if (this.data[1][this.data[1].length-1] == undefined)
                 return "";
                 
-            let shapeType = this.data[1][this.data[1].length-1].shapeType; 
+            let shapeType = this.data[1][this.data[1].length-1].type; 
             return (shapeType == undefined ? "" : shapeType)
         }
 

@@ -2,70 +2,84 @@ class Shape3D
 {
 	constructor ()
 	{
-		this.shapeName = undefined; //ex : "my_cube_0"
-		this.shapeType = undefined; // String, ex : "cube"
+		this.name = undefined; //ex : "my_cube_0"
+		this.type = undefined; // String, ex : "cube"
 		this.three_object = null;
 		this.default_material = undefined;
-		this.color = undefined;
+		this.color = "purple";
 
-		this.position = undefined; // Object containing x, y, and z, its tree coordonates
-		this.rotation = undefined; // Object containing x, y, and z, its tree rotations
+		this.position = {x:0, y:0, z:0}; // Object containing x, y, and z, its three coordonates
+		this.rotation = {x:0, y:0, z:0}; // Object containing x, y, and z, its three rotations
 
-		this.center = undefined; // Object, ex : {x:0, y:0, z:0};
-		this.radius = undefined; // Number, the radius of the sphere
-		this.precision = undefined; // Number, the precision of the sphere
+		this.radius = 2; // Number, the radius of the sphere
+		this.precision = 15; // Number, the precision of the sphere
 
-		this.height = undefined; // Number, the height of the cube
-		this.width = undefined; // Number, the width of the cube
-		this.depth = undefined; // Number, the depth of the cube
+		this.height = 5; // Number, the height of the cube
+		this.width = 5; // Number, the width of the cube
+		this.depth = 5; // Number, the depth of the cube
 
 	}
 
 	isSame(shape2)
 	{
-		if (shape2.shapeName!= this.shapeName || shape2.shapeType != this.shapeType)
+		if (shape2.name!= this.name || shape2.type != this.type)
 			return false;
 		
 		let areSameRotAndPos = JSON.stringify(this.position) == JSON.stringify(shape2.position) && JSON.stringify(this.rotation) == JSON.stringify(shape2.rotation);
 		
-		if (this.shapeType == "cube")
+		if (this.type == "cube")
 			return areSameRotAndPos && this.height == shape2.height && this.width == shape2.width && this.depth == shape2.depth;
-		else if (this.shapeType == "sphere")
-			return areSameRotAndPos && this.center == shape2.center && this.radius == shape2.radius && this.precision == shape2.precision;
+		else if (this.type == "sphere")
+			return areSameRotAndPos && this.radius == shape2.radius && this.precision == shape2.precision;
 	}
-	initializeFromJson(shapeName, jsonObj)
+	initializeFromJson(name, jsonObj)
 	{
-		this.shapeName = shapeName;
+		if (name!= undefined)
+			this.name = name;
+		else
+			throw new Error("no name specified for shape");
+
+		if (jsonObj.shape!= undefined)
+			this.type = jsonObj.shape;
+		else
+			throw new Error("no type specified for shape");
+
+
+		if (jsonObj.color!= undefined)
+			this.color = jsonObj.color;
+
+		if (jsonObj.position != undefined)
+			this.position = jsonObj.position;
 		
-		this.position = jsonObj.position;
-		this.rotation = jsonObj.rotation;
-		this.shapeType = jsonObj.shape;
+		if (jsonObj.rotation!= undefined)
+			this.rotation = jsonObj.rotation;
 
-		this.center = jsonObj.center;
-		this.radius = jsonObj.radius;
-		this.precision = jsonObj.precision;
+		if (jsonObj.radius!= undefined)	
+			this.radius = jsonObj.radius;
 
-		this.width = jsonObj.width;
-		this.height = jsonObj.height;	
-		this.depth = jsonObj.depth;
+		if (jsonObj.precision!= undefined)	
+			this.precision = jsonObj.precision;
 
-		this.color = jsonObj.color == undefined ? 'purple' : jsonObj.color;
-		// this.default_material = new MeshStandardMaterial({color : this.color});
+		if (jsonObj.width!= undefined)
+			this.width = jsonObj.width;
 
-		// this.buildThreeObject();
+		if (jsonObj.height!= undefined)
+			this.height = jsonObj.height;	
+
+		if (jsonObj.depth!= undefined)	
+			this.depth = jsonObj.depth;
 
 		return this;
 	}
 
 	initializeFromShape3D(shape3D)
 	{
-		this.shapeName = shape3D.shapeName;
+		this.name = shape3D.name;
 
 		this.position = shape3D.position;
 		this.rotation = shape3D.rotation;
-		this.shapeType = shape3D.shapeType;
+		this.type = shape3D.type;
 
-		this.center = shape3D.center;
 		this.radius = shape3D.radius;
 		this.precision = shape3D.precision;
 
@@ -82,24 +96,47 @@ class Shape3D
 
 	}
 
+	getGeometry() {
+
+
+		if (this.type == "cube")
+		{
+			return new THREE.BoxGeometry( 1, 1, 1 );
+			// we create a cube of size 1,1,1 and then we rescale it according to its actual dimensions.
+			// we do this so it resizes quicker
+		}
+		else if (this.type == "sphere")
+		{
+			return new THREE.SphereGeometry(1, this.precision * 2, this.precision);
+			// we set the radius of 1 and then we rescale it according to its actual dimensions.
+			// we do this so it resizes quicker
+		}
+	}
+
+	buildMesh()
+	{
+		let my_mesh = new THREE.Mesh(this.getGeometry(), this.default_material );
+
+		if (this.type == "cube")
+			my_mesh.scale.set(this.width, this.height, this.depth);
+		else if (this.type == "sphere")
+			my_mesh.scale.set(this.radius, this.radius, this.radius);
+
+		return my_mesh;
+	}
+
 	buildThreeObject()
 	{
 		if (this.three_object != null) // obj is already built
 			return
 
 		this.default_material = new MeshStandardMaterial({color : this.color});
+		// let texture = new THREE.TextureLoader().load("./images/metal-texture.png");
+		// this.default_material = new THREE.MeshBasicMaterial( {map: texture} );
 
-		if (this.shapeType == "cube")
-		{
-			
-			let objGeometry = new THREE.BoxGeometry( this.width, this.height, this.depth );
-			this.three_object = new THREE.Mesh( objGeometry, this.default_material );
-		}
-		else if (this.shapeType == "sphere")
-		{
-			let objGeometry = new THREE.SphereGeometry(this.radius, this.precision * 2, this.precision);
-			this.three_object = new THREE.Mesh( objGeometry, this.default_material );
-		}
+	
+		this.three_object = this.buildMesh();
+		
 
 		this.three_object.rotation.x = this.rotation.x;
 		this.three_object.rotation.y = this.rotation.y;
