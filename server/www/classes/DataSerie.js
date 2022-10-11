@@ -23,7 +23,7 @@ class DataSerie{
         if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[0] == undefined)
             return "";
 
-        if (this.type == "xy" && this.values[1] != undefined) 
+        if (this.type == "xy" && this.values[1] != undefined && typeof(this.values[0]) == 'number') 
             return ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
         else if (this.type == "number")
         {
