@@ -22,11 +22,8 @@ Vue.component('comp-3d', {
         return { world : undefined};
     },
 
-    mounted() { // TODO, this is not very clean, this.initializeWorld() should not be called this way
-        setTimeout(()=>{
-            this.initializeWorld();
-        }, 100);
-
+    mounted() {
+        this.initializeWorld();
     },
     methods: {
         initializeWorld()
@@ -36,15 +33,7 @@ Vue.component('comp-3d', {
             worlds.push(this.world);
             this.widget.worldId = this.world.id;
 
-            for (let i = 0; i<this.series.length; i++)
-            {
-                let currSerie = this.series[i];
-    
-                let myShape = ((new Shape3D).initializeFromShape3D(currSerie.values[0]));
-                
-                if (myShape != undefined)
-                    this.world.setObject(myShape);
-            }
+            this.reDrawShapes(-1);// passing -1 means to redraw everything
 
             this.setUpSeriesObserver();
 
@@ -67,21 +56,31 @@ Vue.component('comp-3d', {
             }
             
         },
-        reDrawShapes(serieId)
+        reDrawShapes(serieId) // passing -1 means to redraw everything
         {
-            for (let i = 0; i<this.series.length; i++)
+
+            let i = 0;
+            stop_loop = false;
+
+            while (i < this.series.length && !stop_loop)
             {
+
                 let currSerie = this.series[i];
     
-                if (currSerie.id == serieId)
+                if (currSerie.id == serieId || serieId == -1)
                 {
-                    let myShape = ((new Shape3D).initializeFromShape3D(currSerie.values[0]));
-    
-                    if (myShape != undefined)
-                        this.world.setObject(myShape);
+                    if (currSerie.values[0] != undefined)
+                    {
+                        this.world.setObject(currSerie.values[0]);
+
+                        // console.log("world : " + this.widget.worldId+", "+JSON.stringify(currSerie.values[0]));
+
+                    }
                     
-                    break;
-                }
+                    if (serieId != -1)
+                        stop_loop = true;
+                }    
+                i++;
             }
         },
     },

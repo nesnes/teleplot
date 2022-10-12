@@ -20,54 +20,87 @@ class Shape3D
 
 	}
 
-	isSame(shape2)
-	{
-		if (shape2.name!= this.name || shape2.type != this.type)
-			return false;
+	// isSame(shape2)
+	// {
+	// 	if (shape2.name!= this.name || shape2.type != this.type)
+	// 		return false;
 		
-		let areSameRotAndPos = JSON.stringify(this.position) == JSON.stringify(shape2.position) && JSON.stringify(this.rotation) == JSON.stringify(shape2.rotation);
+	// 	let areSameRotAndPos = JSON.stringify(this.position) == JSON.stringify(shape2.position) && JSON.stringify(this.rotation) == JSON.stringify(shape2.rotation);
 		
-		if (this.type == "cube")
-			return areSameRotAndPos && this.height == shape2.height && this.width == shape2.width && this.depth == shape2.depth;
-		else if (this.type == "sphere")
-			return areSameRotAndPos && this.radius == shape2.radius && this.precision == shape2.precision;
-	}
+	// 	if (this.type == "cube")
+	// 		return areSameRotAndPos && this.height == shape2.height && this.width == shape2.width && this.depth == shape2.depth;
+	// 	else if (this.type == "sphere")
+	// 		return areSameRotAndPos && this.radius == shape2.radius && this.precision == shape2.precision;
+	// }
 	initializeFromJson(name, jsonObj)
 	{
+
+		let addIfDefined = (shape3D, jsonObj, shape3D_property, jsonObj_properties, isMandatoryProperty=false) => 
+		{
+			let getObjValue = (obj, currentProperty) => {
+
+				let properties = currentProperty.split(".");
+
+				if (properties.length == 1)
+					return obj[currentProperty];
+
+				else if (properties.length == 2)
+				{
+					if (obj[properties[0]] == undefined)
+						return undefined;
+
+					return obj[properties[0]][properties[1]];
+				}
+			}
+
+			let found = false;
+			let i = 0;
+
+			while (i < jsonObj_properties.length && !found)
+			{
+				let actualValue = getObjValue(jsonObj, jsonObj_properties[i])
+
+				if (actualValue != undefined)
+				{
+					let targetProperties = (shape3D_property.split("."))
+
+					if (targetProperties.length == 2)
+						shape3D[targetProperties[0]][targetProperties[1]] = actualValue;
+					else
+						shape3D[shape3D_property] = actualValue;
+
+					found = true;
+				}
+
+				i++;
+			}
+			if (isMandatoryProperty && !found)
+				throw new Error("no " + shape3D_property + " specified for shape !");
+			
+		}
+
+		
 		if (name!= undefined)
 			this.name = name;
 		else
 			throw new Error("no name specified for shape");
 
-		if (jsonObj.shape!= undefined)
-			this.type = jsonObj.shape;
-		else
-			throw new Error("no type specified for shape");
 
+		addIfDefined(this, jsonObj, "type", ["shape", "S"], true);
+		addIfDefined(this, jsonObj, "color", ["color", "C"]);
+		addIfDefined(this, jsonObj, "radius", ["radius", "RA"]);
+		addIfDefined(this, jsonObj, "width", ["width", "W"]);
+		addIfDefined(this, jsonObj, "height", ["height", "H"]);
+		addIfDefined(this, jsonObj, "depth", ["depth", "D"]);
+		addIfDefined(this, jsonObj, "precision", ["precision", "PR"]);
 
-		if (jsonObj.color!= undefined)
-			this.color = jsonObj.color;
+		addIfDefined(this, jsonObj, "rotation.x", ["rotation.x", "R.x"]);
+		addIfDefined(this, jsonObj, "rotation.y", ["rotation.y", "R.y"]);
+		addIfDefined(this, jsonObj, "rotation.z", ["rotation.z", "R.z"]);
 
-		if (jsonObj.position != undefined)
-			this.position = jsonObj.position;
-		
-		if (jsonObj.rotation!= undefined)
-			this.rotation = jsonObj.rotation;
-
-		if (jsonObj.radius!= undefined)	
-			this.radius = jsonObj.radius;
-
-		if (jsonObj.precision!= undefined)	
-			this.precision = jsonObj.precision;
-
-		if (jsonObj.width!= undefined)
-			this.width = jsonObj.width;
-
-		if (jsonObj.height!= undefined)
-			this.height = jsonObj.height;	
-
-		if (jsonObj.depth!= undefined)	
-			this.depth = jsonObj.depth;
+		addIfDefined(this, jsonObj, "position.x", ["position.x", "P.x"]);
+		addIfDefined(this, jsonObj, "position.y", ["position.y", "P.y"]);
+		addIfDefined(this, jsonObj, "position.z", ["position.z", "P.z"]);
 
 		return this;
 	}

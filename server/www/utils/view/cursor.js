@@ -115,7 +115,7 @@ function resetDisplayedVarValues(){
         if(telem.type=="xy") continue;
         let idx = telem.data[0].length-1;
         if(0 <= idx && idx < telem.data[0].length) {
-            telem.values = [];
+            telem.values.length = 0;
             (telem.values).push(telem.data[1][idx]);
         }
     }

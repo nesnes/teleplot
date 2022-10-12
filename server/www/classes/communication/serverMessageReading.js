@@ -131,24 +131,43 @@ function parseVariablesData(msg, now)
     }
 }
 
+function convertToJson(rawMsg)
+{
+    /*
+    let jsonRes = "";
+
+    for (let i = 0; i < rawMsg.length; i++)
+    {
+
+    }*/
+
+    return rawMsg;
+}
+
 function parse3D(msg, now)
 {
     // 3D|my_cube_0:12145641658484:{...}|g
-    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
+
+    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},
+    //"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
+
+    //'3D|myDataa:{R:{0,0,_},P:{0,_,0},S:cube,W:7,H:5,D:5,PR:15,RA:5}|g'
+
+    //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
 
     let startIdx = msg.indexOf(':');
     let key = msg.substring(msg.indexOf("|")+1,startIdx);
 
     let objStartIdx = msg.indexOf("{");
     let objEndIdx = msg.lastIndexOf("}");
-    let shapeJson = msg.substring(objStartIdx, objEndIdx+1);
-    //console.log("shapeJson : " + shapeJson);
+    let rawMessage = msg.substring(objStartIdx, objEndIdx+1);
+    //console.log("rawMessage : " + rawMessage);
 
     let timestamp = (startIdx+1 == objStartIdx) ? now : (msg.substring(startIdx+1, objStartIdx-1));
 
     let flags = msg.substr(objEndIdx+2);
 
-    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(shapeJson));
+    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(convertToJson(rawMessage)));
 
     appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
 }
