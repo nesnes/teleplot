@@ -91,7 +91,7 @@ function updateDisplayedVarValues(mouseX, mouseY){
             idx +=1;
         }
         if(idx < telem.data[timeIdx].length) {
-            app.telemetries[telemName].values = [];
+            app.telemetries[telemName].values.length = 0;
 
             if(telem.type=="xy") {
                 app.telemetries[telemName].values.push(telem.data[0][idx]);
@@ -115,7 +115,7 @@ function resetDisplayedVarValues(){
         if(telem.type=="xy") continue;
         let idx = telem.data[0].length-1;
         if(0 <= idx && idx < telem.data[0].length) {
-            telem.values = [];
+            telem.values.length = 0;
             (telem.values).push(telem.data[1][idx]);
         }
     }

@@ -136,9 +136,8 @@ class World {
 		myMesh.rotation.y = new_shape.rotation.y;
 		myMesh.rotation.z = new_shape.rotation.z;
 
-		myMesh.position.x = new_shape.position.x;
-		myMesh.position.y = new_shape.position.y;
-		myMesh.position.z = new_shape.position.z;
+		myMesh.position = new_shape.position;
+
 	
 	}
 

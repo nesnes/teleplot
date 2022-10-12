@@ -25,7 +25,7 @@ class DataSerie{
 
         if (this.type == "xy" && this.values[1] != undefined && typeof(this.values[0]) == 'number') 
             return ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
-        else if (this.type == "number")
+        else if (this.type == "number" && typeof(this.values[0]) == 'number')
         {
             return (this.values[0].toFixed(4));
         }
@@ -50,7 +50,8 @@ class DataSerie{
         onTelemetryUsed(name);
     }
 
-    update(){
+    update(){ // this function is called from its widget, on updateView()
+
         this.applyTimeWindow();
         // no formula, simple data reference
         if(this.formula=="" && this.sourceNames.length==1){ // in this case our data serie matches a simple telemetry
@@ -63,9 +64,8 @@ class DataSerie{
             this.pendingData[1] = app.telemetries[this.sourceNames[0]].pendingData[1];
             if(isXY) this.pendingData[2] = app.telemetries[this.sourceNames[0]].pendingData[2];
 
-            let serieChanged = (this.type == "3D" && !areShape3DArraySame(this.values, app.telemetries[this.sourceNames[0]].values));
-            this.values = my_copyArray(app.telemetries[this.sourceNames[0]].values);
-            if (serieChanged && this.onSerieChanged != undefined ) this.onSerieChanged();
+            if (this.onSerieChanged != undefined) // we want to notify that our serie may have changed 
+                this.onSerieChanged();
         }
         else if (this.formula != "" && this.sourceNames.length>=1)
         {
@@ -104,8 +104,7 @@ function getSerieInstanceFromTelemetry(telemetryName)
         throw new Error(`Trying to instanciate a DataSerie from a non existant telemetry name : ${telemetryName}`);
     
     serie.name = telemetryName;
-    // serie.values = my_copyArray(telemetry.values);
-    serie.values = telemetry.values;// we copy the reference, so when telemetry.values change, serie.values also changes (useful for when cursor leaves a chart)
+    serie.values = telemetry.values; // this way, serie.values always equals telemetry.values
     serie.unit = telemetry.unit;
     serie.type = telemetry.type;
     serie.addSource(telemetryName);
