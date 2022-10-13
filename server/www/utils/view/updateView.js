@@ -1,27 +1,42 @@
+
 var lastUpdateViewTimestamp = 0;
 function updateView() {
     // Clear Telemetries pendingData
     for(let key in app.telemetries) {
         app.telemetries[key].pendingData[0].length = 0;
         app.telemetries[key].pendingData[1].length = 0;
-        if(app.telemetries[key].xy) app.telemetries[key].pendingData[2].length = 0;
+        if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].length = 0;
     }
     // Flush Telemetry buffer into app model
     let dataSum = 0;
     if(!app.isViewPaused){
         for(let key in telemBuffer) {
+
             if(telemBuffer[key].data[0].length == 0) continue; // nothing to flush
             dataSum += telemBuffer[key].data[0].length;
             app.telemetries[key].data[0].push(...telemBuffer[key].data[0]);
             app.telemetries[key].data[1].push(...telemBuffer[key].data[1]);
-            if(app.telemetries[key].xy) app.telemetries[key].data[2].push(...telemBuffer[key].data[2]);
+            if(app.telemetries[key].type=="xy") app.telemetries[key].data[2].push(...telemBuffer[key].data[2]);
             app.telemetries[key].pendingData[0].push(...telemBuffer[key].data[0]);
             app.telemetries[key].pendingData[1].push(...telemBuffer[key].data[1]);
-            if(app.telemetries[key].xy) app.telemetries[key].pendingData[2].push(...telemBuffer[key].data[2]);
+            if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].push(...telemBuffer[key].data[2]);
             telemBuffer[key].data[0].length = 0;
             telemBuffer[key].data[1].length = 0;
-            if(app.telemetries[key].xy) telemBuffer[key].data[2].length = 0;
-            app.telemetries[key].values = copyArray(telemBuffer[key].values);
+            if(app.telemetries[key].type=="xy") telemBuffer[key].data[2].length = 0;
+
+            app.telemetries[key].values.length = 0;
+
+            if (telemBuffer[key].values.length > 0)
+                app.telemetries[key].values.push(telemBuffer[key].values[0]);
+
+            if (telemBuffer[key].values.length > 1)
+                app.telemetries[key].values.push(telemBuffer[key].values[1]);
+
+
+            
+            // console.log(JSON.stringify(app.telemetries["my_cube_0"].values[0], null, 3));
+
+            // console.log(JSON.stringify(app.telemetries[key].values, null, 3));
 
         }
     }
@@ -32,7 +47,7 @@ function updateView() {
         for(let key in app.telemetries) {
             let data = app.telemetries[key].data;
             let timeIdx = 0;
-            if(app.telemetries[key].xy) timeIdx = 2;
+            if(app.telemetries[key].type=="xy") timeIdx = 2;
             let latestTimestamp = data[timeIdx][data[timeIdx].length-1];
             let minTimestamp = latestTimestamp - parseFloat(app.viewDuration);
             let minIdx = findClosestLowerByIdx(data[timeIdx], minTimestamp);
@@ -40,7 +55,7 @@ function updateView() {
             else continue;
             app.telemetries[key].data[0].splice(0, minIdx);
             app.telemetries[key].data[1].splice(0, minIdx);
-            if(app.telemetries[key].xy) app.telemetries[key].data[2].splice(0, minIdx);
+            if(app.telemetries[key].type=="xy") app.telemetries[key].data[2].splice(0, minIdx);
         }
     }
 

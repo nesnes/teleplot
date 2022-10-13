@@ -93,16 +93,16 @@ function initializeAppView()
                 this.newChartDropZoneOver = false;
                 widget.draggedOver = false;
 
-                if (widget.type != "chart")
+                if (widget.type != "chart" && widget.type != "widget3D")
                     return;
 
                 let telemetryName = e.dataTransfer.getData("telemetryName");
-                let newIsXY = app.telemetries[telemetryName].xy;
-                let chartIsXY = (widget.series.length
-                    && widget.series[0].sourceNames.length
-                    && app.telemetries[widget.series[0].sourceNames[0]].xy
-                );
-                if(newIsXY != chartIsXY) return;
+
+                let incomingType = app.telemetries[telemetryName].type;
+                let currType = widget.series[0].type;
+                
+                if(incomingType != currType) return;
+                
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 widget.addSerie(serie);
             },
@@ -129,20 +129,28 @@ function initializeAppView()
             },
             onDropInNewChart: function(e, prepend=true){    
                 e.preventDefault();
-                e.stopPropagation();      
+                e.stopPropagation();
                 this.newChartDropZoneOver = false;
                 let telemetryName = e.dataTransfer.getData("telemetryName");
-
+                
                 let chart = undefined;
+                let serie = undefined;
+                
                 if (app.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
+
+                }
+                else if (app.telemetries[telemetryName].type == "3D")
+                {
+                    chart = new Widget3D();
+                    chart.addSerie(getSerieInstanceFromTelemetry(telemetryName));
                 }
                 else
                 {
-                    chart = new ChartWidget(!!app.telemetries[telemetryName].xy);
+                    chart = new ChartWidget(app.telemetries[telemetryName].type=="xy");
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
                 }
@@ -150,12 +158,20 @@ function initializeAppView()
                 if(prepend) widgets.unshift(chart);
                 else widgets.push(chart);
             },
+            
             onDropInLastValue: function(e, prepend=true){      
                 e.preventDefault();
                 e.stopPropagation();   
                 this.lastValueDropZoneOver = false;
+
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
+                if (app.telemetries[telemetryName].type == "3D")
+                {
+                    this.onDropInNewChart(e, prepend);
+                    return;
+                }
+
                 let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);

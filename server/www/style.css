@@ -193,6 +193,14 @@ body {
 
 }
 
+.symbol-3d-telem{
+	position: absolute;
+	left: 3px;
+	color: #2ecc71;
+	/* color: #b91897; */
+
+}
+
 .cmd-container {
 	display: flex;
 	flex-direction: column;
@@ -336,9 +344,10 @@ body {
 }
 
 .serie-name, .serie-unit {
-	color: black;
 	margin-right: 3px;
 	margin-left: 3px;
+    /* color: black; */
+
 }
 
 .serie-value {

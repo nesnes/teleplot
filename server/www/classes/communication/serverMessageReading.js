@@ -4,10 +4,13 @@ function parseData(msgIn){
 
     if(app.isViewPaused) return; // Do not buffer incomming data while paused
     let now = new Date().getTime();
+
+
     let fromSerial = msgIn.fromSerial || (msgIn.input && msgIn.input.type=="serial");
     if(fromSerial) now = msgIn.timestamp;
     //parse msg
     let msgList = (""+msgIn.data).split("\n");
+
     for(let msg of msgList){
         try{
             // Inverted logic on serial port for usability
@@ -20,8 +23,11 @@ function parseData(msgIn){
             // Log
             else if(msg.startsWith(">"))
                 parseLog(msg, now);
+            // 3D
+            else if (msg.substring(0,3) == "3D|")
+                parse3D(msg, now);
             // Data
-            else 
+            else
                 parseVariablesData(msg, now);
         }
         catch(e){console.log(e)}
@@ -98,7 +104,8 @@ function parseVariablesData(msg, now)
     let xArray = [];
     let yArray = [];
     let zArray = [];
-    for(let value of values){
+    for(let value of values)
+    {
         if(value.length==0) continue;
         let dims = value.split(":");
 
@@ -120,21 +127,80 @@ function parseVariablesData(msg, now)
     }
     //console.log("name : "+name+", xArray : "+xArray+", yArray : "+yArray+", zArray : "+zArray+", unit : "+unit+", flags : "+flags);
     if(xArray.length>0){
-        appendData(name, xArray, yArray, zArray, unit, flags, isTextFormatTelem)
+        appendData(name, xArray, yArray, zArray, unit, flags, isTextFormatTelem?"text":"number");
     }
 }
+
+function convertToJson(rawMsg)
+{
+    /*
+    let jsonRes = "";
+
+    for (let i = 0; i < rawMsg.length; i++)
+    {
+
+    }*/
+
+    return rawMsg;
+}
+
+function parse3D(msg, now)
+{
+    // 3D|my_cube_0:12145641658484:{...}|g
+
+    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},
+    //"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
+
+    //'3D|myDataa:{R:{0,0,_},P:{0,_,0},S:cube,W:7,H:5,D:5,PR:15,RA:5}|g'
+
+    //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
+
+    let startIdx = msg.indexOf(':');
+    let key = msg.substring(msg.indexOf("|")+1,startIdx);
+
+    let objStartIdx = msg.indexOf("{");
+    let objEndIdx = msg.lastIndexOf("}");
+    let rawMessage = msg.substring(objStartIdx, objEndIdx+1);
+    //console.log("rawMessage : " + rawMessage);
+
+    let timestamp = (startIdx+1 == objStartIdx) ? now : (msg.substring(startIdx+1, objStartIdx-1));
+
+    let flags = msg.substr(objEndIdx+2);
+
+    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(convertToJson(rawMessage)));
+
+    appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
+}
+
 // adds
-function appendData(key, valuesX, valuesY, valuesZ, unit, flags, isTextFormatTelem) {
-    let isTimeBased = !flags.includes("xy");
+function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
+    let isXY = flags.includes("xy");
+    if (isXY) telemType = "xy";
+
     let shouldPlot = !flags.includes("np");
 
     if(app.telemetries[key] == undefined){
                 
-        Vue.set(app.telemetries, key, new Telemetry(key, isTimeBased, unit, isTextFormatTelem?"text":"number"));
+        Vue.set(app.telemetries, key, new Telemetry(key, unit, telemType));
         // Create widget
         if(shouldPlot)
         {
-            let chart = isTextFormatTelem ? new SingleValueWidget(true) : new ChartWidget(!isTimeBased);
+            let chart;
+            switch(telemType)
+            {
+                case "number": 
+                    chart = new ChartWidget(isXY);
+                    break;
+                case "xy": 
+                    chart = new ChartWidget(isXY);
+                    break;
+                case "text" :
+                    chart = new SingleValueWidget(true);
+                    break;
+                case "3D":
+                    chart = new Widget3D();
+                    break;
+            }
 
             let serie = getSerieInstanceFromTelemetry(key);
             chart.addSerie(serie);
@@ -144,20 +210,20 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, isTextFormatTel
     if(telemBuffer[key] == undefined)
     {
         telemBuffer[key] = {data:[[],[]], values:[]};
-        if(!isTimeBased) telemBuffer[key].data.push([]);
+        if(isXY) telemBuffer[key].data.push([]);
     }
 
     // Convert timestamps to seconds
-    if(isTimeBased) { valuesX.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
+    if(!isXY) { valuesX.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
     else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
 
     // Flush data into buffer (to be flushed by updateView)
     
     telemBuffer[key].data[0].push(...valuesX);
     telemBuffer[key].data[1].push(...valuesY);
-    telemBuffer[key].values = [];
+    telemBuffer[key].values.length = 0;
     
-    if(app.telemetries[key].xy)
+    if(app.telemetries[key].type=="xy")
     {
         telemBuffer[key].values.push(valuesX[valuesX.length-1]);
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);

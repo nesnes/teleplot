@@ -1,31 +1,18 @@
-/*Telemetries can be of two types: 
- 
-- "number"
-    in this case, data, pendingData, values and xy are used and textFormatValue is undefined
-
-- "text"
-    in this case, data, pendingData, values and xy are not used and textFormatValue is used
-  
- */
-
-
 class Telemetry{
-    constructor(_name, isTimeBased, unit = undefined, type = "number"){
-        this.type = type; // either "number" or "text"
+    constructor(_name, unit = undefined, type = "number"){
+        this.type = type; // either "number", "text", "3D" or "xy"
         this.name = _name;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.usageCount = 0;
 
         
-        // an array of Number or String containing the last value recieved of the telemetry
         // contains either one (if !xy) or two values (if xy).
         this.values = [];
 
-        this.xy = !isTimeBased;
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         
-        if(!isTimeBased){
+        if(this.type == "xy"){
             this.data.push([]);
             this.pendingData.push([]);
         }
@@ -34,11 +21,11 @@ class Telemetry{
 
     getValuesFormatted() {
 
-        if (this.type == "number" && this.values[0] != undefined)
+        if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
         {
             let res = this.values[0].toFixed(4);
         
-            if (this.xy && this.values.length == 2)
+            if (this.type=="xy" && this.values.length == 2)
                 res += ("  " + this.values[1].toFixed(4));
     
             return res;
@@ -46,6 +33,14 @@ class Telemetry{
         else if (this.type == "text")
         {
             return this.values[0];
+        }
+        else if (this.type == "3D")
+        {
+            if (this.data[1][this.data[1].length-1] == undefined)
+                return "";
+                
+            let shapeType = this.data[1][this.data[1].length-1].type; 
+            return (shapeType == undefined ? "" : shapeType)
         }
 
         return "";
