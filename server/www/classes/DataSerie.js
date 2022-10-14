@@ -12,12 +12,48 @@ class DataSerie{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         this.options = {};
-        this.values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
+        this._values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.onSerieChanged = undefined;
     }
 
+    get values()
+    {
+        if (this._values == undefined)
+        {
+            // we try to connect to its corresponding telemetry if it exists
+
+            let telemName = this.sourceNames.length>=1?this.sourceNames[0]:undefined;
+            let telemetry = telemName!=undefined?app.telemetries[telemName]:undefined;
+            if (telemetry != undefined)
+                this._values = telemetry.values;
+        }
+
+        return this._values;
+    }
+
+    set values(new_values)
+    {
+        this._values = new_values;
+    }
+
+    getDetails3D()
+    {
+        if (this.type != "3D")
+            throw new Error("getDetails3D should only be called for 3D widgets so on 3D series");
+        
+        let posX = this.values[0].position.x;
+        let posY = this.values[0].position.y;
+        let posZ = this.values[0].position.z;
+        
+        let rotX = this.values[0].rotation.x;
+        let rotY = this.values[0].rotation.y;
+        let rotZ = this.values[0].rotation.z;
+
+        let res = "x:"+ posX+" y:"+ posY+" z:"+ posZ+" | rx:"+rotX+" ry:"+rotY+" rz:"+rotZ;
+        return res;
+    }
     getFormattedValue()
     {
         if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[0] == undefined)

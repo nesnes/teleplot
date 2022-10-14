@@ -4,11 +4,13 @@ class SingleValueWidget extends DataWidget{
     constructor(containsTextFormat=false) {
         super();
 
-        this.type = "single_value";
+        this.type = "single_value_number";
         this.singlevalue = [0]; // type : array of Number, the value of the widget ( so the average, the max or the min ... according to widgetMode )
         // should contain two numbers if represents a xy serie, one otherwise.
         this.precision_mode = 0; // either 0 (default), 1 (good) or 2 (very good)
-        this.containsTextFormat = containsTextFormat;
+        
+        if (containsTextFormat)
+            this.type = "single_value_text"
         
         //this.widgetMode = widgetMode_ ; // type : String, what our widget singlevalue is going to be ( either "average", "max", "min" or "last")
         
@@ -58,9 +60,11 @@ class SingleValueWidget extends DataWidget{
     // and also write it in a string format ready to be displayed
     updateSingleValue(currentSerie)
     {
-        if (this.containsTextFormat || currentSerie == undefined || currentSerie.values[0] == undefined)
+        // console.log(JSON.stringify(currentSerie));
+        if (this.type == "single_value_text" || currentSerie == undefined || currentSerie.values[0] == undefined)
             return;
 
+        
         if (currentSerie.type=="xy" && currentSerie.values[1] != undefined)
         {
             this.singlevalue = [];

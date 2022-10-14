@@ -183,12 +183,18 @@
                                 </div>
                                 <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
+                                        
                                         <div v-if="widget.type == 'chart' || widget.type == 'widget3D'" class="serie-name-container">
                                             <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
                                                 <span class="serie-value">{{serie.getFormattedValue()}}</span>
                                             </span>
                                             <span class="serie-name" v-bind:style="{'color':serie.getNameColor()}">{{serie.name}}</span>
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
+                                        </div>
+                                        <div v-if="serie.type == '3D'" class="serie-3d-details-container">
+                                            
+                                            <span class ="serie-3d-details">{{serie.getDetails3D()}}</span>
+
                                         </div>
                                         <div v-if="serie.stats" class="serie-stat-container">
                                             <div class="serie-stat">
@@ -212,6 +218,8 @@
                                                 <span class="serie-stat-value" v-if="serie.stats.stdev != null">{{serie.stats.stdev.toFixed(4)}}</span>
                                             </div>
                                         </div>
+
+                                        
                                     </div>
                                 </div>
                                 <div class="widget-option-container">
@@ -226,7 +234,7 @@
                             
                             <comp-3d v-if="widget.type == 'widget3D'" v-bind:widget="widget" v-bind:series="widget.series"></comp-3d>
 
-                            <single-value v-if="widget.type == 'single_value'" v-bind:widget="widget"></single-value>
+                            <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
                             
                             <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
 

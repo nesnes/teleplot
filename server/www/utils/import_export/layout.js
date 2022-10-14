@@ -55,10 +55,9 @@ function importLayoutJSON(event) {
                 {
                     let serie = new DataSerie(s.name, s.unit, s.type);
                     for(let sn of s.sourceNames){
-                        if(sn in app.telemetries && app.telemetries[sn].xy) isWidgetXY = true;
-                        
                         serie.addSource(sn);
                     }
+                    if (serie.type == "xy") isWidgetXY = true;
                     newSeries.push(serie);
                 }
 
@@ -72,14 +71,24 @@ function importLayoutJSON(event) {
                         widget.addSerie(s);
                 }
 
-                else if (w.type == "single_value") 
+                else if (w.type == "single_value_text") 
                 {
-                    widget = new SingleValueWidget(); 
+                    widget = new SingleValueWidget(true); 
+                    widget.addSerie(newSeries[0]);
+                }
+                else if (w.type == "single_value_number") 
+                {
+                    widget = new SingleValueWidget(false); 
                     widget.precision_mode = w.precision_mode
                     widget.addSerie(newSeries[0]);
                 }
-
-                else throw new Error("widget should either be of type chart or single_value");
+                else if (w.type == "widget3D")
+                {
+                    widget = new Widget3D();
+                    for (let s of newSeries)
+                        widget.addSerie(s);
+                }
+                else throw new Error("widget type "+w.type+" is not supported");
 
                 
                 

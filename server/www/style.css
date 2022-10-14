@@ -432,18 +432,19 @@ body {
     align-items: center;
 }
 
-.serie-stat-container {
+.serie-stat-container, .serie-3d-details-container {
 	display: flex;
     flex-direction: row;
     align-items: center;
 	flex-wrap: wrap;
 }
 
-.serie-stat {
+.serie-stat, .serie-3d-details {
 	display: flex;
 	flex-direction: column;
 	margin: 1px 1px 1px 2px;
     line-height: 0.7em;
+	z-index: 100;
 }
 
 .serie-stat-value {
