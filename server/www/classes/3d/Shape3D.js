@@ -6,36 +6,141 @@ class Shape3D
 		this.type = undefined; // String, ex : "cube"
 		this.three_object = null;
 		this.default_material = undefined;
-		this.color = "purple";
+		this.color = undefined;
 
-		this.position = {x:0, y:0, z:0}; // Object containing x, y, and z, its three coordonates
-		this.rotation = {x:0, y:0, z:0}; // Object containing x, y, and z, its three rotations
+		this.position = undefined; // Object containing x, y, and z, its three coordonates
+		this.rotation = undefined; // Object containing x, y, and z, its three rotations
 
-		this.radius = 2; // Number, the radius of the sphere
-		this.precision = 15; // Number, the precision of the sphere
+		this.radius = undefined; // Number, the radius of the sphere
+		this.precision = undefined; // Number, the precision of the sphere
 
-		this.height = 5; // Number, the height of the cube
-		this.width = 5; // Number, the width of the cube
-		this.depth = 5; // Number, the depth of the cube
+		this.height = undefined; // Number, the height of the cube
+		this.width = undefined; // Number, the width of the cube
+		this.depth = undefined; // Number, the depth of the cube
 
 	}
 
-	// isSame(shape2)
-	// {
-	// 	if (shape2.name!= this.name || shape2.type != this.type)
-	// 		return false;
+	initializeFromRawShape(key, rawShape)
+	{
+		// rawShape is of type String, ex : 
+   		// R::3.14:P:1:2:-1:S:cube:W:5:H:4:D:3:C:red
+
+		this.name = key;
+
+
 		
-	// 	let areSameRotAndPos = JSON.stringify(this.position) == JSON.stringify(shape2.position) && JSON.stringify(this.rotation) == JSON.stringify(shape2.rotation);
-		
-	// 	if (this.type == "cube")
-	// 		return areSameRotAndPos && this.height == shape2.height && this.width == shape2.width && this.depth == shape2.depth;
-	// 	else if (this.type == "sphere")
-	// 		return areSameRotAndPos && this.radius == shape2.radius && this.precision == shape2.precision;
-	// }
+		function readCurrentProperty (rawShape, i) {
+			
+			function readPropertyValues (rawShape, i, propertiesCount) {
+				i++; // we skip the ':'
+				let propertiesValues = [""];
+				let propCounter = 0;
+				while (propCounter < propertiesCount)
+				{
+					if (i >= rawShape.length || rawShape[i] == ":")
+					{
+						propCounter ++;
+
+						if (rawShape[i] == ":" && propCounter < propertiesCount)
+							propertiesValues.push("");
+					}
+					else
+					{
+						propertiesValues[propCounter] += rawShape[i];
+					}
+
+					i++;
+				}
+
+				return [propertiesValues, i];
+			}
+			function getPropertyInfo(currentProperty) {
+				switch (currentProperty)
+				{
+					case "shape":
+					case "S":
+						return [1, "type"];
+					case "position":
+					case "P":
+						return [3, "position"];
+					case "rotation":
+					case "R":
+						return [3, "rotation"];
+					case "precision":
+					case "PR":
+						return [1, "precision"];
+					case "radius":
+					case "RA":
+						return [1, "radius"];
+					case "color":
+					case "C":
+						return [1, "color"];
+					case "height" : 
+					case "H":
+						return [1, "height"];
+					case "width":
+					case "W":
+						return [1, "width"];
+					case "depth":
+					case "D":
+						return [1, "depth"];
+					default : 
+						throw new Error("Invalid shape property : " + currentProperty);
+				}
+			}
+			
+
+			if (rawShape[i] == ":")
+				i++;
+
+			let currentProperty = "";
+
+			while (rawShape[i] != ":")
+			{
+				currentProperty += rawShape[i];
+				i++;
+			}
+
+			let propertiesCount = 0;
+			[propertiesCount, currentProperty] = getPropertyInfo(currentProperty);
+			
+			let propertiesValues = [];
+			[propertyValues, i] = readPropertyValues(rawShape, i, propertiesCount);
+
+			return [i, currentProperty, propertyValues];
+		}
+
+		this.position = {};
+		this.rotation = {};
+
+		let i = 0;
+		let currentProperty = "";
+		let propertyValues = [];
+
+		while (i<rawShape.length)
+		{
+			[i, currentProperty, propertyValues] = readCurrentProperty(rawShape, i);
+			
+			if (propertyValues.length == 1)
+				this[currentProperty] = propertyValues[0];
+			else 
+			{
+				this[currentProperty].x = propertyValues[0]
+				this[currentProperty].y = propertyValues[1]
+				this[currentProperty].z = propertyValues[2]
+			}
+		}
+
+		// console.log("rawShape : " + rawShape);
+		// console.log("read shape : " + JSON.stringify(this));
+
+		return this;
+	}
+/*
 	initializeFromJson(name, jsonObj)
 	{
 
-		let addIfDefined = (shape3D, jsonObj, shape3D_property, jsonObj_properties, isMandatoryProperty=false) => 
+		let addIfDefined = (shape3D, jsonObj, shape3D_property, jsonObj_properties) => 
 		{
 			let getObjValue = (obj, currentProperty) => {
 
@@ -65,7 +170,11 @@ class Shape3D
 					let targetProperties = (shape3D_property.split("."))
 
 					if (targetProperties.length == 2)
+					{
+						if (shape3D[targetProperties[0]] == undefined)
+							shape3D[targetProperties[0]] = {};
 						shape3D[targetProperties[0]][targetProperties[1]] = actualValue;
+					}
 					else
 						shape3D[shape3D_property] = actualValue;
 
@@ -74,8 +183,6 @@ class Shape3D
 
 				i++;
 			}
-			if (isMandatoryProperty && !found)
-				throw new Error("no " + shape3D_property + " specified for shape !");
 			
 		}
 
@@ -86,7 +193,7 @@ class Shape3D
 			throw new Error("no name specified for shape");
 
 
-		addIfDefined(this, jsonObj, "type", ["shape", "S"], true);
+		addIfDefined(this, jsonObj, "type", ["shape", "S"]);
 		addIfDefined(this, jsonObj, "color", ["color", "C"]);
 		addIfDefined(this, jsonObj, "radius", ["radius", "RA"]);
 		addIfDefined(this, jsonObj, "width", ["width", "W"]);
@@ -104,7 +211,7 @@ class Shape3D
 
 		return this;
 	}
-
+*/
 	initializeFromShape3D(shape3D)
 	{
 		this.name = shape3D.name;
@@ -158,8 +265,57 @@ class Shape3D
 		return my_mesh;
 	}
 
+	fillUndefinedWith(fillingShape)
+	{
+		if (this.type == undefined)
+			this.type = fillingShape.type;
+			
+		if (this.color == undefined)
+			this.color = fillingShape.color;
+
+		if (this.type == "cube")
+		{
+			if (this.height == undefined)
+				this.height = fillingShape.height;
+			if (this.width == undefined)
+				this.width = fillingShape.width;
+			if (this.depth == undefined)
+				this.depth = fillingShape.depth;
+		}
+		else if (this.type == "sphere")
+		{
+			if (this.radius == undefined)
+				this.radius = fillingShape.radius;
+			if (this.precision == undefined)
+				this.precision = fillingShape.precision;
+		}
+		
+		
+		if (this.position == undefined)
+			this.position = fillingShape.position;
+		if (this.position.x == undefined)
+			this.position.x = fillingShape.position.x;
+		if (this.position.y == undefined)
+			this.position.y = fillingShape.position.y;
+		if (this.position.z == undefined)
+			this.position.z = fillingShape.position.z;
+
+		if (this.rotation == undefined)
+			this.rotation = fillingShape.rotation;
+		if (this.rotation.x == undefined)
+			this.rotation.x = fillingShape.rotation.x;
+		if (this.rotation.y == undefined)
+			this.rotation.y = fillingShape.rotation.y;
+		if (this.rotation.z == undefined)
+			this.rotation.z = fillingShape.rotation.z;
+
+		
+	}
+
 	buildThreeObject()
 	{
+		this.fillUndefinedWith(defaultShape);
+
 		if (this.three_object != null) // obj is already built
 			return
 
@@ -180,4 +336,15 @@ class Shape3D
 		this.three_object.position.z = this.position.z;
 	}
 
+}
+
+const defaultShape = {
+	color : "purple",
+	height : 5,
+	width : 5,
+	depth : 5,
+	radius : 2,
+	precision : 15,
+	position : {x:0, y:0, z:0},
+	rotation : {x:0, y:0, z:0},
 }

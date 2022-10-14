@@ -131,19 +131,6 @@ function parseVariablesData(msg, now)
     }
 }
 
-function convertToJson(rawMsg)
-{
-    /*
-    let jsonRes = "";
-
-    for (let i = 0; i < rawMsg.length; i++)
-    {
-
-    }*/
-
-    return rawMsg;
-}
-
 function parse3D(msg, now)
 {
     // 3D|my_cube_0:12145641658484:{...}|g
@@ -151,23 +138,33 @@ function parse3D(msg, now)
     //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},
     //"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
 
-    //'3D|myDataa:{R:{0,0,_},P:{0,_,0},S:cube,W:7,H:5,D:5,PR:15,RA:5}|g'
-
     //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
+    //3D|myData1:R::3.14:P:1:2:-1:S:cube:W:5:H:4:D:3:C:red|g
 
-    let startIdx = msg.indexOf(':');
-    let key = msg.substring(msg.indexOf("|")+1,startIdx);
+    let startIdx = msg.indexOf(':') +1;
+    let endIdx = msg.lastIndexOf("|");
+    let key = msg.substring(msg.indexOf("|")+1, startIdx-1);
 
-    let objStartIdx = msg.indexOf("{");
-    let objEndIdx = msg.lastIndexOf("}");
-    let rawMessage = msg.substring(objStartIdx, objEndIdx+1);
-    //console.log("rawMessage : " + rawMessage);
 
-    let timestamp = (startIdx+1 == objStartIdx) ? now : (msg.substring(startIdx+1, objStartIdx-1));
+    let timestamp;
+    if (isLetter(msg[startIdx]))
+    {
+        timestamp = now;
+    }
+    else
+    {
+        let trueStartIdx = msg.indexOf(':', startIdx);
 
-    let flags = msg.substr(objEndIdx+2);
+        timestamp = (msg.substring(startIdx, trueStartIdx));
 
-    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(convertToJson(rawMessage)));
+        startIdx = trueStartIdx+1;
+    }
+
+    let rawShape = msg.substring(startIdx,endIdx);
+
+
+    let flags = msg.substr(endIdx+1);
+    let shape3D = new Shape3D().initializeFromRawShape(key, rawShape);
 
     appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
 }
@@ -223,6 +220,7 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     telemBuffer[key].data[1].push(...valuesY);
     telemBuffer[key].values.length = 0;
     
+
     if(app.telemetries[key].type=="xy")
     {
         telemBuffer[key].values.push(valuesX[valuesX.length-1]);
@@ -233,6 +231,24 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     else 
     {
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);
+
+        if (app.telemetries[key].type=="3D")
+        {
+            let prevShapeIdx =  app.telemetries[key].data[1].length -1;
+
+            let newShape = telemBuffer[key].values[0];
+
+            if (prevShapeIdx >= 0) // otherwise, it means that there ain't any previous shape
+            {
+                let shapeJustBefore = app.telemetries[key].data[1][prevShapeIdx];
+
+                newShape.fillUndefinedWith(shapeJustBefore);// fills undefined properties of the new shape with the previous ones.
+            }
+            else if (newShape.type == undefined)
+            {
+                throw new Error("no type given for the shape ( cube, or sphere ... should be passed )");
+            }
+        }
     }
     return;
 }

@@ -19,6 +19,11 @@ function my_copyArray(src_array)
     return destArray;
 }
 
+function isLetter(c)
+{
+    return ((c>='a' && c<='z') || (c>='A' && c<='Z'));
+}
+
 
 // function areShape3DArraySame(array1, array2)
 // {

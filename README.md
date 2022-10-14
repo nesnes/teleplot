@@ -118,34 +118,66 @@ The `np` (for no-plot) flag can be used to prevent this behavior:
 
 To send 3D shapes to teleplot, use this syntax : `3D|A:B|E`, where
 **A** is the timestamp and is **optional**
-**B** is a json object representing the shape
+**B** is a text representing the shape
 **E** is containing flags
 
-for the moment, there are only two shapes available, cubes and spheres.
+#### Writing **B** (the text representing the shape)
 
-For a sphere, **B** should be as follow : 
-{
-    "shape" : "sphere",
-    "position" : {"x": _ , "y": _ , "z" : _ },
-    "rotation" : {"x": _ , "y": _ , "z" : _ },
-    "precision" : _ ,
-    "radius" : _ ,
-}
+**B** is built as a concatenation of the shape properties followed by their values, the whole with colons in between.
 
-For a cube, **B** should be as follow : 
-{
-    "shape" : "cube",
-    "position" : {"x": _ , "y": _ , "z" : _ },
-    "rotation" : {"x": _ , "y": _ , "z" : _ },
-    "height" : _ ,
-    "width" : _ ,
-    "depth" : _ ,
-}
+LIST OF PROPERTIES : 
 
-you can also add an optional color property
+- "shape" or "S"  => the shape type (either "cube" or "sphere" for the moment).
 
-- '3D|myData1:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"cube","width":5,"height":4,"depth":3,"color":"red"}|g'
-- '3D|myData2:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"precision":15,"radius":3, "shape":"sphere"}|g'
+- "position" or "P" => the position of the center of the sphere in a cartesian coordinate system 
+    1st argument : x, 2nd argument : y, 3rd argument : z
+    
+- "rotation" or "R" => the rotation of the shape on each axis
+    1st argument : the rotation around the x axis, 2nd argument : the rotation around the y axis, 3rd argument : the rotation around the z axis
+    
+- "color" or "C" => the color of the shape, ex : "blue", "#2ecc71" ... 
+
+=== Sphere only ===
+
+- "precision" or "PR" => the number of rectangles used to draw a sphere (the bigger the more precise, by default = 15)
+
+- "radius" or "RA"=> the radius of the shpere
+
+=== Cube only ===
+
+- "height" or "H" => the height of the cube
+- "width" or "W" => the width of the cube
+- "depth" or "D" => the depth of the cube
+
+
+
+If you don't want to send all the arguments of a certain property, you still have to add colons ( ex : position::-1:1, here the x position is not given but colons are still present )
+
+for unspecified properties, teleplot will use the ones from the previous shape state.
+
+If it is the first time teleplot receives data of a certain shape, the property "shape" (cube or sphere) has to be given and
+missing properties will be replaced by default ones.
+
+Also, the shape, color and precision properties can not be changed later on.
+
+#### Some examples
+Creating a simple shere and cube : 
+
+    cube without timestamp :
+    - '3D|mySimpleCube:S:cube:P:1:1:1:R:0:0:0:W:2:H:2:D:2:C:#2ecc71|g'
+
+    sphere with timestamp : 
+    - '3D|mySimpleSphere:1627551892437:S:sphere:P::2::RA:2:C:red|g' 
+
+Creating a cube that grows and rotates : 
+
+    In the first request we send, we need to specify the shape:
+    - '3D|my_super_cube:S:cube:W:1:D:1:H:1:C:blue|g'
+
+    Then we specified only properties that change :
+    - '3D|my_super_cube:W:1.2:R::0.2:|g'
+    - '3D|my_super_cube:W:1.4:R::0.4:|g'
+    - '3D|my_super_cube:W:1.6:R::0.6:|g'
 
 # Publish telemetries
 

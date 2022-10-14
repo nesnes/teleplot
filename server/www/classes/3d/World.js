@@ -110,7 +110,6 @@ class World {
 
 	updateToNewShape(old_shape, new_shape)
 	{
-
 		let myMesh = old_shape.three_object;
 		if ( myMesh == null)
 		{
