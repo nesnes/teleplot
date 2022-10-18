@@ -16,7 +16,8 @@ function exportLayout() {
                 sourceNames: s.sourceNames,
                 formula: s.formula,
                 options: s.options,
-                unit: s.unit
+                unit: s.unit,
+                type : s.type,
             }
             widget.series.push(serie);
         }
@@ -58,6 +59,7 @@ function importLayoutJSON(event) {
                         serie.addSource(sn);
                     }
                     if (serie.type == "xy") isWidgetXY = true;
+
                     newSeries.push(serie);
                 }
 

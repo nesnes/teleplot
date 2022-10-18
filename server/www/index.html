@@ -158,7 +158,7 @@
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value">{{telem.getValuesFormatted()}}</div>
+                        <div v-if="telem.getValuesFormatted != undefined" class="var-vue-value">{{telem.getValuesFormatted()}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -199,23 +199,23 @@
                                         <div v-if="serie.stats" class="serie-stat-container">
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Min</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.mean != null">{{serie.stats.min.toFixed(4)}}</span>
+                                                <span class="serie-stat-value">{{serie.stats.min}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Max</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.mean != null">{{serie.stats.max.toFixed(4)}}</span>
+                                                <span class="serie-stat-value" >{{serie.stats.max}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Mean</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.mean != null">{{serie.stats.mean.toFixed(4)}}</span>
+                                                <span class="serie-stat-value">{{serie.stats.mean}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Median</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.med != null">{{serie.stats.med.toFixed(4)}}</span>
+                                                <span class="serie-stat-value" >{{serie.stats.med}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Stdev</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.stdev != null">{{serie.stats.stdev.toFixed(4)}}</span>
+                                                <span class="serie-stat-value" >{{serie.stats.stdev}}</span>
                                             </div>
                                         </div>
 

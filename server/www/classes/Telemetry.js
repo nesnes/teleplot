@@ -19,6 +19,19 @@ class Telemetry{
 
     }
 
+    iniFromTelem(telem)
+    {
+        this.type = telem.type;
+        this.name = telem.name;
+        this.unit = telem.unit;
+        this.usageCount = telem.usageCount;
+        this.values = telem.values;
+        this.data = telem.data;
+        this.pendingData = telem.pendingData;
+
+        return this;
+    }
+
     getValuesFormatted() {
 
         if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')

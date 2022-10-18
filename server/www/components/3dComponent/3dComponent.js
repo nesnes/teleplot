@@ -58,13 +58,11 @@ Vue.component('comp-3d', {
         },
         reDrawShapes(serieId) // passing -1 means to redraw everything
         {
-
             let i = 0;
             stop_loop = false;
 
             while (i < this.series.length && !stop_loop)
             {
-
                 let currSerie = this.series[i];
     
                 if (currSerie.id == serieId || serieId == -1)
@@ -72,9 +70,6 @@ Vue.component('comp-3d', {
                     if (currSerie.values[0] != undefined)
                     {
                         this.world.setObject(currSerie.values[0]);
-
-                        // console.log("world : " + this.widget.worldId+", "+JSON.stringify(currSerie.values[0]));
-
                     }
                     
                     if (serieId != -1)

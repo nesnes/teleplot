@@ -22,8 +22,9 @@ def sendTelemetry(name, value, unit, useTime):
 	sock.sendto(msg.encode(), teleplotAddr)
 
 def sendTelemetryXY(name, x, y, x1, y1, unit):
-	
-	msg = name+":"+str(x)+":"+str(y)+";" +str(x1)+":"+str(y1)+format_unit(unit)+"|xy"
+
+	now = time.time() * 1000
+	msg = name+":"+str(x)+":"+str(y)+":"+str(now)+";" +str(x1)+":"+str(y1)+":"+str(now)+format_unit(unit)+"|xy"
 	
 	sock.sendto(msg.encode(), teleplotAddr)
 
@@ -82,18 +83,18 @@ def testThreeD_sub():
 
 	while True:
 
-		msg1 = '3D|myData2:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"shape":"cube","width":5,"height":4,"depth":'+str(cubeDepth)+',"color":"blue"}|g'
-		msg2 = '3D|myData1:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},"precision":15,"radius":'+str(sphereRadius)+', "shape":"sphere"}|g'
+		msg1 = '3D|myData2:S:cube:W:5:H:4:D:'+str(cubeDepth)+':C:blue|g'
+		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere|g'
 	
 		randomNb = random.randint(0, 100) 
 
-		if ( randomNb== 1):
+		if ( randomNb >= 1 and randomNb <= 10):
 			sphereRadius += 1
-		elif (randomNb == 2):
+		elif (randomNb >= 11 and randomNb <= 21):
 			sphereRadius  = max(sphereRadius-1, 1)
-		elif (randomNb == 3):
+		elif (randomNb >= 22 and randomNb <= 32):
 			cubeDepth  += 1
-		elif (randomNb == 4):
+		elif (randomNb >= 33 and randomNb <= 43):
 			cubeDepth = max(cubeDepth-1, 1)
 
 		sock.sendto(msg1.encode(), teleplotAddr)

@@ -113,8 +113,7 @@ class World {
 		let myMesh = old_shape.three_object;
 		if ( myMesh == null)
 		{
-			console.log("error updateToNewShape()")
-			return;
+			throw new Error("error myMesh shouldn't be null");
 		}
 
 
@@ -160,10 +159,14 @@ class World {
 
 		if (!found)
 		{
-			this._3Dshapes.push(shape3d);
+			let shape_cp = (new Shape3D()).initializeFromShape3D(shape3d);
 
-			shape3d.buildThreeObject();
-			this.scene.add(shape3d.three_object);
+			buildThreeObject(shape_cp);
+			this._3Dshapes.push(shape_cp);
+
+			// as we can't share the same mesh between multiple scenes, we are making 
+			// a copy of it just before adding it to the scene, otherwise their might be two scenes trying to use the same mesh
+			this.scene.add(shape_cp.three_object);
 		}
 
 		
@@ -171,6 +174,6 @@ class World {
 	
 	render()
 	{
-		this.renderer.render( this.scene, this.camera );
+		this.renderer.render( this.scene, this.camera);
 	}
 }

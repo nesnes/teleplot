@@ -33,7 +33,7 @@ class Shape3D
 			
 			function readPropertyValues (rawShape, i, propertiesCount) {
 				i++; // we skip the ':'
-				let propertiesValues = [""];
+				let propertiesValues = [undefined];
 				let propCounter = 0;
 				while (propCounter < propertiesCount)
 				{
@@ -42,11 +42,14 @@ class Shape3D
 						propCounter ++;
 
 						if (rawShape[i] == ":" && propCounter < propertiesCount)
-							propertiesValues.push("");
+							propertiesValues.push(undefined);
 					}
 					else
 					{
-						propertiesValues[propCounter] += rawShape[i];
+						if (propertiesValues[propCounter] == undefined)
+							propertiesValues[propCounter] = rawShape[i];
+						else
+							propertiesValues[propCounter] += rawShape[i];
 					}
 
 					i++;
@@ -251,6 +254,10 @@ class Shape3D
 			// we set the radius of 1 and then we rescale it according to its actual dimensions.
 			// we do this so it resizes quicker
 		}
+		else
+		{
+			throw new Error("Unsupported geometry type: " + this.type);
+		}
 	}
 
 	buildMesh()
@@ -263,6 +270,11 @@ class Shape3D
 			my_mesh.scale.set(this.radius, this.radius, this.radius);
 
 		return my_mesh;
+	}
+
+	fillUndefinedWithDefaults()
+	{
+		this.fillUndefinedWith(defaultShape);
 	}
 
 	fillUndefinedWith(fillingShape)
@@ -312,30 +324,29 @@ class Shape3D
 		
 	}
 
-	buildThreeObject()
-	{
-		this.fillUndefinedWith(defaultShape);
+}
 
-		if (this.three_object != null) // obj is already built
-			return
 
-		this.default_material = new MeshStandardMaterial({color : this.color});
-		// let texture = new THREE.TextureLoader().load("./images/metal-texture.png");
-		// this.default_material = new THREE.MeshBasicMaterial( {map: texture} );
+function buildThreeObject(shape3D) 
+{
+	if (shape3D.three_object != null) // obj is already built
+		return
 
+	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color});
+	// let texture = new THREE.TextureLoader().load("./images/metal-texture.png");
+	// shape3D.default_material = new THREE.MeshBasicMaterial( {map: texture} );
+
+
+	shape3D.three_object = shape3D.buildMesh();
 	
-		this.three_object = this.buildMesh();
-		
 
-		this.three_object.rotation.x = this.rotation.x;
-		this.three_object.rotation.y = this.rotation.y;
-		this.three_object.rotation.z = this.rotation.z;
+	shape3D.three_object.rotation.x = shape3D.rotation.x;
+	shape3D.three_object.rotation.y = shape3D.rotation.y;
+	shape3D.three_object.rotation.z = shape3D.rotation.z;
 
-		this.three_object.position.x = this.position.x;
-		this.three_object.position.y = this.position.y;
-		this.three_object.position.z = this.position.z;
-	}
-
+	shape3D.three_object.position.x = shape3D.position.x;
+	shape3D.three_object.position.y = shape3D.position.y;
+	shape3D.three_object.position.z = shape3D.position.z;
 }
 
 const defaultShape = {

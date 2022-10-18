@@ -1,4 +1,3 @@
-
 logCursor = {
     cursor:{
         show: true,
@@ -48,62 +47,95 @@ window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
 }});
 
 
-function findClosestLowerByIdx(arr, n) {
+// function findClosestLowerByIdx(values, mouseX) {
 
-    // console.log("findClosestLowerByIdx");
-    let from = 0,
-        to = arr.length - 1,
-        idx;
+//     // console.log("findClosestLowerByIdx");
+//     let from = 0;
+//     let to = values.length - 1;
+//     let idx;
   
+//     while (from <= to) {
+//         idx = Math.floor((from + to) / 2);
+  
+//         let isLowerLast = values[idx] <= mouseX && idx == values.length-1;
+//         let isClosestLower = (idx+1 < values.length-1) && (values[idx] <= mouseX ) && (values[idx+1] > mouseX );
+//         if (isClosestLower || isLowerLast) {
+//             return idx;
+//         }
+//         else {
+//             if (values[idx] > mouseX )  to = idx - 1;
+//             else  from = idx + 1;
+//         }
+//     }
+//     return 0;
+// }
+
+
+function findClosestLowerByIdx(timestamps, timeStampMouseX) {
+
+    let from = 0;
+    let to = timestamps.length - 1;
+    let idx;
+
+    function isCloserThan(anchorTimestamp, timestamp1, timestamp2)
+    {
+        let timeDiff  = (time1, time2) => { return Math.abs(time1 - time2); }
+
+        // return timeDiff(anchorTimestamp, timestamp1) <= timeDiff(anchorTimestamp, timestamp2);
+        return timeDiff(anchorTimestamp, timestamp1) < timeDiff(anchorTimestamp, timestamp2);
+    }
+
     while (from <= to) {
         idx = Math.floor((from + to) / 2);
-  
-        let isLowerLast = arr[idx] <= n && idx == arr.length-1;
-        let isClosestLower = (idx+1 < arr.length-1) && (arr[idx] <= n) && (arr[idx+1] > n);
-        if (isClosestLower || isLowerLast) {
-            return idx;
+
+        let isCursorOnTheLeft = timeStampMouseX < timestamps[idx];
+
+        if (isCursorOnTheLeft)
+        {
+            let currentTimestamp = timestamps[idx];
+            let timestampJustBefore = timestamps[idx>0?idx-1:0];
+
+            if (isCloserThan(timeStampMouseX, currentTimestamp, timestampJustBefore))
+                return idx; // we have found the closest timestamp
         }
-        else {
-            if (arr[idx] > n)  to = idx - 1;
-            else  from = idx + 1;
+        else // cursor is on the right
+        {
+            let currentTimestamp = timestamps[idx];
+            let maxIdx = timestamps.length-1;
+            let timestampJustAfter = timestamps[idx<maxIdx?idx+1:maxIdx];
+
+            if (isCloserThan(timeStampMouseX, currentTimestamp, timestampJustAfter))
+                return idx; // we have found the closest timestamp
         }
+
+        if (isCursorOnTheLeft)  to = idx - 1;
+        else  from = idx + 1;
     }
     return 0;
 }
 
 
-
-function updateDisplayedVarValues(mouseX, mouseY){
-
+function updateDisplayedVarValues(timestampMouseX, timestampMouseY){
 
     //for each telem, find closest value (before mouseX and mouseY)
     let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {
         let telem = app.telemetries[telemName];
-        let timeIdx = 0;
-        if(telem.type=="xy") { timeIdx = 2; }
-        let idx = findClosestLowerByIdx(telem.data[timeIdx], mouseX);
+        let timestamps = telem.type=="xy"?telem.data[2]:telem.data[0];
 
-        if(idx >= telem.data[timeIdx].length) continue;
-        //Refine index, closer to timestamp
-        if(idx+1 < telem.data[timeIdx].length
-            && (mouseX-telem.data[timeIdx][idx]) > (telem.data[timeIdx][idx+1]-mouseX)){
-            idx +=1;
+        let idx = findClosestLowerByIdx(timestamps, timestampMouseX);
+
+        app.telemetries[telemName].values.length = 0;
+
+        if(telem.type=="xy") {
+            app.telemetries[telemName].values.push(telem.data[0][idx]);
+            app.telemetries[telemName].values.push(telem.data[1][idx]);
         }
-        if(idx < telem.data[timeIdx].length) {
-            app.telemetries[telemName].values.length = 0;
-
-            if(telem.type=="xy") {
-                app.telemetries[telemName].values.push(telem.data[0][idx]);
-                app.telemetries[telemName].values.push(telem.data[1][idx]);
-            }
-            else {
-                app.telemetries[telemName].values.push(telem.data[1][idx]);
-            }
+        else {
+            app.telemetries[telemName].values.push(telem.data[1][idx]);
         }
     }
 }
-
 
 
 // this function is called when our mouse leave the chart 

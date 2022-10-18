@@ -188,10 +188,10 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
                 case "number": 
                     chart = new ChartWidget(isXY);
                     break;
-                case "xy": 
+                case "xy":
                     chart = new ChartWidget(isXY);
                     break;
-                case "text" :
+                case "text":
                     chart = new SingleValueWidget(true);
                     break;
                 case "3D":
@@ -244,7 +244,11 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
 
                 newShape.fillUndefinedWith(shapeJustBefore);// fills undefined properties of the new shape with the previous ones.
             }
-            else if (newShape.type == undefined)
+            else if (newShape.type != undefined)
+            {
+                newShape.fillUndefinedWithDefaults();
+            }
+            else
             {
                 throw new Error("no type given for the shape ( cube, or sphere ... should be passed )");
             }
