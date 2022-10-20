@@ -9,10 +9,9 @@ computed: {
     telem() { return this.widget.series[0].name; },
     value1()
     {
-        if (this.widget.type =="single_value_text")
-            return app.telemetries[this.widget.series[0].name].values[0];
-        else
-            return this.widget.singlevalue[0];
+        // if the widget is of type single_value_text, this.widget.singlevalue[0] is going to contain some text,
+        // and if the widget is of type single_value_number, it is going to contain some number (in a string format)
+        return this.widget.singlevalue[0];
     },
     value2()
     {

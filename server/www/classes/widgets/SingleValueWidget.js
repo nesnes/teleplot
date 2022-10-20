@@ -61,19 +61,23 @@ class SingleValueWidget extends DataWidget{
     updateSingleValue(currentSerie)
     {
         // console.log(JSON.stringify(currentSerie));
-        if (this.type == "single_value_text" || currentSerie == undefined || currentSerie.values[0] == undefined)
+        if (currentSerie == undefined || currentSerie.values[0] == undefined)
             return;
 
-        
-        if (currentSerie.type=="xy" && currentSerie.values[1] != undefined)
+        this.singlevalue.length = 0;
+
+
+        if (this.type == "single_value_text")
         {
-            this.singlevalue = [];
+            this.singlevalue.push(currentSerie.values[0])
+        }
+        else if (currentSerie.type=="xy" && currentSerie.values[1] != undefined)
+        {
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[1]))
         }
         else if (currentSerie.type=="number")
         {
-            this.singlevalue = [];
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
         }
     }

@@ -2,7 +2,7 @@ Vue.component('uplot-vue', {
     name: 'uplot-vue',
     props: {
         options: {type: Object, required: true},
-        data: {type: Array, required: true},
+        data: {type: Array, required: true}, // this is what contains the data ready for uplot
         target: {
             validator(target) {
                 return target == null || target instanceof HTMLElement || typeof target === 'function';

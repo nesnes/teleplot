@@ -12,12 +12,15 @@ def format_unit(unit):
 		return "" 
 	return ("§" + unit)
 
-def sendTelemetry(name, value, unit, useTime):
-	now = time.time() * 1000
+def sendTelemetry(name, value, unit, now):
 	
-	msg = name+":"+str(now)+":"+str(value)+format_unit(unit)+"|g"
-	if (not useTime):
-		msg = name+":"+str(value)+format_unit(unit)+"|g"
+	flags = ""
+	if (type(value) is str):
+		flags += "t"
+
+	msg = name+":"+str(now)+":"+str(value)+format_unit(unit)+"|"+flags
+	if (now == None):
+		msg = name+":"+str(value)+format_unit(unit)+"|"+flags
 
 	sock.sendto(msg.encode(), teleplotAddr)
 
@@ -30,11 +33,11 @@ def sendTelemetryXY(name, x, y, x1, y1, unit):
 
 
 def sendMultipleTelemTest():
-	msg = "myValue:1627551892444:1;1627551892555:2;1627551892666:3|g\n\
-	mySecondValue:1627551892444:1;1627551892555:2;1627551892666:3§rad|g\n\
-	myThirdValue:1627551892437:1234|g\n\
-	state:state_a|g\n\
-	state2:1627551892444:state_a;1627551892555:state_b|g\n\
+	msg = "myValue:1627551892444:1;1627551892555:2;1627551892666:3\n\
+	mySecondValue:1627551892444:1;1627551892555:2;1627551892666:3§rad\n\
+	myThirdValue:1627551892437:1234|\n\
+	state:state_a|t\n\
+	state2:1627551892444:state_a;1627551892555:state_b|t\n\
 	trajectory:1:1;2:2;3:3;4:4|xy\n\
 	trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy"
 
@@ -49,28 +52,40 @@ def basicTestSub():
 	currentRobotState = "standing"
 	while True:
 		
-		sendTelemetry("sin_unit", math.sin(i), "my_weird@ unit $", True)
-		sendTelemetry("cos_no_time", math.cos(i), "", False)
-		sendTelemetry("cos_time", math.cos(i), "", True)
-		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", False)
-		sendTelemetry("cos", math.cos(i), "", True)
+		now = time.time() * 1000
+
+
+		sendTelemetry("sin_unit", math.sin(i), "my_weird@ unit $", now)
+		sendTelemetry("cos_no_time", math.cos(i), "", None)
+		sendTelemetry("cos_time", math.cos(i), "", now)
+		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
+		sendTelemetry("cos", math.cos(i), "", now)
+		sendLog("cos(i) : "+str(math.cos(i)), now)
 
 		sendTelemetryXY("XY_", math.sin(i),math.cos(i), math.sin(i+0.1), math.cos(i+0.1), "km²")
 
-		if (random.randint(0, 1000) >= 999 ):
+		if (random.randint(0, 1000) >= 950 ):
 			if (currentRobotState == "standing") :
 				currentRobotState = "sitted"
 			else :
 				currentRobotState = "standing"
 
-		sendTelemetry("robot_state", currentRobotState ,"", True)
-		sendTelemetry("robot_state_no_time", currentRobotState ,"", False)
-		sendTelemetry("robot_state_no_time_unit", currentRobotState ,"km/h", False)
-		sendTelemetry("robot_state_unit", currentRobotState ,"m²", True)
+		sendTelemetry("robot_state", currentRobotState ,"", now)
+		sendTelemetry("robot_state_no_time", currentRobotState ,"", None)
+		sendTelemetry("robot_state_no_time_unit", currentRobotState ,"km/h", None)
+		sendTelemetry("robot_state_unit", currentRobotState ,"m²", now)
 		
 
 		i+=0.1
 		time.sleep(0.01)
+
+def sendLog(mstr, now):
+	timestamp = ""
+	if (now != None):
+		timestamp = str(now)
+
+	msg = (">"+timestamp+":I am a log, linked to : "+mstr)
+	sock.sendto(msg.encode(), teleplotAddr)
 
 def testThreeD():
 	th1 = threading.Thread(target=testThreeD_sub)
@@ -83,10 +98,10 @@ def testThreeD_sub():
 
 	while True:
 
-		msg1 = '3D|myData2:S:cube:W:5:H:4:D:'+str(cubeDepth)+':C:blue|g'
-		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere|g'
+		msg1 = '3D|myData2:S:cube:C:blue:W:5:H:4:D:'+str(cubeDepth)
+		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere'
 	
-		randomNb = random.randint(0, 100) 
+		randomNb = random.randint(0, 100)
 
 		if ( randomNb >= 1 and randomNb <= 10):
 			sphereRadius += 1
@@ -104,6 +119,8 @@ def testThreeD_sub():
 
 
 
-sendMultipleTelemTest()
+# sendMultipleTelemTest()
 basicTest()
 testThreeD()
+
+

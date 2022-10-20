@@ -64,7 +64,7 @@ function parseLog(msg, now)
     currLog.text = msg.substr(logStart);
     currLog.timestamp = parseFloat(msg.substr(1, logStart-2));
     if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = now;
-    logBuffer.unshift(currLog);//prepend log to buffer
+    logBuffer.push(currLog);//prepend log to buffer
 }
 
 
@@ -80,16 +80,18 @@ function parseVariablesData(msg, now)
     if(!msg.includes(':')) return;
 
     let startIdx = msg.indexOf(':');
+
     let name = msg.substr(0,msg.indexOf(':'));
     if(name.substring(0, 6) === "statsd") return;
-    let endIdx = msg.indexOf('|');
-    let flags = msg.substr(endIdx+1);
-    let unit = "";
-    if(endIdx == -1){
-        flags = shouldPlotByDefault?"g":"np";
-        endIdx = msg.length;
-    }
 
+    let endIdx = msg.lastIndexOf('|');
+    if (endIdx == -1) endIdx = msg.length;
+
+    let flags = msg.substr(endIdx+1);
+
+    let isTextFormatTelem = flags.includes('t');
+
+    let unit = "";
     let unitIdx = msg.indexOf('§'); 
     if (unitIdx!=-1)
     {
@@ -97,15 +99,31 @@ function parseVariablesData(msg, now)
         endIdx = unitIdx;
     }
     
-    let isTextFormatTelem = isTextFormatTelemetry(msg.substring(startIdx+1, endIdx));
-
     // Extract values array
-    let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
+    let values = msg.substring(startIdx+1, endIdx).split(';')
     let xArray = [];
     let yArray = [];
     let zArray = [];
     for(let value of values)
     {
+        /*  All possibilities : 
+
+            Number timestamp : 
+                [1627551892437, 1234]
+            Number no timestamp : 
+                [1234]
+            
+            Text timestamp : 
+                [1627551892437, Turned On]
+            Text no timestamp : 
+                [Turned On]
+
+            xy timestamp : 
+                [1, 1, 1627551892437]
+            xy no timestamp : 
+                [1, 1]
+        */
+
         if(value.length==0) continue;
         let dims = value.split(":");
 
@@ -114,13 +132,13 @@ function parseVariablesData(msg, now)
             yArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
         }
         else if(dims.length == 2){
-            xArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
+            xArray.push(parseFloat(dims[0]));
             yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
             zArray.push(now);
         }
         else if(dims.length == 3){
-            xArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
-            yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
+            xArray.push(parseFloat(dims[0]));
+            yArray.push(parseFloat(dims[1]));
             zArray.push(parseFloat(dims[2]));
         }
       
@@ -141,9 +159,11 @@ function parse3D(msg, now)
     //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
     //3D|myData1:R::3.14:P:1:2:-1:S:cube:W:5:H:4:D:3:C:red|g
 
+    let firstPipeIdx = msg.indexOf("|");
     let startIdx = msg.indexOf(':') +1;
     let endIdx = msg.lastIndexOf("|");
-    let key = msg.substring(msg.indexOf("|")+1, startIdx-1);
+    if (endIdx <= firstPipeIdx) endIdx = msg.length;// in this case the last pipe is not given ( there are no flags )
+    let key = msg.substring(firstPipeIdx+1, startIdx-1);
 
 
     let timestamp;

@@ -149,7 +149,8 @@
 
 
                     <div v-for="telem in telemetries" v-bind:key="'var-'+telem.name"
-                    v-if="isMatchingTelemetryFilter(telem.name)"
+                    v-if="isMatchingTelemetryFilter(telem.name) || isMatchingTelemetryFilter(telem.type) || 
+                    isMatchingTelemetryFilter(telem.unit)"
                     class="var-vue" draggable @dragstart="onDragTelemetry($event, telem.name)"> <!-- @click="toggleVisibility(telem)" -->
                         <div class="var-vue-name">
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
@@ -232,6 +233,7 @@
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
                             
+                            
                             <comp-3d v-if="widget.type == 'widget3D'" v-bind:widget="widget" v-bind:series="widget.series"></comp-3d>
 
                             <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
@@ -258,7 +260,7 @@
                     <div class="log-container" v-if="logAvailable">
                         <span v-for="(log, index) in logs" v-bind:key="index" class="log-vue" @click="onLogClick(log, index)"
                             v-bind:class="{ 'log-vue-selected': log.selected }">
-                            {{log.text}}
+                            {{logs[logs.length-1-index].text}}
                         </span>
                     </div>
                     <div v-for="conn in connections" class="flex-col">

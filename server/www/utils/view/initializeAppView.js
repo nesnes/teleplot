@@ -3,8 +3,10 @@ var widgets = [];
 var telemetries = {};
 var commands = {};
 var logs = [];
-var telemBuffer = {};
-var logBuffer = [];
+
+// we preset the size of our arrays with big sizes to minimize the risk of slow memory reallocation ( if array need to grow to often).
+var logBuffer = []; // temporary buffer for logs
+var telemBuffer = []; // temporary buffer for telemetries
 
 function initializeAppView()
 {
@@ -134,7 +136,6 @@ function initializeAppView()
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
                 let chart = undefined;
-                let serie = undefined;
                 
                 if (app.telemetries[telemetryName].type == "text")
                 {
@@ -151,8 +152,7 @@ function initializeAppView()
                 else
                 {
                     chart = new ChartWidget(app.telemetries[telemetryName].type=="xy");
-                    serie = getSerieInstanceFromTelemetry(telemetryName);    
-                    chart.addSerie(serie);
+                    chart.addSerie(getSerieInstanceFromTelemetry(telemetryName));
                 }
                 
                 if(prepend) widgets.unshift(chart);
@@ -219,13 +219,16 @@ function initializeAppView()
                     }
                 }
             },
-            isMatchingTelemetryFilter: function(name){
+            isMatchingTelemetryFilter: function(text){
+                if (text == undefined || typeof(text) != 'string')
+                    return false;
+
                 if(app.telemetryFilterString == "") return true;
                 let escapeRegex = (str) => str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
                 let rule = app.telemetryFilterString.split("*").map(escapeRegex).join(".*");
                 rule = "^" + rule + "$";
-                let regex = new RegExp(rule);
-                return regex.test(name);
+                let regex = new RegExp(rule, 'i');
+                return regex.test(text);
             },
             updateWidgetSize: function(widget){
                 updateWidgetSize_(widget);

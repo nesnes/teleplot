@@ -7,7 +7,7 @@ class ChartWidget extends DataWidget{
         super();
         this.type = "chart";
         this.isXY = _isXY;
-        this.data = [];
+        this.data = []; // this is what contains the data ready for uplot
         this.options = {
             title: "",
             width: undefined,
@@ -51,7 +51,7 @@ class ChartWidget extends DataWidget{
     update(){
         // Update each series
         for(let s of this.series) s.update();
-        if(app.isViewPaused) return;
+        if(app.isViewPaused && !this.forceUpdate) return;
 
         if(this.isXY){
             if(this.forceUpdate) {
@@ -61,8 +61,8 @@ class ChartWidget extends DataWidget{
                     s.dataIdx = this.data.length;
                     this.data.push(s.data);
                 }
-                this.id += "-" //dummy way to force update
-                triggerChartResize();
+                // this.id += "-" //dummy way to force update
+                // triggerChartResize();
                 this.forceUpdate = false;
             }
             else {
@@ -80,8 +80,8 @@ class ChartWidget extends DataWidget{
             for(let s of this.series) dataList.push(s.data);
             this.data.length = 0;
             this.data = uPlot.join(dataList)
-            this.id += "-" //dummy way to force update
-            triggerChartResize();
+            // this.id += "-" //dummy way to force update
+            // triggerChartResize();
             this.forceUpdate = false;
         }
         else {

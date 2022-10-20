@@ -144,7 +144,13 @@ class DataSerie{
             else continue;
             app.telemetries[key].data[0].splice(0, minIdx);
             app.telemetries[key].data[1].splice(0, minIdx);
-            if(app.telemetries[key].type="xy") app.telemetries[key].data[2].splice(0, minIdx);
+            if(app.telemetries[key].type=="xy")
+            {
+                if (app.telemetries[key].data[2] == undefined)
+                    throw new Error("ERROR! key : "+key+", whole obj : "+JSON.stringify(app.telemetries[key]));
+
+                app.telemetries[key].data[2].splice(0, minIdx);
+            }
         }
     }
 }
