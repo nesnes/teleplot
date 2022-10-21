@@ -55,16 +55,14 @@ function parseCommandList(msg) // a String containing a list of commands, ex : "
 // now : a Number representing a timestamp
 function parseLog(msg, now) 
 {
-    let currLog = {
-        timestamp: now,
-        text: ""
-    }
-    
+       
     let logStart = msg.indexOf(":")+1;
-    currLog.text = msg.substr(logStart);
-    currLog.timestamp = parseFloat(msg.substr(1, logStart-2));
-    if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = now;
-    logBuffer.push(currLog);//prepend log to buffer
+    
+    let logText = msg.substr(logStart);
+    let logTimestamp = parseFloat(msg.substr(1, logStart-2));
+    if(isNaN(logTimestamp) || !isFinite(logTimestamp)) logTimestamp = now;
+
+    logBuffer.push(new Log(logTimestamp, logText));
 }
 
 
@@ -231,8 +229,8 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     }
 
     // Convert timestamps to seconds
-    if(!isXY) { valuesX.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
-    else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
+    if(!isXY) { valuesX.forEach((elem, idx, arr)=>arr[idx] = elem); }
+    else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem); }
 
     // Flush data into buffer (to be flushed by updateView)
     

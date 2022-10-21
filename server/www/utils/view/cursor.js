@@ -20,8 +20,8 @@ logCursor = {
     clientX: -10,
     clientY: -10,
     pub: function(log) {
-        logCursor.cursor.sync.values[0] = log.timestamp/1000;
-        logCursor.cursor.sync.values[1] = 0;
+        // logCursor.cursor.sync.values[0] = log.timestamp;
+        // logCursor.cursor.sync.values[1] = 0;
         window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, -42);
     }
 };
@@ -30,11 +30,8 @@ logCursor = {
 var timestampWindow = {min:0, max:0};
 window.cursorSync = uPlot.sync("cursorSync");
 window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
-    if(type=="mousemove"){
-        if(i != -42){
-            let timestamp = self.cursor.sync.values[0];
-            for(l of app.logs) l.selected = Math.abs(l.timestamp/1000 - timestamp) < 0.1; // within 10ms difference (20ms window)
-        }
+    if(type=="mousemove")
+    {
         if(i != null) updateDisplayedVarValues(self.cursor.sync.values[0], self.cursor.sync.values[1]);
         else resetDisplayedVarValues();
     }
@@ -95,10 +92,21 @@ function findClosestLowerByIdx(values, mouseX) {
 //     }
 // }
 
-function findClosestTimestampToCursor(timestamps, timeStampMouseX) {
+function findClosestTimestampToCursor(mlist, timeStampMouseX, islog=false) {
+
+    function getTimestamp(i)
+    {
+        if (!islog) // if !islog, mlist is a list of timestamps, we do mlist[i] to get timestamp i
+        {
+            return mlist[i];
+        }
+        if (islog) // if islog, mlist contains a list of log, we do mlist[i]["timestamp"] to get timestamp i
+            return mlist[i]["timestamp"];
+        
+    }
 
     let from = 0;
-    let to = timestamps.length - 1;
+    let to = mlist.length - 1;
     let idx;
 
     function isCloserThan(anchorTimestamp, timestamp1, timestamp2)
@@ -112,21 +120,21 @@ function findClosestTimestampToCursor(timestamps, timeStampMouseX) {
     while (from <= to) {
         idx = Math.floor((from + to) / 2);
 
-        let isCursorOnTheLeft = timeStampMouseX < timestamps[idx];
+        let isCursorOnTheLeft = timeStampMouseX < getTimestamp(idx);
 
         if (isCursorOnTheLeft)
         {
-            let currentTimestamp = timestamps[idx];
-            let timestampJustBefore = timestamps[idx>0?idx-1:0];
+            let currentTimestamp = getTimestamp(idx);
+            let timestampJustBefore = getTimestamp(idx>0?idx-1:0);
 
             if (isCloserThan(timeStampMouseX, currentTimestamp, timestampJustBefore))
                 return idx; // we have found the closest timestamp
         }
         else // cursor is on the right
         {
-            let currentTimestamp = timestamps[idx];
-            let maxIdx = timestamps.length-1;
-            let timestampJustAfter = timestamps[idx<maxIdx?idx+1:maxIdx];
+            let currentTimestamp = getTimestamp(idx);
+            let maxIdx = mlist.length-1;
+            let timestampJustAfter = getTimestamp(idx<maxIdx?idx+1:maxIdx);
 
             if (isCloserThan(timeStampMouseX, currentTimestamp, timestampJustAfter))
                 return idx; // we have found the closest timestamp
@@ -135,7 +143,7 @@ function findClosestTimestampToCursor(timestamps, timeStampMouseX) {
         if (isCursorOnTheLeft)  to = idx - 1;
         else  from = idx + 1;
     }
-    return 0;
+    return idx;
 }
 
 
@@ -159,12 +167,17 @@ function updateDisplayedVarValues(timestampMouseX, timestampMouseY){
             app.telemetries[telemName].values.push(telem.data[1][idx]);
         }
     }
+    
+    let logIdx = findClosestTimestampToCursor(app.logs, timestampMouseX, true);
+
+    LogConsole.getInstance().goToLog(logIdx);
 }
 
 
 
 // this function is called when our mouse leave the chart 
 function resetDisplayedVarValues(){
+    LogConsole.getInstance().untrackLog();
     //for each telem, set latest value
     let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {

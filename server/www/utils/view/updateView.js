@@ -74,8 +74,15 @@ function updateView() {
     if(!app.isViewPaused &&  logBuffer.length>0) {
         app.logs.push(...logBuffer);//prepend log to list
         logBuffer.length = 0;
+
     }
-    if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
+
+    if (app.logs.length>0)
+    {
+        app.logAvailable = true;
+        LogConsole.getInstance().logsUpdated(0, app.logs.length);
+    }
+
 
     // Stats
     let now = new Date().getTime();

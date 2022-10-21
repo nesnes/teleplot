@@ -248,20 +248,21 @@
                 <!-- CMD update to multi input-->
 
                 <div class="var-container" v-if="!rightPanelVisible">
-                    <button @click="showRightPanel(true)" class="right-rounded-btn"></button>
+                    <button @click="showRightPanel(true)" class="right-rounded-btn"><</button>
                 </div>
-                <div class="right-col cmd-container" v-if="(cmdAvailable || logAvailable) && rightPanelVisible">
+                <div class="right-col cmd-container" v-show="(cmdAvailable || logAvailable) && rightPanelVisible">
                     <button @click="showRightPanel(false)" class="right-reduce-btn" >Reduce</button>
                     <div v-for="cmd in commands" v-bind:key="cmd.name" class="cmd-vue">
                         <button @click="sendCmd(cmd)">{{cmd.name}}</button>
                     </div>
 
                     <!-- LOG TODO update to multi input-->
-                    <div class="log-container" v-if="logAvailable">
-                        <span v-for="(log, index) in logs" v-bind:key="index" class="log-vue" @click="onLogClick(log, index)"
+                    <div id="log-container-div" class="log-container" v-show="logAvailable">
+                        <!-- <span v-for="(log, index) in logs" v-bind:key="index" class="log-vue" @click="onLogClick(log, index)"
                             v-bind:class="{ 'log-vue-selected': log.selected }">
                             {{logs[logs.length-1-index].text}}
-                        </span>
+                        </span> -->
+
                     </div>
                     <div v-for="conn in connections" class="flex-col">
                         <div v-for="input in conn.inputs" class="flex-col">
@@ -288,6 +289,8 @@
     <script src="lib/three/three.module.js"></script>
     <script src="lib/three/OrbitControls.js"></script>
     <script src="lib/three/InfiniteGrid.js"></script>
+    <script src="lib/hyperlist/hyperlist.js"></script>
+    <script src="./classes/view/logs/Log.js"></script>
     <script src="components/uPlot/uplot-component.js"></script>
     <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
     <script src="components/singleValue/singleValue.js"></script>
@@ -298,10 +301,11 @@
     <script src="./classes/communication/connection/ConnectionTeleplotWebsocket.js"></script>
     <script src="./utils/view/cursor.js"></script>
     <script src="./classes/communication/serverMessageReading.js"></script>
-    <script src="./classes/widgets/DataWidget.js"></script>
-    <script src="./classes/widgets/ChartWidget.js"></script>
-    <script src="./classes/widgets/SingleValueWidget.js"></script>
-    <script src="./classes/widgets/Widget3D.js"></script>
+    <script src="./classes/view/widgets/DataWidget.js"></script>
+    <script src="./classes/view/widgets/ChartWidget.js"></script>
+    <script src="./classes/view/widgets/SingleValueWidget.js"></script>
+    <script src="./classes/view/widgets/Widget3D.js"></script>
+    <script src="./classes/view/logs/LogConsole.js"></script>
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>
     <script src="./classes/communication/data/DataInputUDP.js"></script>

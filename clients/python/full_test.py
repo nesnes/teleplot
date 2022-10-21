@@ -44,8 +44,22 @@ def sendMultipleTelemTest():
 	sock.sendto(msg.encode(), teleplotAddr)
 
 def basicTest():
+	th0 = threading.Thread(target=basicTestSubBefore)
 	th = threading.Thread(target=basicTestSub)
+
+	th0.start()
+
+	time.sleep(1)
 	th.start()
+
+def basicTestSubBefore():
+	i=0
+	while True:
+		now = time.time() * 1000
+
+		sendTelemetry("cos_before", math.cos(i), "", now)
+		i+=0.1
+		time.sleep(0.01)
 
 def basicTestSub():
 	i=0
@@ -57,9 +71,9 @@ def basicTestSub():
 
 		sendTelemetry("sin_unit", math.sin(i), "my_weird@ unit $", now)
 		sendTelemetry("cos_no_time", math.cos(i), "", None)
-		sendTelemetry("cos_time", math.cos(i), "", now)
-		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
-		sendTelemetry("cos", math.cos(i), "", now)
+		# sendTelemetry("cos_time", math.cos(i), "", now)
+		# sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
+		# sendTelemetry("cos", math.cos(i), "", now)
 		sendLog("cos(i) : "+str(math.cos(i)), now)
 
 		sendTelemetryXY("XY_", math.sin(i),math.cos(i), math.sin(i+0.1), math.cos(i+0.1), "km²")
@@ -70,10 +84,10 @@ def basicTestSub():
 			else :
 				currentRobotState = "standing"
 
-		sendTelemetry("robot_state", currentRobotState ,"", now)
-		sendTelemetry("robot_state_no_time", currentRobotState ,"", None)
-		sendTelemetry("robot_state_no_time_unit", currentRobotState ,"km/h", None)
-		sendTelemetry("robot_state_unit", currentRobotState ,"m²", now)
+		# sendTelemetry("robot_state", currentRobotState ,"", now)
+		# sendTelemetry("robot_state_no_time", currentRobotState ,"", None)
+		# sendTelemetry("robot_state_no_time_unit", currentRobotState ,"km/h", None)
+		# sendTelemetry("robot_state_unit", currentRobotState ,"m²", now)
 		
 
 		i+=0.1
@@ -84,7 +98,7 @@ def sendLog(mstr, now):
 	if (now != None):
 		timestamp = str(now)
 
-	msg = (">"+timestamp+":I am a log, linked to : "+mstr)
+	msg = (">"+timestamp+": fdsqf dqsf qdsfdsqf dsqf ezqfr fqd sfedI am a log, linked to : "+mstr)
 	sock.sendto(msg.encode(), teleplotAddr)
 
 def testThreeD():
@@ -118,9 +132,8 @@ def testThreeD_sub():
 		time.sleep(0.1)
 
 
-
 # sendMultipleTelemTest()
 basicTest()
-testThreeD()
+# testThreeD()
 
 

@@ -95,6 +95,37 @@ body {
 .right-col {
 	min-width: min(350px, max(250px, 30%));
 	flex: 1;
+	margin-right: 10px;
+}
+
+.vrow {
+	padding-left: 10px;
+	padding-right: 10px;
+	color: #ecf0f1;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.log-vue-selected {
+	background-color: #27ae60;
+}
+
+.log-container {
+	/* direction:rtl; we want the scroll bar to be on the left */
+	background-color: #2c3e50;
+}
+
+.right-reduce-btn {
+	width: 60px;
+	margin-top: 0;
+	margin-right: -10px;
+	padding: 2px;
+	background-color: #2980b9;
+	font-weight: bold;
+	color: white;
+	border: 0px;
+	border-radius: 0 0 0 5px;
+	align-self: flex-end;
 }
 
 .help-container {
@@ -215,35 +246,15 @@ body {
 	padding-top: 10px;
 }
 
-.log-container {
-	display: flex;
-	flex-direction: column-reverse;
-	background-color: #2c3e50;
-	font-size: 12px;
-	height: 400px;
-	min-width: 90%;
-	overflow: auto;
-	margin-top: 1em;
-	padding-left: 5px;
-	padding-bottom: 5px;
-}
-
-.log-vue {
-	display: block;
-	color: #ecf0f1;
-	cursor: pointer;
-}
-.log-vue-selected {
-	background-color: #27ae60;
-}
+/* the rows of the logs pannel */
 
 .left-rounded-btn {
 	border-radius: 50%;
     padding-right: 0px;
     display: block;
     margin-left: -20px;
-    width: 40px;
-    height: 40px;
+    width: 60px;
+    height: 60px;
     background-color: #2980b9;
     font-weight: bold;
     color: white;
@@ -256,8 +267,8 @@ body {
     padding-left: 0px;
     display: block;
     margin-right: -20px;
-    width: 40px;
-    height: 40px;
+    width: 60px;
+    height: 60px;
     background-color: #2980b9;
     font-weight: bold;
     color: white;
@@ -276,17 +287,6 @@ body {
 	border-radius: 0 0 5px 0;
 }
 
-.right-reduce-btn {
-	width: 60px;
-	margin-top: 0;
-	padding: 2px;
-	background-color: #2980b9;
-	font-weight: bold;
-	color: white;
-	border: 0px;
-	border-radius: 0 0 0 5px;
-	align-self: flex-end;
-}
 
 .send-text-container {
 	display: flex;

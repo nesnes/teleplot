@@ -1,8 +1,8 @@
 var connections = [];
-var widgets = [];
-var telemetries = {};
+var widgets = []; // contains a list of DataWidget objects (all the widgets currently displayed)
+var telemetries = {}; // contains a list of Telemetry objects (all the telemetries received)
 var commands = {};
-var logs = [];
+var logs = []; // contains a list of Log objects (all the logs received)
 
 // we preset the size of our arrays with big sizes to minimize the risk of slow memory reallocation ( if array need to grow to often).
 var logBuffer = []; // temporary buffer for logs

@@ -42,7 +42,7 @@ class DataSerie{
     {
         if (this.type != "3D")
             throw new Error("getDetails3D should only be called for 3D widgets so on 3D series");
-        if (this.values == undefined || this.values.length == 0)
+        if (this.values == undefined || this.values.length == 0 || this.values[0] == undefined)
             return "";
 
 
