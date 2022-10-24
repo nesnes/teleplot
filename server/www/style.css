@@ -104,6 +104,7 @@ body {
 	color: #ecf0f1;
 	cursor: pointer;
 	white-space: nowrap;
+	z-index: 100;
 }
 
 .log-vue-selected {

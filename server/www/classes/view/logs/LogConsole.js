@@ -45,7 +45,19 @@ class LogConsole
             generate(rowIdx) {
                 let el = document.createElement('div')
                 let currIdx = rowIdx + mstartIdx;
-                el.innerHTML = "<span>" + app.logs[currIdx].text +"</span>";
+                let currLog = app.logs[currIdx];
+
+                el.innerHTML = "<span>" + currLog.text +"</span>";
+
+                el.addEventListener("mouseenter", function () {
+                    console.log("enter");
+                    logCursor.pub(currLog);
+                });
+                el.addEventListener("mouseleave", function () {
+                    console.log("leave");
+                    // onLogClick(rowIdx);
+                });
+
                 if (logIndexToHighlight == currIdx)
                 {
                     el.classList.add('log-vue-selected');

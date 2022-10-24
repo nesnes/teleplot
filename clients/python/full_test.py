@@ -134,6 +134,6 @@ def testThreeD_sub():
 
 # sendMultipleTelemTest()
 basicTest()
-# testThreeD()
+testThreeD()
 
 

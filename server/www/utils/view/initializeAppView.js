@@ -48,10 +48,6 @@ function initializeAppView()
                     conn.sendServerCommand({ id: this.id, cmd: command});
                 }
             },
-            onLogClick: function(log, index) {
-                for(l of app.logs) l.selected = log.timestamp > 0 && l.timestamp == log.timestamp;
-                logCursor.pub(log);
-            },
             showLeftPanel: function(show) {
                 app.leftPanelVisible=show;
                 triggerChartResize();

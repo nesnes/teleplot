@@ -7,7 +7,7 @@
 var worldCount = 0
 class World {
 	constructor(div3D){
-		this.id = worldCount++;
+		this.worldIdx = worldCount++;
         this.containerDiv = div3D;
 		this.scene = this.initializeScene();
 		this.initializeLight(this.scene);
@@ -139,25 +139,16 @@ class World {
 	
 	}
 
-	setObject(shape3d)
+ 	// shapeId is the idx of the shape in this._3Dshapes or the idx at which it should be if it is the first time
+	// shape3d is the new shape (either a totaly new one or an update of a previous one)
+	setObject(shapeId, shape3d)
 	{
 
-		let found = false;
-		let i = 0;
-
-		while (i < this._3Dshapes.length && !found)
+		if (shapeId < this._3Dshapes.length)
 		{
-			if (this._3Dshapes[i].name === shape3d.name)
-			{
-				this.updateToNewShape(this._3Dshapes[i], shape3d);
-
-				found = true;
-			}
-
-			i++;
+			this.updateToNewShape(this._3Dshapes[shapeId], shape3d);
 		}
-
-		if (!found)
+		else
 		{
 			let shape_cp = (new Shape3D()).initializeFromShape3D(shape3d);
 
@@ -168,7 +159,6 @@ class World {
 			// a copy of it just before adding it to the scene, otherwise their might be two scenes trying to use the same mesh
 			this.scene.add(shape_cp.three_object);
 		}
-
 		
 	}
 	

@@ -20,8 +20,8 @@ logCursor = {
     clientX: -10,
     clientY: -10,
     pub: function(log) {
-        // logCursor.cursor.sync.values[0] = log.timestamp;
-        // logCursor.cursor.sync.values[1] = 0;
+        logCursor.cursor.sync.values[0] = log.timestamp;
+        logCursor.cursor.sync.values[1] = 0;
         window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, -42);
     }
 };

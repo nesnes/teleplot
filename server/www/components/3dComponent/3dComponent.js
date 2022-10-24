@@ -33,7 +33,7 @@ Vue.component('comp-3d', {
             worlds.push(this.world);
             this.widget.worldId = this.world.id;
 
-            this.reDrawShapes(-1);// passing -1 means to redraw everything
+            this.reDrawShape(-1);// passing -1 means to redraw everything
 
             this.setUpSeriesObserver();
 
@@ -43,39 +43,45 @@ Vue.component('comp-3d', {
         setUpSeriesObserver()
         {
             this.widget.onNewSerieAdded = () => {
-                let newSerie = this.series[this.series.length-1]; 
-                this.reDrawShapes(newSerie.id)
+                let newSerieIdx = this.series.length-1;
+                let newSerie = this.series[newSerieIdx]; 
+                this.reDrawShape(newSerieIdx);
 
-                newSerie.onSerieChanged = () => {this.reDrawShapes(newSerie.id)}
+                newSerie.onSerieChanged = () => {this.reDrawShape(newSerieIdx)}
             };
 
 
             for (let i = 0; i< this.series.length; i++)
             {
-               this.series[i].onSerieChanged = () => this.reDrawShapes(this.series[i].id);
+               this.series[i].onSerieChanged = () => this.reDrawShape(i);
             }
             
         },
-        reDrawShapes(serieId) // passing -1 means to redraw everything
+        reDrawShape(serieId) // -1 means redraw everything, otherwise we pass the serie shape index in this.series
         {
-            let i = 0;
-            stop_loop = false;
-
-            while (i < this.series.length && !stop_loop)
+            if (serieId == -1)
             {
-                let currSerie = this.series[i];
-    
-                if (currSerie.id == serieId || serieId == -1)
+                for (let i = 0; i < this.series.length; i++)
                 {
+                    let currSerie = this.series[i];
+
                     if (currSerie.values[0] != undefined)
                     {
-                        this.world.setObject(currSerie.values[0]);
+                        this.world.setObject(i, currSerie.values[0]);
                     }
-                    
-                    if (serieId != -1)
-                        stop_loop = true;
-                }    
-                i++;
+                }
+            }
+            else
+            {
+                let currSerie = this.series[serieId];
+
+                if (currSerie == undefined)
+                    throw new Error("trying to acces an index that is invalid : i = " + i);
+
+                if (currSerie.values[0] != undefined)
+                {
+                    this.world.setObject(serieId, currSerie.values[0]);
+                }
             }
         },
     },

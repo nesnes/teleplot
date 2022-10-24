@@ -18,7 +18,7 @@ class ChartWidget extends DataWidget{
             cursor: {
                 lock: false,
                 focus: { prox: 16, },
-                sync: {  key: window.cursorSync.key,  setSeries: true }
+                sync: { key: window.cursorSync.key,  setSeries: true }
             },
             legend: { show: false }
         }
