@@ -133,10 +133,15 @@ LIST OF PROPERTIES :
 - "position" or "P" => the position of the center of the sphere in a cartesian coordinate system 
     1st argument : x, 2nd argument : y, 3rd argument : z
     
-- "rotation" or "R" => the rotation of the shape on each axis
+- "rotation" or "R" => the rotation of the shape using Euler angles ( please avoid this method and use a quaternion instead )
     1st argument : the rotation around the x axis, 2nd argument : the rotation around the y axis, 3rd argument : the rotation around the z axis
     
+- "quaternion" or "Q" => the rotation of the shape using a quaternion
+    1st argument : x coordinate, 2nd argument : y coordinate, 3rd argument : z coordinate, 4th argument : w coordinate
+    
 - "color" or "C" => the color of the shape, ex : "blue", "#2ecc71" ... 
+
+- "opacity" or "O" => the opacity of the shape, float between 0 and 1, 0 being fully transparent and 1 fully opaque ( set to 1 by default ) 
 
 === Sphere only ===
 

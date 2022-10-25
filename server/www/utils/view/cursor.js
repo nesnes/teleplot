@@ -1,9 +1,9 @@
 logCursor = {
     cursor:{
-        show: true,
+        show: false,
         sync:{
             values:[0,0],
-            scales:["x"],
+            scales:["x", "y"],
             key: "cursorSync",
             filters: {pub: function(...e){return true}, sub: function(...e){return true}},
             match: [function(a,b){return a==b}],
@@ -12,10 +12,11 @@ logCursor = {
         left: 10,
         top: 10,
         x: true,
-        y: false
+        y: true,
     },
     scales: {
         x:{ori:0, _max: 1, _min: 1, key:"x", time:true},
+        y:{ori:0, _max: 1, _min: 1, key:"y", time:true},
     },
     clientX: -10,
     clientY: -10,
@@ -23,6 +24,12 @@ logCursor = {
         logCursor.cursor.sync.values[0] = log.timestamp;
         logCursor.cursor.sync.values[1] = 0;
         window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, -42);
+    },
+    remove : function()
+    {
+        logCursor.cursor.sync.values[0] = -100000000;
+        logCursor.cursor.sync.values[1] = -100000000;
+        window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, null); // we pass nul so resetCursorDisplayedVarValues() will be called
     }
 };
 
@@ -32,8 +39,14 @@ window.cursorSync = uPlot.sync("cursorSync");
 window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
     if(type=="mousemove")
     {
-        if(i != null) updateDisplayedVarValues(self.cursor.sync.values[0], self.cursor.sync.values[1]);
-        else resetDisplayedVarValues();
+        let scrollLog = (i != -42);
+        // if i == -42, we are being called by a mousemove from the log console so the mouse is already hovering the good log
+        // so we don't need to scroll to it
+        // if i != -42,  we want to scroll to it.
+       
+
+        if(i != null) updateDisplayedVarValues(self.cursor.sync.values[0], self.cursor.sync.values[1], scrollLog);
+        else resetCursorDisplayedVarValues();
     }
     // let some time to update the axes min/max
     setTimeout(()=>{
@@ -147,7 +160,7 @@ function findClosestTimestampToCursor(mlist, timeStampMouseX, islog=false) {
 }
 
 
-function updateDisplayedVarValues(timestampMouseX, timestampMouseY){
+function updateDisplayedVarValues(timestampMouseX, timestampMouseY, scrollLog){
 
     //for each telem, find closest value (before mouseX and mouseY)
     let telemList = Object.keys(app.telemetries);
@@ -168,15 +181,18 @@ function updateDisplayedVarValues(timestampMouseX, timestampMouseY){
         }
     }
     
-    let logIdx = findClosestTimestampToCursor(app.logs, timestampMouseX, true);
-
-    LogConsole.getInstance().goToLog(logIdx);
+    if (scrollLog)
+    {
+        let logIdx = findClosestTimestampToCursor(app.logs, timestampMouseX, true);
+        LogConsole.getInstance().goToLog(logIdx);
+    }
+   
 }
 
 
 
 // this function is called when our mouse leave the chart 
-function resetDisplayedVarValues(){
+function resetCursorDisplayedVarValues(){
     LogConsole.getInstance().untrackLog();
     //for each telem, set latest value
     let telemList = Object.keys(app.telemetries);

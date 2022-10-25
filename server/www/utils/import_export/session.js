@@ -63,7 +63,14 @@ function importSessionJSON(event) {
 
             app.logAvailable = savedObj.logAvailable;
             app.dataAvailable = savedObj.dataAvailable;
-            Vue.set(app.logs, savedObj.logs);
+            
+            // Vue.set(app.logs, savedObj.logs);
+            app.logs = savedObj.logs;
+            if (app.logs.length>0)
+            {
+                app.logAvailable = true;
+                LogConsole.getInstance().logsUpdated(0, app.logs.length);
+            }
 
             // we rebuilt the telemetries and the shapes from our file
             for (let [telemName, telem] of Object.entries(savedObj.telemetries))

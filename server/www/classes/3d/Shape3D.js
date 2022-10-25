@@ -7,9 +7,11 @@ class Shape3D
 		this.three_object = null;
 		this.default_material = undefined;
 		this.color = undefined;
+		this.opacity = undefined;
 
 		this.position = undefined; // Object containing x, y, and z, its three coordonates
 		this.rotation = undefined; // Object containing x, y, and z, its three rotations
+		this.quaternion = undefined; // Object containing x, y, z and w, its three quaternion coordinates
 
 		this.radius = undefined; // Number, the radius of the sphere
 		this.precision = undefined; // Number, the precision of the sphere
@@ -63,6 +65,12 @@ class Shape3D
 					case "shape":
 					case "S":
 						return [1, "type"];
+					case "opacity":
+					case "O":
+						return [1, "opacity"];
+					case "quaternion":
+					case "Q":
+						return [4, "quaternion"];
 					case "position":
 					case "P":
 						return [3, "position"];
@@ -107,7 +115,6 @@ class Shape3D
 			let propertiesCount = 0;
 			[propertiesCount, currentProperty] = getPropertyInfo(currentProperty);
 			
-			let propertiesValues = [];
 			[propertyValues, i] = readPropertyValues(rawShape, i, propertiesCount);
 
 			return [i, currentProperty, propertyValues];
@@ -219,9 +226,11 @@ class Shape3D
 	{
 		this.name = shape3D.name;
 
+		this.opacity = shape3D.opacity;
 		this.position = shape3D.position;
 		this.rotation = shape3D.rotation;
 		this.type = shape3D.type;
+		this.quaternion = shape3D.quaternion;
 
 		this.radius = shape3D.radius;
 		this.precision = shape3D.precision;
@@ -285,6 +294,9 @@ class Shape3D
 		if (this.color == undefined)
 			this.color = fillingShape.color;
 
+		if (this.opacity == undefined)
+			this.opacity = fillingShape.opacity;
+
 		if (this.type == "cube")
 		{
 			if (this.height == undefined)
@@ -305,23 +317,43 @@ class Shape3D
 		
 		if (this.position == undefined)
 			this.position = fillingShape.position;
-		if (this.position.x == undefined)
-			this.position.x = fillingShape.position.x;
-		if (this.position.y == undefined)
-			this.position.y = fillingShape.position.y;
-		if (this.position.z == undefined)
-			this.position.z = fillingShape.position.z;
+		else
+		{
+			if (this.position.x == undefined)
+				this.position.x = fillingShape.position.x;
+			if (this.position.y == undefined)
+				this.position.y = fillingShape.position.y;
+			if (this.position.z == undefined)
+				this.position.z = fillingShape.position.z;
+		}
+		
 
 		if (this.rotation == undefined)
 			this.rotation = fillingShape.rotation;
-		if (this.rotation.x == undefined)
-			this.rotation.x = fillingShape.rotation.x;
-		if (this.rotation.y == undefined)
-			this.rotation.y = fillingShape.rotation.y;
-		if (this.rotation.z == undefined)
-			this.rotation.z = fillingShape.rotation.z;
-
+		else
+		{
+			if (this.rotation.x == undefined)
+				this.rotation.x = fillingShape.rotation.x;
+			if (this.rotation.y == undefined)
+				this.rotation.y = fillingShape.rotation.y;
+			if (this.rotation.z == undefined)
+				this.rotation.z = fillingShape.rotation.z;
+		}
 		
+
+		if (this.quaternion == undefined)
+			this.quaternion = fillingShape.quaternion;
+		else
+		{
+			if (this.quaternion.x == undefined)
+				this.quaternion.x = fillingShape.quaternion.x;
+			if (this.quaternion.y == undefined)
+				this.quaternion.y = fillingShape.quaternion.y;
+			if (this.quaternion.z == undefined)
+				this.quaternion.z = fillingShape.quaternion.z;
+			if (this.quaternion.w == undefined)
+				this.quaternion.w = fillingShape.quaternion.z;
+		}		
 	}
 
 }
@@ -340,17 +372,28 @@ function buildThreeObject(shape3D)
 	shape3D.three_object = shape3D.buildMesh();
 	
 
-	shape3D.three_object.rotation.x = shape3D.rotation.x;
-	shape3D.three_object.rotation.y = shape3D.rotation.y;
-	shape3D.three_object.rotation.z = shape3D.rotation.z;
+	shape3D.three_object.material.opacity = shape3D.opacity;
+	shape3D.three_object.material.transparent = true;
 
 	shape3D.three_object.position.x = shape3D.position.x;
 	shape3D.three_object.position.y = shape3D.position.y;
 	shape3D.three_object.position.z = shape3D.position.z;
+
+	if (shape3D.quaternion == undefined) {
+		shape3D.three_object.rotation.x = shape3D.rotation.x;
+		shape3D.three_object.rotation.y = shape3D.rotation.y;
+		shape3D.three_object.rotation.z = shape3D.rotation.z;
+	}
+	else
+	{
+		shape3D.three_object.applyQuaternion(new THREE.Quaternion(shape3D.quaternion.x, shape3D.quaternion.y, shape3D.quaternion.z, shape3D.quaternion.w));
+	}
+
 }
 
 const defaultShape = {
 	color : "purple",
+	opacity : 1,
 	height : 5,
 	width : 5,
 	depth : 5,
@@ -358,4 +401,5 @@ const defaultShape = {
 	precision : 15,
 	position : {x:0, y:0, z:0},
 	rotation : {x:0, y:0, z:0},
+	quaternion : undefined,
 }

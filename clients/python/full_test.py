@@ -113,7 +113,7 @@ def testThreeD_sub():
 	while True:
 
 		msg1 = '3D|myData2:S:cube:C:blue:W:5:H:4:D:'+str(cubeDepth)
-		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere'
+		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere:O:0.4'
 	
 		randomNb = random.randint(0, 100)
 

@@ -182,7 +182,9 @@ function parse3D(msg, now)
 
 
     let flags = msg.substr(endIdx+1);
-    let shape3D = new Shape3D().initializeFromRawShape(key, rawShape);
+    let shape3D;
+    try { shape3D = new Shape3D().initializeFromRawShape(key, rawShape);} 
+    catch(e) { throw new Error("Error invalid shape text given : "+rawShape)};
 
     appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
 }

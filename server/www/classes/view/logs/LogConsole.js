@@ -10,13 +10,14 @@ class LogConsole
         this.endIdx = app.logs.length;
 
         this.container = document.getElementById("log-container-div");
+
         this.scroller = undefined;
         this.config = undefined;
 
         this.hyperlist = undefined;
         this.autoScrollToEnd = true;
         this.containerHeight = 500;// the height of the console log
-        this.itemHeight = 20;
+        this.itemHeight = 20; // has to be the same size as .vrow height in style.css
     }
 
     static getInstance()
@@ -47,15 +48,28 @@ class LogConsole
                 let currIdx = rowIdx + mstartIdx;
                 let currLog = app.logs[currIdx];
 
-                el.innerHTML = "<span>" + currLog.text +"</span>";
+                el.innerHTML = currLog.text;
+
+                // el.addEventListener('click', event => {
+                //     // button.innerHTML = `Nombre de clics : ${event.detail}`;
+                //     console.log("here")
+                //   });
+                // el.addEventListener("click", function () {
+                //     el.classList.add('log-vue-selected');
+                //     logCursor.pub(currLog);
+                //     console.log(here);
+                // });
 
                 el.addEventListener("mouseenter", function () {
-                    console.log("enter");
-                    logCursor.pub(currLog);
+                    
+                    el.classList.add('log-vue-selected');
+                    // logCursor.pub(currLog); this doesnt work yet as we are not using uPlot.iife_v1.min.js ... 
                 });
+
                 el.addEventListener("mouseleave", function () {
-                    console.log("leave");
-                    // onLogClick(rowIdx);
+                    
+                    el.classList.remove('log-vue-selected');
+                    // logCursor.remove(); this doesnt work yet as we are not using uPlot.iife_v1.min.js ... 
                 });
 
                 if (logIndexToHighlight == currIdx)
@@ -90,7 +104,6 @@ class LogConsole
 
         this.startIdx = startIdx;
         this.endIdx = endIdx
-        // console.log("logs : "+ app.logs.length)
 
         if (this.hyperlist == undefined)
         {
@@ -108,7 +121,7 @@ class LogConsole
             if (this.autoScrollToEnd && !app.isViewPaused)
             {
                 // this.logIndexToHighlighting = -1;
-                this.container.scrollTop = app.logs.length * this.itemHeight;// this is always to be greater than the div height, so it will scroll to the end
+                this.container.scrollTop = app.logs.length * this.itemHeight;// this is always greater than the div height, so it will scroll to the end
             }
         }
     }

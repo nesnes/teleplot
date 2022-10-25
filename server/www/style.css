@@ -99,12 +99,14 @@ body {
 }
 
 .vrow {
+	height: 20px;
 	padding-left: 10px;
 	padding-right: 10px;
 	color: #ecf0f1;
 	cursor: pointer;
 	white-space: nowrap;
 	z-index: 100;
+	margin-left: 4px;
 }
 
 .log-vue-selected {
