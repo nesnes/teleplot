@@ -1,5 +1,5 @@
 var logConsoleInstance = null; 
-
+var lastLogHoveredTimestamp = 0; // the most recent timestamp at wich a log was hovered
 var logIndexToHighlight = -1; // the index of the log to be highlited
 // Log Console is of type singleton, it should never be instanciated with its own constructor but with getInstance()
 class LogConsole
@@ -32,6 +32,14 @@ class LogConsole
     {
         let mstartIdx = this.startIdx;
 
+        function onMouseLeaveLog(el) 
+        {
+            if (el != null && el != undefined)
+                el.classList.remove('log-vue-selected');
+
+            logCursor.remove();
+        };
+
         return {
             height : this.containerHeight,
             itemHeight: this.itemHeight,
@@ -43,6 +51,7 @@ class LogConsole
             //   },
           
             
+            
             generate(rowIdx) {
                 let el = document.createElement('div')
                 let currIdx = rowIdx + mstartIdx;
@@ -50,26 +59,37 @@ class LogConsole
 
                 el.innerHTML = currLog.text;
 
-                // el.addEventListener('click', event => {
-                //     // button.innerHTML = `Nombre de clics : ${event.detail}`;
-                //     console.log("here")
-                //   });
-                // el.addEventListener("click", function () {
-                //     el.classList.add('log-vue-selected');
-                //     logCursor.pub(currLog);
-                //     console.log(here);
-                // });
 
-                el.addEventListener("mouseenter", function () {
+                el.addEventListener("mouseover", function () {
                     
+                    lastLogHoveredTimestamp = new Date().getTime();
+
                     el.classList.add('log-vue-selected');
-                    // logCursor.pub(currLog); this doesnt work yet as we are not using uPlot.iife_v1.min.js ... 
+                    logCursor.pub(currLog);
+
+
+                    // normaly, we should not have to do that ( with setTimeout... ) and the call to mouseLeaveLog() from mouseleave event listener should be enough
+                    // however, in some cases, mousleave event is not triggered, so we are also doing that to make sure onMouseleaveLog() is called everytime
+
+                    let maxDuration = 150; // this is the maximal duration possible between 2 mouseover events
+                    let maxTimeoutImprecision = 100; // we consider that this is the maximum imprecision the setTimeout function should have 
+
+                    setTimeout(()=>{
+                        let currentTime = new Date().getTime();
+                      
+                        
+                        // if the last log hovered timestamp exeeds the max duration betwee, 2 mouseover events,
+                        // it means that the cursor has left the log
+                        if ((currentTime - lastLogHoveredTimestamp) >= maxDuration) 
+                        {
+                            onMouseLeaveLog(el);
+                        }
+                    }, maxTimeoutImprecision + maxDuration)
+                    
                 });
 
                 el.addEventListener("mouseleave", function () {
-                    
-                    el.classList.remove('log-vue-selected');
-                    // logCursor.remove(); this doesnt work yet as we are not using uPlot.iife_v1.min.js ... 
+                    onMouseLeaveLog(el);
                 });
 
                 if (logIndexToHighlight == currIdx)

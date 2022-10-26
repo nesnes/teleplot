@@ -71,9 +71,9 @@ def basicTestSub():
 
 		sendTelemetry("sin_unit", math.sin(i), "my_weird@ unit $", now)
 		sendTelemetry("cos_no_time", math.cos(i), "", None)
-		# sendTelemetry("cos_time", math.cos(i), "", now)
-		# sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
-		# sendTelemetry("cos", math.cos(i), "", now)
+		sendTelemetry("cos_time", math.cos(i), "", now)
+		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
+		sendTelemetry("cos", math.cos(i), "", now)
 		sendLog("cos(i) : "+str(math.cos(i)), now)
 
 		sendTelemetryXY("XY_", math.sin(i),math.cos(i), math.sin(i+0.1), math.cos(i+0.1), "km²")
@@ -84,10 +84,10 @@ def basicTestSub():
 			else :
 				currentRobotState = "standing"
 
-		# sendTelemetry("robot_state", currentRobotState ,"", now)
-		# sendTelemetry("robot_state_no_time", currentRobotState ,"", None)
-		# sendTelemetry("robot_state_no_time_unit", currentRobotState ,"km/h", None)
-		# sendTelemetry("robot_state_unit", currentRobotState ,"m²", now)
+		sendTelemetry("robot_state", currentRobotState ,"", now)
+		sendTelemetry("robot_state_no_time", currentRobotState ,"", None)
+		sendTelemetry("robot_state_no_time_unit", currentRobotState ,"km/h", None)
+		sendTelemetry("robot_state_unit", currentRobotState ,"m²", now)
 		
 
 		i+=0.1
@@ -108,11 +108,11 @@ def testThreeD():
 def testThreeD_sub():
 	i = 0
 	sphereRadius = 3
-	cubeDepth = 5
+	cubeDepth = 7
 
 	while True:
 
-		msg1 = '3D|myData2:S:cube:C:blue:W:5:H:4:D:'+str(cubeDepth)
+		msg1 = '3D|myData2:S:cube:O:0.2:C:blue:W:5:H:4:D:'+str(cubeDepth)
 		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere:O:0.4'
 	
 		randomNb = random.randint(0, 100)
@@ -132,7 +132,7 @@ def testThreeD_sub():
 		time.sleep(0.1)
 
 
-# sendMultipleTelemTest()
+sendMultipleTelemTest()
 basicTest()
 testThreeD()
 

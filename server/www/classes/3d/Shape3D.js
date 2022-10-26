@@ -364,7 +364,7 @@ function buildThreeObject(shape3D)
 	if (shape3D.three_object != null) // obj is already built
 		return
 
-	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color});
+	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color, depthWrite: false});
 	// let texture = new THREE.TextureLoader().load("./images/metal-texture.png");
 	// shape3D.default_material = new THREE.MeshBasicMaterial( {map: texture} );
 
