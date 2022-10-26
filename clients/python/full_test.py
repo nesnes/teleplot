@@ -35,11 +35,12 @@ def sendTelemetryXY(name, x, y, x1, y1, unit):
 def sendMultipleTelemTest():
 	msg = "myValue:1627551892444:1;1627551892555:2;1627551892666:3\n\
 	mySecondValue:1627551892444:1;1627551892555:2;1627551892666:3§rad\n\
-	myThirdValue:1627551892437:1234|\n\
+	myThirdValue:3.2323e+4|\n\
 	state:state_a|t\n\
 	state2:1627551892444:state_a;1627551892555:state_b|t\n\
 	trajectory:1:1;2:2;3:3;4:4|xy\n\
 	trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy"
+
 
 	sock.sendto(msg.encode(), teleplotAddr)
 
@@ -74,6 +75,7 @@ def basicTestSub():
 		sendTelemetry("cos_time", math.cos(i), "", now)
 		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
 		sendTelemetry("cos", math.cos(i), "", now)
+		# sendLog("cos(i) : "+str(math.cos(i)), None)
 		sendLog("cos(i) : "+str(math.cos(i)), now)
 
 		sendTelemetryXY("XY_", math.sin(i),math.cos(i), math.sin(i+0.1), math.cos(i+0.1), "km²")

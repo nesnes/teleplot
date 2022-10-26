@@ -8,6 +8,8 @@ function parseData(msgIn){
 
     let fromSerial = msgIn.fromSerial || (msgIn.input && msgIn.input.type=="serial");
     if(fromSerial) now = msgIn.timestamp;
+
+    now/=1000; // we convert timestamp in seconds for uPlot to work
     //parse msg
     let msgList = (""+msgIn.data).split("\n");
 
@@ -59,7 +61,7 @@ function parseLog(msg, now)
     let logStart = msg.indexOf(":")+1;
     
     let logText = msg.substr(logStart);
-    let logTimestamp = parseFloat(msg.substr(1, logStart-2));
+    let logTimestamp = (parseFloat(msg.substr(1, logStart-2)))/1000; // /1000 to convert to seconds
     if(isNaN(logTimestamp) || !isFinite(logTimestamp)) logTimestamp = now;
 
     logBuffer.push(new Log(logTimestamp, logText));
@@ -130,16 +132,20 @@ function parseVariablesData(msg, now)
             yArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
         }
         else if(dims.length == 2){
-            xArray.push(parseFloat(dims[0]));
+            let v1 = parseFloat(dims[0]);
+            if (!flags.includes("xy")) // in this case, v1 is the timestamp that we convert to seconds
+                v1/=1000;
+
+            xArray.push(v1);
             yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
             zArray.push(now);
         }
         else if(dims.length == 3){
             xArray.push(parseFloat(dims[0]));
             yArray.push(parseFloat(dims[1]));
-            zArray.push(parseFloat(dims[2]));
+            zArray.push(parseFloat(dims[2])/1000);// this one is the timestamp we convert to seconds
         }
-      
+
     }
     //console.log("name : "+name+", xArray : "+xArray+", yArray : "+yArray+", zArray : "+zArray+", unit : "+unit+", flags : "+flags);
     if(xArray.length>0){
@@ -167,7 +173,7 @@ function parse3D(msg, now)
     {
         let trueStartIdx = msg.indexOf(':', startIdx);
 
-        timestamp = (msg.substring(startIdx, trueStartIdx));
+        timestamp = (msg.substring(startIdx, trueStartIdx))/1000;// we divise by 1000 to get timestamp in seconds
 
         startIdx = trueStartIdx+1;
     }

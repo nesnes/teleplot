@@ -36,6 +36,6 @@ udpServer.on('message',function(msg,info){
 
 console.log("Teleplot server started");
 console.log(`Open your browser at 127.0.0.1:${HTTP_WS_PORT}`);
-console.log(`Send telemetry with a "key:value|g" UDP packet to 127.0.0.1:${UDP_PORT}`);
+console.log(`Send telemetry with a "key:value" UDP packet to 127.0.0.1:${UDP_PORT}`);
 console.log(`Example:`);
-console.log(`\t BASH: echo "myData:1234|g" | nc -u -w0 127.0.0.1 ${UDP_PORT}`);
+console.log(`\t BASH: echo "myData:1234" | nc -u -w0 127.0.0.1 ${UDP_PORT}`);

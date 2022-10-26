@@ -63,6 +63,7 @@ The expected format is `A:B:C§D|E` where:
 Examples:
 - `myValue:1234`
 - `myValue:1234|`
+- `myValue:12.34e+2`
 - `myValue:1627551892437:1234`
 - `myValue:hello|t`
 - `myValue:1234§km²`
