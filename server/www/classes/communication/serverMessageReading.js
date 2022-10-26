@@ -149,12 +149,6 @@ function parseVariablesData(msg, now)
 
 function parse3D(msg, now)
 {
-    // 3D|my_cube_0:12145641658484:{...}|g
-
-    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},
-    //"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
-
-    //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
     //3D|myData1:R::3.14:P:1:2:-1:S:cube:W:5:H:4:D:3:C:red|g
 
     let firstPipeIdx = msg.indexOf("|");
