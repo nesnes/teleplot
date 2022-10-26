@@ -16,16 +16,8 @@ class DataSerie{
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.onSerieChanged = undefined;
-
-        // this is used only by series containing shapes, it contains a list of a couples of Numbers.
-        // for each couple, the first element contains the world idx and the second contains the shape idx inside _3Dshapes of the related world
-        this.placesWhereTheShapeSerieIsUsed = [];
     }
 
-    addNewShapePlace(worldIdx, shapeIdx)
-    {
-        this.placesWhereTheShapeSerieIsUsed.push()
-    }
     get values()
     {
         if (this._values == undefined)
