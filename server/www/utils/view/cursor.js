@@ -29,7 +29,7 @@ logCursor = {
     {
         logCursor.cursor.sync.values[0] = -100000000;
         logCursor.cursor.sync.values[1] = -100000000;
-        window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, null); // we pass nul so resetCursorDisplayedVarValues() will be called
+        window.cursorSync.pub("mousemove", logCursor, 0, 0, 0, 0, null); // we pass null so resetCursorDisplayedVarValues() will be called
     }
 };
 

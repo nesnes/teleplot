@@ -118,14 +118,23 @@ The `np` (for no-plot) flag can be used to prevent this behavior:
 
 ### Publishing 3D telemetries
 
-To send 3D shapes to teleplot, use this syntax : `3D|A:B|E`, where
-**A** is the timestamp and is **optional**
-**B** is a text representing the shape
-**E** is containing flags
+To send 3D shapes to teleplot, use this syntax : `3D|A:B:C|E`, where
+**A** is the name of the shape telemetry
+**B** is the timestamp of the telemetry and is **optional**
+**C** is a text representing the shape
+**E** is containing flags and is **optional**
 
-#### Writing **B** (the text representing the shape)
+### Writing **A** (the name of the shape telemetry)
 
-**B** is built as a concatenation of the shape properties followed by their values, the whole with colons in between.
+if **A** contains a comma, the text after the comma will be considered as a 'widget label', if multiple telemtries are sent with the same
+widget label, they will automatically be displayed on the same widget.
+The text before the comma will be considered as the name of the shape telemetry.
+
+If **A** doesn't contain a comma, its whole text will be considered as the name of the shape telemetry.
+
+#### Writing **C** (the text representing the shape)
+
+**C** is built as a concatenation of the shape properties followed by their values, the whole with colons in between.
 
 LIST OF PROPERTIES : 
 
@@ -148,7 +157,7 @@ LIST OF PROPERTIES :
 
 - "precision" or "PR" => the number of rectangles used to draw a sphere (the bigger the more precise, by default = 15)
 
-- "radius" or "RA"=> the radius of the shpere
+- "radius" or "RA"=> the radius of the sphere
 
 === Cube only ===
 
@@ -168,7 +177,7 @@ missing properties will be replaced by default ones.
 Also, the shape, color and precision properties can not be changed later on.
 
 #### Some examples
-Creating a simple shere and cube : 
+Creating a simple sphere and cube : 
 
     cube without timestamp :
     - `3D|mySimpleCube:S:cube:P:1:1:1:R:0:0:0:W:2:H:2:D:2:C:#2ecc71`
@@ -185,6 +194,16 @@ Creating a cube that grows and rotates :
     - `3D|my_super_cube:W:1.2:R::0.2:`
     - `3D|my_super_cube:W:1.4:R::0.4:`
     - `3D|my_super_cube:W:1.6:R::0.6:`
+
+Creating a simple sphere and cube and display them on the same widget by default :
+
+    cube with widget label 'widget0' :
+    - `3D|myCube,widget0:S:cube`
+
+    sphere with same widget label : 
+    - `3D|mySphere,widget0:S:sphere`
+
+
 
 # Publish telemetries
 

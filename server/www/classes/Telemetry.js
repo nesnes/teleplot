@@ -12,7 +12,9 @@ class Telemetry{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         
-        if(this.type == "xy"){
+        if(this.type == "xy")
+        {
+            // in this case, this.data and this.pending data contain 3 arrays, the two first for x and y values and the last one for the timestamp
             this.data.push([]);
             this.pendingData.push([]);
         }

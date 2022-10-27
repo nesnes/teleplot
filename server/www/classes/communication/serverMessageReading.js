@@ -153,6 +153,19 @@ function parseVariablesData(msg, now)
     }
 }
 
+function separateWidgetAndLabel(keyAndWidgetLabel)
+{
+    //keyAndWidgetLabel ex : "mysquare0,the_chart541"
+    //keyAndWidgetLabel ex2 : "mysquare0"
+
+    let marray = keyAndWidgetLabel.split(',');
+    let key = marray[0];
+
+    let label = marray.length > 1 ? marray[1] : undefined;
+    
+    return [key, label]
+}
+
 function parse3D(msg, now)
 {
     //3D|myData1:R::3.14:P:1:2:-1:S:cube:W:5:H:4:D:3:C:red|g
@@ -161,8 +174,9 @@ function parse3D(msg, now)
     let startIdx = msg.indexOf(':') +1;
     let endIdx = msg.lastIndexOf("|");
     if (endIdx <= firstPipeIdx) endIdx = msg.length;// in this case the last pipe is not given ( there are no flags )
-    let key = msg.substring(firstPipeIdx+1, startIdx-1);
+    let keyAndWidgetLabel = msg.substring(firstPipeIdx+1, startIdx-1);
 
+    let [key, widgetLabel] = separateWidgetAndLabel(keyAndWidgetLabel);  
 
     let timestamp;
     if (isLetter(msg[startIdx]))
@@ -186,11 +200,11 @@ function parse3D(msg, now)
     try { shape3D = new Shape3D().initializeFromRawShape(key, rawShape);} 
     catch(e) { throw new Error("Error invalid shape text given : "+rawShape)};
 
-    appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
+    appendData(key, [timestamp], [shape3D], [], "", flags, "3D", widgetLabel)
 }
 
 // adds
-function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
+function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widgetLabel=undefined) {
     let isXY = flags.includes("xy");
     if (isXY) telemType = "xy";
 
@@ -199,29 +213,52 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     if(app.telemetries[key] == undefined){
                 
         Vue.set(app.telemetries, key, new Telemetry(key, unit, telemType));
-        // Create widget
+        
         if(shouldPlot)
         {
-            let chart;
+            let mwidget;
+            let isNewWidget = true;
             switch(telemType)
             {
                 case "number": 
-                    chart = new ChartWidget(isXY);
+                    mwidget = new ChartWidget(isXY);
                     break;
                 case "xy":
-                    chart = new ChartWidget(isXY);
+                    mwidget = new ChartWidget(isXY);
                     break;
                 case "text":
-                    chart = new SingleValueWidget(true);
+                    mwidget = new SingleValueWidget(true);
                     break;
                 case "3D":
-                    chart = new Widget3D();
+
+                    let i = 0;
+                    if (widgetLabel != undefined) 
+                    {
+                        while (i<widgets.length && isNewWidget)
+                        {
+                            let currWidget = widgets[i];
+
+                            if(currWidget.label == widgetLabel && currWidget.type == "widget3D" )
+                            {
+                                mwidget = currWidget;
+                                isNewWidget = false;
+                            }
+                            i++;
+                        }
+                    }
+                    
+                    if (isNewWidget)
+                    {
+                        mwidget = new Widget3D();
+                        mwidget.label = widgetLabel;
+                    }
                     break;
             }
 
             let serie = getSerieInstanceFromTelemetry(key);
-            chart.addSerie(serie);
-            widgets.push(chart);
+            mwidget.addSerie(serie);
+            if (isNewWidget)
+                widgets.push(mwidget);
         }
     }
     if(telemBuffer[key] == undefined)

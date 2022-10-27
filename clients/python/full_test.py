@@ -100,7 +100,7 @@ def sendLog(mstr, now):
 	if (now != None):
 		timestamp = str(now)
 
-	msg = (">"+timestamp+": fdsqf dqsf qdsfdsqf dsqf ezqfr fqd sfedI am a log, linked to : "+mstr)
+	msg = (">"+timestamp+":I am a log, linked to : "+mstr+", useless text : blablablablablablablablablablablablablablablablablablabla")
 	sock.sendto(msg.encode(), teleplotAddr)
 
 def testThreeD():
@@ -110,12 +110,14 @@ def testThreeD():
 def testThreeD_sub():
 	i = 0
 	sphereRadius = 3
-	cubeDepth = 7
+	cube1Depth = 7
+	cube2Rot = 0
 
 	while True:
 
-		msg1 = '3D|myData2:S:cube:O:0.2:C:blue:W:5:H:4:D:'+str(cubeDepth)
-		msg2 = '3D|myData1:RA:'+str(sphereRadius)+':S:sphere:O:0.4'
+		msg1 = '3D|mycube1:S:cube:O:0.2:C:blue:W:5:H:4:D:'+str(cube1Depth)
+		msg2 = '3D|mysphere,widget0:RA:'+str(sphereRadius)+':S:sphere:O:0.4'
+		msg3 = '3D|mycube2,widget0:S:cube:R:'+ str(cube2Rot) +':::C:green:O:0.5'
 	
 		randomNb = random.randint(0, 100)
 
@@ -124,12 +126,17 @@ def testThreeD_sub():
 		elif (randomNb >= 11 and randomNb <= 21):
 			sphereRadius  = max(sphereRadius-1, 1)
 		elif (randomNb >= 22 and randomNb <= 32):
-			cubeDepth  += 1
+			cube1Depth  += 1
 		elif (randomNb >= 33 and randomNb <= 43):
-			cubeDepth = max(cubeDepth-1, 1)
+			cube1Depth = max(cube1Depth-1, 1)
+		elif (randomNb >= 44 and randomNb <= 54):
+			cube2Rot -= 0.1
+		elif (randomNb >= 65 and randomNb <= 85):
+			cube2Rot += 0.1
 
 		sock.sendto(msg1.encode(), teleplotAddr)
 		sock.sendto(msg2.encode(), teleplotAddr)
+		sock.sendto(msg3.encode(), teleplotAddr)
 
 		time.sleep(0.1)
 

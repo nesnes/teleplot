@@ -16,6 +16,9 @@ class DataWidget{
         {
             throw new Error("DataWidget is an abstract class, it should only be inherited and never instanciated !");
         }
+        
+        // usefull to identify a chart ( we can send multiples shapes to be displayed in the same chart by precising their chart label )
+        this.label = undefined;
 
         this.options = {
             width: undefined,
