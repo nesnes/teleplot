@@ -72,7 +72,7 @@ function updateView() {
     // Logs
     var logSum = logBuffer.length;
     if(!app.isViewPaused &&  logBuffer.length>0) {
-        app.logs.push(...logBuffer);//prepend log to list
+        app.logs.push(...logBuffer);//append log to list
         logBuffer.length = 0;
 
     }

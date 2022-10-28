@@ -79,31 +79,6 @@ function findClosestLowerByIdx(values, mouseX) {
     return 0;
 }
 
-// function updateDisplayedVarValues(valueX, valueY){
-
-//     //for each telem, find closest value (before valueX and valueY)
-//     let telemList = Object.keys(app.telemetries);
-//     for(let telemName of telemList) {
-//         let telem = app.telemetries[telemName];
-//         let timeIdx = 0;
-//         if(telem.xy) { timeIdx = 2; }
-//         let idx = findClosestLowerByIdx(telem.data[timeIdx], valueX);
-//         if(idx >= telem.data[timeIdx].length) continue;
-//         //Refine index, closer to timestamp
-//         if(idx+1 < telem.data[timeIdx].length
-//             && (valueX-telem.data[timeIdx][idx]) > (telem.data[timeIdx][idx+1]-valueX)){
-//             idx +=1;
-//         }
-//         if(idx < telem.data[timeIdx].length) {
-//             if(telem.xy) {
-//                 app.telemetries[telemName].value = ""+telem.data[0][idx].toFixed(4)+" "+telem.data[1][idx].toFixed(4)+"";
-//             }
-//             else {
-//                 app.telemetries[telemName].value = telem.data[1][idx];
-//             }
-//         }
-//     }
-// }
 
 function findClosestTimestampToCursor(mlist, timeStampMouseX, islog=false) {
 

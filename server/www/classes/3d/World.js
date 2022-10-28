@@ -1,9 +1,3 @@
-
-// function animateWorld()
-// {
-// 	requestAnimationFrame(animateWorld);
-// 	world.render();
-// }
 var worldCount = 0
 class World {
 	constructor(div3D){
@@ -40,8 +34,6 @@ class World {
 	initializeGrid(scene)
 	{
 
-		// let grid = new THREE.InfiniteGridHelper(10, 100);
-
 		const size = 500;
 		const divisions = size;
 		const zAxisColor = new Color(BlueZAxis);
@@ -54,11 +46,6 @@ class World {
 
 	initializeLight(scene)
 	{
-		// without DirectionalLight the scene doesn't look 3D, but this should be fixed using appropriate textures.
-		
-		/*let light = new DirectionalLight('white', 8);
-		light.position.set(10, 10, 10);*/
-
 		let ambientLight = new AmbientLight('white', 1);
 		let hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 3 );
 

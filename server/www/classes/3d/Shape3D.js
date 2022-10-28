@@ -141,87 +141,10 @@ class Shape3D
 			}
 		}
 
-		// console.log("rawShape : " + rawShape);
-		// console.log("read shape : " + JSON.stringify(this));
 
 		return this;
 	}
-/*
-	initializeFromJson(name, jsonObj)
-	{
 
-		let addIfDefined = (shape3D, jsonObj, shape3D_property, jsonObj_properties) => 
-		{
-			let getObjValue = (obj, currentProperty) => {
-
-				let properties = currentProperty.split(".");
-
-				if (properties.length == 1)
-					return obj[currentProperty];
-
-				else if (properties.length == 2)
-				{
-					if (obj[properties[0]] == undefined)
-						return undefined;
-
-					return obj[properties[0]][properties[1]];
-				}
-			}
-
-			let found = false;
-			let i = 0;
-
-			while (i < jsonObj_properties.length && !found)
-			{
-				let actualValue = getObjValue(jsonObj, jsonObj_properties[i])
-
-				if (actualValue != undefined)
-				{
-					let targetProperties = (shape3D_property.split("."))
-
-					if (targetProperties.length == 2)
-					{
-						if (shape3D[targetProperties[0]] == undefined)
-							shape3D[targetProperties[0]] = {};
-						shape3D[targetProperties[0]][targetProperties[1]] = actualValue;
-					}
-					else
-						shape3D[shape3D_property] = actualValue;
-
-					found = true;
-				}
-
-				i++;
-			}
-			
-		}
-
-		
-		if (name!= undefined)
-			this.name = name;
-		else
-			throw new Error("no name specified for shape");
-
-
-		addIfDefined(this, jsonObj, "type", ["shape", "S"]);
-		addIfDefined(this, jsonObj, "color", ["color", "C"]);
-		addIfDefined(this, jsonObj, "radius", ["radius", "RA"]);
-		addIfDefined(this, jsonObj, "width", ["width", "W"]);
-		addIfDefined(this, jsonObj, "height", ["height", "H"]);
-		addIfDefined(this, jsonObj, "depth", ["depth", "D"]);
-		addIfDefined(this, jsonObj, "precision", ["precision", "PR"]);
-
-		addIfDefined(this, jsonObj, "rotation.x", ["rotation.x", "R.x"]);
-		addIfDefined(this, jsonObj, "rotation.y", ["rotation.y", "R.y"]);
-		addIfDefined(this, jsonObj, "rotation.z", ["rotation.z", "R.z"]);
-
-		addIfDefined(this, jsonObj, "position.x", ["position.x", "P.x"]);
-		addIfDefined(this, jsonObj, "position.y", ["position.y", "P.y"]);
-		addIfDefined(this, jsonObj, "position.z", ["position.z", "P.z"]);
-
-		return this;
-	}
-*/
 	initializeFromShape3D(shape3D)
 	{
 		this.name = shape3D.name;
@@ -365,9 +288,6 @@ function buildThreeObject(shape3D)
 		return
 
 	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color, depthWrite: false});
-	// let texture = new THREE.TextureLoader().load("./images/metal-texture.png");
-	// shape3D.default_material = new THREE.MeshBasicMaterial( {map: texture} );
-
 
 	shape3D.three_object = shape3D.buildMesh();
 	

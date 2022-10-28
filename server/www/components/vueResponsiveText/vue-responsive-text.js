@@ -44,17 +44,6 @@ Vue.component('vue-responsive-text', {
       };
     },
   },
-  /*mounted() {
-    if (this.isTelem)
-    {
-      const theTelem = document.getElementById('current-responsive-text-wrapper');
-      theTelem.style.backgroundColor = this.fillColor;
-      theTelem.style.borderColor = this.strokeColor;
-      theTelem.style.borderWidth = "1.5px";
-      theTelem.style.borderStyle = "solid";
-      theTelem.style.padding = "1px"
-    }
-    },*/
   methods: {
     updateScale(currentWidth, maxWidth, currentHeight, maxHeight) {
       this.scale = Math.min(maxWidth / currentWidth, maxHeight/ currentHeight);

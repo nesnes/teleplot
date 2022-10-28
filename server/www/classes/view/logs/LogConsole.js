@@ -49,13 +49,6 @@ class LogConsole
             height : this.containerHeight,
             itemHeight: this.itemHeight,
             total: (this.endIdx - this.startIdx),
-          
-            //   afterRender() {
-            //     var height = parseFloat(scroller.style.height);
-            //     range.value = (container.scrollTop / height) * 100
-            //   },
-          
-            
             
             generate(rowIdx) {
                 let el = document.createElement('div')

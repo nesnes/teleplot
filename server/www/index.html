@@ -4,7 +4,7 @@
 		<meta charset="utf-8">
 		<title>Telemetry</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<link rel="stylesheet" href="lib/uPlot/uPlot_v3.min.css">
+		<link rel="stylesheet" href="lib/uPlot/uPlot.min.css">
         <link rel="stylesheet" href="components/vueResponsiveText/vue-responsive-text.css">
         <link rel="stylesheet" href="components/singleValue/single-value.css">
         <link rel="stylesheet" href="components/3dComponent/3dComponent.css">
@@ -263,13 +263,7 @@
                     </div>
 
                     <!-- LOG TODO update to multi input-->
-                    <div id="log-container-div" class="log-container" v-show="logAvailable">
-                        <!-- <span v-for="(log, index) in logs" v-bind:key="index" class="log-vue" @click="onLogClick(log, index)"
-                            v-bind:class="{ 'log-vue-selected': log.selected }">
-                            {{logs[logs.length-1-index].text}}
-                        </span> -->
-
-                    </div>
+                    <div id="log-container-div" class="log-container" v-show="logAvailable"></div>
                     <div v-for="conn in connections" class="flex-col">
                         <div v-for="input in conn.inputs" class="flex-col">
                             <div v-if="input.type=='serial' && input.port" class="send-text-container">
@@ -290,7 +284,7 @@
 
     </body>
     <script src="utils/javascriptUtils.js"></script>
-    <script src="lib/uPlot/uplot.iife_v3.js"></script>
+    <script src="lib/uPlot/uplot.iife.js"></script>
     <script src="lib/three/three.js"></script>
     <script src="lib/three/three.module.js"></script>
     <script src="lib/three/OrbitControls.js"></script>

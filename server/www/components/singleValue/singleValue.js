@@ -29,8 +29,6 @@ computed: {
             return "Click to change precision";
     }
 
-    /*fillColor() { return this.widget.series[0].options.fill; },
-    strokeColor() { return this.widget.series[0].options.stroke; }*/
 },
 methods: {
     onContainerResized()
@@ -57,17 +55,7 @@ mounted() {
 
 },
 updated() {
-    /*if (!resizingFont)
-    {
-        resizingFont = true;
-
-        setTimeout(()=>
-        {
-            this.onContainerResized();
-            resizingFont = false;
-        }, 100);
-    }*/
-
+   
     // doing that at every updated() call might be a bit expensive, 
     // but singleValueComponents are way less expensive than plots anyway
     this.onContainerResized();

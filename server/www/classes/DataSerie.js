@@ -52,40 +52,6 @@ class DataSerie{
         return strToTrim;
     }
 
-    // getDetails3D()
-    // {
-    //     if (this.type != "3D")
-    //         throw new Error("getDetails3D should only be called for 3D widgets so on 3D series");
-    //     if (this.values == undefined || this.values.length == 0 || this.values[0] == undefined)
-    //         return "";
-
-
-    //     function trimIfPossible (strToTrim) 
-    //     { 
-    //         let nb = Number(strToTrim); 
-    //         if (!nb.isNaN)
-    //         {
-    //             if (nb == 0)
-    //                 return "0"
-                    
-    //             return nb.toPrecision(2).toString();
-
-    //         }
-
-    //         return strToTrim;
-    //     }
-
-    //     let posX = trimIfPossible(this.values[0].position.x);
-    //     let posY = trimIfPossible(this.values[0].position.y);
-    //     let posZ = trimIfPossible(this.values[0].position.z);
-        
-    //     let rotX = trimIfPossible(this.values[0].rotation.x);
-    //     let rotY = trimIfPossible(this.values[0].rotation.y);
-    //     let rotZ = trimIfPossible(this.values[0].rotation.z);
-
-    //     let res = "x:"+ posX+" y:"+ posY+" z:"+ posZ+" | rx:"+rotX+" ry:"+rotY+" rz:"+rotZ;
-    //     return res;
-    // }
     getFormattedValue()
     {
         if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[0] == undefined)

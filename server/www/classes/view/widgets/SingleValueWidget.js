@@ -1,5 +1,3 @@
-/* lot of text is commented out here, this is code that might be useful, if we support the average, min and max features for singleValueWidget*/
-
 class SingleValueWidget extends DataWidget{
     constructor(containsTextFormat=false) {
         super();
@@ -12,13 +10,6 @@ class SingleValueWidget extends DataWidget{
         if (containsTextFormat)
             this.type = "single_value_text"
         
-        //this.widgetMode = widgetMode_ ; // type : String, what our widget singlevalue is going to be ( either "average", "max", "min" or "last")
-        
-        //this.currentLastIndex = -1;// type : Number, the value of the last index at which singleValue was calculated
-        //this.valueSum = 0;
-        //this.forceUpdate = true;
-
-        //updateWidgetSize_(this);
     }
 
     addSerie(serie)
@@ -97,77 +88,4 @@ class SingleValueWidget extends DataWidget{
         this.precision_mode = (this.precision_mode + 1) % 3;
     }
 
-    /*
-    
-    getSerieMaxIdxAccordingToCursor(serie)
-    {
-        // if (cursorXValueOnWidget != undefined)
-        // {
-        //     return getClosestSerieIdx(serie, cursorXValueOnWidget);
-        // }
-        
-        return serie.data[0].length -1;
-    }
-
-    updateWidgetValue()
-    {
-        let valuesMaxIdx = this.getSerieMaxIdxAccordingToCursor(this.series[0]);
-
-        switch (this.options.widgetMode)
-        {
-            case 'average' :
-                
-                this.valueSum += getArraySum(this.series[0].data[1], this.currentLastIndex+1, valuesMaxIdx);
-
-                this.options.singlevalue = this.valueSum / (valuesMaxIdx+1);
-                this.currentLastIndex = valuesMaxIdx;
-                break;
-                
-            case 'max':
-                let maxOnNewElements = getMaxOnArray(this.series[0].data[1],this.currentLastIndex+1, valuesMaxIdx, false);
-                
-                if (this.options.singlevalue == undefined || maxOnNewElements>this.options.singlevalue)
-                    this.options.singlevalue = maxOnNewElements;
-
-                this.currentLastIndex = valuesMaxIdx;
-                break;
-            case 'min' :
-        
-                let minOnNewElements = getMinOnArray(this.series[0].data[1],this.currentLastIndex+1, valuesMaxIdx, false);
-                
-                if (this.options.singlevalue == undefined || minOnNewElements<this.options.singlevalue)
-                    this.options.singlevalue = minOnNewElements;
-
-                this.currentLastIndex = valuesMaxIdx;
-                break;
-                
-            case 'last' :
-                
-                this.options.singlevalue = this.series[0].data[1][valuesMaxIdx];
-                break;
-                
-        }
-    }*/
 }
-
-/*
-function updateWidgetContentSize()
-{
-    let child = document.getElementById("single_value_el_id");
-    let parent = document.getElementById("cointaider_single_val_el");
-    
-    let new_fontSize = 36;
-
-    let maxHeight = parent.offsetHeight;
-    let maxWidth = parent.offsetWidth;
-    let textHeight;
-    let textWidth;
-    do {
-        child.style.fontSize = new_fontSize + "px";
-        textHeight = child.offsetHeight;
-        textWidth = child.offsetWidth;
-        new_fontSize -= 1;
-    } while ((textHeight > maxHeight || textWidth > maxWidth) && new_fontSize > 3);
-
-}
-*/

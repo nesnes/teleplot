@@ -4,7 +4,6 @@ var telemetries = {}; // contains a list of Telemetry objects (all the telemetri
 var commands = {};
 var logs = []; // contains a list of Log objects (all the logs received)
 
-// we preset the size of our arrays with big sizes to minimize the risk of slow memory reallocation ( if array need to grow to often).
 var logBuffer = []; // temporary buffer for logs
 var telemBuffer = []; // temporary buffer for telemetries
 

@@ -105,10 +105,11 @@ def sendLog(mstr, now):
 
 def testThreeD():
 	th1 = threading.Thread(target=testThreeD_sub)
+	th2 = threading.Thread(target=testThreeDHighRate_sub)
 	th1.start()
+	th2.start()
 
 def testThreeD_sub():
-	i = 0
 	sphereRadius = 3
 	cube1Depth = 7
 	cube2Rot = 0
@@ -139,6 +140,16 @@ def testThreeD_sub():
 		sock.sendto(msg3.encode(), teleplotAddr)
 
 		time.sleep(0.1)
+
+def testThreeDHighRate_sub():
+
+	i = 0
+	while True:
+		msg4 = '3D|mysphere3:RA:1:S:sphere:O:0.4:P:'+str(math.sin(i)*2)+':'+str(math.cos(i)*2)+':1'
+		sock.sendto(msg4.encode(), teleplotAddr)
+
+		i+=0.1
+		time.sleep(0.1) #1kHz
 
 
 sendMultipleTelemTest()
