@@ -145,7 +145,7 @@ LIST OF PROPERTIES :
 - "position" or "P" => the position of the center of the sphere in a cartesian coordinate system 
     1st argument : x, 2nd argument : y, 3rd argument : z
     
-- "rotation" or "R" => the rotation of the shape using Euler angles ( please avoid this method and use a quaternion instead )
+- "rotation" or "R" => the rotation ( in radian ) of the shape using Euler angles ( please avoid this method and use a quaternion instead )
     1st argument : the rotation around the x axis, 2nd argument : the rotation around the y axis, 3rd argument : the rotation around the z axis
     
 - "quaternion" or "Q" => the rotation of the shape using a quaternion
@@ -163,9 +163,9 @@ LIST OF PROPERTIES :
 
 === Cube only ===
 
-- "height" or "H" => the height of the cube
-- "width" or "W" => the width of the cube
-- "depth" or "D" => the depth of the cube
+- "height" or "H" => the height of the cube ( Y axis )
+- "width" or "W" => the width of the cube ( X axis )
+- "depth" or "D" => the depth of the cube ( Z axis )
 
 
 
@@ -192,7 +192,7 @@ Creating a cube that grows and rotates :
     In the first request we send, we need to specify the shape:
     - `3D|my_super_cube:S:cube:W:1:D:1:H:1:C:blue`
 
-    Then we specified only properties that change :
+    Then we can specify only properties that change :
     - `3D|my_super_cube:W:1.2:R::0.2:`
     - `3D|my_super_cube:W:1.4:R::0.4:`
     - `3D|my_super_cube:W:1.6:R::0.6:`
@@ -206,6 +206,9 @@ Creating a simple sphere and cube and display them on the same widget by default
     - `3D|mySphere,widget0:S:sphere`
 
 
+/!\ Despite the examples above, it might be a better idea to send every property everytime, as if teleplot refreshes or if it wasn't lauched 
+before you sent certain properties, it will not have any way to be aware of the properties you sent previously. 
+Therefore, it will have to use default values, or may not display anything at all, if it is not informed of the shape type for instance.
 
 # Publish telemetries
 
