@@ -193,9 +193,15 @@
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
                                         </div>
                                         <div v-if="serie.type == '3D'" class="serie-3d-details-container">
-                                            
-                                            <span class ="serie-3d-details">{{serie.getDetails3D()}}</span>
-
+                                            <div v-if="serie.values != undefined && serie.values.length != 0 && serie.values[0] != undefined" class = "serie-3d-details">
+                                                <span class="details-3d-x">x:{{serie.formatDetails3D(serie.values[0].position.x)}}</span>
+                                                <span class="details-3d-y">y:{{serie.formatDetails3D(serie.values[0].position.y)}}</span>
+                                                <span class="details-3d-z">z:{{serie.formatDetails3D(serie.values[0].position.z)}}</span>
+                                                <span> | </span>
+                                                <span>rx:{{serie.formatDetails3D(serie.values[0].rotation.x)}}</span>
+                                                <span>ry:{{serie.formatDetails3D(serie.values[0].rotation.y)}}</span>
+                                                <span>rz:{{serie.formatDetails3D(serie.values[0].rotation.z)}}</span>
+                                            </div>
                                         </div>
                                         <div v-if="serie.stats" class="serie-stat-container">
                                             <div class="serie-stat">
@@ -284,12 +290,10 @@
 
     </body>
     <script src="utils/javascriptUtils.js"></script>
-    <!-- <script src="lib/uPlot/uPlot.iife_v2.min.js"></script> this version of uPlot introduces a bug when cursor hovers a log but v1 doest work with xy... --> 
     <script src="lib/uPlot/uplot.iife_v3.js"></script>
-    <script src="lib/three/three.min.js"></script>
+    <script src="lib/three/three.js"></script>
     <script src="lib/three/three.module.js"></script>
     <script src="lib/three/OrbitControls.js"></script>
-    <!-- <script src="lib/three/InfiniteGrid.js"></script> -->
     <script src="lib/hyperlist/hyperlist.js"></script>
     <script src="./classes/view/logs/Log.js"></script>
     <script src="components/uPlot/uplot-component.js"></script>

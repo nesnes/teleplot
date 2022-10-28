@@ -442,9 +442,22 @@ body {
 	flex-wrap: wrap;
 }
 
+.details-3d-x {
+	/* this text color should match RedXAxis in constants.js */
+	color: #e74c3c; 
+}
+
+.details-3d-y {
+	color: #3ba30b;
+}
+
+.details-3d-z {
+	/* this text color should match RedZAxis in constants.js */
+	color: #2980b9;
+}
+
 .serie-stat, .serie-3d-details {
-	display: flex;
-	flex-direction: column;
+	display: inline-block;
 	margin: 1px 1px 1px 2px;
     line-height: 0.7em;
 	z-index: 100;

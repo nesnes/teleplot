@@ -28,6 +28,11 @@ class LogConsole
         return logConsoleInstance
     }
 
+    static reboot()
+    {
+        LogConsole.getInstance().logsUpdated(0,0);
+    }   
+    
     getHyperListConfig()
     {
         let mstartIdx = this.startIdx;
@@ -56,6 +61,8 @@ class LogConsole
                 let el = document.createElement('div')
                 let currIdx = rowIdx + mstartIdx;
                 let currLog = app.logs[currIdx];
+
+                if (currLog == undefined) return;
 
                 el.innerHTML = currLog.text;
 

@@ -62,6 +62,7 @@ function initializeAppView()
                 Vue.set(app, 'widgets', widgets);
                 logs.length = 0;
                 Vue.set(app, 'logs', logs);
+                LogConsole.reboot();
                 logBuffer.length = 0;
                 telemetries = {};
                 Vue.set(app, 'telemetries', telemetries);

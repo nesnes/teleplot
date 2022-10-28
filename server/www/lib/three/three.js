@@ -34378,9 +34378,11 @@
 	}
 
 	class GridHelper extends LineSegments {
-		constructor(size = 10, divisions = 10, color1 = 0x444444, color2 = 0x888888) {
+		constructor(size = 10, divisions = 10, color1 = 0x444444, color2 = 0x888888, color3 = 0x888888) {
 			color1 = new Color(color1);
 			color2 = new Color(color2);
+			color3 = new Color(color3);
+
 			const center = divisions / 2;
 			const step = size / divisions;
 			const halfSize = size / 2;
@@ -34391,14 +34393,18 @@
 				vertices.push(-halfSize, 0, k, halfSize, 0, k);
 				vertices.push(k, 0, -halfSize, k, 0, halfSize);
 				const color = i === center ? color1 : color2;
-				color.toArray(colors, j);
-				j += 3;
-				color.toArray(colors, j);
-				j += 3;
-				color.toArray(colors, j);
-				j += 3;
-				color.toArray(colors, j);
-				j += 3;
+				if (i === center) {
+					color1.toArray( colors, j ); j += 3;
+					color1.toArray( colors, j ); j += 3;
+					color3.toArray( colors, j ); j += 3;
+					color3.toArray( colors, j ); j += 3;
+				} else {
+
+					color.toArray( colors, j ); j += 3;
+					color.toArray( colors, j ); j += 3;
+					color.toArray( colors, j ); j += 3;
+					color.toArray( colors, j ); j += 3;
+				}
 			}
 
 			const geometry = new BufferGeometry();

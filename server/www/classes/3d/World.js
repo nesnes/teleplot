@@ -44,10 +44,11 @@ class World {
 
 		const size = 500;
 		const divisions = size;
-		const colorCenterLine = new Color('#999999');
-		const colorGrid = new Color('#cccccc');
+		const zAxisColor = new Color(BlueZAxis);
+		const gridColor = new Color(GridHeplerColor);
+		const xAxisColor = new Color(RedXAxis);
 
-		const gridHelper = new THREE.GridHelper( size, divisions, colorCenterLine, colorGrid );
+		const gridHelper = new THREE.GridHelper( size, divisions, xAxisColor, gridColor, zAxisColor);
 		scene.add( gridHelper );
 	}
 
