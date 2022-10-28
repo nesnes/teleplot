@@ -8,6 +8,7 @@ class ChartWidget extends DataWidget{
         this.type = "chart";
         this.isXY = _isXY;
         this.data = []; // this is what contains the data ready for uplot
+        this.data_available_xy = false; // this tells wheter this.data is ready for uplot for xy chart or not
         this.options = {
             title: "",
             width: undefined,
@@ -73,6 +74,11 @@ class ChartWidget extends DataWidget{
                     }
                 }
             }
+
+            let elIsAlone = (el) => {return (el != null && el.length == 1) };
+
+            this.data_available_xy = (this.data.length>=2 && this.data[1] != null && this.data[1] != undefined 
+                && !(this.data[1].some(elIsAlone)));
         }
         else if(this.data[0].length==0 || this.forceUpdate) {
             //Create data with common x axis

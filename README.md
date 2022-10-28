@@ -78,6 +78,8 @@ A timestamp can be associated with the xy point by adding an extra `:16275518924
 
 - `trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy`
 
+The YX line chart will only be displayed when at least two values have been received.
+
 ### Publishing text format telemetries
 - Using the `t` flag and giving a text telemetry (with or without timestamp), teleplot will display a text chart.
 

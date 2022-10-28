@@ -238,7 +238,7 @@
 
                             <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
                             
-                            <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
+                            <uplot-vue v-if="widget.type == 'chart' && !widget.isResized && (!widget.isXY || widget.data_available_xy)" v-bind:data="widget.data" v-bind:options="widget.options"/>
 
                             
                         </div>
