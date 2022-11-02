@@ -106,8 +106,10 @@ def sendLog(mstr, now):
 def testThreeD():
 	th1 = threading.Thread(target=testThreeD_sub)
 	th2 = threading.Thread(target=testThreeDHighRate_sub)
+	th3 = threading.Thread(target=testThreeDMAnyShapesSameWidget)
 	th1.start()
 	th2.start()
+	th3.start()
 
 def testThreeD_sub():
 	sphereRadius = 3
@@ -148,8 +150,88 @@ def testThreeDHighRate_sub():
 		msg4 = '3D|mysphere3:RA:1:S:sphere:O:0.4:P:'+str(math.sin(i)*2)+':'+str(math.cos(i)*2)+':1'
 		sock.sendto(msg4.encode(), teleplotAddr)
 
-		i+=0.1
-		time.sleep(0.1) #1kHz
+		i+=0.01
+		time.sleep(0.001) #1kHz
+
+
+
+
+
+
+
+def testThreeDMAnyShapesSameWidget():
+	class MyCube:
+		def __init__(self):
+			self.rx = random.randint(0, 7)
+			self.ry = random.randint(0, 7)
+			self.rz = random.randint(0, 7)
+			self.x = random.randint(0, 50)-25
+			self.y = random.randint(0, 50)-25
+			self.z = random.randint(0, 50)-25
+			self.height = 5
+			self.depth = 5
+			self.width = 5
+
+		def shuffle(self, chaosFactor):
+			maxNb = 120
+			randomNb = random.randint(0, maxNb)
+
+			the_change_rot = 0.01
+			the_change_mov = 0.01
+			move_proba = (maxNb/2) * chaosFactor
+
+			if (randomNb <= move_proba):
+				# if(random.randint(0, 1) == 0):
+					# self.rx+=the_change_rot
+				# if(random.randint(0, 1) == 1):
+					# self.rx-=the_change_rot
+				# if(random.randint(0, 1) == 0):
+					# self.ry+=the_change_rot
+				# if(random.randint(0, 1) == 1):
+					# self.ry-=the_change_rot
+				# if(random.randint(0, 1) == 0):
+				self.rz+=the_change_rot
+				# if(random.randint(0, 1) == 1):
+					# self.rz-=the_change_rot
+				# if(random.randint(0, 1) == 0):
+				# 	self.x+=the_change_mov
+				# if(random.randint(0, 1) == 1):
+				# 	self.x-=the_change_mov
+				# if(random.randint(0, 1) == 0):
+				# 	self.y+=the_change_mov
+				# if(random.randint(0, 1) == 1):
+				# 	self.y-=the_change_mov
+				# if(random.randint(0, 1) == 0):
+				# 	self.z+=the_change_mov
+				# if(random.randint(0, 1) == 1):
+				# 	self.z-=the_change_mov
+
+	numberOfCubes = 20
+
+	CubeChaosFactor = 10
+
+	mycolors = ["green", "red", "blue", "grey", "purple", "yellow", "orange", "brown", "black", "white"]
+	myCubes = []
+	myMessages = [""] * numberOfCubes
+
+	for i in range (numberOfCubes):
+		myCubes.append(MyCube())
+	
+
+	while True:
+
+		for i in range (numberOfCubes):
+			currCube = myCubes[i]
+
+			myMessages[i] = '3D|myCube_'+ str(i) +',myFavWidget:S:cube:O:0.5:C:' + str(mycolors[i%(len(mycolors))]) +':W:'+ str(currCube.width) +':H:'+ str(currCube.height) +':D:'+ str(currCube.depth) +':P:'+ str(currCube.x) +':'+ str(currCube.y) +':'+ str(currCube.z) +':R:'+ str(currCube.rx) +':'+ str(currCube.ry) +':'+ str(currCube.rz)
+	
+
+			# print(myMessages[i])
+			sock.sendto(myMessages[i].encode(), teleplotAddr)
+
+			currCube.shuffle(CubeChaosFactor)
+
+		time.sleep(0.01)
 
 
 sendMultipleTelemTest()

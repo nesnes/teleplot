@@ -1,7 +1,21 @@
+function drawAllWords()
+{
+    if (worlds.length > 0 ) // otherwise we want rendering to stop
+		requestAnimationFrame(drawAllWords);
+
+    for (let i = 0; i<worlds.length; i++)
+    {
+        worlds[i].render();
+    }
+}
+ 
+var worlds = [];
+
+
 var worldCount = 0
 class World {
 	constructor(div3D){
-		this.worldIdx = worldCount++;
+		this.id = worldCount++;
         this.containerDiv = div3D;
 		this.scene = this.initializeScene();
 		this.initializeLight(this.scene);
@@ -152,6 +166,6 @@ class World {
 	
 	render()
 	{
-		this.renderer.render( this.scene, this.camera);
+		this.renderer.render(this.scene, this.camera);
 	}
 }

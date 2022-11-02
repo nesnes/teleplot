@@ -328,16 +328,20 @@ body {
 }
 
 .serie-header-container {
-	flex: 1;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
+	height: 40px;
+	width: 100%;
+	z-index: 110;
+	overflow-y: hidden;
+	overflow-x: scroll;
+	white-space: nowrap;
+	text-align: center;
 }
 .serie-header {
-	display: flex;
-    flex-direction: column;
-	align-items: center;
+	display: inline-block;
+	margin-left: 7px;
+	margin-right: 7px;
 }
+
 
 .serie-color {
 	display: inline-block;
@@ -430,9 +434,7 @@ body {
 } 
 
 .serie-name-container {
-	display: flex;
-    flex-direction: row;
-    align-items: center;
+	text-align: center;
 }
 
 .serie-stat-container, .serie-3d-details-container {

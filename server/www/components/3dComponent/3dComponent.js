@@ -1,17 +1,3 @@
-function drawAllWords()
-{
-
-    requestAnimationFrame(drawAllWords);
-
-    for (let i = 0; i<worlds.length; i++)
-    {
-        worlds[i].render();
-        //console.log("drawingWorld : "+i)
-    }
-}
-
-var worlds = [];// todo Remove worlds when closed
-
 Vue.component('comp-3d', {
     name: 'comp-3d',
     props: {
@@ -37,8 +23,9 @@ Vue.component('comp-3d', {
 
             this.setUpSeriesObserver();
 
-            //console.log("init : worlds : "+worlds);
-            drawAllWords();
+            // if worlds.length == 1, then we are in the first 3dComponent, so we launch the drawAllWorlds function, but we just need to launch this function once for
+            // all worlds
+            if (worlds.length == 1) drawAllWords();
         },
         setUpSeriesObserver()
         {
