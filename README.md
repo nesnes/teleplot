@@ -210,6 +210,9 @@ Creating a simple sphere and cube and display them on the same widget by default
 before you sent certain properties, it will not have any way to be aware of the properties you sent previously. 
 Therefore, it will have to use default values, or may not display anything at all, if it is not informed of the shape type for instance.
 
+/!\ If you send shapes at a too high frequency, teleplot will quickly be overloaded, also teleplot can only draw 3D shapes at a maximum speed 
+of 50-60 frames per second, therefore it is not recommended to send more than 60 shapes per seconds.
+
 # Publish telemetries
 
 ## Bash
