@@ -159,7 +159,7 @@
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div v-if="telem.getValuesFormatted != undefined" class="var-vue-value">{{telem.getValuesFormatted()}}</div>
+                        <div class="var-vue-value">{{telem.getValuesFormatted()}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -182,7 +182,7 @@
                                 <div class="flex-row" v-bind:class="{ 'flex-col': isWidgetSmallOnGrid(widget) }">
                                    
                                 </div>
-                                <div class="serie-header-container">
+                                <div v-if="widget.type != 'single_value_text' && widget.type != 'single_value_number'" class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
                                         
                                         <div v-if="widget.type == 'chart' || widget.type == 'widget3D'" class="serie-name-container">
@@ -238,14 +238,12 @@
                                 </div>
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
-                            
-                            
+                                                        
                             <comp-3d v-if="widget.type == 'widget3D'" v-bind:widget="widget" v-bind:series="widget.series"></comp-3d>
 
                             <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
                             
                             <uplot-vue v-if="widget.type == 'chart' && !widget.isResized && (!widget.isXY || widget.data_available_xy)" v-bind:data="widget.data" v-bind:options="widget.options"/>
-
                             
                         </div>
                     </div>

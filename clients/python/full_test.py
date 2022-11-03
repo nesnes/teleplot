@@ -72,10 +72,22 @@ def basicTestSub():
 
 		sendTelemetry("sin_unit", math.sin(i), "my_weird@ unit $", now)
 		sendTelemetry("cos_no_time", math.cos(i), "", None)
-		sendTelemetry("cos_time", math.cos(i), "", now)
+
+		# for i in range(0, 1):
+		sendTelemetry("cos_time_var_0", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_1", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_2", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_3", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_4", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_5", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_6", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_7", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_8", math.cos(i), "", now)
+		# sendTelemetry("cos_time_var_9", math.cos(i), "", now)
+
 		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
 		sendTelemetry("cos", math.cos(i), "", now)
-		# sendLog("cos(i) : "+str(math.cos(i)), None)
+		sendLog("cos(i) : "+str(math.cos(i)), None)
 		sendLog("cos(i) : "+str(math.cos(i)), now)
 
 		sendTelemetryXY("XY_", math.sin(i),math.cos(i), math.sin(i+0.1), math.cos(i+0.1), "km²")
@@ -107,9 +119,11 @@ def testThreeD():
 	th1 = threading.Thread(target=testThreeD_sub)
 	th2 = threading.Thread(target=testThreeDHighRate_sub)
 	th3 = threading.Thread(target=testThreeDMAnyShapesSameWidget)
+	th4 = threading.Thread(target=testThreeDRotatingSpheres)
 	th1.start()
 	th2.start()
 	th3.start()
+	th4.start()
 
 def testThreeD_sub():
 	sphereRadius = 3
@@ -150,12 +164,65 @@ def testThreeDHighRate_sub():
 		msg4 = '3D|mysphere3:RA:1:S:sphere:O:0.4:P:'+str(math.sin(i)*2)+':'+str(math.cos(i)*2)+':1'
 		sock.sendto(msg4.encode(), teleplotAddr)
 
-		i+=0.01
-		time.sleep(0.001) #1kHz
+		i+=0.1
+		time.sleep(0.01) #1kHz
 
 
 
 
+def testThreeDRotatingSpheres():
+	class MySphere:
+		def __init__(self):
+			self.xoffset = random.randint(-25,25)
+			self.yoffset = random.randint(-25,25)
+			self.zoffset = random.randint(-25,25)
+			self.xdistance = random.randint(-50,50)
+			self.ydistance = random.randint(-50,50)
+			self.zdistance = random.randint(-50,50)
+			self.zIsCos = True
+			if (random.randint(0,1) == 0):
+				self.zIsCos = False
+
+			self.radius = random.randint(1,8)
+
+			self.loopcount = 0
+			self.totalspeed = random.randint(1,5)/100
+			self.move()
+
+		def move(self):
+			self.x = math.sin(self.loopcount) * self.xdistance + self.xoffset
+			self.y = math.cos(self.loopcount) * self.ydistance + self.yoffset
+			if (self.zIsCos) :
+				self.z = math.cos(self.loopcount) * self.zdistance + self.zoffset
+			else :
+				self.z = math.sin(self.loopcount) * self.zdistance + self.zoffset
+
+			self.loopcount += self.totalspeed
+
+
+	numberOfSpheres = 20
+
+	mycolors = ["green", "red", "blue", "grey", "purple", "yellow", "orange", "brown", "black", "white"]
+	mySpheres = []
+	myMessages = [""] * numberOfSpheres
+
+	for i in range (numberOfSpheres):
+		mySpheres.append(MySphere())
+	
+
+	while True:
+
+		for i in range (numberOfSpheres):
+			currSphere = mySpheres[i]
+
+			myMessages[i] = '3D|mySphere_'+ str(i) +',myFavWidget2:S:sphere:O:0.5:C:' + str(mycolors[i%(len(mycolors))]) +':RA:'+ str(currSphere.radius) +':P:'+ str(currSphere.x) +':'+ str(currSphere.y) +':'+ str(currSphere.z)
+
+			# print(myMessages[i])
+			sock.sendto(myMessages[i].encode(), teleplotAddr)
+
+			currSphere.move()
+
+		time.sleep(0.017)
 
 
 
@@ -234,7 +301,7 @@ def testThreeDMAnyShapesSameWidget():
 		time.sleep(0.01)
 
 
-sendMultipleTelemTest()
+# sendMultipleTelemTest()
 basicTest()
 testThreeD()
 

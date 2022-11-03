@@ -19,6 +19,36 @@ class Telemetry{
             this.pendingData.push([]);
         }
 
+        this.shapeType = ""; // if this.type == 3D, then this will be displayed next to the telemetry name on the left pannel
+
+        
+
+        if (this.type == "3D") 
+            this.setShapeTypeDelay();
+    }
+
+    setShapeTypeDelay()
+    {
+        setTimeout(()=>{
+            if (!this.setShapeType())
+                this.setShapeTypeDelay();
+        }, 50);
+    }
+
+    setShapeType()
+    {
+        let res0 = this.data[1][this.data[1].length-1];
+
+        if (res0 != undefined)
+        {
+            let res1 = res0.type;
+            if (res1 != undefined)
+            {
+                this.shapeType = res1;
+                return true;
+            }
+        }   
+        return false;
     }
 
     iniFromTelem(telem)
@@ -36,7 +66,11 @@ class Telemetry{
 
     getValuesFormatted() {
 
-        if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
+        if (this.type == "3D")
+        {
+           return this.shapeType;
+        }
+        else if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
         {
             let res = this.values[0].toFixed(4);
         
@@ -48,14 +82,6 @@ class Telemetry{
         else if (this.type == "text")
         {
             return this.values[0];
-        }
-        else if (this.type == "3D")
-        {
-            if (this.data[1][this.data[1].length-1] == undefined)
-                return "";
-                
-            let shapeType = this.data[1][this.data[1].length-1].type; 
-            return (shapeType == undefined ? "" : shapeType)
         }
 
         return "";

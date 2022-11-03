@@ -62,7 +62,7 @@ class ChartWidget extends DataWidget{
                     s.dataIdx = this.data.length;
                     this.data.push(s.data);
                 }
-                // this.id += "-" //dummy way to force update
+                this.id += "-" //DUMMY way to force update
                 // triggerChartResize();
                 this.forceUpdate = false;
             }
@@ -86,7 +86,7 @@ class ChartWidget extends DataWidget{
             for(let s of this.series) dataList.push(s.data);
             this.data.length = 0;
             this.data = uPlot.join(dataList)
-            // this.id += "-" //dummy way to force update
+            this.id += "-" //DUMMY way to force update
             // triggerChartResize();
             this.forceUpdate = false;
         }
