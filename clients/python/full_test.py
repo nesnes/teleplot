@@ -87,7 +87,7 @@ def basicTestSub():
 
 		sendTelemetry("cos_no_time_unit", math.cos(i), "kilos", None)
 		sendTelemetry("cos", math.cos(i), "", now)
-		sendLog("cos(i) : "+str(math.cos(i)), None)
+		# sendLog("cos(i) : "+str(math.cos(i)), None)
 		sendLog("cos(i) : "+str(math.cos(i)), now)
 
 		sendTelemetryXY("XY_", math.sin(i),math.cos(i), math.sin(i+0.1), math.cos(i+0.1), "km²")
@@ -258,6 +258,8 @@ def testThreeDMAnyShapesSameWidget():
 					# self.ry-=the_change_rot
 				# if(random.randint(0, 1) == 0):
 				self.rz+=the_change_rot
+				self.rx-=the_change_rot
+				self.ry+=2*the_change_rot
 				# if(random.randint(0, 1) == 1):
 					# self.rz-=the_change_rot
 				# if(random.randint(0, 1) == 0):
@@ -301,7 +303,7 @@ def testThreeDMAnyShapesSameWidget():
 		time.sleep(0.01)
 
 
-# sendMultipleTelemTest()
+sendMultipleTelemTest()
 basicTest()
 testThreeD()
 

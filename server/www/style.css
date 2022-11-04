@@ -331,8 +331,8 @@ body {
 	height: 40px;
 	width: 100%;
 	z-index: 110;
-	overflow-y: hidden;
-	overflow-x: scroll;
+	overflow-y: auto;
+	/* overflow-x: scroll; */
 	white-space: nowrap;
 	text-align: center;
 }
@@ -382,7 +382,7 @@ body {
 	margin-left: 4px;
 	margin-right: 4px;
 	cursor: pointer;
-	z-index: 10;
+	z-index: 200;
 
 	/* user can't highlight the element ( useful for when resizing ) */
 	user-select: none;
@@ -614,4 +614,9 @@ body {
 .flex-col {
 	display: flex;
 	flex-direction: column;	
+}
+
+.uplot-vue {
+	/* this is done to raise a bit the uplot vue */
+	margin-top: -8px;
 }

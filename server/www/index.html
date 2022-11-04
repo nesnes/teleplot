@@ -159,7 +159,7 @@
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value">{{telem.getValuesFormatted()}}</div>
+                        <div class="var-vue-value">{{telem.values_formatted}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -182,25 +182,35 @@
                                 <div class="flex-row" v-bind:class="{ 'flex-col': isWidgetSmallOnGrid(widget) }">
                                    
                                 </div>
-                                <div v-if="widget.type != 'single_value_text' && widget.type != 'single_value_number'" class="serie-header-container">
+                                <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
                                         
                                         <div v-if="widget.type == 'chart' || widget.type == 'widget3D'" class="serie-name-container">
                                             <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
-                                                <span class="serie-value">{{serie.getFormattedValue()}}</span>
+                                                <span class="serie-value">{{serie.values_formatted}}</span>
                                             </span>
-                                            <span class="serie-name" v-bind:style="{'color':serie.getNameColor()}">{{serie.name}}</span>
+                                            <span class="serie-name" v-bind:style="{'color':serie.name_color}">{{serie.name}}</span>
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
                                         </div>
                                         <div v-if="serie.type == '3D'" class="serie-3d-details-container">
                                             <div v-if="serie.values != undefined && serie.values.length != 0 && serie.values[0] != undefined" class = "serie-3d-details">
-                                                <span class="details-3d-x">x:{{serie.formatDetails3D(serie.values[0].position.x)}}</span>
-                                                <span class="details-3d-y">y:{{serie.formatDetails3D(serie.values[0].position.y)}}</span>
-                                                <span class="details-3d-z">z:{{serie.formatDetails3D(serie.values[0].position.z)}}</span>
+                                                <span class="details-3d-x">x:{{serie.details_3d_formatted.position.x}}</span>
+                                                <span class="details-3d-y">y:{{serie.details_3d_formatted.position.y}}</span>
+                                                <span class="details-3d-z">z:{{serie.details_3d_formatted.position.z}}</span>
                                                 <span> | </span>
-                                                <span>rx:{{serie.formatDetails3D(serie.values[0].rotation.x)}}</span>
-                                                <span>ry:{{serie.formatDetails3D(serie.values[0].rotation.y)}}</span>
-                                                <span>rz:{{serie.formatDetails3D(serie.values[0].rotation.z)}}</span>
+                                               
+                                                <span v-if="serie.values[0].quaternion == undefined">
+                                                    <span>rx:{{serie.details_3d_formatted.rotation.x}}</span>
+                                                    <span>ry:{{serie.details_3d_formatted.rotation.y}}</span>
+                                                    <span>rz:{{serie.details_3d_formatted.rotation.z}}</span>
+                                                </span>
+                                                <span v-else>
+                                                    <span>rx:{{serie.details_3d_formatted.quaternion.x}}</span>
+                                                    <span>ry:{{serie.details_3d_formatted.quaternion.y}}</span>
+                                                    <span>rz:{{serie.details_3d_formatted.quaternion.z}}</span>
+                                                    <span>rw:{{serie.details_3d_formatted.quaternion.w}}</span>
+                                                </span>
+                                                
                                             </div>
                                         </div>
                                         <div v-if="serie.stats" class="serie-stat-container">
@@ -243,8 +253,8 @@
 
                             <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
                             
-                            <uplot-vue v-if="widget.type == 'chart' && !widget.isResized && (!widget.isXY || widget.data_available_xy)" v-bind:data="widget.data" v-bind:options="widget.options"/>
-                            
+                            <uplot-vue class="uplot-vue" v-if="widget.type == 'chart' && !widget.isResized && (!widget.isXY || widget.data_available_xy)" v-bind:data="widget.data" v-bind:options="widget.options"/>
+                        
                         </div>
                     </div>
                 </div>

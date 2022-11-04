@@ -39,6 +39,11 @@ function updateView() {
             if (telemBuffer[key].values.length > 1)
                 app.telemetries[key].values.push(telemBuffer[key].values[1]);
 
+            // this has to be done every time telem.values get modified, it is usefull for the html to display
+            //the good text in the telemetry pannel 
+            app.telemetries[key].updateFormattedValues();
+
+
             // console.log(JSON.stringify(app.telemetries["my_cube_0"].values[0], null, 3));
             // console.log(JSON.stringify(app.telemetries[key].values, null, 3));
         }

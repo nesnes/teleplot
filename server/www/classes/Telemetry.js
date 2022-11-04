@@ -19,9 +19,10 @@ class Telemetry{
             this.pendingData.push([]);
         }
 
-        this.shapeType = ""; // if this.type == 3D, then this will be displayed next to the telemetry name on the left pannel
+        // this is what will be displayed on the left pannel next to the telem name, 
+        // it is either the current value of the telem (number), or its text or the type of the shape ...
+        this.values_formatted = ""; 
 
-        
 
         if (this.type == "3D") 
             this.setShapeTypeDelay();
@@ -44,7 +45,7 @@ class Telemetry{
             let res1 = res0.type;
             if (res1 != undefined)
             {
-                this.shapeType = res1;
+                this.values_formatted = res1;
                 return true;
             }
         }   
@@ -64,27 +65,27 @@ class Telemetry{
         return this;
     }
 
-    getValuesFormatted() {
+    updateFormattedValues() {
 
-        if (this.type == "3D")
-        {
-           return this.shapeType;
-        }
-        else if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
+        if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
         {
             let res = this.values[0].toFixed(4);
         
             if (this.type=="xy" && this.values.length == 2)
                 res += ("  " + this.values[1].toFixed(4));
     
-            return res;
+            this.values_formatted =  res;
         }
         else if (this.type == "text")
         {
-            return this.values[0];
+            this.values_formatted =  this.values[0];
         }
-
-        return "";
+        else if (this.type != "3D")
+        // if equals 3D, then values_formatted contains the name of the shape and has already been set at instanciation,
+        // otherwise, it means we haven't been able to get te good text to show so we just return ""
+        {   
+            this.values_formatted =  "";
+        }
        
     }
 }
