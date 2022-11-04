@@ -134,7 +134,7 @@ def testThreeD_sub():
 
 		msg1 = '3D|mycube1:S:cube:O:0.2:C:blue:W:5:H:4:D:'+str(cube1Depth)
 		msg2 = '3D|mysphere,widget0:RA:'+str(sphereRadius)+':S:sphere:O:0.4'
-		msg3 = '3D|mycube2,widget0:S:cube:R:'+ str(cube2Rot) +':::C:green:O:0.5'
+		msg3 = '3D|mycube2,widget0:S:cube:R:'+ str(cube2Rot) +':::C:green'
 	
 		randomNb = random.randint(0, 100)
 

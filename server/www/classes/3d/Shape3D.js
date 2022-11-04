@@ -287,7 +287,7 @@ function buildThreeObject(shape3D)
 	if (shape3D.three_object != null) // obj is already built
 		return
 
-	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color, depthWrite: false});
+	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color, depthWrite: (shape3D.opacity==1)});
 
 	shape3D.three_object = shape3D.buildMesh();
 	
