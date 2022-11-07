@@ -1,5 +1,3 @@
-//var resizingFont = false;// tells whether or not we have already planned a onContainerResized()
-
 Vue.component('single-value', {
 name: 'single-value',
 props: {

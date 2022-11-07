@@ -127,10 +127,6 @@ class World {
 		{
 			myMesh.scale.set(new_shape.radius, new_shape.radius, new_shape.radius);
 		}
-		/*else // here we rebuild the geometry
-		{
-			myMesh.geometry = new_shape.getGeometry();
-		}*/
 
 		myMesh.rotation.x = new_shape.rotation.x;
 		myMesh.rotation.y = new_shape.rotation.y;

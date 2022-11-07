@@ -43,9 +43,6 @@ function updateView() {
             //the good text in the telemetry pannel 
             app.telemetries[key].updateFormattedValues();
 
-
-            // console.log(JSON.stringify(app.telemetries["my_cube_0"].values[0], null, 3));
-            // console.log(JSON.stringify(app.telemetries[key].values, null, 3));
         }
     }
 

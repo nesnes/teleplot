@@ -64,7 +64,6 @@ function importSessionJSON(event) {
             app.logAvailable = savedObj.logAvailable;
             app.dataAvailable = savedObj.dataAvailable;
             
-            // Vue.set(app.logs, savedObj.logs);
             app.logs = savedObj.logs;
             if (app.logs.length>0)
             {

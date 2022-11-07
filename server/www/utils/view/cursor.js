@@ -101,7 +101,6 @@ function findClosestTimestampToCursor(mlist, timeStampMouseX, islog=false) {
     {
         let timeDiff  = (time1, time2) => { return Math.abs(time1 - time2); }
 
-        // return timeDiff(anchorTimestamp, timestamp1) <= timeDiff(anchorTimestamp, timestamp2);
         return timeDiff(anchorTimestamp, timestamp1) < timeDiff(anchorTimestamp, timestamp2);
     }
 

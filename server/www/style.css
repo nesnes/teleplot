@@ -231,8 +231,6 @@ body {
 	position: absolute;
 	left: 3px;
 	color: #2ecc71;
-	/* color: #b91897; */
-
 }
 
 .cmd-container {
@@ -332,7 +330,6 @@ body {
 	width: 100%;
 	z-index: 110;
 	overflow-y: auto;
-	/* overflow-x: scroll; */
 	white-space: nowrap;
 	text-align: center;
 }
@@ -353,8 +350,6 @@ body {
 .serie-name, .serie-unit {
 	margin-right: 3px;
 	margin-left: 3px;
-    /* color: black; */
-
 }
 
 .serie-value {

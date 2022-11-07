@@ -1,15 +1,3 @@
-/* .responsive-text-wrapper, .responsive-text-wrapper-telem, .responsive-text-wrapper-unit {
-  display: inline-block;
-  white-space: nowrap;
-  -ms-transform-origin: left;
-  -webkit-transform-origin: left;
-  -o-transform-origin: left;
-  -moz-transform-origin: left;
-  transform-origin: left;
-} */
-
-
-
 .responsive-text-wrapper-value, .responsive-text-wrapper-telem, .responsive-text-wrapper-unit {
   margin: auto;
 }

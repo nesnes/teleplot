@@ -20,8 +20,6 @@ Vue.component('vue-responsive-text', {
     isTelem: {type: Boolean, required: false},
     isUnit: {type: Boolean, required: false},
     isValue: {type: Boolean, required: false},
-    // fillColor : {type: String, required: false},
-    // strokeColor : {type: String, required: false},
   },
   data() {
     return {

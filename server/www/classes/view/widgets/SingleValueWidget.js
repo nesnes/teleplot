@@ -51,7 +51,6 @@ class SingleValueWidget extends DataWidget{
     // and also write it in a string format ready to be displayed
     updateSingleValue(currentSerie)
     {
-        // console.log(JSON.stringify(currentSerie));
         if (currentSerie == undefined || currentSerie.values[0] == undefined)
             return;
 
@@ -79,7 +78,6 @@ class SingleValueWidget extends DataWidget{
 
         this.updateSingleValue(currentSerie);
         
-        //this.updateWidgetValue()
     } 
 
 

@@ -151,7 +151,7 @@
                     <div v-for="telem in telemetries" v-bind:key="'var-'+telem.name"
                     v-if="isMatchingTelemetryFilter(telem.name) || isMatchingTelemetryFilter(telem.type) || 
                     isMatchingTelemetryFilter(telem.unit)"
-                    class="var-vue" draggable @dragstart="onDragTelemetry($event, telem.name)"> <!-- @click="toggleVisibility(telem)" -->
+                    class="var-vue" draggable @dragstart="onDragTelemetry($event, telem.name)">
                         <div class="var-vue-name">
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
                             <span v-if="telem.type =='3D' " class="symbol-3d-telem">3D</span>
@@ -240,8 +240,6 @@
                                     </div>
                                 </div>
                                 <div class="widget-option-container">
-                                    <!--<span class="widget-option" v-if="!widget.hidden" @click="showWidget(widget, false)">—</span>
-                                    <span class="widget-option" v-if="widget.hidden" @click="showWidget(widget, true)">▭</span>-->
                                     <span v-if="widget.type == 'chart'" class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
                                     <span id ="closeWidgetButton" class="widget-option" @click="removeWidget(widget)" title="Close widget">╳</span>
                                     

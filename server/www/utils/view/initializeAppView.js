@@ -38,7 +38,6 @@ function initializeAppView()
         methods: {
             updateStats: function(widget){
                 widget.updateStats();
-                //Vue.set(telem, "stats", computeStats(telem.data))
             },
             sendCmd: function(cmd) {
                 let command = `|${cmd.name}|`;
