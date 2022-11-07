@@ -4,13 +4,173 @@
 *
 * uPlot.js (μPlot)
 * A small, fast chart for time series, lines, areas, ohlc & bars
-* https://github.com/leeoniya/uPlot (v1.6.19)
+* https://github.com/leeoniya/uPlot (v1.6.22)
 */
 
 var uPlot = (function () {
 	'use strict';
 
 	const FEAT_TIME          = true;
+
+	const pre = "u-";
+
+	const UPLOT          =       "uplot";
+	const ORI_HZ         = pre + "hz";
+	const ORI_VT         = pre + "vt";
+	const TITLE          = pre + "title";
+	const WRAP           = pre + "wrap";
+	const UNDER          = pre + "under";
+	const OVER           = pre + "over";
+	const AXIS           = pre + "axis";
+	const OFF            = pre + "off";
+	const SELECT         = pre + "select";
+	const CURSOR_X       = pre + "cursor-x";
+	const CURSOR_Y       = pre + "cursor-y";
+	const CURSOR_PT      = pre + "cursor-pt";
+	const LEGEND         = pre + "legend";
+	const LEGEND_LIVE    = pre + "live";
+	const LEGEND_INLINE  = pre + "inline";
+	const LEGEND_THEAD   = pre + "thead";
+	const LEGEND_SERIES  = pre + "series";
+	const LEGEND_MARKER  = pre + "marker";
+	const LEGEND_LABEL   = pre + "label";
+	const LEGEND_VALUE   = pre + "value";
+
+	const WIDTH       = "width";
+	const HEIGHT      = "height";
+	const TOP         = "top";
+	const BOTTOM      = "bottom";
+	const LEFT        = "left";
+	const RIGHT       = "right";
+	const hexBlack    = "#000";
+	const transparent = hexBlack + "0";
+
+	const mousemove   = "mousemove";
+	const mousedown   = "mousedown";
+	const mouseup     = "mouseup";
+	const mouseenter  = "mouseenter";
+	const mouseleave  = "mouseleave";
+	const dblclick    = "dblclick";
+	const resize      = "resize";
+	const scroll      = "scroll";
+
+	const change      = "change";
+	const dppxchange  = "dppxchange";
+
+	const domEnv = typeof window != 'undefined';
+
+	const doc = domEnv ? document  : null;
+	const win = domEnv ? window    : null;
+	const nav = domEnv ? navigator : null;
+
+	let pxRatio;
+
+	let query;
+
+	function setPxRatio() {
+		let _pxRatio = devicePixelRatio;
+
+		// during print preview, Chrome fires off these dppx queries even without changes
+		if (pxRatio != _pxRatio) {
+			pxRatio = _pxRatio;
+
+			query && off(change, query, setPxRatio);
+			query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
+			on(change, query, setPxRatio);
+
+			win.dispatchEvent(new CustomEvent(dppxchange));
+		}
+	}
+
+	function addClass(el, c) {
+		if (c != null) {
+			let cl = el.classList;
+			!cl.contains(c) && cl.add(c);
+		}
+	}
+
+	function remClass(el, c) {
+		let cl = el.classList;
+		cl.contains(c) && cl.remove(c);
+	}
+
+	function setStylePx(el, name, value) {
+		el.style[name] = value + "px";
+	}
+
+	function placeTag(tag, cls, targ, refEl) {
+		let el = doc.createElement(tag);
+
+		if (cls != null)
+			addClass(el, cls);
+
+		if (targ != null)
+			targ.insertBefore(el, refEl);
+
+		return el;
+	}
+
+	function placeDiv(cls, targ) {
+		return placeTag("div", cls, targ);
+	}
+
+	const xformCache = new WeakMap();
+
+	function elTrans(el, xPos, yPos, xMax, yMax) {
+		let xform = "translate(" + xPos + "px," + yPos + "px)";
+		let xformOld = xformCache.get(el);
+
+		if (xform != xformOld) {
+			el.style.transform = xform;
+			xformCache.set(el, xform);
+
+			if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
+				addClass(el, OFF);
+			else
+				remClass(el, OFF);
+		}
+	}
+
+	const colorCache = new WeakMap();
+
+	function elColor(el, background, borderColor) {
+		let newColor = background + borderColor;
+		let oldColor = colorCache.get(el);
+
+		if (newColor != oldColor) {
+			colorCache.set(el, newColor);
+			el.style.background = background;
+			el.style.borderColor = borderColor;
+		}
+	}
+
+	const sizeCache = new WeakMap();
+
+	function elSize(el, newWid, newHgt, centered) {
+		let newSize = newWid + "" + newHgt;
+		let oldSize = sizeCache.get(el);
+
+		if (newSize != oldSize) {
+			sizeCache.set(el, newSize);
+			el.style.height = newHgt + "px";
+			el.style.width = newWid + "px";
+			el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
+			el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
+		}
+	}
+
+	const evOpts = {passive: true};
+	const evOpts2 = {...evOpts, capture: true};
+
+	function on(ev, el, cb, capt) {
+		el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
+	}
+
+	function off(ev, el, cb, capt) {
+		el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
+	}
+
+	domEnv && setPxRatio();
 
 	// binary search for index of closest value
 	function closestIdx(num, arr, lo, hi) {
@@ -88,16 +248,9 @@ var uPlot = (function () {
 		];
 	}
 
-	const _fixedTuple = [0, 0];
-
-	function fixIncr(minIncr, maxIncr, minExp, maxExp) {
-		_fixedTuple[0] = minExp < 0 ? roundDec(minIncr, -minExp) : minIncr;
-		_fixedTuple[1] = maxExp < 0 ? roundDec(maxIncr, -maxExp) : maxIncr;
-		return _fixedTuple;
-	}
-
 	function rangeLog(min, max, base, fullMags) {
 		let minSign = sign(min);
+		let maxSign = sign(max);
 
 		let logFn = base == 10 ? log10 : log2;
 
@@ -112,25 +265,28 @@ var uPlot = (function () {
 			}
 		}
 
-		let minExp, maxExp, minMaxIncrs;
+		let growMinAbs = minSign == 1 ? floor : ceil;
+		let growMaxAbs = maxSign == 1 ? ceil : floor;
+
+		let minExp = growMinAbs(logFn(abs(min)));
+		let maxExp = growMaxAbs(logFn(abs(max)));
+
+		let minIncr = pow(base, minExp);
+		let maxIncr = pow(base, maxExp);
+
+		// fix values like Math.pow(10, -5) === 0.000009999999999999999
+		if (minExp < 0)
+			minIncr = roundDec(minIncr, -minExp);
+		if (maxExp < 0)
+			maxIncr = roundDec(maxIncr, -maxExp);
 
 		if (fullMags) {
-			minExp = floor(logFn(min));
-			maxExp =  ceil(logFn(max));
-
-			minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
-
-			min = minMaxIncrs[0];
-			max = minMaxIncrs[1];
+			min = minIncr * minSign;
+			max = maxIncr * maxSign;
 		}
 		else {
-			minExp = floor(logFn(abs(min)));
-			maxExp = floor(logFn(abs(max)));
-
-			minMaxIncrs = fixIncr(pow(base, minExp), pow(base, maxExp), minExp, maxExp);
-
-			min = incrRoundDn(min, minMaxIncrs[0]);
-			max = incrRoundUp(max, minMaxIncrs[1]);
+			min = incrRoundDn(min, minIncr);
+			max = incrRoundUp(max, maxIncr);
 		}
 
 		return [min, max];
@@ -260,7 +416,8 @@ var uPlot = (function () {
 	}
 
 	// alternative: https://stackoverflow.com/a/2254896
-	const fmtNum = new Intl.NumberFormat(navigator.language).format;
+	const numFormatter = new Intl.NumberFormat(domEnv ? nav.language : 'en-US');
+	const fmtNum = val => numFormatter.format(val);
 
 	const M = Math;
 
@@ -297,6 +454,8 @@ var uPlot = (function () {
 		return typeof v == "function" ? v : () => v;
 	}
 
+	const noop = () => {};
+
 	const retArg0 = _0 => _0;
 
 	const retArg1 = (_0, _1) => _1;
@@ -315,8 +474,17 @@ var uPlot = (function () {
 		return floor(num/incr)*incr;
 	}
 
-	function roundDec(val, dec) {
-		return round(val * (dec = 10**dec)) / dec;
+	// https://stackoverflow.com/a/48764436
+	// rounds half away from zero
+	function roundDec(val, dec = 0) {
+		if (isInt(val))
+			return val;
+	//	else if (dec == 0)
+	//		return round(val);
+
+		let p = 10 ** dec;
+		let n = (val * p) * (1 + Number.EPSILON);
+		return round(n) / p;
 	}
 
 	const fixedDec = new Map();
@@ -354,6 +522,7 @@ var uPlot = (function () {
 	const nullNullTuple = [null, null];
 
 	const isArr = Array.isArray;
+	const isInt = Number.isInteger;
 
 	function isStr(v) {
 		return typeof v == 'string';
@@ -374,6 +543,8 @@ var uPlot = (function () {
 		return v != null && typeof v == 'object';
 	}
 
+	const TypedArray = Object.getPrototypeOf(Uint8Array);
+
 	function copy(o, _isObj = isObj) {
 		let out;
 
@@ -383,11 +554,13 @@ var uPlot = (function () {
 			if (isArr(val) || _isObj(val)) {
 				out = Array(o.length);
 				for (let i = 0; i < o.length; i++)
-				  out[i] = copy(o[i], _isObj);
+					out[i] = copy(o[i], _isObj);
 			}
 			else
 				out = o.slice();
 		}
+		else if (o instanceof TypedArray) // also (ArrayBuffer.isView(o) && !(o instanceof DataView))
+			out = o.slice();
 		else if (_isObj(o)) {
 			out = {};
 			for (let k in o)
@@ -500,162 +673,6 @@ var uPlot = (function () {
 	}
 
 	const microTask = typeof queueMicrotask == "undefined" ? fn => Promise.resolve().then(fn) : queueMicrotask;
-
-	const WIDTH       = "width";
-	const HEIGHT      = "height";
-	const TOP         = "top";
-	const BOTTOM      = "bottom";
-	const LEFT        = "left";
-	const RIGHT       = "right";
-	const hexBlack    = "#000";
-	const transparent = hexBlack + "0";
-
-	const mousemove   = "mousemove";
-	const mousedown   = "mousedown";
-	const mouseup     = "mouseup";
-	const mouseenter  = "mouseenter";
-	const mouseleave  = "mouseleave";
-	const dblclick    = "dblclick";
-	const resize      = "resize";
-	const scroll      = "scroll";
-
-	const change      = "change";
-	const dppxchange  = "dppxchange";
-
-	const pre = "u-";
-
-	const UPLOT          =       "uplot";
-	const ORI_HZ         = pre + "hz";
-	const ORI_VT         = pre + "vt";
-	const TITLE          = pre + "title";
-	const WRAP           = pre + "wrap";
-	const UNDER          = pre + "under";
-	const OVER           = pre + "over";
-	const AXIS           = pre + "axis";
-	const OFF            = pre + "off";
-	const SELECT         = pre + "select";
-	const CURSOR_X       = pre + "cursor-x";
-	const CURSOR_Y       = pre + "cursor-y";
-	const CURSOR_PT      = pre + "cursor-pt";
-	const LEGEND         = pre + "legend";
-	const LEGEND_LIVE    = pre + "live";
-	const LEGEND_INLINE  = pre + "inline";
-	const LEGEND_THEAD   = pre + "thead";
-	const LEGEND_SERIES  = pre + "series";
-	const LEGEND_MARKER  = pre + "marker";
-	const LEGEND_LABEL   = pre + "label";
-	const LEGEND_VALUE   = pre + "value";
-
-	const doc = document;
-	const win = window;
-	let pxRatio;
-
-	let query;
-
-	function setPxRatio() {
-		let _pxRatio = devicePixelRatio;
-
-		// during print preview, Chrome fires off these dppx queries even without changes
-		if (pxRatio != _pxRatio) {
-			pxRatio = _pxRatio;
-
-			query && off(change, query, setPxRatio);
-			query = matchMedia(`(min-resolution: ${pxRatio - 0.001}dppx) and (max-resolution: ${pxRatio + 0.001}dppx)`);
-			on(change, query, setPxRatio);
-
-			win.dispatchEvent(new CustomEvent(dppxchange));
-		}
-	}
-
-	function addClass(el, c) {
-		if (c != null) {
-			let cl = el.classList;
-			!cl.contains(c) && cl.add(c);
-		}
-	}
-
-	function remClass(el, c) {
-		let cl = el.classList;
-		cl.contains(c) && cl.remove(c);
-	}
-
-	function setStylePx(el, name, value) {
-		el.style[name] = value + "px";
-	}
-
-	function placeTag(tag, cls, targ, refEl) {
-		let el = doc.createElement(tag);
-
-		if (cls != null)
-			addClass(el, cls);
-
-		if (targ != null)
-			targ.insertBefore(el, refEl);
-
-		return el;
-	}
-
-	function placeDiv(cls, targ) {
-		return placeTag("div", cls, targ);
-	}
-
-	const xformCache = new WeakMap();
-
-	function elTrans(el, xPos, yPos, xMax, yMax) {
-		let xform = "translate(" + xPos + "px," + yPos + "px)";
-		let xformOld = xformCache.get(el);
-
-		if (xform != xformOld) {
-			el.style.transform = xform;
-			xformCache.set(el, xform);
-
-			if (xPos < 0 || yPos < 0 || xPos > xMax || yPos > yMax)
-				addClass(el, OFF);
-			else
-				remClass(el, OFF);
-		}
-	}
-
-	const colorCache = new WeakMap();
-
-	function elColor(el, background, borderColor) {
-		let newColor = background + borderColor;
-		let oldColor = colorCache.get(el);
-
-		if (newColor != oldColor) {
-			colorCache.set(el, newColor);
-			el.style.background = background;
-			el.style.borderColor = borderColor;
-		}
-	}
-
-	const sizeCache = new WeakMap();
-
-	function elSize(el, newWid, newHgt, centered) {
-		let newSize = newWid + "" + newHgt;
-		let oldSize = sizeCache.get(el);
-
-		if (newSize != oldSize) {
-			sizeCache.set(el, newSize);
-			el.style.height = newHgt + "px";
-			el.style.width = newWid + "px";
-			el.style.marginLeft = centered ? -newWid/2 + "px" : 0;
-			el.style.marginTop = centered ? -newHgt/2 + "px" : 0;
-		}
-	}
-
-	const evOpts = {passive: true};
-	const evOpts2 = assign({capture: true}, evOpts);
-
-	function on(ev, el, cb, capt) {
-		el.addEventListener(ev, cb, capt ? evOpts2 : evOpts);
-	}
-
-	function off(ev, el, cb, capt) {
-		el.removeEventListener(ev, cb, capt ? evOpts2 : evOpts);
-	}
-
-	setPxRatio();
 
 	const months = [
 		"January",
@@ -1105,6 +1122,7 @@ var uPlot = (function () {
 		show: true,
 		live: true,
 		isolate: false,
+		mount: noop,
 		markers: {
 			show: true,
 			width: 2,
@@ -1344,7 +1362,7 @@ var uPlot = (function () {
 	const RE_125   = /[125]/;
 	const RE_1     = /1/;
 
-	function logAxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
+	function log10AxisValsFilt(self, splits, axisIdx, foundSpace, foundIncr) {
 		let axis = self.axes[axisIdx];
 		let scaleKey = axis.scale;
 		let sc = self.scales[scaleKey];
@@ -1423,10 +1441,13 @@ var uPlot = (function () {
 		max: -inf,
 	};
 
+	const gaps = (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps;
+
 	const xySeriesOpts = {
 		show: true,
 		auto: true,
 		sorted: 0,
+		gaps,
 		alpha: 1,
 		facets: [
 			assign({}, facet, {scale: 'x'}),
@@ -1440,7 +1461,7 @@ var uPlot = (function () {
 		sorted: 0,
 		show: true,
 		spanGaps: false,
-		gaps: (self, seriesIdx, idx0, idx1, nullGaps) => nullGaps,
+		gaps,
 		alpha: 1,
 		points: {
 			show: seriesPointsShow,
@@ -1525,15 +1546,16 @@ var uPlot = (function () {
 	const BAND_CLIP_STROKE = 1 << 1;
 
 	function orient(u, seriesIdx, cb) {
+		const mode = u.mode;
 		const series = u.series[seriesIdx];
+		const data = mode == 2 ? u._data[seriesIdx] : u._data;
 		const scales = u.scales;
 		const bbox   = u.bbox;
-		const scaleX = u.mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale];
 
-		let dx = u._data[0],
-			dy = u._data[seriesIdx],
-			sx = scaleX,
-			sy = u.mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
+		let dx = data[0],
+			dy = mode == 2 ? data[1] : data[seriesIdx],
+			sx = mode == 2 ? scales[series.facets[0].scale] : scales[u.series[0].scale],
+			sy = mode == 2 ? scales[series.facets[1].scale] : scales[series.scale],
 			l = bbox.left,
 			t = bbox.top,
 			w = bbox.width,
@@ -1616,7 +1638,10 @@ var uPlot = (function () {
 	}
 
 	function seriesFillTo(self, seriesIdx, dataMin, dataMax, bandFillDir) {
-		let scale = self.scales[self.series[seriesIdx].scale];
+		let mode = self.mode;
+		let series = self.series[seriesIdx];
+		let scaleKey = mode == 2 ? series.facets[1].scale : series.scale;
+		let scale = self.scales[scaleKey];
 
 		return (
 			bandFillDir == -1 ? scale.min :
@@ -1705,6 +1730,49 @@ var uPlot = (function () {
 			prevGap[1] = toX;
 		else
 			gaps.push([fromX, toX]);
+	}
+
+	function findGaps(xs, ys, idx0, idx1, dir, pixelForX, align) {
+		let gaps = [];
+
+		for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
+			let yVal = ys[i];
+
+			if (yVal === null) {
+				let fr = i, to = i;
+
+				if (dir == 1) {
+					while (++i <= idx1 && ys[i] === null)
+						to = i;
+				}
+				else {
+					while (--i >= idx0 && ys[i] === null)
+						to = i;
+				}
+
+				let frPx = pixelForX(xs[fr]);
+				let toPx = to == fr ? frPx : pixelForX(xs[to]);
+
+				// if value adjacent to edge null is same pixel, then it's partially
+				// filled and gap should start at next pixel
+				let frPx2 = align <= 0 ? pixelForX(xs[fr-dir]) : frPx;
+			//	if (frPx2 == frPx)
+			//		frPx++;
+			//	else
+					frPx = frPx2;
+
+				let toPx2 = align >= 0 ? pixelForX(xs[to+dir]) : toPx;
+			//	if (toPx2 == toPx)
+			//		toPx--;
+			//	else
+					toPx = toPx2;
+
+				if (toPx >= frPx)
+					gaps.push([frPx, toPx]); // addGap
+			}
+		}
+
+		return gaps;
 	}
 
 	function pxRoundGen(pxAlign) {
@@ -1832,10 +1900,15 @@ var uPlot = (function () {
 	const drawAccH = _drawAcc(lineToH);
 	const drawAccV = _drawAcc(lineToV);
 
-	function linear() {
+	function linear(opts) {
+		const alignGaps = ifNull(opts?.alignGaps, 0);
+
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
+
+				let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+				let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
 				let lineTo, drawAcc;
 
@@ -1855,29 +1928,22 @@ var uPlot = (function () {
 
 				let minY = inf,
 					maxY = -inf,
-					inY, outY, outX, drawnAtX;
+					inY, outY, drawnAtX;
 
-				let gaps = [];
-
-				let accX = pxRound(valToPosX(dataX[dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
-				let accGaps = false;
-				let prevYNull = false;
+				let accX = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 
 				// data edges
 				let lftIdx = nonNullIdx(dataY, idx0, idx1,  1 * dir);
 				let rgtIdx = nonNullIdx(dataY, idx0, idx1, -1 * dir);
-				let lftX =  pxRound(valToPosX(dataX[lftIdx], scaleX, xDim, xOff));
-				let rgtX =  pxRound(valToPosX(dataX[rgtIdx], scaleX, xDim, xOff));
-
-				if (lftX > xOff)
-					addGap(gaps, xOff, lftX);
+				let lftX   =  pixelForX(dataX[lftIdx]);
+				let rgtX   =  pixelForX(dataX[rgtIdx]);
 
 				for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
-					let x = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
+					let x = pixelForX(dataX[i]);
 
 					if (x == accX) {
 						if (dataY[i] != null) {
-							outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
+							outY = pixelForY(dataY[i]);
 
 							if (minY == inf) {
 								lineTo(stroke, x, outY);
@@ -1887,45 +1953,22 @@ var uPlot = (function () {
 							minY = min(outY, minY);
 							maxY = max(outY, maxY);
 						}
-						else if (dataY[i] === null)
-							accGaps = prevYNull = true;
 					}
 					else {
-						let _addGap = false;
-
 						if (minY != inf) {
 							drawAcc(stroke, accX, minY, maxY, inY, outY);
-							outX = drawnAtX = accX;
-						}
-						else if (accGaps) {
-							_addGap = true;
-							accGaps = false;
+							drawnAtX = accX;
 						}
 
 						if (dataY[i] != null) {
-							outY = pxRound(valToPosY(dataY[i], scaleY, yDim, yOff));
+							outY = pixelForY(dataY[i]);
 							lineTo(stroke, x, outY);
 							minY = maxY = inY = outY;
-
-							// prior pixel can have data but still start a gap if ends with null
-							if (prevYNull && x - accX > 1)
-								_addGap = true;
-
-							prevYNull = false;
 						}
 						else {
 							minY = inf;
 							maxY = -inf;
-
-							if (dataY[i] === null) {
-								accGaps = true;
-
-								if (x - accX > 1)
-									_addGap = true;
-							}
 						}
-
-						_addGap && addGap(gaps, outX, x);
 
 						accX = x;
 					}
@@ -1934,25 +1977,32 @@ var uPlot = (function () {
 				if (minY != inf && minY != maxY && drawnAtX != accX)
 					drawAcc(stroke, accX, minY, maxY, inY, outY);
 
-				if (rgtX < xOff + xDim)
-					addGap(gaps, rgtX, xOff + xDim);
-
 				let [ bandFillDir, bandClipDir ] = bandFillClipDirs(u, seriesIdx);
 
 				if (series.fill != null || bandFillDir != 0) {
 					let fill = _paths.fill = new Path2D(stroke);
 
 					let fillToVal = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-					let fillToY = pxRound(valToPosY(fillToVal, scaleY, yDim, yOff));
+					let fillToY = pixelForY(fillToVal);
 
 					lineTo(fill, rgtX, fillToY);
 					lineTo(fill, lftX, fillToY);
 				}
 
-				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+				if (!series.spanGaps) {
+				//	console.time('gaps');
+					let gaps = [];
 
-				if (!series.spanGaps)
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+
+				//	console.timeEnd('gaps');
+
+				//	console.log('gaps', JSON.stringify(gaps));
+
+					_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 					_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+				}
 
 				if (bandClipDir != 0) {
 					_paths.band = bandClipDir == 2 ? [
@@ -1971,47 +2021,39 @@ var uPlot = (function () {
 		// whether to draw ascenders/descenders at null/gap bondaries
 		const ascDesc = ifNull(opts.ascDesc, false);
 
+		const alignGaps = ifNull(opts.alignGaps, 0);
+
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
+
+				let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+				let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
 				let lineTo = scaleX.ori == 0 ? lineToH : lineToV;
 
 				const _paths = {stroke: new Path2D(), fill: null, clip: null, band: null, gaps: null, flags: BAND_CLIP_FILL};
 				const stroke = _paths.stroke;
 
-				const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+				const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 				idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 				idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-				let gaps = [];
-				let inGap = false;
-				let prevYPos  = pxRound(valToPosY(dataY[_dir == 1 ? idx0 : idx1], scaleY, yDim, yOff));
-				let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+				let prevYPos  = pixelForY(dataY[dir == 1 ? idx0 : idx1]);
+				let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 				let prevXPos = firstXPos;
 
 				lineTo(stroke, firstXPos, prevYPos);
 
-				for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+				for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 					let yVal1 = dataY[i];
 
-					let x1 = pxRound(valToPosX(dataX[i], scaleX, xDim, xOff));
-
-					if (yVal1 == null) {
-						if (yVal1 === null) {
-							addGap(gaps, prevXPos, x1);
-							inGap = true;
-						}
+					if (yVal1 == null)
 						continue;
-					}
 
-					let y1 = pxRound(valToPosY(yVal1, scaleY, yDim, yOff));
-
-					if (inGap) {
-						addGap(gaps, prevXPos, x1);
-						inGap = false;
-					}
+					let x1 = pixelForX(dataX[i]);
+					let y1 = pixelForY(yVal1);
 
 					if (align == 1)
 						lineTo(stroke, x1, prevYPos);
@@ -2030,26 +2072,36 @@ var uPlot = (function () {
 					let fill = _paths.fill = new Path2D(stroke);
 
 					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-					let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+					let fillToY = pixelForY(fillTo);
 
 					lineTo(fill, prevXPos, fillToY);
 					lineTo(fill, firstXPos, fillToY);
 				}
 
-				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+				if (!series.spanGaps) {
+				//	console.time('gaps');
+					let gaps = [];
 
-				// expand/contract clips for ascenders/descenders
-				let halfStroke = (series.width * pxRatio) / 2;
-				let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
-				let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
 
-				gaps.forEach(g => {
-					g[0] += startsOffset;
-					g[1] += endsOffset;
-				});
+				//	console.timeEnd('gaps');
 
-				if (!series.spanGaps)
+				//	console.log('gaps', JSON.stringify(gaps));
+
+					// expand/contract clips for ascenders/descenders
+					let halfStroke = (series.width * pxRatio) / 2;
+					let startsOffset = (ascDesc || align ==  1) ?  halfStroke : -halfStroke;
+					let endsOffset   = (ascDesc || align == -1) ? -halfStroke :  halfStroke;
+
+					gaps.forEach(g => {
+						g[0] += startsOffset;
+						g[1] += endsOffset;
+					});
+
+					_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 					_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+				}
 
 				if (bandClipDir != 0) {
 					_paths.band = bandClipDir == 2 ? [
@@ -2208,6 +2260,10 @@ var uPlot = (function () {
 				for (let i = _dirX == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dirX) {
 					let yVal = dataY[i];
 
+					// we can skip both, drawing and band clipping for alignment artifacts
+					if (yVal === undefined)
+						continue;
+
 				/*
 					// interpolate upwards band clips
 					if (yVal == null) {
@@ -2281,9 +2337,14 @@ var uPlot = (function () {
 	}
 
 	function splineInterp(interp, opts) {
+		const alignGaps = ifNull(opts?.alignGaps, 0);
+
 		return (u, seriesIdx, idx0, idx1) => {
 			return orient(u, seriesIdx, (series, dataX, dataY, scaleX, scaleY, valToPosX, valToPosY, xOff, yOff, xDim, yDim) => {
 				let pxRound = series.pxRound;
+
+				let pixelForX = val => pxRound(valToPosX(val, scaleX, xDim, xOff));
+				let pixelForY = val => pxRound(valToPosY(val, scaleY, yDim, yOff));
 
 				let moveTo, bezierCurveTo, lineTo;
 
@@ -2298,39 +2359,26 @@ var uPlot = (function () {
 					bezierCurveTo = bezierCurveToV;
 				}
 
-				const _dir = 1 * scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
+				const dir = scaleX.dir * (scaleX.ori == 0 ? 1 : -1);
 
 				idx0 = nonNullIdx(dataY, idx0, idx1,  1);
 				idx1 = nonNullIdx(dataY, idx0, idx1, -1);
 
-				let gaps = [];
-				let inGap = false;
-				let firstXPos = pxRound(valToPosX(dataX[_dir == 1 ? idx0 : idx1], scaleX, xDim, xOff));
+				let firstXPos = pixelForX(dataX[dir == 1 ? idx0 : idx1]);
 				let prevXPos = firstXPos;
 
 				let xCoords = [];
 				let yCoords = [];
 
-				for (let i = _dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += _dir) {
+				for (let i = dir == 1 ? idx0 : idx1; i >= idx0 && i <= idx1; i += dir) {
 					let yVal = dataY[i];
-					let xVal = dataX[i];
-					let xPos = valToPosX(xVal, scaleX, xDim, xOff);
 
-					if (yVal == null) {
-						if (yVal === null) {
-							addGap(gaps, prevXPos, xPos);
-							inGap = true;
-						}
-						continue;
-					}
-					else {
-						if (inGap) {
-							addGap(gaps, prevXPos, xPos);
-							inGap = false;
-						}
+					if (yVal != null) {
+						let xVal = dataX[i];
+						let xPos = pixelForX(xVal);
 
-						xCoords.push((prevXPos = xPos));
-						yCoords.push(valToPosY(dataY[i], scaleY, yDim, yOff));
+						xCoords.push(prevXPos = xPos);
+						yCoords.push(pixelForY(dataY[i]));
 					}
 				}
 
@@ -2343,16 +2391,26 @@ var uPlot = (function () {
 					let fill = _paths.fill = new Path2D(stroke);
 
 					let fillTo = series.fillTo(u, seriesIdx, series.min, series.max, bandFillDir);
-					let fillToY = pxRound(valToPosY(fillTo, scaleY, yDim, yOff));
+					let fillToY = pixelForY(fillTo);
 
 					lineTo(fill, prevXPos, fillToY);
 					lineTo(fill, firstXPos, fillToY);
 				}
 
-				_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+				if (!series.spanGaps) {
+				//	console.time('gaps');
+					let gaps = [];
 
-				if (!series.spanGaps)
+					gaps.push(...findGaps(dataX, dataY, idx0, idx1, dir, pixelForX, alignGaps));
+
+				//	console.timeEnd('gaps');
+
+				//	console.log('gaps', JSON.stringify(gaps));
+
+					_paths.gaps = gaps = series.gaps(u, seriesIdx, idx0, idx1, gaps);
+
 					_paths.clip = clipGaps(gaps, scaleX.ori, xOff, yOff, xDim, yDim);
+				}
 
 				if (bandClipDir != 0) {
 					_paths.band = bandClipDir == 2 ? [
@@ -2379,7 +2437,7 @@ var uPlot = (function () {
 	}
 
 	function monotoneCubic(opts) {
-		return splineInterp(_monotoneCubic);
+		return splineInterp(_monotoneCubic, opts);
 	}
 
 	// Monotone Cubic Spline interpolation, adapted from the Chartist.js implementation:
@@ -2448,13 +2506,15 @@ var uPlot = (function () {
 	const cursorPlots = new Set();
 
 	function invalidateRects() {
-		cursorPlots.forEach(u => {
+		for (let u of cursorPlots)
 			u.syncRect(true);
-		});
 	}
 
-	on(resize, win, invalidateRects);
-	on(scroll, win, invalidateRects, true);
+	if (domEnv) {
+		on(resize, win, invalidateRects);
+		on(scroll, win, invalidateRects, true);
+		on(dppxchange, win, () => { uPlot.pxRatio = pxRatio; });
+	}
 
 	const linearPath = linear() ;
 	const pointsPath = points() ;
@@ -2800,6 +2860,8 @@ var uPlot = (function () {
 		if (showLegend) {
 			legendEl = placeTag("table", LEGEND, root);
 
+			legend.mount(self, legendEl);
+
 			if (multiValLegend) {
 				let head = placeTag("tr", LEGEND_THEAD, legendEl);
 				placeTag("th", null, head);
@@ -2935,6 +2997,7 @@ var uPlot = (function () {
 		let shouldSetSize = false;
 		let shouldConvergeSize = false;
 		let shouldSetCursor = false;
+		let shouldSetSelect = false;
 		let shouldSetLegend = false;
 
 		function _setSize(width, height, force) {
@@ -2945,7 +3008,10 @@ var uPlot = (function () {
 
 			shouldConvergeSize = true;
 			shouldSetSize = true;
-			shouldSetCursor = shouldSetLegend = cursor.left >= 0;
+
+			if (cursor.left >= 0)
+				shouldSetCursor = shouldSetLegend = true;
+
 			commit();
 		}
 
@@ -3177,7 +3243,8 @@ var uPlot = (function () {
 		function addSeries(opts, si) {
 			si = si == null ? series.length : si;
 
-			opts = setDefault(opts, si, xSeriesOpts, ySeriesOpts);
+			opts = mode == 1 ? setDefault(opts, si, xSeriesOpts, ySeriesOpts) : setDefault(opts, si, null, xySeriesOpts);
+
 			series.splice(si, 0, opts);
 			initSeries(series[si], si);
 		}
@@ -3256,7 +3323,7 @@ var uPlot = (function () {
 					) : av || numAxisVals
 				);
 
-				axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 ? logAxisValsFilt : retArg1));
+				axis.filter = fnOrSelf(axis.filter || (          sc.distr >= 3 && sc.log == 10 ? log10AxisValsFilt : retArg1));
 
 				axis.font      = pxRatioFont(axis.font);
 				axis.labelFont = pxRatioFont(axis.labelFont);
@@ -3309,6 +3376,8 @@ var uPlot = (function () {
 		let viaAutoScaleX = false;
 
 		function setData(_data, _resetScales) {
+			data = _data == null ? [] : copy(_data, fastIsObj);
+
 			if (mode == 2) {
 				dataLen = 0;
 				for (let i = 1; i < series.length; i++)
@@ -3316,15 +3385,19 @@ var uPlot = (function () {
 				self.data = data = _data;
 			}
 			else {
-				data = (_data || []).slice();
-				data[0] = data[0] || [];
+				if (data[0] == null)
+					data[0] = [];
 
 				self.data = data.slice();
+
 				data0 = data[0];
 				dataLen = data0.length;
 
-				if (xScaleDistr == 2)
-					data[0] = data0.map((v, i) => i);
+				if (xScaleDistr == 2) {
+					data[0] = Array(dataLen);
+					for (let i = 0; i < dataLen; i++)
+						data[0][i] = i;
+				}
 			}
 
 			self._data = data;
@@ -3332,6 +3405,24 @@ var uPlot = (function () {
 			resetYSeries(true);
 
 			fire("setData");
+
+			// forces x axis tick values to re-generate when neither x scale nor y scale changes
+			// in ordinal mode, scale range is by index, so will not change if new data has same length, but tick values are from data
+			if (xScaleDistr == 2) {
+				shouldConvergeSize = true;
+
+				/* or somewhat cheaper, and uglier:
+				if (ready) {
+					// logic extracted from axesCalc()
+					let i = 0;
+					let axis = axes[i];
+					let _splits = axis._splits.map(i => data0[i]);
+					let [_incr, _space] = axis._found;
+					let incr = data0[_splits[1]] - data0[_splits[0]];
+					axis._values = axis.values(self, axis.filter(self, _splits, i, _space, incr), i, _space, incr);
+				}
+				*/
+			}
 
 			if (_resetScales !== false) {
 				let xsc = scaleX;
@@ -3389,7 +3480,13 @@ var uPlot = (function () {
 		let ctxStroke, ctxFill, ctxWidth, ctxDash, ctxJoin, ctxCap, ctxFont, ctxAlign, ctxBaseline;
 		let ctxAlpha;
 
-		function setCtxStyle(stroke = transparent, width, dash = EMPTY_ARR, cap = "butt", fill = transparent, join = "round") {
+		function setCtxStyle(stroke, width, dash, cap, fill, join) {
+			stroke ??= transparent;
+			dash   ??= EMPTY_ARR;
+			cap    ??= "butt"; // (‿|‿)
+			fill   ??= transparent;
+			join   ??= "round";
+
 			if (stroke != ctxStroke)
 				ctx.strokeStyle = ctxStroke = stroke;
 			if (fill != ctxFill)
@@ -3399,7 +3496,7 @@ var uPlot = (function () {
 			if (join != ctxJoin)
 				ctx.lineJoin = ctxJoin = join;
 			if (cap != ctxCap)
-				ctx.lineCap = ctxCap = cap; // (‿|‿)
+				ctx.lineCap = ctxCap = cap;
 			if (dash != ctxDash)
 				ctx.setLineDash(ctxDash = dash);
 		}
@@ -3416,7 +3513,7 @@ var uPlot = (function () {
 		}
 
 		function accScale(wsc, psc, facet, data, sorted = 0) {
-			if (wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
+			if (data.length > 0 && wsc.auto(self, viaAutoScaleX) && (psc == null || psc.min == null)) {
 				let _i0 = ifNull(i0, 0);
 				let _i1 = ifNull(i1, data.length - 1);
 
@@ -3584,8 +3681,8 @@ var uPlot = (function () {
 					fire("setScale", k);
 				}
 
-				if (cursor.show)
-					shouldSetCursor = shouldSetLegend = cursor.left >= 0;
+				if (cursor.show && cursor.left >= 0)
+					shouldSetCursor = shouldSetLegend = true;
 			}
 
 			for (let k in pendScales)
@@ -3610,7 +3707,7 @@ var uPlot = (function () {
 			if (dataLen > 0) {
 				series.forEach((s, i) => {
 					if (i > 0 && s.show && s._paths == null) {
-						let _idxs = getOuterIdxs(data[i]);
+						let _idxs = mode == 2 ? [0, data[i][0].length - 1] : getOuterIdxs(data[i]);
 						s._paths = s.paths(self, i, _idxs[0], _idxs[1]);
 					}
 				});
@@ -4196,7 +4293,7 @@ var uPlot = (function () {
 				ctxStroke = ctxFill = ctxWidth = ctxJoin = ctxCap = ctxFont = ctxAlign = ctxBaseline = ctxDash = null;
 				ctxAlpha = 1;
 
-				syncRect(false);
+				syncRect(true);
 
 				fire("setSize");
 
@@ -4210,14 +4307,10 @@ var uPlot = (function () {
 				fire("draw");
 			}
 
-		//	if (shouldSetSelect) {
-			// TODO: update .u-select metrics (if visible)
-			//	setStylePx(selectDiv, TOP, select.top = 0);
-			//	setStylePx(selectDiv, LEFT, select.left = 0);
-			//	setStylePx(selectDiv, WIDTH, select.width = 0);
-			//	setStylePx(selectDiv, HEIGHT, select.height = 0);
-			//	shouldSetSelect = false;
-		//	}
+			if (select.show && shouldSetSelect) {
+				setSelect(select);
+				shouldSetSelect = false;
+			}
 
 			if (cursor.show && shouldSetCursor) {
 				updateCursor(null, true, false);
@@ -4352,8 +4445,12 @@ var uPlot = (function () {
 
 		function setSelect(opts, _fire) {
 			if (select.show) {
-				for (let prop in opts)
-					setStylePx(selectDiv, prop, select[prop] = opts[prop]);
+				for (let prop in opts) {
+					select[prop] = opts[prop];
+
+					if (prop in _hideProps)
+						setStylePx(selectDiv, prop, opts[prop]);
+				}
 
 				_fire !== false && fire("setSelect");
 			}
@@ -4380,17 +4477,19 @@ var uPlot = (function () {
 		function setSeries(i, opts, _fire, _pub) {
 		//	log("setSeries()", arguments);
 
-			let s = series[i];
-
 			if (opts.focus != null)
 				setFocus(i);
 
 			if (opts.show != null) {
-				s.show = opts.show;
-				toggleDOM(i, opts.show);
+				series.forEach((s, si) => {
+					if (si > 0 && (i == si || i == null)) {
+						s.show = opts.show;
+						toggleDOM(si, opts.show);
 
-				_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
-				commit();
+						_setScale(mode == 2 ? s.facets[1].scale : s.scale, null, null);
+						commit();
+					}
+				});
 			}
 
 			_fire !== false && fire("setSeries", i, opts);
@@ -4761,7 +4860,7 @@ var uPlot = (function () {
 						let matchingX = xKey != null && matchXKeys(xKey, xKeySrc);
 						let matchingY = yKey != null && matchYKeys(yKey, yKeySrc);
 
-						if (matchingX) {
+						if (matchingX && dragX) {
 							if (sori == 0) {
 								sOff = left;
 								sDim = width;
@@ -4781,7 +4880,7 @@ var uPlot = (function () {
 						else
 							setSelX(0, xDim);
 
-						if (matchingY) {
+						if (matchingY && dragY) {
 							if (sori == 1) {
 								sOff = left;
 								sDim = width;
@@ -4912,7 +5011,7 @@ var uPlot = (function () {
 				}
 			}
 
-			ready && _fire !== false && fire("setCursor");
+			_fire !== false && fire("setCursor");
 		}
 
 		let rect = null;
@@ -4960,7 +5059,8 @@ var uPlot = (function () {
 				let [xKeySrc, yKeySrc] = syncOptsSrc.scales;
 				let [matchXKeys, matchYKeys] = syncOpts.match;
 
-				let rotSrc = src.axes[0].side % 2 == 1;
+				let rotSrc = false;
+				if (src.axes != undefined) rotSrc = src.axes[0].side % 2 == 1;
 
 				let xDim = scaleX.ori == 0 ? plotWidCss : plotHgtCss,
 					yDim = scaleX.ori == 1 ? plotWidCss : plotHgtCss,
@@ -5009,6 +5109,8 @@ var uPlot = (function () {
 		const _hideProps = {
 			width: 0,
 			height: 0,
+			left: 0,
+			top: 0,
 		};
 
 		function hideSelect() {
@@ -5234,6 +5336,7 @@ var uPlot = (function () {
 			mouseListeners.clear();
 			off(dppxchange, win, syncPxRatio);
 			root.remove();
+			legendEl?.remove(); // in case mounted outside of root
 			fire("destroy");
 		}
 
@@ -5249,11 +5352,10 @@ var uPlot = (function () {
 			else
 				autoScaleX();
 
+			shouldSetSelect = select.show;
+			shouldSetCursor = shouldSetLegend = true;
+
 			_setSize(opts.width, opts.height);
-
-			updateCursor(null, true, false);
-
-			setSelect(select, false);
 		}
 
 		series.forEach(initSeries);
@@ -5280,6 +5382,7 @@ var uPlot = (function () {
 	uPlot.rangeLog = rangeLog;
 	uPlot.rangeAsinh = rangeAsinh;
 	uPlot.orient   = orient;
+	uPlot.pxRatio = pxRatio;
 
 	{
 		uPlot.join = join;

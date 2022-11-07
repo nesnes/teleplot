@@ -8,6 +8,8 @@ function parseData(msgIn){
 
     let fromSerial = msgIn.fromSerial || (msgIn.input && msgIn.input.type=="serial");
     if(fromSerial) now = msgIn.timestamp;
+
+    now/=1000; // we convert timestamp in seconds for uPlot to work
     //parse msg
     let msgList = (""+msgIn.data).split("\n");
 
@@ -55,16 +57,14 @@ function parseCommandList(msg) // a String containing a list of commands, ex : "
 // now : a Number representing a timestamp
 function parseLog(msg, now) 
 {
-    let currLog = {
-        timestamp: now,
-        text: ""
-    }
-    
+       
     let logStart = msg.indexOf(":")+1;
-    currLog.text = msg.substr(logStart);
-    currLog.timestamp = parseFloat(msg.substr(1, logStart-2));
-    if(isNaN(currLog.timestamp) || !isFinite(currLog.timestamp)) currLog.timestamp = now;
-    logBuffer.unshift(currLog);//prepend log to buffer
+    
+    let logText = msg.substr(logStart);
+    let logTimestamp = (parseFloat(msg.substr(1, logStart-2)))/1000; // /1000 to convert to seconds
+    if(isNaN(logTimestamp) || !isFinite(logTimestamp)) logTimestamp = now;
+
+    logBuffer.push(new Log(logTimestamp, logText));
 }
 
 
@@ -80,16 +80,18 @@ function parseVariablesData(msg, now)
     if(!msg.includes(':')) return;
 
     let startIdx = msg.indexOf(':');
+
     let name = msg.substr(0,msg.indexOf(':'));
     if(name.substring(0, 6) === "statsd") return;
-    let endIdx = msg.indexOf('|');
-    let flags = msg.substr(endIdx+1);
-    let unit = "";
-    if(endIdx == -1){
-        flags = shouldPlotByDefault?"g":"np";
-        endIdx = msg.length;
-    }
 
+    let endIdx = msg.lastIndexOf('|');
+    if (endIdx == -1) endIdx = msg.length;
+
+    let flags = msg.substr(endIdx+1);
+
+    let isTextFormatTelem = flags.includes('t');
+
+    let unit = "";
     let unitIdx = msg.indexOf('§'); 
     if (unitIdx!=-1)
     {
@@ -97,15 +99,31 @@ function parseVariablesData(msg, now)
         endIdx = unitIdx;
     }
     
-    let isTextFormatTelem = isTextFormatTelemetry(msg.substring(startIdx+1, endIdx));
-
     // Extract values array
-    let values = msg.substr(startIdx+1, endIdx-startIdx-1).split(';')
+    let values = msg.substring(startIdx+1, endIdx).split(';')
     let xArray = [];
     let yArray = [];
     let zArray = [];
     for(let value of values)
     {
+        /*  All possibilities : 
+
+            Number timestamp : 
+                [1627551892437, 1234]
+            Number no timestamp : 
+                [1234]
+            
+            Text timestamp : 
+                [1627551892437, Turned On]
+            Text no timestamp : 
+                [Turned On]
+
+            xy timestamp : 
+                [1, 1, 1627551892437]
+            xy no timestamp : 
+                [1, 1]
+        */
+
         if(value.length==0) continue;
         let dims = value.split(":");
 
@@ -114,16 +132,20 @@ function parseVariablesData(msg, now)
             yArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
         }
         else if(dims.length == 2){
-            xArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
+            let v1 = parseFloat(dims[0]);
+            if (!flags.includes("xy")) // in this case, v1 is the timestamp that we convert to seconds
+                v1/=1000;
+
+            xArray.push(v1);
             yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
             zArray.push(now);
         }
         else if(dims.length == 3){
-            xArray.push(isTextFormatTelem?dims[0]:parseFloat(dims[0]));
-            yArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
-            zArray.push(parseFloat(dims[2]));
+            xArray.push(parseFloat(dims[0]));
+            yArray.push(parseFloat(dims[1]));
+            zArray.push(parseFloat(dims[2])/1000);// this one is the timestamp we convert to seconds
         }
-      
+
     }
     //console.log("name : "+name+", xArray : "+xArray+", yArray : "+yArray+", zArray : "+zArray+", unit : "+unit+", flags : "+flags);
     if(xArray.length>0){
@@ -131,49 +153,58 @@ function parseVariablesData(msg, now)
     }
 }
 
-function convertToJson(rawMsg)
+function separateWidgetAndLabel(keyAndWidgetLabel)
 {
-    /*
-    let jsonRes = "";
+    //keyAndWidgetLabel ex : "mysquare0,the_chart541"
+    //keyAndWidgetLabel ex2 : "mysquare0"
 
-    for (let i = 0; i < rawMsg.length; i++)
-    {
+    let marray = keyAndWidgetLabel.split(',');
+    let key = marray[0];
 
-    }*/
-
-    return rawMsg;
+    let label = marray.length > 1 ? marray[1] : undefined;
+    
+    return [key, label]
 }
 
 function parse3D(msg, now)
 {
-    // 3D|my_cube_0:12145641658484:{...}|g
+    //3D|myData1:R::3.14:P:1:2:-1:S:cube:W:5:H:4:D:3:C:red|g
 
-    //echo '3D|myDataa:{"rotation":{"x":0,"y":0,"z":0},"position":{"x":0,"y":0,"z":0},
-    //"shape":"cube","width":7,"height":5,"depth":5}|g' | nc -u -w0 127.0.0.1 47269
+    let firstPipeIdx = msg.indexOf("|");
+    let startIdx = msg.indexOf(':') +1;
+    let endIdx = msg.lastIndexOf("|");
+    if (endIdx <= firstPipeIdx) endIdx = msg.length;// in this case the last pipe is not given ( there are no flags )
+    let keyAndWidgetLabel = msg.substring(firstPipeIdx+1, startIdx-1);
 
-    //'3D|myDataa:{R:{0,0,_},P:{0,_,0},S:cube,W:7,H:5,D:5,PR:15,RA:5}|g'
+    let [key, widgetLabel] = separateWidgetAndLabel(keyAndWidgetLabel);  
 
-    //'3D|myDataa:{"R":{"x":0,"y":0,"z":0},"P":{"x":0,"y":0,"z":0},"S":cube,"W":7,"H":5,"D":5}|g'
+    let timestamp;
+    if (isLetter(msg[startIdx]))
+    {
+        timestamp = now;
+    }
+    else
+    {
+        let trueStartIdx = msg.indexOf(':', startIdx);
 
-    let startIdx = msg.indexOf(':');
-    let key = msg.substring(msg.indexOf("|")+1,startIdx);
+        timestamp = (msg.substring(startIdx, trueStartIdx))/1000;// we divise by 1000 to get timestamp in seconds
 
-    let objStartIdx = msg.indexOf("{");
-    let objEndIdx = msg.lastIndexOf("}");
-    let rawMessage = msg.substring(objStartIdx, objEndIdx+1);
-    //console.log("rawMessage : " + rawMessage);
+        startIdx = trueStartIdx+1;
+    }
 
-    let timestamp = (startIdx+1 == objStartIdx) ? now : (msg.substring(startIdx+1, objStartIdx-1));
+    let rawShape = msg.substring(startIdx,endIdx);
 
-    let flags = msg.substr(objEndIdx+2);
 
-    let shape3D = new Shape3D().initializeFromJson(key, JSON.parse(convertToJson(rawMessage)));
+    let flags = msg.substr(endIdx+1);
+    let shape3D;
+    try { shape3D = new Shape3D().initializeFromRawShape(key, rawShape);} 
+    catch(e) { throw new Error("Error invalid shape text given : "+rawShape)};
 
-    appendData(key, [timestamp], [shape3D], [], "", flags, "3D")
+    appendData(key, [timestamp], [shape3D], [], "", flags, "3D", widgetLabel)
 }
 
 // adds
-function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
+function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widgetLabel=undefined) {
     let isXY = flags.includes("xy");
     if (isXY) telemType = "xy";
 
@@ -182,29 +213,52 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     if(app.telemetries[key] == undefined){
                 
         Vue.set(app.telemetries, key, new Telemetry(key, unit, telemType));
-        // Create widget
+        
         if(shouldPlot)
         {
-            let chart;
+            let mwidget;
+            let isNewWidget = true;
             switch(telemType)
             {
                 case "number": 
-                    chart = new ChartWidget(isXY);
+                    mwidget = new ChartWidget(isXY);
                     break;
-                case "xy": 
-                    chart = new ChartWidget(isXY);
+                case "xy":
+                    mwidget = new ChartWidget(isXY);
                     break;
-                case "text" :
-                    chart = new SingleValueWidget(true);
+                case "text":
+                    mwidget = new SingleValueWidget(true);
                     break;
                 case "3D":
-                    chart = new Widget3D();
+
+                    let i = 0;
+                    if (widgetLabel != undefined) 
+                    {
+                        while (i<widgets.length && isNewWidget)
+                        {
+                            let currWidget = widgets[i];
+
+                            if(currWidget.label == widgetLabel && currWidget.type == "widget3D" )
+                            {
+                                mwidget = currWidget;
+                                isNewWidget = false;
+                            }
+                            i++;
+                        }
+                    }
+                    
+                    if (isNewWidget)
+                    {
+                        mwidget = new Widget3D();
+                        mwidget.label = widgetLabel;
+                    }
                     break;
             }
 
             let serie = getSerieInstanceFromTelemetry(key);
-            chart.addSerie(serie);
-            widgets.push(chart);
+            mwidget.addSerie(serie);
+            if (isNewWidget)
+                widgets.push(mwidget);
         }
     }
     if(telemBuffer[key] == undefined)
@@ -214,8 +268,8 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     }
 
     // Convert timestamps to seconds
-    if(!isXY) { valuesX.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
-    else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem/1000); }
+    if(!isXY) { valuesX.forEach((elem, idx, arr)=>arr[idx] = elem); }
+    else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem); }
 
     // Flush data into buffer (to be flushed by updateView)
     
@@ -223,6 +277,7 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     telemBuffer[key].data[1].push(...valuesY);
     telemBuffer[key].values.length = 0;
     
+
     if(app.telemetries[key].type=="xy")
     {
         telemBuffer[key].values.push(valuesX[valuesX.length-1]);
@@ -233,6 +288,28 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType) {
     else 
     {
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);
+
+        if (app.telemetries[key].type=="3D")
+        {
+            let prevShapeIdx =  app.telemetries[key].data[1].length -1;
+
+            let newShape = telemBuffer[key].values[0];
+
+            if (prevShapeIdx >= 0) // otherwise, it means that there ain't any previous shape
+            {
+                let shapeJustBefore = app.telemetries[key].data[1][prevShapeIdx];
+
+                newShape.fillUndefinedWith(shapeJustBefore);// fills undefined properties of the new shape with the previous ones.
+            }
+            else if (newShape.type != undefined)
+            {
+                newShape.fillUndefinedWithDefaults();
+            }
+            else
+            {
+                throw new Error("no type given for the shape ( cube, or sphere ... should be passed )");
+            }
+        }
     }
     return;
 }

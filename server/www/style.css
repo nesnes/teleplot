@@ -95,6 +95,40 @@ body {
 .right-col {
 	min-width: min(350px, max(250px, 30%));
 	flex: 1;
+	margin-right: 10px;
+}
+
+.vrow {
+	height: 20px;
+	padding-left: 10px;
+	padding-right: 10px;
+	color: #ecf0f1;
+	cursor: pointer;
+	white-space: nowrap;
+	z-index: 100;
+	margin-left: 4px;
+}
+
+.log-vue-selected {
+	background-color: #27ae60;
+}
+
+.log-container {
+	/* direction:rtl; we want the scroll bar to be on the left */
+	background-color: #2c3e50;
+}
+
+.right-reduce-btn {
+	width: 60px;
+	margin-top: 0;
+	margin-right: -10px;
+	padding: 2px;
+	background-color: #2980b9;
+	font-weight: bold;
+	color: white;
+	border: 0px;
+	border-radius: 0 0 0 5px;
+	align-self: flex-end;
 }
 
 .help-container {
@@ -197,8 +231,6 @@ body {
 	position: absolute;
 	left: 3px;
 	color: #2ecc71;
-	/* color: #b91897; */
-
 }
 
 .cmd-container {
@@ -215,35 +247,15 @@ body {
 	padding-top: 10px;
 }
 
-.log-container {
-	display: flex;
-	flex-direction: column-reverse;
-	background-color: #2c3e50;
-	font-size: 12px;
-	height: 400px;
-	min-width: 90%;
-	overflow: auto;
-	margin-top: 1em;
-	padding-left: 5px;
-	padding-bottom: 5px;
-}
-
-.log-vue {
-	display: block;
-	color: #ecf0f1;
-	cursor: pointer;
-}
-.log-vue-selected {
-	background-color: #27ae60;
-}
+/* the rows of the logs pannel */
 
 .left-rounded-btn {
 	border-radius: 50%;
     padding-right: 0px;
     display: block;
     margin-left: -20px;
-    width: 40px;
-    height: 40px;
+    width: 60px;
+    height: 60px;
     background-color: #2980b9;
     font-weight: bold;
     color: white;
@@ -256,8 +268,8 @@ body {
     padding-left: 0px;
     display: block;
     margin-right: -20px;
-    width: 40px;
-    height: 40px;
+    width: 60px;
+    height: 60px;
     background-color: #2980b9;
     font-weight: bold;
     color: white;
@@ -276,17 +288,6 @@ body {
 	border-radius: 0 0 5px 0;
 }
 
-.right-reduce-btn {
-	width: 60px;
-	margin-top: 0;
-	padding: 2px;
-	background-color: #2980b9;
-	font-weight: bold;
-	color: white;
-	border: 0px;
-	border-radius: 0 0 0 5px;
-	align-self: flex-end;
-}
 
 .send-text-container {
 	display: flex;
@@ -325,16 +326,19 @@ body {
 }
 
 .serie-header-container {
-	flex: 1;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
+	height: 40px;
+	width: 100%;
+	z-index: 110;
+	overflow-y: auto;
+	white-space: nowrap;
+	text-align: center;
 }
 .serie-header {
-	display: flex;
-    flex-direction: column;
-	align-items: center;
+	display: inline-block;
+	margin-left: 7px;
+	margin-right: 7px;
 }
+
 
 .serie-color {
 	display: inline-block;
@@ -346,8 +350,6 @@ body {
 .serie-name, .serie-unit {
 	margin-right: 3px;
 	margin-left: 3px;
-    /* color: black; */
-
 }
 
 .serie-value {
@@ -375,7 +377,7 @@ body {
 	margin-left: 4px;
 	margin-right: 4px;
 	cursor: pointer;
-	z-index: 10;
+	z-index: 200;
 
 	/* user can't highlight the element ( useful for when resizing ) */
 	user-select: none;
@@ -427,23 +429,35 @@ body {
 } 
 
 .serie-name-container {
-	display: flex;
-    flex-direction: row;
-    align-items: center;
+	text-align: center;
 }
 
-.serie-stat-container {
+.serie-stat-container, .serie-3d-details-container {
 	display: flex;
     flex-direction: row;
     align-items: center;
 	flex-wrap: wrap;
 }
 
-.serie-stat {
-	display: flex;
-	flex-direction: column;
+.details-3d-x {
+	/* this text color should match RedXAxis in constants.js */
+	color: #e74c3c; 
+}
+
+.details-3d-y {
+	color: #3ba30b;
+}
+
+.details-3d-z {
+	/* this text color should match RedZAxis in constants.js */
+	color: #2980b9;
+}
+
+.serie-stat, .serie-3d-details {
+	display: inline-block;
 	margin: 1px 1px 1px 2px;
     line-height: 0.7em;
+	z-index: 100;
 }
 
 .serie-stat-value {
@@ -595,4 +609,9 @@ body {
 .flex-col {
 	display: flex;
 	flex-direction: column;	
+}
+
+.uplot-vue {
+	/* this is done to raise a bit the uplot vue */
+	margin-top: -8px;
 }

@@ -3,9 +3,12 @@ var lastUpdateViewTimestamp = 0;
 function updateView() {
     // Clear Telemetries pendingData
     for(let key in app.telemetries) {
-        app.telemetries[key].pendingData[0].length = 0;
-        app.telemetries[key].pendingData[1].length = 0;
-        if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].length = 0;
+        if (app.telemetries[key].pendingData != undefined) 
+        {
+            app.telemetries[key].pendingData[0].length = 0;
+            app.telemetries[key].pendingData[1].length = 0;
+            if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].length = 0;
+        }
     }
     // Flush Telemetry buffer into app model
     let dataSum = 0;
@@ -17,9 +20,13 @@ function updateView() {
             app.telemetries[key].data[0].push(...telemBuffer[key].data[0]);
             app.telemetries[key].data[1].push(...telemBuffer[key].data[1]);
             if(app.telemetries[key].type=="xy") app.telemetries[key].data[2].push(...telemBuffer[key].data[2]);
-            app.telemetries[key].pendingData[0].push(...telemBuffer[key].data[0]);
-            app.telemetries[key].pendingData[1].push(...telemBuffer[key].data[1]);
-            if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].push(...telemBuffer[key].data[2]);
+            if (app.telemetries[key].pendingData != undefined)
+            {
+                app.telemetries[key].pendingData[0].push(...telemBuffer[key].data[0]);
+                app.telemetries[key].pendingData[1].push(...telemBuffer[key].data[1]);
+                if(app.telemetries[key].type=="xy") app.telemetries[key].pendingData[2].push(...telemBuffer[key].data[2]);
+            }
+       
             telemBuffer[key].data[0].length = 0;
             telemBuffer[key].data[1].length = 0;
             if(app.telemetries[key].type=="xy") telemBuffer[key].data[2].length = 0;
@@ -32,11 +39,9 @@ function updateView() {
             if (telemBuffer[key].values.length > 1)
                 app.telemetries[key].values.push(telemBuffer[key].values[1]);
 
-
-            
-            // console.log(JSON.stringify(app.telemetries["my_cube_0"].values[0], null, 3));
-
-            // console.log(JSON.stringify(app.telemetries[key].values, null, 3));
+            // this has to be done every time telem.values get modified, it is usefull for the html to display
+            //the good text in the telemetry pannel 
+            app.telemetries[key].updateFormattedValues();
 
         }
     }
@@ -69,10 +74,17 @@ function updateView() {
     // Logs
     var logSum = logBuffer.length;
     if(!app.isViewPaused &&  logBuffer.length>0) {
-        app.logs.unshift(...logBuffer);//prepend log to list
+        app.logs.push(...logBuffer);//append log to list
         logBuffer.length = 0;
+
     }
-    if(!app.logAvailable && app.logs.length>0) app.logAvailable = true;
+
+    if (app.logs.length>0)
+    {
+        app.logAvailable = true;
+        LogConsole.getInstance().logsUpdated(0, app.logs.length);
+    }
+
 
     // Stats
     let now = new Date().getTime();

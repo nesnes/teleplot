@@ -8,6 +8,7 @@ var app = initializeAppView();
 //Init refresh rate
 setInterval(updateView, 1000 / widgetFPS);
 
+
 if(vscode){
     let conn = new ConnectionTeleplotVSCode();
     conn.connect();

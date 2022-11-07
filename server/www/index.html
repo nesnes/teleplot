@@ -149,8 +149,9 @@
 
 
                     <div v-for="telem in telemetries" v-bind:key="'var-'+telem.name"
-                    v-if="isMatchingTelemetryFilter(telem.name)"
-                    class="var-vue" draggable @dragstart="onDragTelemetry($event, telem.name)"> <!-- @click="toggleVisibility(telem)" -->
+                    v-if="isMatchingTelemetryFilter(telem.name) || isMatchingTelemetryFilter(telem.type) || 
+                    isMatchingTelemetryFilter(telem.unit)"
+                    class="var-vue" draggable @dragstart="onDragTelemetry($event, telem.name)">
                         <div class="var-vue-name">
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
                             <span v-if="telem.type =='3D' " class="symbol-3d-telem">3D</span>
@@ -158,7 +159,7 @@
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value">{{telem.getValuesFormatted()}}</div>
+                        <div class="var-vue-value">{{telem.values_formatted}}</div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -183,54 +184,75 @@
                                 </div>
                                 <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
+                                        
                                         <div v-if="widget.type == 'chart' || widget.type == 'widget3D'" class="serie-name-container">
                                             <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
-                                                <span class="serie-value">{{serie.getFormattedValue()}}</span>
+                                                <span class="serie-value">{{serie.values_formatted}}</span>
                                             </span>
-                                            <span class="serie-name" v-bind:style="{'color':serie.getNameColor()}">{{serie.name}}</span>
+                                            <span class="serie-name" v-bind:style="{'color':serie.name_color}">{{serie.name}}</span>
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
+                                        </div>
+                                        <div v-if="serie.type == '3D'" class="serie-3d-details-container">
+                                            <div v-if="serie.values != undefined && serie.values.length != 0 && serie.values[0] != undefined" class = "serie-3d-details">
+                                                <span class="details-3d-x">x:{{serie.details_3d_formatted.position.x}}</span>
+                                                <span class="details-3d-y">y:{{serie.details_3d_formatted.position.y}}</span>
+                                                <span class="details-3d-z">z:{{serie.details_3d_formatted.position.z}}</span>
+                                                <span> | </span>
+                                               
+                                                <span v-if="serie.values[0].quaternion == undefined">
+                                                    <span>rx:{{serie.details_3d_formatted.rotation.x}}</span>
+                                                    <span>ry:{{serie.details_3d_formatted.rotation.y}}</span>
+                                                    <span>rz:{{serie.details_3d_formatted.rotation.z}}</span>
+                                                </span>
+                                                <span v-else>
+                                                    <span>rx:{{serie.details_3d_formatted.quaternion.x}}</span>
+                                                    <span>ry:{{serie.details_3d_formatted.quaternion.y}}</span>
+                                                    <span>rz:{{serie.details_3d_formatted.quaternion.z}}</span>
+                                                    <span>rw:{{serie.details_3d_formatted.quaternion.w}}</span>
+                                                </span>
+                                                
+                                            </div>
                                         </div>
                                         <div v-if="serie.stats" class="serie-stat-container">
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Min</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.mean != null">{{serie.stats.min.toFixed(4)}}</span>
+                                                <span class="serie-stat-value">{{serie.stats.min}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Max</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.mean != null">{{serie.stats.max.toFixed(4)}}</span>
+                                                <span class="serie-stat-value" >{{serie.stats.max}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Mean</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.mean != null">{{serie.stats.mean.toFixed(4)}}</span>
+                                                <span class="serie-stat-value">{{serie.stats.mean}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Median</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.med != null">{{serie.stats.med.toFixed(4)}}</span>
+                                                <span class="serie-stat-value" >{{serie.stats.med}}</span>
                                             </div>
                                             <div class="serie-stat">
                                                 <span class="serie-stat-name">Stdev</span>
-                                                <span class="serie-stat-value" v-if="serie.stats.stdev != null">{{serie.stats.stdev.toFixed(4)}}</span>
+                                                <span class="serie-stat-value" >{{serie.stats.stdev}}</span>
                                             </div>
                                         </div>
+
+                                        
                                     </div>
                                 </div>
                                 <div class="widget-option-container">
-                                    <!--<span class="widget-option" v-if="!widget.hidden" @click="showWidget(widget, false)">—</span>
-                                    <span class="widget-option" v-if="widget.hidden" @click="showWidget(widget, true)">▭</span>-->
                                     <span v-if="widget.type == 'chart'" class="widget-option" @click="updateStats(widget)" title="Recalculate stats">‱</span>
                                     <span id ="closeWidgetButton" class="widget-option" @click="removeWidget(widget)" title="Close widget">╳</span>
                                     
                                 </div>
                             </div>
                             <span class="widget-option-resize" v-on:mousedown="onMouseDownOnResizeButton($event, widget)" title="Resize widget">⇲</span>
-                            
+                                                        
                             <comp-3d v-if="widget.type == 'widget3D'" v-bind:widget="widget" v-bind:series="widget.series"></comp-3d>
 
-                            <single-value v-if="widget.type == 'single_value'" v-bind:widget="widget"></single-value>
+                            <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
                             
-                            <uplot-vue v-if="widget.type == 'chart' && !widget.isResized" v-bind:data="widget.data" v-bind:options="widget.options"/>
-
-                            
+                            <uplot-vue class="uplot-vue" v-if="widget.type == 'chart' && !widget.isResized && (!widget.isXY || widget.data_available_xy)" v-bind:data="widget.data" v-bind:options="widget.options"/>
+                        
                         </div>
                     </div>
                 </div>
@@ -238,21 +260,16 @@
                 <!-- CMD update to multi input-->
 
                 <div class="var-container" v-if="!rightPanelVisible">
-                    <button @click="showRightPanel(true)" class="right-rounded-btn"></button>
+                    <button @click="showRightPanel(true)" class="right-rounded-btn"><</button>
                 </div>
-                <div class="right-col cmd-container" v-if="(cmdAvailable || logAvailable) && rightPanelVisible">
+                <div class="right-col cmd-container" v-show="(cmdAvailable || logAvailable) && rightPanelVisible">
                     <button @click="showRightPanel(false)" class="right-reduce-btn" >Reduce</button>
                     <div v-for="cmd in commands" v-bind:key="cmd.name" class="cmd-vue">
                         <button @click="sendCmd(cmd)">{{cmd.name}}</button>
                     </div>
 
                     <!-- LOG TODO update to multi input-->
-                    <div class="log-container" v-if="logAvailable">
-                        <span v-for="(log, index) in logs" v-bind:key="index" class="log-vue" @click="onLogClick(log, index)"
-                            v-bind:class="{ 'log-vue-selected': log.selected }">
-                            {{log.text}}
-                        </span>
-                    </div>
+                    <div id="log-container-div" class="log-container" v-show="logAvailable"></div>
                     <div v-for="conn in connections" class="flex-col">
                         <div v-for="input in conn.inputs" class="flex-col">
                             <div v-if="input.type=='serial' && input.port" class="send-text-container">
@@ -273,11 +290,12 @@
 
     </body>
     <script src="utils/javascriptUtils.js"></script>
-    <script src="lib/uPlot/uPlot.iife.js"></script>
-    <script src="lib/three/three.min.js"></script>
+    <script src="lib/uPlot/uplot.iife.js"></script>
+    <script src="lib/three/three.js"></script>
     <script src="lib/three/three.module.js"></script>
     <script src="lib/three/OrbitControls.js"></script>
-    <script src="lib/three/InfiniteGrid.js"></script>
+    <script src="lib/hyperlist/hyperlist.js"></script>
+    <script src="./classes/view/logs/Log.js"></script>
     <script src="components/uPlot/uplot-component.js"></script>
     <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
     <script src="components/singleValue/singleValue.js"></script>
@@ -288,10 +306,11 @@
     <script src="./classes/communication/connection/ConnectionTeleplotWebsocket.js"></script>
     <script src="./utils/view/cursor.js"></script>
     <script src="./classes/communication/serverMessageReading.js"></script>
-    <script src="./classes/widgets/DataWidget.js"></script>
-    <script src="./classes/widgets/ChartWidget.js"></script>
-    <script src="./classes/widgets/SingleValueWidget.js"></script>
-    <script src="./classes/widgets/Widget3D.js"></script>
+    <script src="./classes/view/widgets/DataWidget.js"></script>
+    <script src="./classes/view/widgets/ChartWidget.js"></script>
+    <script src="./classes/view/widgets/SingleValueWidget.js"></script>
+    <script src="./classes/view/widgets/Widget3D.js"></script>
+    <script src="./classes/view/logs/LogConsole.js"></script>
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>
     <script src="./classes/communication/data/DataInputUDP.js"></script>

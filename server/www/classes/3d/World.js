@@ -1,9 +1,17 @@
+function drawAllWords()
+{
+    if (worlds.length > 0 ) // otherwise we want rendering to stop
+		requestAnimationFrame(drawAllWords);
 
-// function animateWorld()
-// {
-// 	requestAnimationFrame(animateWorld);
-// 	world.render();
-// }
+    for (let i = 0; i<worlds.length; i++)
+    {
+        worlds[i].render();
+    }
+}
+ 
+var worlds = [];
+
+
 var worldCount = 0
 class World {
 	constructor(div3D){
@@ -40,24 +48,18 @@ class World {
 	initializeGrid(scene)
 	{
 
-		// let grid = new THREE.InfiniteGridHelper(10, 100);
-
 		const size = 500;
 		const divisions = size;
-		const colorCenterLine = new Color('#999999');
-		const colorGrid = new Color('#cccccc');
+		const zAxisColor = new Color(BlueZAxis);
+		const gridColor = new Color(GridHeplerColor);
+		const xAxisColor = new Color(RedXAxis);
 
-		const gridHelper = new THREE.GridHelper( size, divisions, colorCenterLine, colorGrid );
+		const gridHelper = new THREE.GridHelper( size, divisions, xAxisColor, gridColor, zAxisColor);
 		scene.add( gridHelper );
 	}
 
 	initializeLight(scene)
 	{
-		// without DirectionalLight the scene doesn't look 3D, but this should be fixed using appropriate textures.
-		
-		/*let light = new DirectionalLight('white', 8);
-		light.position.set(10, 10, 10);*/
-
 		let ambientLight = new AmbientLight('white', 1);
 		let hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 3 );
 
@@ -110,12 +112,10 @@ class World {
 
 	updateToNewShape(old_shape, new_shape)
 	{
-
 		let myMesh = old_shape.three_object;
 		if ( myMesh == null)
 		{
-			console.log("error updateToNewShape()")
-			return;
+			throw new Error("error myMesh shouldn't be null");
 		}
 
 
@@ -127,10 +127,6 @@ class World {
 		{
 			myMesh.scale.set(new_shape.radius, new_shape.radius, new_shape.radius);
 		}
-		/*else // here we rebuild the geometry
-		{
-			myMesh.geometry = new_shape.getGeometry();
-		}*/
 
 		myMesh.rotation.x = new_shape.rotation.x;
 		myMesh.rotation.y = new_shape.rotation.y;
@@ -141,37 +137,31 @@ class World {
 	
 	}
 
-	setObject(shape3d)
+ 	// shapeId is the idx of the shape in this._3Dshapes or the idx at which it should be if it is the first time
+	// shape3d is the new shape (either a totaly new one or an update of a previous one)
+	setObject(shapeId, shape3d)
 	{
 
-		let found = false;
-		let i = 0;
-
-		while (i < this._3Dshapes.length && !found)
+		if (shapeId < this._3Dshapes.length)
 		{
-			if (this._3Dshapes[i].name === shape3d.name)
-			{
-				this.updateToNewShape(this._3Dshapes[i], shape3d);
-
-				found = true;
-			}
-
-			i++;
+			this.updateToNewShape(this._3Dshapes[shapeId], shape3d);
 		}
-
-		if (!found)
+		else
 		{
-			this._3Dshapes.push(shape3d);
+			let shape_cp = (new Shape3D()).initializeFromShape3D(shape3d);
 
-			shape3d.buildThreeObject();
-			this.scene.add(shape3d.three_object);
+			buildThreeObject(shape_cp);
+			this._3Dshapes.push(shape_cp);
+
+			// as we can't share the same mesh between multiple scenes, we are making 
+			// a copy of it just before adding it to the scene, otherwise their might be two scenes trying to use the same mesh
+			this.scene.add(shape_cp.three_object);
 		}
-
 		
 	}
 	
 	render()
 	{
-		this.renderer.render( this.scene, this.camera );
+		this.renderer.render(this.scene, this.camera);
 	}
 }

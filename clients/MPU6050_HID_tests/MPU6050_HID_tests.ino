@@ -62,13 +62,13 @@ void loop() {
   // 3D
 
   
-  Serial.print("3D|IMU:{\"rotation\":{\"x\":");
+  Serial.print("3D|IMU:R:");
   Serial.print((filter.getPitch() * M_PI /180.f));
-  Serial.print(",\"y\":");
+  Serial.print(":");
   Serial.print((filter.getYaw() * M_PI /180.f));
-  Serial.print(",\"z\":");
+  Serial.print(":");
   Serial.print((-filter.getRoll() * M_PI /180.f ));
-  Serial.println("},\"position\":{\"x\":0,\"y\":0,\"z\":0},\"shape\":\"cube\",\"width\":4,\"height\":1.5,\"depth\":3,\"color\":\"grey\"}|g");
+  Serial.println(":S:cube:W:4:H:1.5:D:3:C:grey|g");
   
   //delay(1);
 }

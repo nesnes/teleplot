@@ -12,14 +12,60 @@ class Telemetry{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         
-        if(this.type == "xy"){
+        if(this.type == "xy")
+        {
+            // in this case, this.data and this.pending data contain 3 arrays, the two first for x and y values and the last one for the timestamp
             this.data.push([]);
             this.pendingData.push([]);
         }
 
+        // this is what will be displayed on the left pannel next to the telem name, 
+        // it is either the current value of the telem (number), or its text or the type of the shape ...
+        this.values_formatted = ""; 
+
+
+        if (this.type == "3D") 
+            this.setShapeTypeDelay();
     }
 
-    getValuesFormatted() {
+    setShapeTypeDelay()
+    {
+        setTimeout(()=>{
+            if (!this.setShapeType())
+                this.setShapeTypeDelay();
+        }, 50);
+    }
+
+    setShapeType()
+    {
+        let res0 = this.data[1][this.data[1].length-1];
+
+        if (res0 != undefined)
+        {
+            let res1 = res0.type;
+            if (res1 != undefined)
+            {
+                this.values_formatted = res1;
+                return true;
+            }
+        }   
+        return false;
+    }
+
+    iniFromTelem(telem)
+    {
+        this.type = telem.type;
+        this.name = telem.name;
+        this.unit = telem.unit;
+        this.usageCount = telem.usageCount;
+        this.values = telem.values;
+        this.data = telem.data;
+        this.pendingData = telem.pendingData;
+
+        return this;
+    }
+
+    updateFormattedValues() {
 
         if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
         {
@@ -28,22 +74,18 @@ class Telemetry{
             if (this.type=="xy" && this.values.length == 2)
                 res += ("  " + this.values[1].toFixed(4));
     
-            return res;
+            this.values_formatted =  res;
         }
         else if (this.type == "text")
         {
-            return this.values[0];
+            this.values_formatted =  this.values[0];
         }
-        else if (this.type == "3D")
-        {
-            if (this.data[1][this.data[1].length-1] == undefined)
-                return "";
-                
-            let shapeType = this.data[1][this.data[1].length-1].type; 
-            return (shapeType == undefined ? "" : shapeType)
+        else if (this.type != "3D")
+        // if equals 3D, then values_formatted contains the name of the shape and has already been set at instanciation,
+        // otherwise, it means we haven't been able to get te good text to show so we just return ""
+        {   
+            this.values_formatted =  "";
         }
-
-        return "";
        
     }
 }

@@ -1,9 +1,8 @@
 .comp-3d-container
 {
 	width: 100%;
-	height: calc(100% - 30px);
+	height: calc(100% - 50px);
 	position: absolute;
-	top: 30px;
+	top: 50px;
 	overflow: hidden;
-	/* background-color: aqua; */
 }

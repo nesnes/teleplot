@@ -16,6 +16,9 @@ class DataWidget{
         {
             throw new Error("DataWidget is an abstract class, it should only be inherited and never instanciated !");
         }
+        
+        // usefull to identify a chart ( we can send multiples shapes to be displayed in the same chart by precising their chart label )
+        this.label = undefined;
 
         this.options = {
             width: undefined,
@@ -23,9 +26,6 @@ class DataWidget{
         }
 
         this.series = []; // DataSerie
-        this.type = "chart";
-        /*this way of generating ids may create two DataWidgets with same ids by accident :
-        this.id = "widget-chart-" + (Math.random() + 1).toString(36).substring(7);*/
         this.id = "widget-chart-" + widgetCount;
         widgetCount ++;
         this.gridPos = {h:6, w:6, x:0, y:0};

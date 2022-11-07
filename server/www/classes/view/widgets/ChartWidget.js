@@ -5,8 +5,10 @@ This class represents a chart
 class ChartWidget extends DataWidget{
     constructor(_isXY=false) {
         super();
+        this.type = "chart";
         this.isXY = _isXY;
-        this.data = [];
+        this.data = []; // this is what contains the data ready for uplot
+        this.data_available_xy = false; // this tells wheter this.data is ready for uplot for xy chart or not
         this.options = {
             title: "",
             width: undefined,
@@ -17,7 +19,7 @@ class ChartWidget extends DataWidget{
             cursor: {
                 lock: false,
                 focus: { prox: 16, },
-                sync: {  key: window.cursorSync.key,  setSeries: true }
+                sync: { key: window.cursorSync.key,  setSeries: true }
             },
             legend: { show: false }
         }
@@ -50,7 +52,7 @@ class ChartWidget extends DataWidget{
     update(){
         // Update each series
         for(let s of this.series) s.update();
-        if(app.isViewPaused) return;
+        if(app.isViewPaused && !this.forceUpdate) return;
 
         if(this.isXY){
             if(this.forceUpdate) {
@@ -60,8 +62,8 @@ class ChartWidget extends DataWidget{
                     s.dataIdx = this.data.length;
                     this.data.push(s.data);
                 }
-                this.id += "-" //dummy way to force update
-                triggerChartResize();
+                this.id += "-" //DUMMY way to force update
+                // triggerChartResize();
                 this.forceUpdate = false;
             }
             else {
@@ -72,6 +74,11 @@ class ChartWidget extends DataWidget{
                     }
                 }
             }
+
+            let elIsAlone = (el) => {return (el != null && el.length == 1) };
+
+            this.data_available_xy = (this.data.length>=2 && this.data[1] != null && this.data[1] != undefined 
+                && !(this.data[1].some(elIsAlone)));
         }
         else if(this.data[0].length==0 || this.forceUpdate) {
             //Create data with common x axis
@@ -79,8 +86,8 @@ class ChartWidget extends DataWidget{
             for(let s of this.series) dataList.push(s.data);
             this.data.length = 0;
             this.data = uPlot.join(dataList)
-            this.id += "-" //dummy way to force update
-            triggerChartResize();
+            this.id += "-" //DUMMY way to force update
+            // triggerChartResize();
             this.forceUpdate = false;
         }
         else {
