@@ -21,9 +21,157 @@
 #define TELEPLOT_USE_FREQUENCY // Allows to set a maxFrequency on updates (per key) but will instanciate a dynamic map
 #define TELEPLOT_USE_BUFFERING // Allows to group updates sent, but will use a dynamic buffer map
 
-#define TELEPLOT_FLAG_DEFAULT "g"
+#define TELEPLOT_FLAG_DEFAULT ""
 #define TELEPLOT_FLAG_NOPLOT "np"
 #define TELEPLOT_FLAG_2D "xy"
+#define TELEPLOT_FLAG_TEXT "text"
+
+class ShapeTeleplot {
+public:
+    ShapeTeleplot(std::string name, std::string type, std::string color="")
+    {
+        this->name = name;
+        this->type = type;
+        this->color = color;
+    };
+
+    std::string getName()
+    {
+        return this->name;
+    }
+
+    ShapeTeleplot* setPosAndRot(int* posX, int* posY, int* posZ, int* rotX, int* rotY, int* rotZ, int* rotW)
+    {
+        this->posX = posX;
+        this->posY = posY;
+        this->posZ = posZ;
+        this->rotX = rotX;
+        this->rotY = rotY;
+        this->rotZ = rotZ;
+        this->rotW = rotW;
+
+        return this;
+    }
+
+    ShapeTeleplot* setCubeProperties(int* height, int* width, int* depth)
+    {
+        this->height = height;
+        this->width = width;
+        this->depth = depth;
+
+        return this;
+    }
+
+    ShapeTeleplot* setSphereProperties(int* radius, int* precision)
+    {
+        this->radius = radius;
+        this->precision = precision;
+
+        return this;
+    }
+
+    std::string toString()
+    {
+        std::string result = "S:"+this->type;
+
+        if (this->color != "") result += ":C:"+this->color;
+        
+        if (this->posX != NULL || this->posY != NULL || this->posZ != NULL) 
+        {
+            result += ":P:";
+
+            if (this->posX != NULL)
+                result += std::to_string(*(this->posX));
+            result += ":";
+
+            if (this->posY != NULL) 
+                result += std::to_string(*(this->posY));
+            result += ":";
+
+            if (this->posZ != NULL) 
+                result += std::to_string(*(this->posZ));
+        }
+
+        if (this->rotX != NULL || this->rotY != NULL || this->rotZ != NULL || this->rotW != NULL) 
+        {
+            if (this->rotW != NULL)
+                result += ":Q:";
+            else
+                result += ":R:";
+
+            if (this->rotX != NULL)
+                result += std::to_string(*(this->rotX));
+            result += ":";
+
+            if (this->rotY != NULL)
+                result += std::to_string(*(this->rotY));
+            result += ":";
+
+            if (this->rotZ != NULL) 
+                result += std::to_string(*(this->rotZ));
+
+            if (this->rotW != NULL)
+                result += (":"+ std::to_string(*(this->rotW)));
+        }
+
+        if (this->type == "sphere")
+        {
+            if (this->radius != NULL)
+            {
+                result += ":RA:";
+                result += std::to_string(*(this->radius));
+            }
+            if (this->precision != NULL)
+            {
+                result += ":P:";
+                result += std::to_string(*(this->precision));
+            }
+        }
+
+        if (this->type == "cube")
+        {
+            if (this->height!= NULL)
+            {
+                result += ":H:";
+                result += std::to_string(*(this->height));
+            }
+            if (this->width != NULL)
+            {
+                result += ":W:";
+                result += std::to_string(*(this->width));
+            }
+            if (this->depth != NULL)
+            {
+                result += ":D:";
+                result += std::to_string(*(this->depth));
+            }
+        }
+
+        return result;
+    }
+
+private:
+    std::string name = "";
+    std::string type = "";
+    std::string color = "";
+
+    int* posX = NULL;
+    int* posY = NULL;
+    int* posZ = NULL;
+
+    int* rotX = NULL;
+    int* rotY = NULL;
+    int* rotZ = NULL;
+    int* rotW = NULL;
+
+    int* height = NULL;
+    int* width = NULL;
+    int* depth = NULL;
+    
+    int* radius = NULL;
+    int* precision = NULL;
+
+};
 
 class Teleplot {
 public:
@@ -46,13 +194,13 @@ public:
     static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
     
     template<typename T>
-    void update(std::string const& key, T const& value, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
+    void update(std::string const& key, T const& value, std::string unit = "", unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
         double nowMs = static_cast<double>(nowUs)/1000.d;
-        updateData(key, nowMs, value, 0, flags, maxFrequencyHz);
+        updateData(key, nowMs, value, 0, flags, maxFrequencyHz, unit);
     }
 
     template<typename T1, typename T2>
@@ -63,6 +211,15 @@ public:
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
         double nowMs = static_cast<double>(nowUs)/1000.d;
         updateData(key, valueX, valueY, nowMs, flags, maxFrequencyHz);
+    }
+
+    void update3D(ShapeTeleplot* mshape, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
+        #ifdef TELEPLOT_DISABLE
+            return ;
+        #endif
+        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        double nowMs = static_cast<double>(nowUs)/1000.0;
+        updateData(mshape->getName(), nowMs, NULL, NULL, flags, maxFrequencyHz, "", mshape);
     }
 
     void log(std::string const& log){
@@ -97,7 +254,7 @@ private:
     #endif
 
     template<typename T1, typename T2, typename T3>
-    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz) {
+    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz, std::string unit="", ShapeTeleplot* mshape = NULL) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
@@ -108,27 +265,42 @@ private:
         #endif
 
         // Format
-        std::string valueStr = formatValues(valueX, valueY, valueZ, flags);
+        std::string valueStr = formatValues(valueX, valueY, valueZ, mshape, flags);
 
         // Emit
+        bool is3D = mshape != NULL;
+
         #ifdef TELEPLOT_USE_BUFFERING
-            buffer(key, valueStr, flags);
+            buffer(key, valueStr, flags, unit, is3D);
         #else
-            emit(formatPacket(key, valueStr, flags));    
+            emit(formatPacket(key, valueStr, flags, unit, is3D));    
         #endif
     }
 
     template<typename T1, typename T2, typename T3>
-    std::string formatValues(T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags){
+    std::string formatValues(T1 const& valueX, T2 const& valueY, T3 const& valueZ, ShapeTeleplot* mshape, std::string const& flags){
         std::ostringstream oss;
-        oss << std::fixed << valueX << ":" << valueY;
-        if(flags.find(TELEPLOT_FLAG_2D) != std::string::npos){ oss << std::fixed << ":" << valueZ; }
+        if (mshape != NULL) 
+        {
+            // valueX contains the timestamp
+            oss << std::fixed << valueX << ":" << mshape->toString();
+        }
+        else
+        {
+            oss << std::fixed << valueX << ":" << valueY;
+            if(flags.find(TELEPLOT_FLAG_2D) != std::string::npos){ oss << std::fixed << ":" << valueZ; }
+        }
         return oss.str();
     }
 
-    std::string formatPacket(std::string const &key, std::string const& values, std::string const& flags){
-        std::ostringstream oss;
-        oss << key << ":" << values << "|" << flags;
+    std::string formatPacket(std::string const &key, std::string const& values, std::string const& flags, std::string unit, bool is3D=false){
+        std::ostringstream oss;        
+        std::string unitFormatted = (unit == "") ? "" : "§" + unit;
+
+        if (is3D)
+            oss << "3D|";
+            
+        oss << key << ":" << values << unitFormatted <<"|" << flags;
         return oss.str();
     }
 
@@ -137,7 +309,7 @@ private:
     }
 
     #ifdef TELEPLOT_USE_BUFFERING
-        void buffer(std::string const &key, std::string const& values, std::string const& flags) {
+        void buffer(std::string const &key, std::string const& values, std::string const& flags, std::string unit, bool is3D = false) {
             //Make sure buffer exists
             if(bufferingMap_.find(key) == bufferingMap_.end()) {
                 bufferingMap_[key] = "";
@@ -149,23 +321,24 @@ private:
             size_t flagSize = 1 + flags.size(); // +1 is the separator
             size_t nextSize = keySize + valuesSize + flagSize;
             if(nextSize > maxBufferingSize_) {
-                flushBuffer(key, flags, true); // Force flush
+                flushBuffer(key, flags, unit, true, is3D); // Force flush
             }
             bufferingMap_[key] += values + ";";
-            flushBuffer(key, flags);
+            flushBuffer(key, flags, unit, false, is3D);
         }
 
-        void flushBuffer(std::string const& key, std::string const& flags, bool force=false) {
+        void flushBuffer(std::string const& key, std::string const& flags, std::string unit, bool force, bool is3D=false) {
             // Flush the buffer if the frequency is reached
             int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
             int64_t elasped = nowUs - bufferingFlushTimestampsUs_[key];
             if(force || elasped >= static_cast<int64_t>(1e6/bufferingFrequencyHz_)) {
-                emit(formatPacket(key, bufferingMap_[key], flags));
+                emit(formatPacket(key, bufferingMap_[key], flags, unit, is3D));
                 bufferingMap_[key].clear();
                 bufferingFlushTimestampsUs_[key] = nowUs;
             }
         }
         std::map<std::string, std::string> bufferingMap_;
+
         std::map<std::string, int64_t> bufferingFlushTimestampsUs_;
         size_t maxBufferingSize_ = 1432; // from https://github.com/statsd/statsd/blob/master/docs/metric_types.md
     #endif
