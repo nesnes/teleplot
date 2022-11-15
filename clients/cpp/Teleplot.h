@@ -28,6 +28,8 @@
 
 class ShapeTeleplot {
 public:
+    ShapeTeleplot(){};
+
     ShapeTeleplot(std::string name, std::string type, std::string color="")
     {
         this->name = name;
@@ -35,7 +37,7 @@ public:
         this->color = color;
     };
 
-    std::string getName()
+    std::string const& getName() const
     {
         return this->name;
     }
@@ -53,24 +55,24 @@ public:
         return this;
     }
 
-    ShapeTeleplot* setCubeProperties(int* height, int* width, int* depth)
+    ShapeTeleplot& setCubeProperties(int* height, int* width, int* depth)
     {
         this->height = height;
         this->width = width;
         this->depth = depth;
 
-        return this;
+        return *this;
     }
 
-    ShapeTeleplot* setSphereProperties(int* radius, int* precision)
+    ShapeTeleplot& setSphereProperties(int* radius, int* precision)
     {
         this->radius = radius;
         this->precision = precision;
 
-        return this;
+        return *this;
     }
 
-    std::string toString()
+    std::string toString() const
     {
         std::string result = "S:"+this->type;
 
@@ -213,13 +215,13 @@ public:
         updateData(key, valueX, valueY, nowMs, flags, maxFrequencyHz);
     }
 
-    void update3D(ShapeTeleplot* mshape, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
+    void update3D(ShapeTeleplot const& mshape, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
         double nowMs = static_cast<double>(nowUs)/1000.0;
-        updateData(mshape->getName(), nowMs, NULL, NULL, flags, maxFrequencyHz, "", mshape);
+        updateData(mshape.getName(), nowMs, NULL, NULL, flags, maxFrequencyHz, "", mshape);
     }
 
     void log(std::string const& log){
@@ -254,7 +256,7 @@ private:
     #endif
 
     template<typename T1, typename T2, typename T3>
-    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz, std::string unit="", ShapeTeleplot* mshape = NULL) {
+    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz, std::string unit="", ShapeTeleplot const& mshape = ShapeTeleplot()) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
@@ -268,7 +270,7 @@ private:
         std::string valueStr = formatValues(valueX, valueY, valueZ, mshape, flags);
 
         // Emit
-        bool is3D = mshape != NULL;
+        bool is3D = !mshape.getName().empty();
 
         #ifdef TELEPLOT_USE_BUFFERING
             buffer(key, valueStr, flags, unit, is3D);
@@ -278,12 +280,12 @@ private:
     }
 
     template<typename T1, typename T2, typename T3>
-    std::string formatValues(T1 const& valueX, T2 const& valueY, T3 const& valueZ, ShapeTeleplot* mshape, std::string const& flags){
+    std::string formatValues(T1 const& valueX, T2 const& valueY, T3 const& valueZ, ShapeTeleplot const& mshape, std::string const& flags){
         std::ostringstream oss;
-        if (mshape != NULL) 
+        if (!mshape.getName().empty()) 
         {
             // valueX contains the timestamp
-            oss << std::fixed << valueX << ":" << mshape->toString();
+            oss << std::fixed << valueX << ":" << mshape.toString();
         }
         else
         {

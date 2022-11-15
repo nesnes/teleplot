@@ -10,8 +10,7 @@ int main(int argc, char* argv[])
     int state_arr_length = 3;
     std::string state_arr[state_arr_length] = {"standing", "sitting", "walking"};
 
-    int heights_arr_length = 6;
-    int heights_arr[heights_arr_length] = {20, 5, 8, 4, 1, 2};
+    int heights_arr_length = 6; int heights_arr[heights_arr_length] = {20, 5, 8, 4, 1, 2};
 
     for (;;)
     {
@@ -20,7 +19,7 @@ int main(int argc, char* argv[])
         teleplot.update("cos", cos(i), "", 10); // Limit at 10Hz
         teleplot.update("state", state_arr[rand()%state_arr_length], "", 0, "t");
 
-        teleplot.update3D((new ShapeTeleplot("mysquare", "cube"))->setCubeProperties(heights_arr + (rand()%heights_arr_length), NULL, NULL));
+        teleplot.update3D(ShapeTeleplot("mysquare", "cube").setCubeProperties(heights_arr + (rand()%heights_arr_length), NULL, NULL));
 
         // Use static localhost object
         Teleplot::localhost().update("tan", tan(i), "");
