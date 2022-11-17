@@ -5,6 +5,7 @@
 #define TELEPLOT_H
 
 #include <iostream>
+#include <iomanip> 
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -26,152 +27,136 @@
 #define TELEPLOT_FLAG_2D "xy"
 #define TELEPLOT_FLAG_TEXT "text"
 
+
 class ShapeTeleplot {
 public:
+    struct ShapeValue
+    {
+        ShapeValue(): isSet(false), value(0){};
+        ShapeValue(double val) : isSet(true), value(val) {};
+
+        bool isSet;
+        double value;
+    };
+
     ShapeTeleplot(){};
 
-    ShapeTeleplot(std::string name, std::string type, std::string color="")
-    {
-        this->name = name;
-        this->type = type;
-        this->color = color;
-    };
+    ShapeTeleplot(std::string const& name, std::string const& type, std::string const& color = "") : _name(name), _type(type), _color(color){};
 
     std::string const& getName() const
     {
-        return this->name;
+        return _name;
     }
 
-    ShapeTeleplot* setPosAndRot(int* posX, int* posY, int* posZ, int* rotX, int* rotY, int* rotZ, int* rotW)
+    ShapeTeleplot& setPos(ShapeValue const posX, ShapeValue const posY = {}, ShapeValue const posZ = {})
     {
-        this->posX = posX;
-        this->posY = posY;
-        this->posZ = posZ;
-        this->rotX = rotX;
-        this->rotY = rotY;
-        this->rotZ = rotZ;
-        this->rotW = rotW;
-
-        return this;
-    }
-
-    ShapeTeleplot& setCubeProperties(int* height, int* width, int* depth)
-    {
-        this->height = height;
-        this->width = width;
-        this->depth = depth;
+        _posX = posX;
+        _posY = posY;
+        _posZ = posZ;
 
         return *this;
     }
 
-    ShapeTeleplot& setSphereProperties(int* radius, int* precision)
+    ShapeTeleplot& setRot(ShapeValue const rotX, ShapeValue const rotY = {}, ShapeValue const rotZ = {}, ShapeValue const rotW = {})
     {
-        this->radius = radius;
-        this->precision = precision;
+        _rotX = rotX;
+        _rotY = rotY;
+        _rotZ = rotZ;
+        _rotW = rotW;
+
+        return *this;
+    }
+
+    ShapeTeleplot& setCubeProperties(ShapeValue const height, ShapeValue const width = {}, ShapeValue const depth = {})
+    {
+        _height = height;
+        _width = width;
+        _depth = depth;
+
+        return *this;
+    }
+
+    ShapeTeleplot& setSphereProperties(ShapeValue const radius, ShapeValue const precision)
+    {
+        _radius = radius;
+        _precision = precision;
 
         return *this;
     }
 
     std::string toString() const
     {
-        std::string result = "S:"+this->type;
+        std::stringstream result;
+        result << std::fixed << std::setprecision(4);
+        result << "S:" << _type;
 
-        if (this->color != "") result += ":C:"+this->color;
+        if (_color != "") { result << ":C:" << _color; }
         
-        if (this->posX != NULL || this->posY != NULL || this->posZ != NULL) 
+        if (_posX.isSet || _posY.isSet || _posZ.isSet) 
         {
-            result += ":P:";
+            result << ":P:";
 
-            if (this->posX != NULL)
-                result += std::to_string(*(this->posX));
-            result += ":";
+            if (_posX.isSet) { result << _posX.value; }
+            result << ":";
 
-            if (this->posY != NULL) 
-                result += std::to_string(*(this->posY));
-            result += ":";
+            if (_posY.isSet) { result << _posY.value; }
+            result << ":";
 
-            if (this->posZ != NULL) 
-                result += std::to_string(*(this->posZ));
+            if (_posZ.isSet) { result << _posZ.value; }
         }
 
-        if (this->rotX != NULL || this->rotY != NULL || this->rotZ != NULL || this->rotW != NULL) 
+        if (_rotX.isSet || _rotY.isSet || _rotZ.isSet || _rotW.isSet) 
         {
-            if (this->rotW != NULL)
-                result += ":Q:";
-            else
-                result += ":R:";
+            if (_rotW.isSet) { result << ":Q:"; }
+            else { result << ":R:"; }
 
-            if (this->rotX != NULL)
-                result += std::to_string(*(this->rotX));
-            result += ":";
+            if (_rotX.isSet) { result << _rotX.value; }
+            result << ":";
 
-            if (this->rotY != NULL)
-                result += std::to_string(*(this->rotY));
-            result += ":";
+            if (_rotY.isSet) { result << _rotY.value; }
+            result << ":";
 
-            if (this->rotZ != NULL) 
-                result += std::to_string(*(this->rotZ));
+            if (_rotZ.isSet) { result << _rotZ.value; }
 
-            if (this->rotW != NULL)
-                result += (":"+ std::to_string(*(this->rotW)));
+            if (_rotW.isSet) { result << ":" <<_rotW.value; }
         }
 
-        if (this->type == "sphere")
+        if (_type == "sphere")
         {
-            if (this->radius != NULL)
-            {
-                result += ":RA:";
-                result += std::to_string(*(this->radius));
-            }
-            if (this->precision != NULL)
-            {
-                result += ":P:";
-                result += std::to_string(*(this->precision));
-            }
+            if (_radius.isSet)    { result << ":RA:" << _radius.value; }
+            if (_precision.isSet) { result << ":P:" << _precision.value; }
         }
 
-        if (this->type == "cube")
+        if (_type == "cube")
         {
-            if (this->height!= NULL)
-            {
-                result += ":H:";
-                result += std::to_string(*(this->height));
-            }
-            if (this->width != NULL)
-            {
-                result += ":W:";
-                result += std::to_string(*(this->width));
-            }
-            if (this->depth != NULL)
-            {
-                result += ":D:";
-                result += std::to_string(*(this->depth));
-            }
+            if (_height.isSet) { result << ":H:" << _height.value; }
+            if (_width.isSet)  { result << ":W:" << _width.value;  }
+            if (_depth.isSet)  { result << ":D:" << _depth.value;  }
         }
 
-        return result;
+        return result.str();
     }
 
 private:
-    std::string name = "";
-    std::string type = "";
-    std::string color = "";
+    const std::string _name;
+    const std::string _type;
+    const std::string _color;
 
-    int* posX = NULL;
-    int* posY = NULL;
-    int* posZ = NULL;
+    ShapeValue _posX;
+    ShapeValue _posY;
+    ShapeValue _posZ;
 
-    int* rotX = NULL;
-    int* rotY = NULL;
-    int* rotZ = NULL;
-    int* rotW = NULL;
+    ShapeValue _rotX;
+    ShapeValue _rotY;
+    ShapeValue _rotZ;
+    ShapeValue _rotW;
 
-    int* height = NULL;
-    int* width = NULL;
-    int* depth = NULL;
-    
-    int* radius = NULL;
-    int* precision = NULL;
+    ShapeValue _height;
+    ShapeValue _width;
+    ShapeValue _depth;
+
+    ShapeValue _radius;
+    ShapeValue _precision;
 
 };
 
@@ -196,7 +181,7 @@ public:
     static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
     
     template<typename T>
-    void update(std::string const& key, T const& value, std::string unit = "", unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
+    void update(std::string const& key, T const& value, std::string unit = "", unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
@@ -206,7 +191,7 @@ public:
     }
 
     template<typename T1, typename T2>
-    void update2D(std::string const& key, T1 const& valueX, T2 const& valueY, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_2D) {
+    void update2D(std::string const& key, T1 const& valueX, T2 const& valueY, unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_2D) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
@@ -215,7 +200,7 @@ public:
         updateData(key, valueX, valueY, nowMs, flags, maxFrequencyHz);
     }
 
-    void update3D(ShapeTeleplot const& mshape, unsigned int maxFrequencyHz=0, std::string flags=TELEPLOT_FLAG_DEFAULT) {
+    void update3D(ShapeTeleplot const& mshape, unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
@@ -256,7 +241,7 @@ private:
     #endif
 
     template<typename T1, typename T2, typename T3>
-    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz, std::string unit="", ShapeTeleplot const& mshape = ShapeTeleplot()) {
+    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz, std::string unit = "", ShapeTeleplot const& mshape = ShapeTeleplot()) {
         #ifdef TELEPLOT_DISABLE
             return ;
         #endif
@@ -295,14 +280,14 @@ private:
         return oss.str();
     }
 
-    std::string formatPacket(std::string const &key, std::string const& values, std::string const& flags, std::string unit, bool is3D=false){
+    std::string formatPacket(std::string const &key, std::string const& values, std::string const& flags, std::string unit, bool is3D = false){
         std::ostringstream oss;        
         std::string unitFormatted = (unit == "") ? "" : "§" + unit;
 
         if (is3D)
             oss << "3D|";
             
-        oss << key << ":" << values << unitFormatted <<"|" << flags;
+        oss << key << ":" << values << unitFormatted << "|" << flags;
         return oss.str();
     }
 
@@ -329,7 +314,7 @@ private:
             flushBuffer(key, flags, unit, false, is3D);
         }
 
-        void flushBuffer(std::string const& key, std::string const& flags, std::string unit, bool force, bool is3D=false) {
+        void flushBuffer(std::string const& key, std::string const& flags, std::string unit, bool force, bool is3D = false) {
             // Flush the buffer if the frequency is reached
             int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
             int64_t elasped = nowUs - bufferingFlushTimestampsUs_[key];
