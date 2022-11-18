@@ -27,16 +27,51 @@
 #define TELEPLOT_FLAG_2D "xy"
 #define TELEPLOT_FLAG_TEXT "text"
 
-
 class ShapeTeleplot {
 public:
-    struct ShapeValue
+    class ShapeValue
     {
-        ShapeValue(): isSet(false), value(0){};
-        ShapeValue(double val) : isSet(true), value(val) {};
+        public :
+            ShapeValue(): isSet(false), value(0){};
+            ShapeValue(double val) : isSet(true), value(val) {};
 
-        bool isSet;
-        double value;
+            bool isSet;
+            double value;
+            std::string valueRounded() const 
+            {
+                return roundValue(value, 3);
+            }
+
+            private :
+                std::string roundValue(const double value, const unsigned short precision) const
+                {
+                    std::string value_str = std::to_string(value);
+                    int res_length = value_str.length();
+                    
+                    int i = 0;
+                    bool stop = false;
+
+                    while (i < res_length && !stop)
+                    {
+                        if (value_str[i] == '.')
+                        {
+                            int u = i + precision;
+                            if (u+1 < value_str.length())
+                            {
+                                while (value_str[u] == '0') u--;
+                                
+                                res_length = u;
+                                if (i != u)
+                                    res_length ++;
+                            }
+
+                            stop = true;
+                        }
+                        i++;
+                    }
+
+                    return value_str.substr(0, res_length);
+                }
     };
 
     ShapeTeleplot(){};
@@ -86,6 +121,7 @@ public:
 
     std::string toString() const
     {
+
         std::stringstream result;
         result << std::fixed << std::setprecision(4);
         result << "S:" << _type;
@@ -96,13 +132,13 @@ public:
         {
             result << ":P:";
 
-            if (_posX.isSet) { result << _posX.value; }
+            if (_posX.isSet) { result << _posX.valueRounded(); }
             result << ":";
 
-            if (_posY.isSet) { result << _posY.value; }
+            if (_posY.isSet) { result << _posY.valueRounded(); }
             result << ":";
 
-            if (_posZ.isSet) { result << _posZ.value; }
+            if (_posZ.isSet) { result << _posZ.valueRounded(); }
         }
 
         if (_rotX.isSet || _rotY.isSet || _rotZ.isSet || _rotW.isSet) 
@@ -110,28 +146,28 @@ public:
             if (_rotW.isSet) { result << ":Q:"; }
             else { result << ":R:"; }
 
-            if (_rotX.isSet) { result << _rotX.value; }
+            if (_rotX.isSet) { result << _rotX.valueRounded(); }
             result << ":";
 
-            if (_rotY.isSet) { result << _rotY.value; }
+            if (_rotY.isSet) { result << _rotY.valueRounded(); }
             result << ":";
 
-            if (_rotZ.isSet) { result << _rotZ.value; }
+            if (_rotZ.isSet) { result << _rotZ.valueRounded(); }
 
-            if (_rotW.isSet) { result << ":" <<_rotW.value; }
+            if (_rotW.isSet) { result << ":" <<_rotW.valueRounded(); }
         }
 
         if (_type == "sphere")
         {
-            if (_radius.isSet)    { result << ":RA:" << _radius.value; }
-            if (_precision.isSet) { result << ":P:" << _precision.value; }
+            if (_radius.isSet)    { result << ":RA:" << _radius.valueRounded(); }
+            if (_precision.isSet) { result << ":P:" << _precision.valueRounded(); }
         }
 
         if (_type == "cube")
         {
-            if (_height.isSet) { result << ":H:" << _height.value; }
-            if (_width.isSet)  { result << ":W:" << _width.value;  }
-            if (_depth.isSet)  { result << ":D:" << _depth.value;  }
+            if (_height.isSet) { result << ":H:" << _height.valueRounded(); }
+            if (_width.isSet)  { result << ":W:" << _width.valueRounded();  }
+            if (_depth.isSet)  { result << ":D:" << _depth.valueRounded();  }
         }
 
         return result.str();
