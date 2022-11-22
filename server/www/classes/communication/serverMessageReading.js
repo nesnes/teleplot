@@ -178,29 +178,39 @@ function parse3D(msg, now)
 
     let [key, widgetLabel] = separateWidgetAndLabel(keyAndWidgetLabel);  
 
-    let timestamp;
-    if (isLetter(msg[startIdx]))
-    {
-        timestamp = now;
-    }
-    else
-    {
-        let trueStartIdx = msg.indexOf(':', startIdx);
-
-        timestamp = (msg.substring(startIdx, trueStartIdx))/1000;// we divise by 1000 to get timestamp in seconds
-
-        startIdx = trueStartIdx+1;
-    }
-
-    let rawShape = msg.substring(startIdx,endIdx);
-
+    let values = msg.substring(startIdx, endIdx).split(';')
 
     let flags = msg.substr(endIdx+1);
-    let shape3D;
-    try { shape3D = new Shape3D().initializeFromRawShape(key, rawShape);} 
-    catch(e) { throw new Error("Error invalid shape text given : "+rawShape)};
 
-    appendData(key, [timestamp], [shape3D], [], "", flags, "3D", widgetLabel)
+    for (let value of values)
+    {
+        if (value == "")
+            continue;
+            
+        let valueStartIdx = 0;
+        let timestamp;
+        if (isLetter(value[0]))
+        {
+            timestamp = now;
+        }
+        else
+        {
+            let trueStartIdx = value.indexOf(':');
+
+            timestamp = (value.substring(0, trueStartIdx))/1000;// we divise by 1000 to get timestamp in seconds
+
+            valueStartIdx = trueStartIdx+1;
+        }
+
+        let rawShape = value.substring(valueStartIdx, value.length);
+
+
+        let shape3D;
+        try { shape3D = new Shape3D().initializeFromRawShape(key, rawShape);} 
+        catch(e) { throw new Error("Error invalid shape text given : "+rawShape)};
+
+        appendData(key, [timestamp], [shape3D], [], "", flags, "3D", widgetLabel)
+    }
 }
 
 // adds

@@ -133,11 +133,21 @@ class Shape3D
 			
 			if (propertyValues.length == 1)
 				this[currentProperty] = propertyValues[0];
-			else 
+			else if (propertyValues.length == 3)
 			{
 				this[currentProperty].x = propertyValues[0]
 				this[currentProperty].y = propertyValues[1]
 				this[currentProperty].z = propertyValues[2]
+			}
+			else if (propertyValues.length == 4)
+			{
+				// currentProperty is quaternion
+				this.quaternion = {}; 
+
+				this[currentProperty].x = propertyValues[0]
+				this[currentProperty].y = propertyValues[1]
+				this[currentProperty].z = propertyValues[2]
+				this[currentProperty].w = propertyValues[3]
 			}
 		}
 
@@ -305,10 +315,21 @@ function buildThreeObject(shape3D)
 		shape3D.three_object.rotation.z = shape3D.rotation.z;
 	}
 	else
-	{
-		shape3D.three_object.applyQuaternion(new THREE.Quaternion(shape3D.quaternion.x, shape3D.quaternion.y, shape3D.quaternion.z, shape3D.quaternion.w));
-	}
+		buildMeshFromQuaternion(shape3D.three_object, shape3D);
 
+}
+
+
+function buildMeshFromQuaternion(three_obj, shape3D)
+{
+	if (shape3D.quaternion == undefined)
+		throw new Error("quaternion shouldn't be undefined");
+	
+
+	let currQuaternion = new THREE.Quaternion(shape3D.quaternion.x, shape3D.quaternion.y, shape3D.quaternion.z, shape3D.quaternion.w);
+	currQuaternion.normalize();
+	three_obj.setRotationFromQuaternion(currQuaternion);
+	
 }
 
 const defaultShape = {

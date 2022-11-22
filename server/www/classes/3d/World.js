@@ -128,11 +128,16 @@ class World {
 			myMesh.scale.set(new_shape.radius, new_shape.radius, new_shape.radius);
 		}
 
-		myMesh.rotation.x = new_shape.rotation.x;
-		myMesh.rotation.y = new_shape.rotation.y;
-		myMesh.rotation.z = new_shape.rotation.z;
-
 		myMesh.position = new_shape.position;
+
+		if (new_shape.quaternion == undefined) 
+		{
+			myMesh.rotation.x = new_shape.rotation.x;
+			myMesh.rotation.y = new_shape.rotation.y;
+			myMesh.rotation.z = new_shape.rotation.z;
+		}
+		else
+			buildMeshFromQuaternion(myMesh, new_shape);
 
 	
 	}
