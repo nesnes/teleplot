@@ -2,7 +2,7 @@ import socket
 import math
 import time
 
-teleplotAddr = ("127.0.0.1",47269)
+teleplotAddr = ("159.89.12.243",47269)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 def sendTelemetry(name, value):

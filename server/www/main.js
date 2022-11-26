@@ -18,14 +18,15 @@ else {
     let conn = new ConnectionTeleplotWebsocket();
     let addr = window.location.hostname;
     let port = window.location.port;
-    conn.connect(addr, port);
+    let udpPort = Math.floor(Math.random() * (65535-1024)) + 1024;
+    conn.connect(addr, port, udpPort);
     app.connections.push(conn);
 }
 
 
-setInterval(()=>{
+/*setInterval(()=>{
     for(let conn of app.connections){
         conn.updateCMDList();
     }
-}, 3000);
+}, 3000);*/
 

@@ -591,6 +591,21 @@ body {
 	border-radius: 15px;
 }
 
+.connection-address-tuto {
+	display: inline-block;
+    background-color: #29b955;
+    color: white;
+    padding: 5px;
+    border-radius: 3px;
+	margin: 10px;
+}
+
+.connection-code-tuto {
+	display: inline-block;
+    background-color: #fafafa;
+    padding: 10px;
+    border-radius: 3px;
+}
 
 .pre-defined-connection-create-button {
 	background-color: #216490;
