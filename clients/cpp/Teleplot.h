@@ -198,7 +198,7 @@ private:
 
 class Teleplot {
 public:
-    Teleplot(std::string address, unsigned int bufferingFrequencyHz = 30)
+    Teleplot(std::string address, unsigned int port=47269, unsigned int bufferingFrequencyHz = 30)
         : address_(address)
         , bufferingFrequencyHz_(bufferingFrequencyHz)
     {
@@ -208,7 +208,7 @@ public:
         // Create UDP socket
         sockfd_ = socket(AF_INET, SOCK_DGRAM, 0);
         serv_.sin_family = AF_INET;
-        serv_.sin_port = htons(47269);
+        serv_.sin_port = htons(port);
         serv_.sin_addr.s_addr = inet_addr(address_.c_str());
     };
     ~Teleplot() = default;

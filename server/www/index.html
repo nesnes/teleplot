@@ -176,7 +176,7 @@
                                     <div v-if="!input.connected" class="connection-input-status-not-connected">Connection failed, UDP port might already be in use by another client.</div>
                                     <div v-if="input.connected">
                                         <div style="text-align:center">
-                                            Ready to plot UDP telemetry sent to<br/><div class="connection-address-tuto">{{input.address}}:{{input.port}}</div>
+                                            Ready to <b>plot UDP telemetry</b> sent to<br/><div class="connection-address-tuto">{{input.address}}:{{input.port}}</div>
                                             <br/>Format of the telemetry is availble <a target="_blank" href="https://github.com/nesnes/teleplot/blob/main/README.md#telemetry-format">here</a>.
                                         </div>
                                         <br/>
@@ -189,16 +189,16 @@ import socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.sendto("myValue:1234".encode(), ("{{input.address}}", {{input.port}}))
                                         </pre>
-                                        <br/><a target="_BLANK" href="https://github.com/nesnes/teleplot/tree/main/clients/python">Check samples</a>
+                                        <br/><a target="_blank" href="https://github.com/nesnes/teleplot/tree/main/clients/python">Check samples</a>
                                         <h4>From c++</h4>
                                         <pre class="connection-code-tuto">
-#include "<a href="https://github.com/nesnes/teleplot/blob/main/clients/cpp/">Teleplot.h</a>"
+#include "<a target="_blank" href="https://github.com/nesnes/teleplot/tree/online/clients/cpp">Teleplot.h</a>"
 Teleplot teleplot("{{input.address}}", {{input.port}});
 int main(int argc, char* argv[]) {
     teleplot.update("myValue", 1234);
 }
                                         </pre>
-                                        <br/><a target="_BLANK" href="https://github.com/nesnes/teleplot/tree/main/clients/cpp">Check samples</a>
+                                        <br/><a target="_blank" href="https://github.com/nesnes/teleplot/tree/main/clients/cpp">Check samples</a>
                                         <h4>Offline <span style="font-size:0.7em;display:inline;">(recommended for high bandwidth/availability and static port)</span></h4>
                                         Use the <a target="_blank" href="https://marketplace.visualstudio.com/items?itemName=alexnesnes.teleplot">VSCode plugin</a> or the <a target="_blank" href="https://github.com/nesnes/teleplot">nodeJS server</a> to use teleplot offline.
                                     </div>

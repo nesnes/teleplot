@@ -605,6 +605,8 @@ body {
     background-color: #fafafa;
     padding: 10px;
     border-radius: 3px;
+	max-width: 90vw;
+    overflow-x: auto;
 }
 
 .pre-defined-connection-create-button {
