@@ -2,7 +2,7 @@
 #include "Teleplot.h"
 #include <stdlib.h>
 
-Teleplot teleplot("127.0.0.1");
+Teleplot teleplot("127.0.0.1", 47269);
 
 int main(int argc, char* argv[])
 {
