@@ -22,7 +22,7 @@ class ConnectionTeleplotWebsocket extends Connection{
         this.port = _port;
         this.udp.port = _udpPort;
         this.udp.address = this.address;
-        this.socket = new WebSocket("ws://"+this.address+":"+this.port+"/"+this.udp.port);
+        this.socket = new WebSocket("wss://"+this.address+":"+this.port+"/"+this.udp.port);
         this.socket.onopen = (event) => {
             this.udp.connected = true;
             this.connected = true;
