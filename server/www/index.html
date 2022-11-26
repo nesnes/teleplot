@@ -192,6 +192,22 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.sendto("myValue:1234".encode(), ("{{input.address}}", {{input.port}}))
                                         </pre>
                                         <br/><a target="_blank" href="https://github.com/nesnes/teleplot/tree/main/clients/python">Check samples</a>
+                                        <h4>From SerialPort (e.g. arduino)</h4>
+                                        <pre class="connection-code-tuto">
+#include <Arduino.h>
+void setup() {
+    Serial.begin(115200);
+}
+
+float i=0;
+void loop() {
+    i+=0.1;
+    Serial.print(">sin:"); // Important ">" prefix
+    Serial.println(sin(i));
+    delay(50);
+}
+                                        </pre>
+                                        <br/><b>></b> prefix is required on telemetry from Serial ports
                                         <h4>From c++</h4>
                                         <pre class="connection-code-tuto">
 #include "<a target="_blank" href="https://github.com/nesnes/teleplot/tree/online/clients/cpp">Teleplot.h</a>"
