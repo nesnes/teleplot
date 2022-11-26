@@ -39,14 +39,15 @@
                                     <div v-if="input.type=='serial'" class="connection-serial-input">
                                         <div class="connection-serial-input-params">
                                             <!--Port-->
-                                            <select v-if="!input.connected" v-model="input.port" style="min-width: 6em;">
+                                            <select v-if="!input.connected && !input.useWebserial" v-model="input.port" style="min-width: 6em;">
                                                 <option v-for="port in input.portList" v-bind:key="port.path" v-bind:value="port.path">
                                                     {{port.path}}
                                                 </option>
                                             </select>
+                                            <button v-if="!input.connected && input.useWebserial" @click="input.listPorts()">Select Serial port</button>
                                             <span v-if="input.connected">{{input.port}}</span>
                                             <!--Baud-->
-                                            <select v-if="!input.connected" v-model="input.baudrate">
+                                            <select v-if="!input.connected && ((input.useWebserial && input.webserial) || !input.useWebserial) " v-model="input.baudrate">
                                                 <option value="300">300</option>
                                                 <option value="1200">1200</option>
                                                 <option value="2400">2400</option>
@@ -65,8 +66,8 @@
                                             <span v-if="input.connected">@{{input.baudrate}}</span>
                                         </div>
                                         <div class="connection-serial-buttons" >
-                                            <button v-if="!input.connected" @click="input.listPorts()">↻</button>
-                                            <button v-if="!input.connected" @click="input.connect()">Open</button>
+                                            <button v-if="!input.connected && !input.useWebserial" @click="input.listPorts()">↻</button>
+                                            <button v-if="!input.connected && ((input.useWebserial && input.webserial) || !input.useWebserial)" @click="input.connect()">Open</button>
                                             <button v-if="input.connected" @click="input.disconnect()" style="margin-left: 5px">Close</button>
                                         </div>
                                     </div>
@@ -307,7 +308,7 @@ int main(int argc, char* argv[]) {
                     <div id="log-container-div" class="log-container" v-show="logAvailable"></div>
                     <div v-for="conn in connections" class="flex-col">
                         <div v-for="input in conn.inputs" class="flex-col">
-                            <div v-if="input.type=='serial' && input.port" class="send-text-container">
+                            <div v-if="input.type=='serial' && (input.port || input.webserial)" class="send-text-container">
                                 <input v-on:keyup.enter="input.sendText(input.textToSend)" type="text" v-bind:placeholder="'Send to '+input.name+' '+input.port+' ('+input.connection.name+')'" v-model="input.textToSend" style="width:100%"/>
                                 <select v-model="input.endlineToSend" style="max-width: 60px;">
                                     <option value="\r\n">\r\n</option>

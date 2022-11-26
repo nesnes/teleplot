@@ -11,6 +11,9 @@ class ConnectionTeleplotWebsocket extends Connection{
         this.udp.address = "";
         this.udp.port = UDPport;
         this.inputs.push(this.udp);
+        this.supportSerial = true;
+        this.serial = new DataInputSerial(this, "Serial");
+        this.inputs.push(this.serial);
     }
 
     connect(_address, _port, _udpPort=""){
