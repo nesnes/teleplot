@@ -8,6 +8,10 @@ A ridiculously simple tool to plot telemetry data from a running program and tri
 
 `echo "myData:4" | nc -u -w0 127.0.0.1 47269`
 
+# Test it online
+
+**Go to [teleplot.fr](https://teleplot.fr)**
+
 # Start the server
 
 ## As a binary

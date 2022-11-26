@@ -9,7 +9,6 @@ var https = require('https');
 const udp = require('dgram');
 var express = require('express');
 var app = express();
-require('express-ws')(app);
 
 const privateKey = fs.readFileSync('/etc/letsencrypt/live/teleplot.fr/privkey.pem', 'utf8');
 const certificate = fs.readFileSync('/etc/letsencrypt/live/teleplot.fr/cert.pem', 'utf8');
@@ -20,13 +19,28 @@ const credentials = {
 	ca: ca
 };
 
+var httpServer = http.createServer(app);
+var httpsServer = https.createServer(credentials, app);
+httpServer.listen(80);
+httpsServer.listen(443);
+
+app.use((req, res, next) => {
+    if (!req.secure)
+        return res.redirect('https://' + req.headers.host + req.url);
+    else
+        return next();    
+});
+
+require('express-ws')(app, httpsServer);
+
 //Setup file server
 app.use(express.static(__dirname + '/www'))
 
 let clientList = {};
 
 //Setup new websocket session
-app.ws('/:port', (ws, req)=>{
+
+let onWebSocket = (ws, req)=>{
     // Parse port
     let udpPort = Number.parseInt(req.params.port);
     if(udpPort<1024 || udpPort>65535){
@@ -70,15 +84,14 @@ app.ws('/:port', (ws, req)=>{
         ws.close();
         return;
     }
-});
+}
+
+
+app.ws('/:port', onWebSocket);
 
 
 //app.listen(HTTP_WS_PORT);
-var httpServer = http.createServer(app);
-var httpsServer = https.createServer(credentials, app);
 
-httpServer.listen(80);
-httpsServer.listen(443);
 
 console.log("Teleplot online server started");
 console.log(`Open your browser at teleplot.fr:${HTTP_WS_PORT}`);
