@@ -44,7 +44,8 @@
                                                     {{port.path}}
                                                 </option>
                                             </select>
-                                            <button v-if="!input.connected && input.useWebserial" @click="input.listPorts()">Select Serial port</button>
+                                            <button v-if="!input.connected && input.useWebserial && input.webserialSupported" @click="input.listPorts()">Select Serial port</button>
+                                            <div v-if="input.useWebserial && !input.webserialSupported" class="connection-input-status-not-connected">Not supported by your browser</div>
                                             <span v-if="input.connected">{{input.port}}</span>
                                             <!--Baud-->
                                             <select v-if="!input.connected && ((input.useWebserial && input.webserial) || !input.useWebserial) " v-model="input.baudrate">
