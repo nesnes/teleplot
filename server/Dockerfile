@@ -12,8 +12,7 @@ COPY . /teleplot/
 RUN npm install && npm cache clean --force
 
 # Expose required ports
-EXPOSE 8080
-EXPOSE 47269
+EXPOSE 1025-65535
 
 # Start
 ENTRYPOINT [ "node", "main.js" ]

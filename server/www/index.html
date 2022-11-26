@@ -77,6 +77,7 @@
                             <button v-if="!creatingConnection" @click="creatingConnection=true" class="connection-new-plus-button" title="Add a new connection">🞢</button>
                             <div v-if="creatingConnection">
                                 <input v-on:keyup.enter="createConnection()" type="text" placeholder="IP of teleplot server" v-model="newConnectionAddress" title="IP on which teleplot should try to connect"/>
+                                <input v-on:keyup.enter="createConnection()" type="number" placeholder="UDP port" v-model="newConnectionPort" title="UDP port of the teleplot session. Offline the port is usually 47269"/>
                                 <button @click="createConnection()" title="Connect to new telepot server">Connect</button>
                                 <button @click="creatingConnection=false" title="Cancel new connection">Cancel</button>
                             </div>

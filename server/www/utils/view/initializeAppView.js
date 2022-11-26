@@ -31,6 +31,7 @@ function initializeAppView()
             newChartDropZoneOver: false,
             lastValueDropZoneOver: false,
             newConnectionAddress: "",
+            newConnectionPort: 47269,
             creatingConnection: false,
             telemetryFilterString: "",
             isViewPaused: false
@@ -192,15 +193,16 @@ function initializeAppView()
             onMouseDownOnResizeButton: function(event, widget){
                 onMouseDownOnResizeButton_(event, widget);                
             },
-            createConnection: function(address_=undefined, port_=undefined){
+            createConnection: function(address_=undefined, port_=undefined, udpPort_=undefined){
                 let conn = new ConnectionTeleplotWebsocket();
                 let addr = address_ || app.newConnectionAddress;
-                let port = port_ || 8080;
+                let port = port_ || 80;
+                let udpPort = udpPort_ || app.newConnectionPort || 47269;
                 if(addr.includes(":")) {
                     port = parseInt(addr.split(":")[1]);
                     addr = addr.split(":")[0];
                 }
-                conn.connect(addr, port);
+                conn.connect(addr, port, udpPort);
                 app.connections.push(conn);
                 app.creatingConnection = false;
                 app.newConnectionAddress = "";
