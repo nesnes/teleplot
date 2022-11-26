@@ -10,7 +10,7 @@ A ridiculously simple tool to plot telemetry data from a running program and tri
 
 # Test it online
 
-**Go to [teleplot.fr](http://teleplot.fr)**
+**Go to [teleplot.fr](https://teleplot.fr)**
 
 # Start the server
 
