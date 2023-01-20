@@ -265,6 +265,7 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
                     break;
                 case "text":
                     mwidget = new SingleValueWidget(true);
+                    isNewWidget = true;
                     break;
                 case "3D":
                     [mwidget,isNewWidget] = getWidgetAccordingToLabel(widgetLabel, "widget3D");
