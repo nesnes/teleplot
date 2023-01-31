@@ -1,0 +1,66 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Server binaries
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        include:
+          - arch: armv7
+            distro: ubuntu18.04
+            target: node14-linux-armv7
+        #node-version: [14.x]
+        #pkg-target: ["node14-windows-x64", "node14-linux-x64", "node14-linux-armv7"]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: uraimo/run-on-arch-action@v2
+        name: Build artifact
+        id: build
+        with:
+          arch: ${{ matrix.arch }}
+          distro: ${{ matrix.distro }}
+          githubToken: ${{ github.token }}
+          setup: |
+            mkdir -p "${PWD}/artifacts"
+          dockerRunArgs: |
+            --volume "${PWD}/artifacts:/artifacts"
+          env: | # YAML, but pipe character is necessary
+            artifact_name: git-${{ matrix.distro }}_${{ matrix.arch }}
+          shell: /bin/sh
+          install: |
+            case "${{ matrix.distro }}" in
+              ubuntu*|jessie|stretch|buster|bullseye)
+                apt-get update -q -y
+                apt-get install -q -y git
+                apt-get install nodejs npm
+                ;;
+              fedora*)
+                dnf -y update
+                dnf -y install git which
+                dnf -y install nodejs
+                ;;
+              alpine*)
+                apk update
+                apk add git
+                apk add --update npm
+                ;;
+            esac
+          run: |
+            cd server
+            npm i -g pkg
+            pkg --targets ${{ matrix.target }} --out-path /artifacts/ .
+            
+      - name: Show the artifact
+        run: |
+          ls -al "${PWD}/artifacts"
