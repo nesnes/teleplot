@@ -17,8 +17,8 @@ jobs:
         include:
           - arch: armv7
             distro: ubuntu18.04
-            base: arm32v7/node:14-buster
-            target: node14-linux-armv7
+            base: arm32v7/node:18-buster
+            target: node18-linuxstatic-armv7
         #node-version: [14.x]
         #pkg-target: ["node14-windows-x64", "node14-linux-x64", "node14-linux-armv7"]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
