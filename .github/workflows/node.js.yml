@@ -43,7 +43,7 @@ jobs:
               ubuntu*|jessie|stretch|buster|bullseye)
                 apt-get update -q -y
                 apt-get install -q -y git
-                apt-get install nodejs npm
+                apt-get install -q -y nodejs npm
                 ;;
               fedora*)
                 dnf -y update
@@ -57,6 +57,7 @@ jobs:
                 ;;
             esac
           run: |
+            uname -a
             cd server
             npm i -g pkg
             pkg --targets ${{ matrix.target }} --out-path /artifacts/ .
