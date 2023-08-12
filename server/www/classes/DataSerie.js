@@ -129,7 +129,7 @@ class DataSerie{
 
         this.applyTimeWindow();
         // no formula, simple data reference
-        if(this.formula=="" && this.sourceNames.length==1){ // in this case our data serie matches a simple telemetry
+        if(this.formula=="" && this.sourceNames.length==1 && app.telemetries[this.sourceNames[0]]){ // in this case our data serie matches a simple telemetry
 
             let isXY = app.telemetries[this.sourceNames[0]].type=="xy";
             this.data[0] = app.telemetries[this.sourceNames[0]].data[0];
@@ -157,6 +157,7 @@ class DataSerie{
     applyTimeWindow(){
         if(parseFloat(app.viewDuration)<=0) return;
         for(let key of this.sourceNames) {
+            if(app.telemetries[key] == undefined) continue;
             let d = app.telemetries[key].data;
             let timeIdx = 0;
             if(app.telemetries[key].type=="xy") timeIdx = 2;

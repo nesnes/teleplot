@@ -80,7 +80,7 @@ class ChartWidget extends DataWidget{
             this.data_available_xy = (this.data.length>=2 && this.data[1] != null && this.data[1] != undefined 
                 && !(this.data[1].some(elIsAlone)));
         }
-        else if(this.data[0].length==0 || this.forceUpdate) {
+        else if(this.data[0].length==0 || this.forceUpdate && !this.updatedForZeroLength) {
             //Create data with common x axis
             let dataList = [];
             for(let s of this.series) dataList.push(s.data);
@@ -89,6 +89,7 @@ class ChartWidget extends DataWidget{
             this.id += "-" //DUMMY way to force update
             // triggerChartResize();
             this.forceUpdate = false;
+            this.updatedForZeroLength = true; // Avoid constant update of widget with no data
         }
         else {
             //Iterate on all series, adding timestamps and values
@@ -96,6 +97,7 @@ class ChartWidget extends DataWidget{
             for(let s of this.series) dataList.push(s.data);
             this.data.length = 0;
             this.data.push(...uPlot.join(dataList));
+            if(this.data[0].length>0) this.updatedForZeroLength = false;
         }
     }   
 }

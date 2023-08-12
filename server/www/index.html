@@ -88,7 +88,7 @@
                     </div>
                 </div>
                 <div v-if="dataAvailable" class="flex-row" style="align-items: center;">
-                    <button @click="isViewPaused = !isViewPaused" class="header-button play-pause-button" style="width:34px;height:34px">
+                    <button @click="isViewPaused = !isViewPaused" class="header-button play-pause-button" style="width:34px;height:34px" v-bind:class="{ 'play-pause-button-paused': isViewPaused }">
                         <span v-if="!isViewPaused" title ="Pause">⏸</span>
                         <span v-if="isViewPaused" title="Display live telemetries">▶</span>
                     </button>
@@ -267,17 +267,17 @@
 
                 <!-- CMD update to multi input-->
 
-                <div class="var-container" v-if="!rightPanelVisible">
+                <div class="var-container" v-if="shouldShowRightPanelButton()">
                     <button @click="showRightPanel(true)" class="right-rounded-btn"><</button>
                 </div>
-                <div class="right-col cmd-container" v-show="(cmdAvailable || logAvailable) && rightPanelVisible">
+                <div class="right-col cmd-container" v-show="rightPanelVisible">
                     <button @click="showRightPanel(false)" class="right-reduce-btn" >Reduce</button>
                     <div v-for="cmd in commands" v-bind:key="cmd.name" class="cmd-vue">
                         <button @click="sendCmd(cmd)">{{cmd.name}}</button>
                     </div>
 
                     <!-- LOG TODO update to multi input-->
-                    <div id="log-container-div" class="log-container" v-show="logAvailable"></div>
+                    <div id="log-container-div" class="log-container"></div>
                     <div v-for="conn in connections" class="flex-col">
                         <div v-for="input in conn.inputs" class="flex-col">
                             <div v-if="input.type=='serial' && input.port" class="send-text-container">

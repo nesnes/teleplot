@@ -37,6 +37,9 @@ logCursor = {
 var timestampWindow = {min:0, max:0};
 window.cursorSync = uPlot.sync("cursorSync");
 window.cursorSync.sub({ pub:function(type, self, x, y, w, h, i){
+    if(type=="mouseup"){
+        app.isViewPaused = true;
+    }
     if(type=="mousemove")
     {
         let scrollLog = (i != -42);

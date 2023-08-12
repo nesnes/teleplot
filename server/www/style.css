@@ -72,6 +72,10 @@ button {
 	margin-right: 10px;
 }
 
+.play-pause-button-paused {
+	background-color: #2ecc71;
+}
+
 .style-button {
 	color: 	#2d2d30;
 	text-decoration: underline;
@@ -330,6 +334,10 @@ body {
     display: flex;
     flex-direction: row;
     justify-content: space-around;
+}
+
+.serie-name {
+    color: black;
 }
 
 .serie-header-container {
