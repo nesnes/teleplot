@@ -1,7 +1,7 @@
 {
 	"name": "teleplot",
 	"description": "Teleplot - Ridiculously-simple telemetry viewer.",
-	"version": "1.1.0",
+	"version": "1.1.2",
 	"publisher": "alexnesnes",
 	"private": true,
 	"license": "MIT",
@@ -36,7 +36,7 @@
 		]
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
+		"vscode:prepublish": "echo Dont forget to run extension first so source files are updated by pre_launch task && npm run compile",
 		"compile": "tsc -p ./",
 		"rebuild:native-modules": "node ./node_modules/electron-rebuild/lib/cli.js --version 1.4.13",
 		"lint": "eslint . --ext .ts,.tsx",
