@@ -50,7 +50,7 @@ Teleplot listen to UDP packects on port `47269`, allowing any type of software t
 - `varName:1627551892437:1234|g` does the same but specifies the value's timestamp in milliseconds for more accurate ploting.
 - `varName:1627551892444:1;1627551892555:2;1627551892666:3|g` does the same as above but publishes multiple values in a single packet.
 
-> For more details on the format, check the original [Teleplot repository](https://github.com/nesnes/teleplot)
+> For more details on the format and additional telemetry types (like text or 3D shapes), check the [Teleplot README](https://github.com/nesnes/teleplot)
 
 ### Bash
 ```bash
