@@ -12,6 +12,12 @@ A ridiculously simple tool to plot telemetry data from a running program and tri
 
 **Go to [teleplot.fr](https://teleplot.fr)**
 
+# Supports
+
+Teleplot project received the generous technical support of [Wandercraft](https://www.wandercraft.eu/).
+
+![](images/wandercraft-logo.png)
+
 # Start the server
 
 ## As a binary

@@ -2,7 +2,7 @@
 
 Plots telemetry sent over **Serial** or **UDP Packets**.
 
-![](preview.png)
+![](images/preview.png)
 
 ## From an Arduino (Serial)
 
@@ -114,3 +114,9 @@ You just need to send a UDP packet with the proper text in it. Open your web bro
 - address: `127.0.0.1`
 - port: `47269`
 - your test message: `myValue:1234|g` 
+
+## Supports
+
+Teleplot project received the generous technical support of Wandercraft.
+
+![](images/wandercraft.png)

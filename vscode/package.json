@@ -21,7 +21,7 @@
 		"onWebviewPanel:teleplot"
 	],
 	"main": "./out/extension.js",
-	"icon": "media/images/logo-color.png",
+	"icon": "images/logo-color.png",
 	"contributes": {
 		"commands": [
 			{
@@ -29,8 +29,8 @@
 				"title": "Start teleplot session",
 				"category": "teleplot",
 				"icon": {
-					"light": "media/images/logo-color.svg",
-					"dark": "media/images/logo-color.svg"
+					"light": "images/logo-color.svg",
+					"dark": "images/logo-color.svg"
 				}
 			}
 		]
