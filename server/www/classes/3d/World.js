@@ -50,11 +50,11 @@ class World {
 
 		const size = 500;
 		const divisions = size;
-		const zAxisColor = new Color(BlueZAxis);
+		const yAxisColor = new Color(GreenYAxis);
 		const gridColor = new Color(GridHeplerColor);
 		const xAxisColor = new Color(RedXAxis);
 
-		const gridHelper = new THREE.GridHelper( size, divisions, xAxisColor, gridColor, zAxisColor);
+		const gridHelper = new THREE.GridHelper( size, divisions, xAxisColor, gridColor, yAxisColor);
 		scene.add( gridHelper );
 	}
 
@@ -128,13 +128,18 @@ class World {
 			myMesh.scale.set(new_shape.radius, new_shape.radius, new_shape.radius);
 		}
 
-		myMesh.position = new_shape.position;
+		if (myMesh.position != undefined && new_shape.position != undefined)
+		{
+			myMesh.position.y = new_shape.position.z;
+			myMesh.position.z = new_shape.position.y;
+			myMesh.position.x = new_shape.position.x;
+		}
 
-		if (new_shape.quaternion == undefined) 
+		if (new_shape.quaternion == undefined)
 		{
 			myMesh.rotation.x = new_shape.rotation.x;
-			myMesh.rotation.y = new_shape.rotation.y;
-			myMesh.rotation.z = new_shape.rotation.z;
+			myMesh.rotation.y = new_shape.rotation.z;
+			myMesh.rotation.z = new_shape.rotation.y;
 		}
 		else
 			buildMeshFromQuaternion(myMesh, new_shape);

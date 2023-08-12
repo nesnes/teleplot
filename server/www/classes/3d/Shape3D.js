@@ -301,18 +301,17 @@ function buildThreeObject(shape3D)
 
 	shape3D.three_object = shape3D.buildMesh();
 	
-
 	shape3D.three_object.material.opacity = shape3D.opacity;
 	shape3D.three_object.material.transparent = true;
 
 	shape3D.three_object.position.x = shape3D.position.x;
-	shape3D.three_object.position.y = shape3D.position.y;
-	shape3D.three_object.position.z = shape3D.position.z;
+	shape3D.three_object.position.z = shape3D.position.y;
+	shape3D.three_object.position.y = shape3D.position.z;
 
 	if (shape3D.quaternion == undefined) {
 		shape3D.three_object.rotation.x = shape3D.rotation.x;
-		shape3D.three_object.rotation.y = shape3D.rotation.y;
-		shape3D.three_object.rotation.z = shape3D.rotation.z;
+		shape3D.three_object.rotation.y = shape3D.rotation.z;
+		shape3D.three_object.rotation.z = shape3D.rotation.y;
 	}
 	else
 		buildMeshFromQuaternion(shape3D.three_object, shape3D);

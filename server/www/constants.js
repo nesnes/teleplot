@@ -5,6 +5,7 @@ const widgetFPS = 15;
 const UDPport = 47269;
 
 const RedXAxis = "#e74c3c"
-const BlueZAxis = "#2980b9"
+const GreenYAxis = "#3ba30b"
+// const BlueZAxis = "#2980b9"
 
 const GridHeplerColor = "#cccccc"
