@@ -1,0 +1,25 @@
+.dark-style.main-body {
+	background-color: 	#262627;
+	color: white;
+}
+
+.dark-style .var-vue-name {
+	background-color: #3e3e42;
+	color: white;
+}
+
+.dark-style .serie-name {
+    color: white;
+}
+
+.dark-style .serie-value {
+    color: white;
+}
+
+.dark-style .style-button {
+	color: white;
+}
+
+.dark-style .widget-vue {
+	background-color: #2d2d30;
+}

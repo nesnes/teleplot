@@ -72,13 +72,20 @@ button {
 	margin-right: 10px;
 }
 
+.style-button {
+	color: 	#2d2d30;
+	text-decoration: underline;
+	cursor: pointer;
+	margin-left: 0.25em;
+}
+
 body {
 	margin: 0px;
 	padding: 0px;
-	background-color: #ecf0f1;
 }
 
 .main-body {
+	background-color: #ecf0f1;
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;

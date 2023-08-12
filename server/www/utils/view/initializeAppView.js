@@ -33,7 +33,8 @@ function initializeAppView()
             newConnectionAddress: "",
             creatingConnection: false,
             telemetryFilterString: "",
-            isViewPaused: false
+            isViewPaused: false,
+            colorStyle: _teleplot_default_color_style || "light"
         },
         methods: {
             updateStats: function(widget){
@@ -73,6 +74,9 @@ function initializeAppView()
                 app.isViewPaused = false;
                 app.telemetryFilterString = "";
 
+            },
+            setColorStyle: function(style) {
+                app.colorStyle = style;
             },
             sendText: function(text) {
                 let escape = app.sendTextLineEnding.replace("\\n","\n");

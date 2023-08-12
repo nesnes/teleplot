@@ -4,12 +4,16 @@
 		<meta charset="utf-8">
 		<title>Telemetry</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<link rel="stylesheet" href="lib/uPlot/uPlot.min.css">
-        <link rel="stylesheet" href="components/vueResponsiveText/vue-responsive-text.css">
-        <link rel="stylesheet" href="components/singleValue/single-value.css">
-        <link rel="stylesheet" href="components/3dComponent/3dComponent.css">
-		<link rel="stylesheet" href="style.css">
-        <script src="lib/vue.js"></script>
+		<link rel="stylesheet" href="./lib/uPlot/uPlot.min.css">
+        <link rel="stylesheet" href="./components/vueResponsiveText/vue-responsive-text.css">
+        <link rel="stylesheet" href="./components/singleValue/single-value.css">
+        <link rel="stylesheet" href="./components/3dComponent/3dComponent.css">
+		<link rel="stylesheet" href="./style.css">
+		<link rel="stylesheet" href="./style-dark.css">
+        <script src="./lib/vue.js"></script>
+        <script>
+            var _teleplot_default_color_style = "light";
+        </script>
 
 	</head>
 	<body>
@@ -118,7 +122,11 @@
                         <button onclick="exportSessionJSON()" class="header-button" title="Export current session in a .json file">🖫 Export as JSON</button>
                         <button onclick="exportSessionCSV()" class="header-button" title ="Export current session in a .csv file">➦ Export to CSV</button>
                     </div>
-                    <button @click="clearAll()" class="header-button" title="Clear everything">Clear</button>
+                    <div class="flex-col">
+                        <button @click="clearAll()" class="header-button" title="Clear everything">Clear</button>
+                        <a v-if="colorStyle=='light'" @click="setColorStyle('dark')" class="style-button" title="Switch to dark colors">dark mode</a>
+                        <a v-if="colorStyle=='dark'"  @click="setColorStyle('light')" class="style-button" title="Switch to light colors">light mode</a>
+                    </div>
                 </div>
                 <div v-else>
                     <label for="session-json-input" class="header-button" title="Open a past session from a .json file">🗁 Open JSON</label>
@@ -126,7 +134,7 @@
                 </div>
             </header>
 
-            <div class="main-body">
+            <div class="main-body"  v-bind:class="{ 'dark-style': colorStyle=='dark' }">
                 
                 <!--Variables-->
                 <div class="var-container" v-if="!leftPanelVisible">
@@ -169,7 +177,7 @@
                 
                 <div class="center-col" @drop="onDropInNewChart($event, false)" @dragenter.prevent @dragover="onNewChartDragOver($event)" @dragenter.prevent @dragleave="onNewChartDragLeave($event)">
                     <div v-if="!dataAvailable" class="help-container">
-                        <img src="images/logo-color.svg"/>
+                        <img src="./images/logo-color.svg"/>
                         <span>Ready to plot incoming telemetry.</span>
                     </div>
                     <!-- WIDGETS -->
@@ -189,7 +197,7 @@
                                             <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
                                                 <span class="serie-value">{{serie.values_formatted}}</span>
                                             </span>
-                                            <span class="serie-name" v-bind:style="{'color':serie.name_color}">{{serie.name}}</span>
+                                            <span class="serie-name">{{serie.name}}</span>
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
                                         </div>
                                         <div v-if="serie.type == '3D'" class="serie-3d-details-container">
@@ -289,17 +297,17 @@
         </div>
 
     </body>
-    <script src="utils/javascriptUtils.js"></script>
-    <script src="lib/uPlot/uplot.iife.js"></script>
-    <script src="lib/three/three.js"></script>
-    <script src="lib/three/three.module.js"></script>
-    <script src="lib/three/OrbitControls.js"></script>
-    <script src="lib/hyperlist/hyperlist.js"></script>
+    <script src="./utils/javascriptUtils.js"></script>
+    <script src="./lib/uPlot/uplot.iife.js"></script>
+    <script src="./lib/three/three.js"></script>
+    <script src="./lib/three/three.module.js"></script>
+    <script src="./lib/three/OrbitControls.js"></script>
+    <script src="./lib/hyperlist/hyperlist.js"></script>
     <script src="./classes/view/logs/Log.js"></script>
-    <script src="components/uPlot/uplot-component.js"></script>
-    <script src="components/vueResponsiveText/vue-responsive-text.js"></script>
-    <script src="components/singleValue/singleValue.js"></script>
-    <script src="components/3dComponent/3dComponent.js"></script>
+    <script src="./components/uPlot/uplot-component.js"></script>
+    <script src="./components/vueResponsiveText/vue-responsive-text.js"></script>
+    <script src="./components/singleValue/singleValue.js"></script>
+    <script src="./components/3dComponent/3dComponent.js"></script>
     <script src="./constants.js"></script>
     <script src="./classes/communication/connection/Connection.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
