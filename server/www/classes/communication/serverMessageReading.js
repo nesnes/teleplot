@@ -81,8 +81,11 @@ function parseVariablesData(msg, now)
 
     let startIdx = msg.indexOf(':');
 
-    let name = msg.substr(0,msg.indexOf(':'));
-    if(name.substring(0, 6) === "statsd") return;
+    let keyAndWidgetLabel = msg.substr(0,msg.indexOf(':'));
+
+    if(keyAndWidgetLabel.substring(0, 6) === "statsd") return;
+
+    let [name, widgetLabel] = separateWidgetAndLabel(keyAndWidgetLabel);  
 
     let endIdx = msg.lastIndexOf('|');
     if (endIdx == -1) endIdx = msg.length;
@@ -149,7 +152,7 @@ function parseVariablesData(msg, now)
     }
     //console.log("name : "+name+", xArray : "+xArray+", yArray : "+yArray+", zArray : "+zArray+", unit : "+unit+", flags : "+flags);
     if(xArray.length>0){
-        appendData(name, xArray, yArray, zArray, unit, flags, isTextFormatTelem?"text":"number");
+        appendData(name, xArray, yArray, zArray, unit, flags, isTextFormatTelem?"text":"number", widgetLabel);
     }
 }
 
@@ -213,6 +216,30 @@ function parse3D(msg, now)
     }
 }
 
+function getWidgetAccordingToLabel(widgetLabel, widgetType, isXY = false)
+{
+    if (widgetLabel != undefined) 
+    {
+        for (let i = 0; i <widgets.length; i++)
+        {
+            let currWidget = widgets[i];
+
+            if(currWidget.label == widgetLabel && currWidget.type == widgetType && !!currWidget.isXY == isXY)
+                return [currWidget, false];
+        }
+    }
+
+    let newWidget;
+
+    if (widgetType == "widget3D")
+        newWidget = new Widget3D();
+    else if (widgetType == "chart")
+        newWidget = new ChartWidget(isXY);
+
+    newWidget.label = widgetLabel;
+
+    return [newWidget, true];
+}
 // adds
 function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widgetLabel=undefined) {
     let isXY = flags.includes("xy");
@@ -226,42 +253,22 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
         
         if(shouldPlot)
         {
+            let isNewWidget = false;
             let mwidget;
-            let isNewWidget = true;
             switch(telemType)
             {
                 case "number": 
-                    mwidget = new ChartWidget(isXY);
+                    [mwidget,isNewWidget]  = getWidgetAccordingToLabel(widgetLabel, "chart");
                     break;
                 case "xy":
-                    mwidget = new ChartWidget(isXY);
+                    [mwidget,isNewWidget] = getWidgetAccordingToLabel(widgetLabel, "chart", true);
                     break;
                 case "text":
                     mwidget = new SingleValueWidget(true);
+                    isNewWidget = true;
                     break;
                 case "3D":
-
-                    let i = 0;
-                    if (widgetLabel != undefined) 
-                    {
-                        while (i<widgets.length && isNewWidget)
-                        {
-                            let currWidget = widgets[i];
-
-                            if(currWidget.label == widgetLabel && currWidget.type == "widget3D" )
-                            {
-                                mwidget = currWidget;
-                                isNewWidget = false;
-                            }
-                            i++;
-                        }
-                    }
-                    
-                    if (isNewWidget)
-                    {
-                        mwidget = new Widget3D();
-                        mwidget.label = widgetLabel;
-                    }
+                    [mwidget,isNewWidget] = getWidgetAccordingToLabel(widgetLabel, "widget3D");
                     break;
             }
 

@@ -39,7 +39,10 @@ def sendMultipleTelemTest():
 	state:state_a|t\n\
 	state2:1627551892444:state_a;1627551892555:state_b|t\n\
 	trajectory:1:1;2:2;3:3;4:4|xy\n\
-	trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy"
+	myvariable1,chart52:45\n\
+	myvariable2,chart52:151\n\
+	myvariable3,chart50:97\n\
+	myvariable4,chart52:0.454"
 
 
 	sock.sendto(msg.encode(), teleplotAddr)
@@ -74,8 +77,8 @@ def basicTestSub():
 		sendTelemetry("cos_no_time", math.cos(i), "", None)
 
 		# for i in range(0, 1):
-		sendTelemetry("cos_time_var_0", math.cos(i), "", now)
-		# sendTelemetry("cos_time_var_1", math.cos(i), "", now)
+		sendTelemetry("cos_time_var_0,mysuper_widget", math.cos(i), "", now)
+		sendTelemetry("cos_time_var_1,mysuper_widget", 2*math.cos(i), "", now)
 		# sendTelemetry("cos_time_var_2", math.cos(i), "", now)
 		# sendTelemetry("cos_time_var_3", math.cos(i), "", now)
 		# sendTelemetry("cos_time_var_4", math.cos(i), "", now)
