@@ -90,6 +90,8 @@ A timestamp can be associated with the xy point by adding an extra `:16275518924
 
 The YX line chart will only be displayed when at least two values have been received.
 
+> Using `clr` flag when sending a telemetry will clear the previous values. This is useful when streaming cyclic data like lidar points.
+
 ### Publishing text format telemetries
 - Using the `t` flag and giving a text telemetry (with or without timestamp), teleplot will display a text chart.
 

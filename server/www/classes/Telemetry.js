@@ -28,6 +28,14 @@ class Telemetry{
             this.setShapeTypeDelay();
     }
 
+    clearData()
+    {
+        this.values.length = 0;
+        for(let arr of this.data) { arr.length = 0; }
+        for(let arr of this.pendingData) { arr.length = 0; }
+        this.values_formatted = "";
+    }
+
     setShapeTypeDelay()
     {
         setTimeout(()=>{

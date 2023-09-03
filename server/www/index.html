@@ -118,9 +118,25 @@
                             <input type="file" onchange="importLayoutJSON(event)" id="layout-json-input" style="width:0px;height:0px;visibility:hidden;position:absolute;top:-100px;left:-100px;" />
                         </div>
                     </div>
-                    <div class="flex-col">
+                    <div v-if="!csvExportView" class="flex-col">
                         <button onclick="exportSessionJSON()" class="header-button" title="Export current session in a .json file">🖫 Export as JSON</button>
-                        <button onclick="exportSessionCSV()" class="header-button" title ="Export current session in a .csv file">➦ Export to CSV</button>
+                        <button @click="csvExportView=true" class="header-button" title ="Export current session in a .csv file">➦ Export to CSV</button>
+                    </div>
+                    <div v-if="csvExportView" class="flex-col" style="margin-left:1em;margin-right:1em;">
+                        <div class="flex-row">
+                            Decimal: <span> </span>
+                            <input type="radio" v-model="csvDecimalSeparator" value=".">3.14
+                            <input type="radio" v-model="csvDecimalSeparator" value=",">3,14
+                        </div>
+                        <div class="flex-row">
+                            Separator:
+                            <input type="radio" v-model="csvCellSeparator" value=",">A,B
+                            <input type="radio" v-model="csvCellSeparator" value=";">A;B
+                        </div>
+                        <div class="flex-row">
+                            <button onclick="exportSessionCSV()" class="header-button" title ="Export current session in a .csv file">➦ Export</button>
+                            <button @click="csvExportView=false" class="header-button" title ="Cancel export">Cancel</button>
+                        </div>
                     </div>
                     <div class="flex-col">
                         <button @click="clearAll()" class="header-button" title="Clear everything">Clear</button>

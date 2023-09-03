@@ -34,7 +34,10 @@ function initializeAppView()
             creatingConnection: false,
             telemetryFilterString: "",
             isViewPaused: false,
-            colorStyle: _teleplot_default_color_style || "light"
+            colorStyle: _teleplot_default_color_style || "light",
+            csvExportView: false,
+            csvDecimalSeparator: ".",
+            csvCellSeparator: ","
         },
         methods: {
             updateStats: function(widget){
@@ -43,16 +46,16 @@ function initializeAppView()
             sendCmd: function(cmd) {
                 let command = `|${cmd.name}|`;
                 if("params" in cmd) command += `${cmd.params}|`;
-                for(let conn of app.connections){
+                for(let conn of this.connections){
                     conn.sendServerCommand({ id: this.id, cmd: command});
                 }
             },
             showLeftPanel: function(show) {
-                app.leftPanelVisible=show;
+                this.leftPanelVisible=show;
                 triggerChartResize();
             },
             showRightPanel: function(show) {
-                app.rightPanelVisible=show;
+                this.rightPanelVisible=show;
                 triggerChartResize();
             },
             clearAll: function() {
@@ -68,18 +71,18 @@ function initializeAppView()
                 commands = {};
                 Vue.set(app, 'commands', commands);
                 telemBuffer = {};
-                app.dataAvailable = false;
-                app.cmdAvailable = false;
-                app.logAvailable = false;
-                app.isViewPaused = false;
-                app.telemetryFilterString = "";
+                this.dataAvailable = false;
+                this.cmdAvailable = false;
+                this.logAvailable = false;
+                this.isViewPaused = false;
+                this.telemetryFilterString = "";
 
             },
             setColorStyle: function(style) {
-                app.colorStyle = style;
+                this.colorStyle = style;
             },
             sendText: function(text) {
-                let escape = app.sendTextLineEnding.replace("\\n","\n");
+                let escape = this.sendTextLineEnding.replace("\\n","\n");
                 escape = escape.replace("\\r","\r");
                 vscode.postMessage({ cmd: "sendToSerial", text: text+escape});
             },
@@ -99,7 +102,7 @@ function initializeAppView()
 
                 let telemetryName = e.dataTransfer.getData("telemetryName");
 
-                let incomingType = app.telemetries[telemetryName].type;
+                let incomingType = this.telemetries[telemetryName].type;
                 let currType = widget.series[0].type;
                 
                 if(incomingType != currType) return;
@@ -125,7 +128,7 @@ function initializeAppView()
             removeWidget: function(widget){
                 widget.destroy();
                 let idx = widgets.findIndex((w)=>w.id==widget.id);
-                if(idx>=0) app.widgets.splice(idx, 1);
+                if(idx>=0) this.widgets.splice(idx, 1);
                 triggerChartResize();
             },
             onDropInNewChart: function(e, prepend=true){    
@@ -136,21 +139,21 @@ function initializeAppView()
                 
                 let chart = undefined;
                 
-                if (app.telemetries[telemetryName].type == "text")
+                if (this.telemetries[telemetryName].type == "text")
                 {
                     chart = new SingleValueWidget(true);
                     serie = getSerieInstanceFromTelemetry(telemetryName);    
                     chart.addSerie(serie);
 
                 }
-                else if (app.telemetries[telemetryName].type == "3D")
+                else if (this.telemetries[telemetryName].type == "3D")
                 {
                     chart = new Widget3D();
                     chart.addSerie(getSerieInstanceFromTelemetry(telemetryName));
                 }
                 else
                 {
-                    chart = new ChartWidget(app.telemetries[telemetryName].type=="xy");
+                    chart = new ChartWidget(this.telemetries[telemetryName].type=="xy");
                     chart.addSerie(getSerieInstanceFromTelemetry(telemetryName));
                 }
                 
@@ -165,13 +168,13 @@ function initializeAppView()
 
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                if (app.telemetries[telemetryName].type == "3D")
+                if (this.telemetries[telemetryName].type == "3D")
                 {
                     this.onDropInNewChart(e, prepend);
                     return;
                 }
 
-                let chart = new SingleValueWidget(app.telemetries[telemetryName].type == "text"); 
+                let chart = new SingleValueWidget(this.telemetries[telemetryName].type == "text"); 
                 let serie = getSerieInstanceFromTelemetry(telemetryName);
                 chart.addSerie(serie);
                 if(prepend) widgets.unshift(chart);
@@ -198,22 +201,22 @@ function initializeAppView()
             },
             createConnection: function(address_=undefined, port_=undefined){
                 let conn = new ConnectionTeleplotWebsocket();
-                let addr = address_ || app.newConnectionAddress;
+                let addr = address_ || this.newConnectionAddress;
                 let port = port_ || 8080;
                 if(addr.includes(":")) {
                     port = parseInt(addr.split(":")[1]);
                     addr = addr.split(":")[0];
                 }
                 conn.connect(addr, port);
-                app.connections.push(conn);
-                app.creatingConnection = false;
-                app.newConnectionAddress = "";
+                this.connections.push(conn);
+                this.creatingConnection = false;
+                this.newConnectionAddress = "";
             },
             removeConnection: function(conn){
-                for(let i=0;i<app.connections.length;i++){
-                    if(app.connections[i] == conn) {
-                        app.connections[i].disconnect();
-                        app.connections.splice(i,1);
+                for(let i=0;i<this.connections.length;i++){
+                    if(this.connections[i] == conn) {
+                        this.connections[i].disconnect();
+                        this.connections.splice(i,1);
                         break;
                     }
                 }
@@ -222,9 +225,9 @@ function initializeAppView()
                 if (text == undefined || typeof(text) != 'string')
                     return false;
 
-                if(app.telemetryFilterString == "") return true;
+                if(this.telemetryFilterString == "") return true;
                 let escapeRegex = (str) => str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
-                let rule = app.telemetryFilterString.split("*").map(escapeRegex).join(".*");
+                let rule = this.telemetryFilterString.split("*").map(escapeRegex).join(".*");
                 rule = "^" + rule + "$";
                 let regex = new RegExp(rule, 'i');
                 return regex.test(text);
@@ -238,10 +241,10 @@ function initializeAppView()
                 return false;
             },
             shouldShowRightPanelButton: function(){
-                if(app.rightPanelVisible) return false;
-                if(app.cmdAvailable || app.logAvailable) return true;
+                if(this.rightPanelVisible) return false;
+                if(this.cmdAvailable || this.logAvailable) return true;
                 // Show with connected serial inputs
-                for(let conn of app.connections){
+                for(let conn of this.connections){
                     if(conn.connected){
                         for(let input of conn.inputs){
                             if(input.type == "serial" && input.connected){

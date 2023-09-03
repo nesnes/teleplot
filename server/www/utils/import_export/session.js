@@ -15,10 +15,7 @@ function getFormatedSerieUnit(dataSerie)
 {
     if (dataSerie.unit != undefined)
     {
-        if (dataSerie.unit.includes(','))
-            throw new Error("Invalid unit name: " + dataSerie.unit+" ( units shouldn't contain comas )");
-
-        return " (" + dataSerie.unit + ") ";
+        return " ("+dataSerie.unit.replace(app.csvCellSeparator, "_").replace(app.csvDecimalSeparator, "_") + ")"
     }
     
     return "";
@@ -26,13 +23,13 @@ function getFormatedSerieUnit(dataSerie)
 
 function exportSessionCSV() {
 
-    let csv = "timestamp(ms),";
+    let csv = "timestamp(ms)"+app.csvCellSeparator;
     let dataList = [];
     for(let key in app.telemetries) {
         let telemetry = app.telemetries[key];
         if (telemetry.type != "3D") // 3D not supported
         {
-            csv += (key + getFormatedSerieUnit(telemetry) + ",");
+            csv += (key + getFormatedSerieUnit(telemetry) + app.csvCellSeparator);
             dataList.push(telemetry.data);
         }
     }
@@ -42,13 +39,17 @@ function exportSessionCSV() {
     for(let i=0;i<joinedData[0].length;i++) {
         for(let j=0;j<joinedData.length;j++) {
             let value = joinedData[j][i];
-            if(isFinite(value) && !isNaN(value))
-                csv += '"'+(""+joinedData[j][i]).replace('.',',')+'"';
-            csv += ","
+            if(isFinite(value) && !isNaN(value)) {
+                valueStr = (""+joinedData[j][i]).replace('.',',').replace(',',app.csvDecimalSeparator)
+                csv += '"'+valueStr+'"';
+
+            }
+            csv += app.csvCellSeparator
         }
         csv += "\n";
     }
     saveFile(csv, buildFileName("session", "csv"));
+    app.csvExportView = false;
 }
 
 function importSessionJSON(event) {

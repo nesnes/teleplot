@@ -245,6 +245,11 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
     let isXY = flags.includes("xy");
     if (isXY) telemType = "xy";
 
+    let clear = flags.includes("clr");
+    if(app.telemetries[key] && clear){
+        app.telemetries[key].clearData();
+    }
+
     let shouldPlot = !flags.includes("np");
 
     if(app.telemetries[key] == undefined){
