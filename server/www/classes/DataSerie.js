@@ -188,6 +188,7 @@ function getSerieInstanceFromTelemetry(telemetryName)
         throw new Error(`Trying to instanciate a DataSerie from a non existant telemetry name : ${telemetryName}`);
     
     serie.name = telemetryName;
+    serie.colored_name = ansi_coloring.ansi_to_html(telemetryName);
     serie.values = telemetry.values; // this way, serie.values always equals telemetry.values
     serie.unit = telemetry.unit;
     serie.type = telemetry.type;
