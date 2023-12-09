@@ -4,6 +4,7 @@ var vscode = null;
 if("acquireVsCodeApi" in window) vscode = acquireVsCodeApi();
 
 var app = initializeAppView();
+var ansi_coloring = new AnsiUp();
 
 //Init refresh rate
 setInterval(updateView, 1000 / widgetFPS);

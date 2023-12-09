@@ -65,7 +65,7 @@ Vue.component('vue-responsive-text', {
   template:'<span id="current-responsive-text-wrapper"\
             v-bind:class="{ \'responsive-text-wrapper-telem\' : isTelem, \'responsive-text-wrapper-unit\' : isUnit, \'responsive-text-wrapper-value\' : isValue }"\
             :style="{ ...scaleStyle }"> \
-                <slot></slot> \
+            <slot></slot> \
             </span>'
 });
 
