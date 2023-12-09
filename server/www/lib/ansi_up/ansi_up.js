@@ -247,6 +247,12 @@ class AnsiUp {
         }
     }
     ansi_to_html(txt) {
+        this.bold = false;
+        this.faint = false;
+        this.italic = false;
+        this.underline = false;
+        this.fg = this.bg = null;
+
         this.append_buffer(txt);
         var blocks = [];
         while (true) {
