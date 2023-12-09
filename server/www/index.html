@@ -14,6 +14,11 @@
         <script>
             var _teleplot_default_color_style = "light";
         </script>
+            <script setup>
+                function ansi_to_html(txt){
+                    return ansi_coloring.ansi_to_html(txt);
+                }
+            </script>
 
 	</head>
 	<body>
@@ -313,6 +318,7 @@
         </div>
 
     </body>
+    <script src="./lib/ansi_up/ansi_up.js"></script>
     <script src="./utils/javascriptUtils.js"></script>
     <script src="./lib/uPlot/uplot.iife.js"></script>
     <script src="./lib/three/three.js"></script>

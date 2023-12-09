@@ -18,7 +18,11 @@
   "pkg": {
     "scripts": "main.js",
     "assets": "www/**",
-    "targets": ["node14-windows-x64", "node14-linux-x64", "node14-linux-armv7" ],
+    "targets": [
+      "node14-windows-x64",
+      "node14-linux-x64",
+      "node14-linux-armv7"
+    ],
     "outputPath": "build"
   }
 }

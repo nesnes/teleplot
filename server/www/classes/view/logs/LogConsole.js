@@ -61,7 +61,7 @@ class LogConsole
 
                 if (currLog == undefined) return;
 
-                el.innerHTML = currLog.text;
+                el.innerHTML = ansi_coloring.ansi_to_html(currLog.text);
 
 
                 el.addEventListener("mouseover", function () {
