@@ -180,10 +180,10 @@
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
                             <span v-if="telem.type =='3D' " class="symbol-3d-telem">3D</span>
 
-                            <span class="serie-name">{{telem.name}}</span>
+                            <span class="serie-name" v-html="telem.colored_name"></span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
                         </div>
-                        <div class="var-vue-value">{{telem.values_formatted}}</div>
+                        <div class="var-vue-value"  v-html="telem.colored_values_formatted"></div>
                     </div>
                     <div style="text-align: center;color: #bdc3c7;">Drag on chart for<br/> multi-series</div>
                 </div>
@@ -213,7 +213,7 @@
                                             <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
                                                 <span class="serie-value">{{serie.values_formatted}}</span>
                                             </span>
-                                            <span class="serie-name">{{serie.name}}</span>
+                                            <span class="serie-name" v-html="serie.colored_name"></span>
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
                                         </div>
                                         <div v-if="serie.type == '3D'" class="serie-3d-details-container">
@@ -313,6 +313,7 @@
         </div>
 
     </body>
+    <script src="./lib/ansi_up/ansi_up.js"></script>
     <script src="./utils/javascriptUtils.js"></script>
     <script src="./lib/uPlot/uplot.iife.js"></script>
     <script src="./lib/three/three.js"></script>
