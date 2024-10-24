@@ -120,6 +120,9 @@ function initializeAppView()
                 this.newChartDropZoneOver = false;
                 widget.draggedOver = false;
             },
+            removeSerie: function(widget, serie){
+                widget.removeSerie(serie);
+            },
             showWidget: function(widget, show){
                 widget.hidden = show;
                 console.log(widget, show)

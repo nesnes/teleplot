@@ -34,13 +34,17 @@ Vue.component('comp-3d', {
                 let newSerie = this.series[newSerieIdx]; 
                 this.reDrawShape(newSerieIdx);
 
-                newSerie.onSerieChanged = () => {this.reDrawShape(newSerieIdx)}
+                newSerie.onSerieChanged = () => this.reDrawShape(this.series.findIndex((s)=>s.id==newSerie.id));
             };
 
+            this.widget.onSerieRemoved = (idx) => {
+                this.world.unsetObject(idx)
+            }
 
-            for (let i = 0; i< this.series.length; i++)
-            {
-               this.series[i].onSerieChanged = () => this.reDrawShape(i);
+
+
+            for (let serie of this.series) {
+               serie.onSerieChanged = () => this.reDrawShape(this.series.findIndex((s)=>s.id==serie.id));
             }
             
         },
@@ -63,7 +67,7 @@ Vue.component('comp-3d', {
                 let currSerie = this.series[serieId];
 
                 if (currSerie == undefined)
-                    throw new Error("trying to acces an index that is invalid : i = " + i);
+                    throw new Error("trying to acces an index that is invalid : i = " + serieId);
 
                 if (currSerie.values[0] != undefined)
                 {

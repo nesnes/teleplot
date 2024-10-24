@@ -4,6 +4,7 @@ class Widget3D extends DataWidget{
         this.type = "widget3D";
         this.worldId = undefined; // the id of the world instance linked to this widget
         this.onNewSerieAdded = undefined;
+        this.onSerieRemoved = undefined;
     }
 
     addSerie(serie)
@@ -12,6 +13,19 @@ class Widget3D extends DataWidget{
               
         if (this.onNewSerieAdded != undefined)
             this.onNewSerieAdded();
+    }
+
+    removeSerie(serie)
+    {
+        let idx = this.series.findIndex((s)=>s.id==serie.id);
+        if(idx>=0){
+            if (this.onSerieRemoved != undefined)
+                this.onSerieRemoved(idx);
+            this.series[idx].destroy();
+            this.series.splice(idx, 1);
+        }
+              
+        this.update();
     }
 
     destroy(){

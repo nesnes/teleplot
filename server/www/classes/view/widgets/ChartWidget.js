@@ -39,14 +39,33 @@ class ChartWidget extends DataWidget{
 
     addSerie(_serie){
         _serie.options._serie = _serie.name;
-        _serie.options.stroke = ColorPalette.getColor(this.series.length).toString();
-        _serie.options.fill = ColorPalette.getColor(this.series.length, 0.1).toString();
+        _serie.options._id = _serie.id;
+        // Search available color
+        for(let i=this.series.length; i>=0; i--)  {
+            let candidateColor = ColorPalette.getColor(i).toString();
+            let alreadyUsed = this.options.series.findIndex((o)=>o.stroke==candidateColor) >= 0;
+            if(alreadyUsed) continue;
+            _serie.options.stroke = ColorPalette.getColor(i).toString();
+            _serie.options.fill = ColorPalette.getColor(i, 0.1).toString();
+            break;
+        }
         if(this.isXY) _serie.options.paths = drawXYPoints;
         this.options.series.push(_serie.options);
         _serie.dataIdx = this.data.length;
         this.data.push([]);
         this.series.push(_serie);
         this.forceUpdate = true;
+    }
+
+    removeSerie(_serie){
+        let idx = this.series.findIndex((s)=>s.id==_serie.id);
+        if(idx>=0) this.series.splice(idx, 1);
+
+        let idxOption = this.options.series.findIndex((o)=>o._id==_serie.id);
+        if(idxOption>=0) this.options.series.splice(idxOption, 1);
+        
+        this.forceUpdate = true;
+        this.update();
     }
 
     update(){

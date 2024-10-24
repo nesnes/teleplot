@@ -118,6 +118,7 @@ class DataSerie{
             onTelemetryUnused(name);
         }
         this.sourceNames.length = 0;
+        this.onSerieChanged = undefined;
     }
 
     addSource(name){

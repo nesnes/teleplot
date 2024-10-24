@@ -20,7 +20,7 @@ class World {
 		this.scene = this.initializeScene();
 		this.initializeLight(this.scene);
 		this.initializeGrid(this.scene);
-		this.initializeFog(this.scene);
+		//this.initializeFog(this.scene);
 		this.camera = this.initializeCamera();
 		this.renderer = this.initializeRenderer();
 		this.resize_obs = this.initializeResizeObserver(this);
@@ -48,7 +48,7 @@ class World {
 	initializeGrid(scene)
 	{
 
-		const size = 500;
+		const size = 20;
 		const divisions = size;
 		const yAxisColor = new Color(GreenYAxis);
 		const gridColor = new Color(GridHeplerColor);
@@ -168,6 +168,14 @@ class World {
 			this.scene.add(shape_cp.three_object);
 		}
 		
+	}
+
+	unsetObject(idx)
+	{
+		if(idx>=0 && idx<this._3Dshapes.length) {
+			this.scene.remove(this._3Dshapes[idx].three_object);
+			this._3Dshapes.splice(idx, 1);
+		}
 	}
 	
 	render()

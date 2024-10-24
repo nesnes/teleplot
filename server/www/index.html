@@ -215,6 +215,7 @@
                                             </span>
                                             <span class="serie-name">{{serie.name}}</span>
                                             <span v-if="widget.type == 'chart' && serie.unit != undefined" class="serie-unit" >({{serie.unit}})</span>
+                                            <span v-if="widget.series.length > 1" id ="removeSerieButton" class="serie-remove" @click="removeSerie(widget, serie)" title="Remove serie">⨯</span>
                                         </div>
                                         <div v-if="serie.type == '3D'" class="serie-3d-details-container">
                                             <div v-if="serie.values != undefined && serie.values.length != 0 && serie.values[0] != undefined" class = "serie-3d-details">

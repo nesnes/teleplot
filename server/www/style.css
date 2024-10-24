@@ -382,6 +382,14 @@ body {
     padding: 0px 1px;
 }
 
+.serie-remove {
+	color: #bdc3c7;
+	padding: 0px;
+    margin: -5px;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+
 .widget-option-container {
 	display: flex;
 	flex-direction: row;
