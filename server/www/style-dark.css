@@ -23,3 +23,8 @@
 .dark-style .widget-vue {
 	background-color: #2d2d30;
 }
+
+.dark-style .serie-stat-value {
+	font-size: 11px;
+	color: #b1b1b1;
+}

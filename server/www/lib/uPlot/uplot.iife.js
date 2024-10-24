@@ -42,7 +42,7 @@ var uPlot = (function () {
 	const BOTTOM      = "bottom";
 	const LEFT        = "left";
 	const RIGHT       = "right";
-	const hexBlack    = "#000";
+	const hexBlack    = "#858585";
 	const transparent = hexBlack + "0";
 
 	const mousemove   = "mousemove";
@@ -1239,7 +1239,7 @@ var uPlot = (function () {
 
 	const axisLines = {
 		show: true,
-		stroke: "rgba(0,0,0,0.07)",
+		stroke: "rgba(127,127,127,0.12)",
 		width: 2,
 	//	dash: [],
 	};
