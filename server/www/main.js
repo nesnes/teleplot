@@ -20,6 +20,17 @@ else {
     let port = window.location.port;
     conn.connect(addr, port);
     app.connections.push(conn);
+
+    // Parse url params
+    let params = new URLSearchParams(window.location.search);
+
+    // Open layout from url
+    let layout = params.get("layout")
+    if (layout) {
+        fetch(layout).then(res => res.blob()).then(blob => {
+            importLayoutJSON({target:{files:[blob]}});
+        });
+    }
 }
 
 

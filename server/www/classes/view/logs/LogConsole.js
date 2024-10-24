@@ -11,6 +11,10 @@ class LogConsole
 
         this.container = document.getElementById("log-container-div");
 
+        this.isBeingScrolled = false;
+        this.container.addEventListener('mousedown', ()=>{this.isBeingScrolled = true; }, false);
+        this.container.addEventListener('mouseup', ()=>{this.isBeingScrolled = false; }, false);
+
         this.scroller = undefined;
         this.config = undefined;
 
@@ -138,7 +142,7 @@ class LogConsole
         {
             this.hyperlist.refresh(this.container, this.getHyperListConfig());
             
-            if (this.autoScrollToEnd && !app.isViewPaused)
+            if (this.autoScrollToEnd && !app.isViewPaused && !this.isBeingScrolled)
             {
                 // this.logIndexToHighlighting = -1;
                 this.container.scrollTop = app.logs.length * this.itemHeight;// this is always greater than the div height, so it will scroll to the end
