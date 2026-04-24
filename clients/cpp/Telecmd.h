@@ -4,19 +4,16 @@
 #ifndef TELECMD_H
 #define TELECMD_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
-
-#include <iostream>
-#include <sstream> 
-#include <map>
+#include <cstring>
 #include <functional>
+#include <iostream>
+#include <map>
+#include <netinet/in.h>
+#include <string>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 //#define TELECMD_DISABLE // Would prevent telecmd from doing anything, useful for production builds
 
@@ -30,8 +27,8 @@ public:
         #endif
         // Create UDP socket
         sockfd_ = socket(AF_INET, SOCK_DGRAM, 0);
-        memset(&serv_, 0, sizeof(serv_));
-        memset(&client_, 0, sizeof(client_));
+        std::memset(&serv_, 0, sizeof(serv_));
+        std::memset(&client_, 0, sizeof(client_));
         serv_.sin_family = AF_INET; // IPv4
         serv_.sin_addr.s_addr = htonl(INADDR_ANY);
         serv_.sin_port = htons(47268);
