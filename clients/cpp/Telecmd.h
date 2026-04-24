@@ -23,7 +23,7 @@
 #define TELECMD_INPUT_BUFFER_SIZE 1024
 class Telecmd {
 public:
-    Telecmd(std::string address) : address_(address)
+    Telecmd(std::string address) : sockfd_(-1), sockfdOut_(-1), address_(address)
     {
         #ifdef TELECMD_DISABLE
             return ;
@@ -37,9 +37,9 @@ public:
         serv_.sin_port = htons(47268);
 
         // Set addr reuse
-        uint8_t yes = 1;
-        setsockopt(sockfd_, SOL_SOCKET, SO_REUSEADDR, (char*) &yes, sizeof(yes));
-        setsockopt(sockfd_, SOL_SOCKET, SO_REUSEPORT, (const char*)&yes, sizeof(yes));
+        int yes = 1;
+        setsockopt(sockfd_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        setsockopt(sockfd_, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes));
 
         // Set socket timeout
         struct timeval timeout;
@@ -61,7 +61,13 @@ public:
             std::cout << "Telecmd init failed" <<std::endl;
         }
     };
-    ~Telecmd() = default;
+    ~Telecmd() {
+        #ifdef TELECMD_DISABLE
+            return;
+        #endif
+        if (sockfd_ >= 0)    { (void)::close(sockfd_);    sockfd_    = -1; }
+        if (sockfdOut_ >= 0) { (void)::close(sockfdOut_); sockfdOut_ = -1; }
+    }
 
     // Static localhost instance
     static Telecmd &localhost() {static Telecmd telecmd("127.0.0.1"); return telecmd;}
@@ -97,7 +103,7 @@ private:
         {
             cmdList += registeredCmd.first + "|";
         }
-        sendto(sockfdOut_, cmdList.c_str(), cmdList.size(), MSG_CONFIRM, (const struct sockaddr *) &servOut_, sizeof(servOut_));
+        sendto(sockfdOut_, cmdList.c_str(), cmdList.size(), 0, (const struct sockaddr *) &servOut_, sizeof(servOut_));
     }
 
     void parseFunctionCall(std::string const& cmd) {
