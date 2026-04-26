@@ -340,15 +340,7 @@ private:
     }
 
     void emit(std::string const& data){
-        ssize_t sent = sendto(sockfd_, data.c_str(), data.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
-        if (sent < 0) {
-            int err = errno;
-#if EAGAIN == EWOULDBLOCK
-            if (err == EAGAIN) return;
-#else
-            if (err == EAGAIN || err == EWOULDBLOCK) return;
-#endif
-        }
+        (void) sendto(sockfd_, data.c_str(), data.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
     }
 
     #ifdef TELEPLOT_USE_BUFFERING
