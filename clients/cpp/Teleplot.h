@@ -5,15 +5,17 @@
 #define TELEPLOT_H
 
 #include <iostream>
-#include <iomanip> 
+#include <iomanip>
 #include <arpa/inet.h>
+#include <cerrno>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sstream> 
+#include <sstream>
 #include <map>
 #include <chrono>
 
@@ -199,7 +201,8 @@ private:
 class Teleplot {
 public:
     Teleplot(std::string address, unsigned int port=47269, unsigned int bufferingFrequencyHz = 30)
-        : address_(address)
+        : sockfd_(-1)
+        , address_(address)
         , bufferingFrequencyHz_(bufferingFrequencyHz)
     {
         #ifdef TELEPLOT_DISABLE
@@ -210,8 +213,17 @@ public:
         serv_.sin_family = AF_INET;
         serv_.sin_port = htons(port);
         serv_.sin_addr.s_addr = inet_addr(address_.c_str());
+        if (sockfd_ >= 0) {
+            int fl = fcntl(sockfd_, F_GETFL, 0);
+            if (fl >= 0) (void)fcntl(sockfd_, F_SETFL, fl | O_NONBLOCK);
+        }
     };
-    ~Teleplot() = default;
+    ~Teleplot() {
+        #ifdef TELEPLOT_DISABLE
+            return;
+        #endif
+        if (sockfd_ >= 0) { (void)::close(sockfd_); sockfd_ = -1; }
+    }
 
     // Static localhost instance
     static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
@@ -258,8 +270,8 @@ public:
         if(updateTimestampsUs_.find(key) == updateTimestampsUs_.end()) {
             return true;
         }
-        int64_t elasped = nowUs - updateTimestampsUs_[key];
-        if(elasped >= static_cast<int64_t>(1e6/frequency)) {
+        int64_t elapsed = nowUs - updateTimestampsUs_[key];
+        if(elapsed >= static_cast<int64_t>(1e6/frequency)) {
             return true;
         }
         return false;
@@ -353,8 +365,8 @@ private:
         void flushBuffer(std::string const& key, std::string const& flags, std::string unit, bool force, bool is3D = false) {
             // Flush the buffer if the frequency is reached
             int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-            int64_t elasped = nowUs - bufferingFlushTimestampsUs_[key];
-            if(force || elasped >= static_cast<int64_t>(1e6/bufferingFrequencyHz_)) {
+            int64_t elapsed = nowUs - bufferingFlushTimestampsUs_[key];
+            if(force || elapsed >= static_cast<int64_t>(1e6/bufferingFrequencyHz_)) {
                 emit(formatPacket(key, bufferingMap_[key], flags, unit, is3D));
                 bufferingMap_[key].clear();
                 bufferingFlushTimestampsUs_[key] = nowUs;
@@ -373,7 +385,6 @@ private:
     std::string address_;
     sockaddr_in serv_;
     unsigned int bufferingFrequencyHz_;
-    int64_t lastBufferingFlushTimestampUs_=0;
 };
 
 #endif
