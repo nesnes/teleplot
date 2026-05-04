@@ -4,20 +4,18 @@
 #ifndef TELEPLOT_H
 #define TELEPLOT_H
 
-#include <iostream>
-#include <iomanip>
 #include <arpa/inet.h>
 #include <cerrno>
+#include <chrono>
+#include <cstdint>
 #include <fcntl.h>
-#include <unistd.h>
+#include <iomanip>
+#include <map>
+#include <sstream>
+#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sstream>
-#include <map>
-#include <chrono>
+#include <unistd.h>
 
 // Enable/Disable implementation optimisations:
 //#define TELEPLOT_DISABLE // Would prevent teleplot from doing anything, useful for production builds
@@ -48,7 +46,7 @@ public:
                 std::string roundValue(const double value, const unsigned short precision) const
                 {
                     std::string value_str = std::to_string(value);
-                    int res_length = value_str.length();
+                    int res_length = static_cast<int>(value_str.length());
                     
                     int i = 0;
                     bool stop = false;
@@ -58,7 +56,7 @@ public:
                         if (value_str[i] == '.')
                         {
                             int u = i + precision;
-                            if (u+1 < value_str.length())
+                            if (u+1 < static_cast<int>(value_str.length()))
                             {
                                 while (value_str[u] == '0') u--;
                                 
@@ -202,7 +200,7 @@ class Teleplot {
 public:
     Teleplot(std::string address, unsigned int port=47269, unsigned int bufferingFrequencyHz = 30)
         : sockfd_(-1)
-        , address_(address)
+        , address_(std::move(address))
         , bufferingFrequencyHz_(bufferingFrequencyHz)
     {
         #ifdef TELEPLOT_DISABLE
@@ -211,7 +209,7 @@ public:
         // Create UDP socket
         sockfd_ = socket(AF_INET, SOCK_DGRAM, 0);
         serv_.sin_family = AF_INET;
-        serv_.sin_port = htons(port);
+        serv_.sin_port = htons(static_cast<std::uint16_t>(port));
         serv_.sin_addr.s_addr = inet_addr(address_.c_str());
         if (sockfd_ >= 0) {
             int fl = fcntl(sockfd_, F_GETFL, 0);
@@ -234,7 +232,7 @@ public:
             return ;
         #endif
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        double nowMs = static_cast<double>(nowUs)/1000.d;
+        double nowMs = static_cast<double>(nowUs)/1000.0;
         updateData(key, nowMs, value, 0, flags, maxFrequencyHz, unit);
     }
 
@@ -244,7 +242,7 @@ public:
             return ;
         #endif
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        double nowMs = static_cast<double>(nowUs)/1000.d;
+        double nowMs = static_cast<double>(nowUs)/1000.0;
         updateData(key, valueX, valueY, nowMs, flags, maxFrequencyHz);
     }
 
@@ -254,7 +252,7 @@ public:
         #endif
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
         double nowMs = static_cast<double>(nowUs)/1000.0;
-        updateData(mshape.getName(), nowMs, NULL, NULL, flags, maxFrequencyHz, "", mshape);
+        updateData(mshape.getName(), nowMs, nullptr, nullptr, flags, maxFrequencyHz, "", mshape);
     }
 
     void log(std::string const& log){
@@ -276,6 +274,8 @@ public:
         }
         return false;
 #else
+        (void)key;
+        (void)frequency;
         return true;
 #endif
     }
@@ -297,6 +297,8 @@ private:
         #ifdef TELEPLOT_USE_FREQUENCY
             if(not shouldUpdateData(key ,maxFrequencyHz)) return; // may be used to reduce the update frequency by ignoring some values
             saveUpdateDataTime(key);
+        #else
+            (void)maxFrequencyHz;
         #endif
 
         // Format
