@@ -20,7 +20,7 @@ class World {
 		this.scene = this.initializeScene();
 		this.initializeLight(this.scene);
 		this.initializeGrid(this.scene);
-		//this.initializeFog(this.scene);
+		this.initializeFog(this.scene);
 		this.camera = this.initializeCamera();
 		this.renderer = this.initializeRenderer();
 		this.resize_obs = this.initializeResizeObserver(this);
@@ -42,20 +42,23 @@ class World {
 	{
 		let scene = new THREE.Scene();
 		scene.background = new Color('#ecf0f1');// the color of an empty white screen ( not true white )
+		if (app.colorStyle == "dark") { scene.background = new Color('#262627'); }
 		return scene;
 	}
 
 	initializeGrid(scene)
 	{
 
-		const size = 20;
+		const size = 500;
 		const divisions = size;
 		const yAxisColor = new Color(GreenYAxis);
 		const gridColor = new Color(GridHeplerColor);
 		const xAxisColor = new Color(RedXAxis);
 
-		const gridHelper = new THREE.GridHelper( size, divisions, xAxisColor, gridColor, yAxisColor);
+		//const gridHelper = new THREE.GridHelper( 1, 2, xAxisColor, gridColor, yAxisColor);
+		const gridHelper = new THREE.InfiniteGridHelper( 1, 10, gridColor, 50);
 		scene.add( gridHelper );
+
 	}
 
 	initializeLight(scene)
@@ -72,9 +75,9 @@ class World {
 		let camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 		camera.far = 1000;
 		camera.near = 0.1;
-		camera.position.z = 15;
-		camera.position.y = 1.5;
-		camera.position.x = 0;
+		camera.position.z = 2;
+		camera.position.y = 2;
+		camera.position.x = -2;
 		return camera;
 	}
 
@@ -112,20 +115,30 @@ class World {
 
 	updateToNewShape(old_shape, new_shape)
 	{
+		if (old_shape.mesh_loading) return;
 		let myMesh = old_shape.three_object;
 		if ( myMesh == null)
 		{
 			throw new Error("error myMesh shouldn't be null");
 		}
 
-
-		if (new_shape.type == "cube")// in this case we can just rescale it
+		if (new_shape.type == "sphere")
+		{
+			myMesh.scale.set(new_shape.radius, new_shape.radius, new_shape.radius);
+		}
+		else
 		{
 			myMesh.scale.set( new_shape.width, new_shape.height, new_shape.depth);
 		}
-		else if (new_shape.type == "sphere")
+
+		if (new_shape.color != old_shape.color)
 		{
-			myMesh.scale.set(new_shape.radius, new_shape.radius, new_shape.radius);
+			myMesh.material.color.copy(new THREE.Color(new_shape.color));
+		}
+
+		if (new_shape.opacity != old_shape.opacity)
+		{
+			myMesh.material.opacity = new_shape.opacity;
 		}
 
 		if (myMesh.position != undefined && new_shape.position != undefined)
@@ -144,6 +157,10 @@ class World {
 		else
 			buildMeshFromQuaternion(myMesh, new_shape);
 
+		if (old_shape.texture.type == "telem") {
+			setTelemTexture(old_shape)
+		}
+
 	
 	}
 
@@ -151,7 +168,6 @@ class World {
 	// shape3d is the new shape (either a totaly new one or an update of a previous one)
 	setObject(shapeId, shape3d)
 	{
-
 		if (shapeId < this._3Dshapes.length)
 		{
 			this.updateToNewShape(this._3Dshapes[shapeId], shape3d);
@@ -159,23 +175,16 @@ class World {
 		else
 		{
 			let shape_cp = (new Shape3D()).initializeFromShape3D(shape3d);
-
-			buildThreeObject(shape_cp);
 			this._3Dshapes.push(shape_cp);
 
-			// as we can't share the same mesh between multiple scenes, we are making 
-			// a copy of it just before adding it to the scene, otherwise their might be two scenes trying to use the same mesh
-			this.scene.add(shape_cp.three_object);
+			buildThreeObject(shape_cp).then(()=>{
+				// as we can't share the same mesh between multiple scenes, we are making 
+				// a copy of it just before adding it to the scene, otherwise their might be two scenes trying to use the same mesh
+				this.scene.add(shape_cp.three_object);
+			})
+
 		}
 		
-	}
-
-	unsetObject(idx)
-	{
-		if(idx>=0 && idx<this._3Dshapes.length) {
-			this.scene.remove(this._3Dshapes[idx].three_object);
-			this._3Dshapes.splice(idx, 1);
-		}
 	}
 	
 	render()

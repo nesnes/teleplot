@@ -8,6 +8,7 @@
         <link rel="stylesheet" href="./components/vueResponsiveText/vue-responsive-text.css">
         <link rel="stylesheet" href="./components/singleValue/single-value.css">
         <link rel="stylesheet" href="./components/3dComponent/3dComponent.css">
+        <link rel="stylesheet" href="./components/teleplotJPG/teleplotJPG.css">
 		<link rel="stylesheet" href="./style.css">
 		<link rel="stylesheet" href="./style-dark.css">
         <script src="./lib/vue.js"></script>
@@ -62,9 +63,12 @@
                                                 <option value="74880">74880</option>
                                                 <option value="115200">115200</option>
                                                 <option value="230400">230400</option>
+                                                <option value="250000">250000</option>
                                                 <option value="460800">460800</option>
+                                                <option value="500000">500000</option>
                                                 <option value="576000">576000</option>
                                                 <option value="921600">921600</option>
+                                                <option value="1000000">1000000</option>
                                             </select>
                                             <span v-if="input.connected">@{{input.baudrate}}</span>
                                         </div>
@@ -179,6 +183,7 @@
                         <div class="var-vue-name">
                             <span v-if="telem.type =='text' " class="symbol-text-format-telem">T</span>
                             <span v-if="telem.type =='3D' " class="symbol-3d-telem">3D</span>
+                            <span v-if="telem.type =='JPG' " class="symbol-3d-telem">JPG</span>
 
                             <span class="serie-name">{{telem.name}}</span>
                             <span v-if="telem.unit != undefined" class="serie-unit">({{telem.unit}})</span>
@@ -209,7 +214,7 @@
                                 <div class="serie-header-container">
                                     <div v-for="serie of widget.series" class="serie-header" v-bind:class="{ 'serie-header-small': isWidgetSmallOnGrid(widget) }">
                                         
-                                        <div v-if="widget.type == 'chart' || widget.type == 'widget3D'" class="serie-name-container">
+                                        <div v-if="widget.type == 'chart' || widget.type == 'widget3D' || widget.type == 'JPG'" class="serie-name-container">
                                             <span v-if="widget.type == 'chart'" class="serie-color" v-bind:style="{'background-color':serie.options.fill, 'border-color':serie.options.stroke}" >
                                                 <span class="serie-value">{{serie.values_formatted}}</span>
                                             </span>
@@ -218,13 +223,13 @@
                                             <span v-if="widget.series.length > 1" id ="removeSerieButton" class="serie-remove" @click="removeSerie(widget, serie)" title="Remove serie">⨯</span>
                                         </div>
                                         <div v-if="serie.type == '3D'" class="serie-3d-details-container">
-                                            <div v-if="serie.values != undefined && serie.values.length != 0 && serie.values[0] != undefined" class = "serie-3d-details">
+                                            <div v-if="serie.values != undefined && serie.values.length != 0 && serie.values[1] != undefined" class = "serie-3d-details">
                                                 <span class="details-3d-x">x:{{serie.details_3d_formatted.position.x}}</span>
                                                 <span class="details-3d-y">y:{{serie.details_3d_formatted.position.y}}</span>
                                                 <span class="details-3d-z">z:{{serie.details_3d_formatted.position.z}}</span>
                                                 <span> | </span>
                                                
-                                                <span v-if="serie.values[0].quaternion == undefined">
+                                                <span v-if="serie.values[1].quaternion == undefined">
                                                     <span>rx:{{serie.details_3d_formatted.rotation.x}}</span>
                                                     <span>ry:{{serie.details_3d_formatted.rotation.y}}</span>
                                                     <span>rz:{{serie.details_3d_formatted.rotation.z}}</span>
@@ -275,6 +280,8 @@
                             <comp-3d v-if="widget.type == 'widget3D'" v-bind:widget="widget" v-bind:series="widget.series"></comp-3d>
 
                             <single-value v-if="widget.type == 'single_value_number' || widget.type == 'single_value_text'" v-bind:widget="widget"></single-value>
+
+                            <teleplot-jpg v-if="widget.type == 'JPG'" v-bind:widget="widget"></teleplot-jpg>
                             
                             <uplot-vue class="uplot-vue" v-if="widget.type == 'chart' && !widget.isResized && (!widget.isXY || widget.data_available_xy)" v-bind:data="widget.data" v-bind:options="widget.options"/>
                         
@@ -319,12 +326,15 @@
     <script src="./lib/three/three.js"></script>
     <script src="./lib/three/three.module.js"></script>
     <script src="./lib/three/OrbitControls.js"></script>
+    <script src="./lib/three/InfiniteGrid.js"></script>
+    <script src="./lib/three/STLLoader.js"></script>
     <script src="./lib/hyperlist/hyperlist.js"></script>
     <script src="./classes/view/logs/Log.js"></script>
     <script src="./components/uPlot/uplot-component.js"></script>
     <script src="./components/vueResponsiveText/vue-responsive-text.js"></script>
     <script src="./components/singleValue/singleValue.js"></script>
     <script src="./components/3dComponent/3dComponent.js"></script>
+    <script src="./components/teleplotJPG/teleplotJPG.js"></script>
     <script src="./constants.js"></script>
     <script src="./classes/communication/connection/Connection.js"></script>
     <script src="./classes/communication/connection/ConnectionTeleplotVSCode.js"></script>
@@ -335,6 +345,7 @@
     <script src="./classes/view/widgets/ChartWidget.js"></script>
     <script src="./classes/view/widgets/SingleValueWidget.js"></script>
     <script src="./classes/view/widgets/Widget3D.js"></script>
+    <script src="./classes/view/widgets/JPGWidget.js"></script>
     <script src="./classes/view/logs/LogConsole.js"></script>
     <script src="./classes/communication/data/DataInput.js"></script>
     <script src="./classes/communication/data/DataInputSerial.js"></script>

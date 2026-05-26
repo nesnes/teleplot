@@ -6,7 +6,7 @@ class Telemetry{
         this.usageCount = 0;
 
         
-        // contains either one (if !xy) or two values (if xy).
+        // contains timestamp and data of the current data point
         this.values = [];
 
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
@@ -26,14 +26,6 @@ class Telemetry{
 
         if (this.type == "3D") 
             this.setShapeTypeDelay();
-    }
-
-    clearData()
-    {
-        this.values.length = 0;
-        for(let arr of this.data) { arr.length = 0; }
-        for(let arr of this.pendingData) { arr.length = 0; }
-        this.values_formatted = "";
     }
 
     setShapeTypeDelay()
@@ -75,18 +67,18 @@ class Telemetry{
 
     updateFormattedValues() {
 
-        if ((this.type == "number" || this.type == "xy") && this.values[0] != undefined && typeof(this.values[0])=='number')
+        if ((this.type == "number" || this.type == "xy") && this.values[1] != undefined && typeof(this.values[1])=='number')
         {
-            let res = this.values[0].toFixed(4);
+            let res = this.values[1].toFixed(4);
         
-            if (this.type=="xy" && this.values.length == 2)
-                res += ("  " + this.values[1].toFixed(4));
+            if (this.type=="xy" && this.values.length == 3)
+                res += ("  " + this.values[2].toFixed(4));
     
             this.values_formatted =  res;
         }
         else if (this.type == "text")
         {
-            this.values_formatted =  this.values[0];
+            this.values_formatted =  this.values[1];
         }
         else if (this.type != "3D")
         // if equals 3D, then values_formatted contains the name of the shape and has already been set at instanciation,

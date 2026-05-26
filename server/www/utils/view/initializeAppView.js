@@ -154,6 +154,13 @@ function initializeAppView()
                     chart = new Widget3D();
                     chart.addSerie(getSerieInstanceFromTelemetry(telemetryName));
                 }
+                else if (app.telemetries[telemetryName].type == "JPG")
+                {
+                    chart = new JPGWidget();
+                    serie = getSerieInstanceFromTelemetry(telemetryName);    
+                    chart.addSerie(serie);
+
+                }
                 else
                 {
                     chart = new ChartWidget(this.telemetries[telemetryName].type=="xy");
@@ -171,7 +178,8 @@ function initializeAppView()
 
                 let telemetryName = e.dataTransfer.getData("telemetryName");
                 
-                if (this.telemetries[telemetryName].type == "3D")
+                if (this.telemetries[telemetryName].type == "3D"
+                 || app.telemetries[telemetryName].type == "JPG")
                 {
                     this.onDropInNewChart(e, prepend);
                     return;

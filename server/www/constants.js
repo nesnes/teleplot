@@ -8,4 +8,4 @@ const RedXAxis = "#e74c3c"
 const GreenYAxis = "#3ba30b"
 // const BlueZAxis = "#2980b9"
 
-const GridHeplerColor = "#cccccc"
+const GridHeplerColor = "#777777"

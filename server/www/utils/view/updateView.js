@@ -33,11 +33,9 @@ function updateView() {
 
             app.telemetries[key].values.length = 0;
 
-            if (telemBuffer[key].values.length > 0)
-                app.telemetries[key].values.push(telemBuffer[key].values[0]);
-
-            if (telemBuffer[key].values.length > 1)
-                app.telemetries[key].values.push(telemBuffer[key].values[1]);
+            for( let valIdx=0; valIdx < telemBuffer[key].values.length; valIdx++) {
+                app.telemetries[key].values.push(telemBuffer[key].values[valIdx]);
+            }
 
             // this has to be done every time telem.values get modified, it is usefull for the html to display
             //the good text in the telemetry pannel 

@@ -2,7 +2,7 @@ var DataSerieIdCount = 0;
 // this class respresents a sequence or "serie"
 class DataSerie{
     constructor(_name = undefined, unit = undefined, type = "text"){
-        this.type = type;// either text, number, 3D or xy
+        this.type = type;// either text, number, 3D, xy, JPG, ...
         this.name = _name;
         this.id = "data-serie-" + DataSerieIdCount++;
         this.sourceNames = []; //contains the names of the telemetries used to build the sequence
@@ -12,7 +12,7 @@ class DataSerie{
         this.data = [[],[]]; // data[0] contains the timestamps and data[1] contains the values corresponding to each timestamp
         this.pendingData = [[],[]];
         this.options = {};
-        this._values = undefined; // an array of Number or String containing the last value of the serie ( either one (if !xy) or two values (if xy) ).
+        this._values = undefined; // an array containing the last data value of the serie ( timestamp, data... ).
         this.stats = null;
         this.unit = ( unit != "" ) ? unit : undefined;
         this.onSerieChanged = undefined;
@@ -68,22 +68,22 @@ class DataSerie{
         if (this.type != "3D")
             return;
 
-        this.details_3d_formatted.position.x = this.formatDetails3D(this._values[0].position.x);
-        this.details_3d_formatted.position.y = this.formatDetails3D(this._values[0].position.y);
-        this.details_3d_formatted.position.z = this.formatDetails3D(this._values[0].position.z);
+        this.details_3d_formatted.position.x = this.formatDetails3D(this._values[1].position.x);
+        this.details_3d_formatted.position.y = this.formatDetails3D(this._values[1].position.y);
+        this.details_3d_formatted.position.z = this.formatDetails3D(this._values[1].position.z);
 
         if (this._values[0].quaternion == undefined)
         {
-            this.details_3d_formatted.rotation.x = this.formatDetails3D(this._values[0].rotation.x);
-            this.details_3d_formatted.rotation.y = this.formatDetails3D(this._values[0].rotation.y);
-            this.details_3d_formatted.rotation.z = this.formatDetails3D(this._values[0].rotation.z);
+            this.details_3d_formatted.rotation.x = this.formatDetails3D(this._values[1].rotation.x);
+            this.details_3d_formatted.rotation.y = this.formatDetails3D(this._values[1].rotation.y);
+            this.details_3d_formatted.rotation.z = this.formatDetails3D(this._values[1].rotation.z);
         }
         else
         {
-            this.details_3d_formatted.quaternion.x = this.formatDetails3D(this._values[0].quaternion.x);
-            this.details_3d_formatted.quaternion.y = this.formatDetails3D(this._values[0].quaternion.y);
-            this.details_3d_formatted.quaternion.z = this.formatDetails3D(this._values[0].quaternion.z);
-            this.details_3d_formatted.quaternion.w = this.formatDetails3D(this._values[0].quaternion.w);
+            this.details_3d_formatted.quaternion.x = this.formatDetails3D(this._values[1].quaternion.x);
+            this.details_3d_formatted.quaternion.y = this.formatDetails3D(this._values[1].quaternion.y);
+            this.details_3d_formatted.quaternion.z = this.formatDetails3D(this._values[1].quaternion.z);
+            this.details_3d_formatted.quaternion.w = this.formatDetails3D(this._values[1].quaternion.w);
         }
         
 
@@ -91,14 +91,14 @@ class DataSerie{
 
     updateFormattedValues()
     {
-        if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[0] == undefined)
+        if ((this.type != "number" && this.type != "xy") || this.values == undefined || this.values[1] == undefined)
             this.values_formatted = "";
 
-        if (this.type == "xy" && this.values[1] != undefined && typeof(this.values[0]) == 'number') 
-            this.values_formatted = ((this.values[0].toFixed(4)) + "  " +(this.values[1].toFixed(4)));
+        if (this.type == "xy" && this.values[2] != undefined && typeof(this.values[1]) == 'number') 
+            this.values_formatted = ((this.values[1].toFixed(4)) + "  " +(this.values[2].toFixed(4)));
         else if (this.type == "number" && typeof(this.values[0]) == 'number')
         {
-            this.values_formatted = (this.values[0].toFixed(4));
+            this.values_formatted = (this.values[1].toFixed(4));
         }
 
         this.updateNameColor(); 
@@ -107,8 +107,8 @@ class DataSerie{
 
     updateNameColor()
     {
-        if (this.type == "3D" && this.values[0] != undefined)
-            this.name_color = this.values[0].color;
+        if (this.type == "3D" && this.values[1] != undefined)
+            this.name_color = this.values[1].color;
 
         this.name_color = "black";
     }
@@ -118,7 +118,6 @@ class DataSerie{
             onTelemetryUnused(name);
         }
         this.sourceNames.length = 0;
-        this.onSerieChanged = undefined;
     }
 
     addSource(name){
@@ -158,7 +157,7 @@ class DataSerie{
     applyTimeWindow(){
         if(parseFloat(app.viewDuration)<=0) return;
         for(let key of this.sourceNames) {
-            if(app.telemetries[key] == undefined) continue;
+            if (!app.telemetries[key]) { continue; }
             let d = app.telemetries[key].data;
             let timeIdx = 0;
             if(app.telemetries[key].type=="xy") timeIdx = 2;
@@ -202,6 +201,8 @@ function getSerieInstanceFromTelemetry(telemetryName)
 function onTelemetryUsed(name, force=false){
     let telem = app.telemetries[name];
     if(telem == undefined) return;
+    //telem.requestedRate = app.requestedRatePerSec;
+    //if(telem.usageCount==0 || force) { sendCommand({name:"_updateTelemFreq", params:(telem.name+" "+telem.requestedRate)}) }
     if(!force) telem.usageCount++;
 }
 
@@ -209,4 +210,9 @@ function onTelemetryUnused(name, force=false){
     let telem = app.telemetries[name];
     if(telem == undefined) return;
     if(telem.usageCount>0)telem.usageCount--;
+    if(telem.usageCount==0 || force) 
+    {
+        //telem.requestedRate = 1;
+        //sendCommand({name:"_updateTelemFreq", params:(telem.name+" "+telem.requestedRate)}) 
+    }
 }

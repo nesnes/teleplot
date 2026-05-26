@@ -56,9 +56,9 @@ Vue.component('comp-3d', {
                 {
                     let currSerie = this.series[i];
 
-                    if (currSerie.values[0] != undefined)
+                    if (currSerie.values[1] != undefined)
                     {
-                        this.world.setObject(i, currSerie.values[0]);
+                        this.world.setObject(i, currSerie.values[1]);
                     }
                 }
             }
@@ -69,9 +69,9 @@ Vue.component('comp-3d', {
                 if (currSerie == undefined)
                     throw new Error("trying to acces an index that is invalid : i = " + serieId);
 
-                if (currSerie.values[0] != undefined)
+                if (currSerie.values[1] != undefined)
                 {
-                    this.world.setObject(serieId, currSerie.values[0]);
+                    this.world.setObject(serieId, currSerie.values[1]);
                 }
             }
         },

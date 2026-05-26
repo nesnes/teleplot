@@ -86,13 +86,14 @@ button {
 body {
 	margin: 0px;
 	padding: 0px;
+	background-color: #ecf0f1;
 }
 
 .main-body {
-	background-color: #ecf0f1;
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
+	min-height: 100vh;
 }
 .left-col {
 	min-width: min(250px, max(100px, 20%));

@@ -1,7 +1,6 @@
 //parses the message we received from the server
 
 function parseData(msgIn){
-
     if(app.isViewPaused) return; // Do not buffer incomming data while paused
     let now = new Date().getTime();
 
@@ -28,6 +27,9 @@ function parseData(msgIn){
             // 3D
             else if (msg.substring(0,3) == "3D|")
                 parse3D(msg, now);
+            // JPG
+            else if (msg.substring(0,4) == "JPG|")
+                parseJPG(msg, now);
             // Data
             else
                 parseVariablesData(msg, now);
@@ -210,10 +212,114 @@ function parse3D(msg, now)
 
         let shape3D;
         try { shape3D = new Shape3D().initializeFromRawShape(key, rawShape);} 
-        catch(e) { throw new Error("Error invalid shape text given : "+rawShape)};
+        catch(e) { console.log(e); throw new Error("Error invalid shape text given : "+rawShape)};
 
         appendData(key, [timestamp], [shape3D], [], "", flags, "3D", widgetLabel)
     }
+}
+
+function parseJPG(msg, now)
+{
+    // JPG|key:timestamp:1/4:b64buffer§unit|flags
+    //         ^^^^^^^^^^^^^^         ^^^^^^^^^^^ optional
+    let keyFrom = 0; keyTo = 0;
+    let timestampFrom = 0; timestampTo = 0;
+    let indexFrom = 0; indexTo = 0;
+    let b64From = 0; b64To = 0;
+    let unitFrom = 0; unitTo = 0;
+    let flagFrom = 0; flagTo = 0;
+    
+    keyFrom = msg.indexOf("|")+1;
+    keyTo = msg.indexOf(':');
+  	b64From = keyTo+1;
+  	b64To = msg.length;
+
+    unitFrom = msg.indexOf("§")+1;
+    if(unitFrom>0) { // if has unit
+        b64To = unitFrom-1;
+        unitTo = msg.lastIndexOf("|");
+        if(unitFrom > unitTo) unitTo = msg.length // no flags
+    }
+
+    flagFrom = msg.lastIndexOf("|")+1;
+    if(flagFrom > keyFrom)
+    {
+        if(unitFrom<=0) b64To = flagFrom-1;
+        flagTo = msg.length;
+    }
+    
+    timestampFrom = keyTo + msg.substr(keyTo).indexOf(":") + 1;
+    if(timestampFrom >= keyTo)
+    {
+    	timestampTo = timestampFrom + msg.substr(timestampFrom+1).indexOf(":") + 1;
+      if (msg.substr(timestampFrom, timestampTo - timestampFrom).indexOf("/") != -1)
+      {
+      	indexFrom = timestampFrom;
+        indexTo = timestampTo;
+        timestampFrom = 0;
+        timestampTo = 0;
+        b64From = indexTo+1;
+      }
+      else
+      {
+      	indexFrom = timestampTo + msg.substr(timestampTo).indexOf(":") + 1;
+        if(indexFrom >= timestampTo)
+        {
+            indexTo = indexFrom + msg.substr(indexFrom+1).indexOf(":") + 1;
+            b64From = indexTo;
+            if(msg[b64From] == ':') {
+                b64From += 1;
+            }
+        }
+      }
+    }
+    
+    let key = msg.substr(keyFrom, keyTo-keyFrom)
+    let timestamp = msg.substr(timestampFrom, timestampTo-timestampFrom)
+    if(timestamp.length == 0) {
+        timestamp = now;
+    }
+    else {
+        timestamp = parseFloat(timestamp)/1000; // Convert timestamp in seconds
+    }
+    let index = msg.substr(indexFrom, indexTo-indexFrom)
+    let b64 = msg.substr(b64From, b64To-b64From)
+    let unit = msg.substr(unitFrom, unitTo-unitFrom)
+    let flag = msg.substr(flagFrom, flagTo-flagFrom)
+
+    
+    // Rebuild image from fragmented packets
+    if (index != "") {
+        indexTab = index.split('/');
+        if (indexTab.length != 2) return;
+        segmentIndex = parseInt(indexTab[0]);
+        segmentCount = parseInt(indexTab[1]);
+        if(typeof parseJPG.fragments == 'undefined' ) { parseJPG.fragments = {}; }
+        if( parseJPG.fragments[key] == undefined
+         || (parseJPG.fragments[key].timestamp != timestamp && timestampFrom>0)
+         || parseJPG.fragments[key].segmentCount != segmentCount
+         || parseJPG.fragments[key].segments[segmentIndex] != undefined
+        ){
+            parseJPG.fragments[key] = {timestamp:0, segments: {}, segmentCount: 0};
+        }
+        parseJPG.fragments[key].timestamp = timestamp;
+        parseJPG.fragments[key].segmentCount = segmentCount;
+        parseJPG.fragments[key].segments[segmentIndex] = b64;
+        // Check all fragments received
+        if(Object.keys(parseJPG.fragments[key].segments).length == segmentCount) {
+            let fullB64 = "";
+            for(let i=1;i<=segmentCount;i++) {
+                if(parseJPG.fragments[key].segments[i] == undefined) { return; }
+                fullB64 += parseJPG.fragments[key].segments[i];
+            }
+            appendData(key, [timestamp], [fullB64], 0, unit, flag, "JPG");
+        }
+    }
+    else {
+        // Image not fragmented
+        appendData(key, [timestamp], [b64], 0, unit, flag, "JPG");
+    }
+
 }
 
 function getWidgetAccordingToLabel(widgetLabel, widgetType, isXY = false)
@@ -245,11 +351,6 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
     let isXY = flags.includes("xy");
     if (isXY) telemType = "xy";
 
-    let clear = flags.includes("clr");
-    if(app.telemetries[key] && clear){
-        app.telemetries[key].clearData();
-    }
-
     let shouldPlot = !flags.includes("np");
 
     if(app.telemetries[key] == undefined){
@@ -275,6 +376,10 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
                 case "3D":
                     [mwidget,isNewWidget] = getWidgetAccordingToLabel(widgetLabel, "widget3D");
                     break;
+                case "JPG":
+                    mwidget = new JPGWidget();
+                    isNewWidget = true;
+                    break;
             }
 
             let serie = getSerieInstanceFromTelemetry(key);
@@ -294,7 +399,6 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
     else            { valuesZ.forEach((elem, idx, arr)=>arr[idx] = elem); }
 
     // Flush data into buffer (to be flushed by updateView)
-    
     telemBuffer[key].data[0].push(...valuesX);
     telemBuffer[key].data[1].push(...valuesY);
     telemBuffer[key].values.length = 0;
@@ -302,20 +406,21 @@ function appendData(key, valuesX, valuesY, valuesZ, unit, flags, telemType, widg
 
     if(app.telemetries[key].type=="xy")
     {
+        telemBuffer[key].values.push(valuesZ[valuesZ.length-1]);
         telemBuffer[key].values.push(valuesX[valuesX.length-1]);
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);
-
         telemBuffer[key].data[2].push(...valuesZ);
     }
     else 
     {
+        telemBuffer[key].values.push(valuesX[valuesX.length-1]);
         telemBuffer[key].values.push(valuesY[valuesY.length-1]);
 
         if (app.telemetries[key].type=="3D")
         {
             let prevShapeIdx =  app.telemetries[key].data[1].length -1;
 
-            let newShape = telemBuffer[key].values[0];
+            let newShape = telemBuffer[key].values[1];
 
             if (prevShapeIdx >= 0) // otherwise, it means that there ain't any previous shape
             {

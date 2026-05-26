@@ -152,7 +152,9 @@ If **A** doesn't contain a comma, its whole text will be considered as the name 
 
 LIST OF PROPERTIES : 
 
-- "shape" or "S"  => the shape type (either "cube" or "sphere" for the moment).
+- "shape" or "S"  => the shape type ("cube", "sphere", "cylinder" or "stl").
+
+- "url" or "U" => the url to the STL file when using this kind of "shape". **Note** as urls can cotains ":" wich is used as a delimiter in the syntax, urls are expected to be contained in `"..."` or `'...'` string delimiters. eg: `...:U:"http://my.url/file.stl":...`
 
 - "position" or "P" => the position of the center of the sphere in a cartesian coordinate system 
     1st argument : x, 2nd argument : y, 3rd argument : z
@@ -166,6 +168,12 @@ LIST OF PROPERTIES :
 - "color" or "C" => the color of the shape, ex : "blue", "#2ecc71" ... 
 
 - "opacity" or "O" => the opacity of the shape, float between 0 and 1, 0 being fully transparent and 1 fully opaque ( set to 1 by default ) 
+
+- "texture" or "T" => the texture to apply on the shape
+    - 1st argument: the type of texture. Can be "url" (to load an image from an url) or "telem" (to load an image from telemetry image)
+    - 2nd argument: the url of the texture, or the name of the telemetry to use
+    - eg: `...:T:url:"http://my.url/file.jpg":...` or eg: `...:T:telem:myImageTelem:...`
+    - The "color" property will blend with the texture, it is recommended to use a "white" or "#ffffff" color to display the expected texture
 
 === Sphere only ===
 
@@ -216,6 +224,14 @@ Creating a simple sphere and cube and display them on the same widget by default
 
     sphere with same widget label : 
     - `3D|mySphere,widget0:S:sphere`
+
+Importing an STL file (needs to be downloadable by teleplot, so online or locally served with proper CORS policies) :
+
+    Import online stl file:
+    - `3D|myBlueTeapot:S:stl:U:"https://upload.wikimedia.org/wikipedia/commons/9/93/Utah_teapot_%28solid%29.stl":W:0.3:H:0.3:D:0.3:C:#3498db`
+
+    Taller teapot with rescaling:
+    - `3D|myBlueTeapot:S:stl:U:"https://upload.wikimedia.org/wikipedia/commons/9/93/Utah_teapot_%28solid%29.stl":W:0.3:H:0.3:D:0.6:C:#3498db`
 
 
 /!\ Despite the examples above, it might be a better idea to send every property everytime, as if teleplot refreshes or if it wasn't lauched 

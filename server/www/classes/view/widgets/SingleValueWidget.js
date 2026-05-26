@@ -51,7 +51,7 @@ class SingleValueWidget extends DataWidget{
     // and also write it in a string format ready to be displayed
     updateSingleValue(currentSerie)
     {
-        if (currentSerie == undefined || currentSerie.values[0] == undefined)
+        if (currentSerie == undefined || currentSerie.values == undefined || currentSerie.values[1] == undefined)
             return;
 
         this.singlevalue.length = 0;
@@ -59,16 +59,16 @@ class SingleValueWidget extends DataWidget{
 
         if (this.type == "single_value_text")
         {
-            this.singlevalue.push(currentSerie.values[0])
+            this.singlevalue.push(currentSerie.values[1])
         }
-        else if (currentSerie.type=="xy" && currentSerie.values[1] != undefined)
+        else if (currentSerie.type=="xy" && currentSerie.values[2] != undefined)
         {
-            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
             this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[1]))
+            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[2]))
         }
         else if (currentSerie.type=="number")
         {
-            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[0]))
+            this.singlevalue.push(this.trimNumberAccordingToPrecision(currentSerie.values[1]))
         }
     }
 

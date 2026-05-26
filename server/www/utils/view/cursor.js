@@ -150,10 +150,12 @@ function updateDisplayedVarValues(timestampMouseX, timestampMouseY, scrollLog){
         app.telemetries[telemName].values.length = 0;
 
         if(telem.type=="xy") {
+            app.telemetries[telemName].values.push(telem.data[2][idx]);
             app.telemetries[telemName].values.push(telem.data[0][idx]);
             app.telemetries[telemName].values.push(telem.data[1][idx]);
         }
         else {
+            app.telemetries[telemName].values.push(telem.data[0][idx]);
             app.telemetries[telemName].values.push(telem.data[1][idx]);
         }
     }
@@ -175,10 +177,13 @@ function resetCursorDisplayedVarValues(){
     let telemList = Object.keys(app.telemetries);
     for(let telemName of telemList) {
         let telem = app.telemetries[telemName];
-        if(telem.type=="xy") continue;
         let idx = telem.data[0].length-1;
-        if(0 <= idx && idx < telem.data[0].length) {
+        if(telem.data[0] != undefined && 0 <= idx && idx < telem.data[0].length) {
             telem.values.length = 0;
+            if(telem.type=="xy" && telem.data[2] != undefined) {
+                (telem.values).push(telem.data[2][idx]);
+            }
+            (telem.values).push(telem.data[0][idx]);
             (telem.values).push(telem.data[1][idx]);
         }
     }

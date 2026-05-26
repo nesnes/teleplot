@@ -3,7 +3,10 @@ class Shape3D
 	constructor ()
 	{
 		this.name = undefined; //ex : "my_cube_0"
-		this.type = undefined; // String, ex : "cube"
+		this.type = undefined; // String, ex : "cube", "sphere", "stl", "cylinder"
+		this.url = undefined;  // the url of the mesh when needed
+		this.texture = { type:"", data: "" };
+		this.mesh_loading = false;
 		this.three_object = null;
 		this.default_material = undefined;
 		this.color = undefined;
@@ -37,9 +40,13 @@ class Shape3D
 				i++; // we skip the ':'
 				let propertiesValues = [undefined];
 				let propCounter = 0;
+				let withinString = false;
+				let stringDelim = "";
 				while (propCounter < propertiesCount)
 				{
-					if (i >= rawShape.length || rawShape[i] == ":")
+					let isStringDelimiter = (stringDelim=="" && rawShape[i] == "'") || (stringDelim=="" && rawShape[i]=='"') || (stringDelim==rawShape[i]);
+					if (isStringDelimiter && !withinString) { withinString=true; stringDelim=rawShape[i]; i++; continue; }
+					if (i >= rawShape.length || (rawShape[i] == ":" && !withinString) || (isStringDelimiter && withinString))
 					{
 						propCounter ++;
 
@@ -62,6 +69,9 @@ class Shape3D
 			function getPropertyInfo(currentProperty) {
 				switch (currentProperty)
 				{
+					case "url":
+					case "U":
+						return [1, "url"];
 					case "shape":
 					case "S":
 						return [1, "type"];
@@ -95,6 +105,9 @@ class Shape3D
 					case "depth":
 					case "D":
 						return [1, "depth"];
+					case "texture":
+					case "T":
+						return [2, "texture"];
 					default : 
 						throw new Error("Invalid shape property : " + currentProperty);
 				}
@@ -133,6 +146,11 @@ class Shape3D
 			
 			if (propertyValues.length == 1)
 				this[currentProperty] = propertyValues[0];
+			else if (propertyValues.length == 2 && currentProperty == "texture")
+			{
+				this[currentProperty].type = propertyValues[0]
+				this[currentProperty].data = propertyValues[1]
+			}
 			else if (propertyValues.length == 3)
 			{
 				this[currentProperty].x = propertyValues[0]
@@ -163,6 +181,7 @@ class Shape3D
 		this.position = shape3D.position;
 		this.rotation = shape3D.rotation;
 		this.type = shape3D.type;
+		this.url = shape3D.url;
 		this.quaternion = shape3D.quaternion;
 
 		this.radius = shape3D.radius;
@@ -173,6 +192,7 @@ class Shape3D
 		this.depth = shape3D.depth;
 
 		this.color = shape3D.color;
+		this.texture = shape3D.texture;
 		// this.default_material = new MeshStandardMaterial({color : this.color});
 		
 		// this.buildThreeObject();
@@ -182,34 +202,57 @@ class Shape3D
 	}
 
 	getGeometry() {
-
-
-		if (this.type == "cube")
-		{
-			return new THREE.BoxGeometry( 1, 1, 1 );
-			// we create a cube of size 1,1,1 and then we rescale it according to its actual dimensions.
-			// we do this so it resizes quicker
-		}
-		else if (this.type == "sphere")
-		{
-			return new THREE.SphereGeometry(1, this.precision * 2, this.precision);
-			// we set the radius of 1 and then we rescale it according to its actual dimensions.
-			// we do this so it resizes quicker
-		}
-		else
-		{
-			throw new Error("Unsupported geometry type: " + this.type);
-		}
+		return new Promise((resolve, reject) => {
+			if (this.type == "cube")
+			{
+				resolve(new THREE.BoxGeometry( 1, 1, 1 ));
+				// we create a cube of size 1,1,1 and then we rescale it according to its actual dimensions.
+				// we do this so it resizes quicker
+			}
+			else if (this.type == "sphere")
+			{
+				resolve(new THREE.SphereGeometry(0.5, this.precision * 2, this.precision));
+				// we set the radius of 0.5 and then we rescale it according to its actual dimensions.
+				// we do this so it resizes quicker
+			}
+			else if (this.type == "cylinder")
+			{
+				resolve(new THREE.CylinderGeometry(0.5, 0.5, 1, this.precision));
+				// we set the radius to 0.5 and height of 1 and then we rescale it according to its actual dimensions.
+				// we do this so it resizes quicker
+			}
+			else if (this.type == "stl")
+			{
+				if (this.mesh_loading) { return reject(); }
+				this.mesh_loading = true;
+				const loader = new STLLoader();
+				console.log("loader.load", this.url);
+				loader.load(this.url, ( geometry )=>{
+					geometry.morphAttributes = {};
+					geometry.computeVertexNormals(true);
+					this.mesh_loading = false;
+					resolve(geometry);
+				}, ()=>{}, (error)=>{
+					console.log("on error", error)
+				});
+			}
+			else
+			{
+				reject();
+				throw new Error("Unsupported geometry type: " + this.type);
+			}
+		});
 	}
 
-	buildMesh()
+	async buildMesh()
 	{
-		let my_mesh = new THREE.Mesh(this.getGeometry(), this.default_material );
+		let geometry = await this.getGeometry();
+		let my_mesh = new THREE.Mesh(geometry, this.default_material );
 
-		if (this.type == "cube")
-			my_mesh.scale.set(this.width, this.height, this.depth);
-		else if (this.type == "sphere")
+		if (this.type == "sphere")
 			my_mesh.scale.set(this.radius, this.radius, this.radius);
+		else
+			my_mesh.scale.set(this.width, this.height, this.depth);
 
 		return my_mesh;
 	}
@@ -230,7 +273,7 @@ class Shape3D
 		if (this.opacity == undefined)
 			this.opacity = fillingShape.opacity;
 
-		if (this.type == "cube")
+		if (this.type == "cube" || this.type == "cylinder")
 		{
 			if (this.height == undefined)
 				this.height = fillingShape.height;
@@ -239,10 +282,15 @@ class Shape3D
 			if (this.depth == undefined)
 				this.depth = fillingShape.depth;
 		}
-		else if (this.type == "sphere")
+		if (this.type == "sphere")
 		{
 			if (this.radius == undefined)
 				this.radius = fillingShape.radius;
+			if (this.precision == undefined)
+				this.precision = fillingShape.precision;
+		}
+		if (this.type == "cylinder")
+		{
 			if (this.precision == undefined)
 				this.precision = fillingShape.precision;
 		}
@@ -291,15 +339,40 @@ class Shape3D
 
 }
 
+function setTelemTexture(shape3D)
+{ 
+	// update texture if target exists and was telem updated
+	if (app.telemetries[shape3D.texture.data] && app.telemetries[shape3D.texture.data].type == "JPG" && app.telemetries[shape3D.texture.data].values.length >= 2){
+		let telemTimestamp = app.telemetries[shape3D.texture.data].values[0];
+		if (shape3D.texture.timestamp != telemTimestamp){
+			shape3D.texture.timestamp = telemTimestamp;
+			new TextureLoader().load("data:image/jpg;base64,"+app.telemetries[shape3D.texture.data].values[1], (texture)=>{
+				shape3D.three_object.material.map = texture;
+				shape3D.three_object.material.map.needsUpdate = true;
+				shape3D.three_object.material.needsUpdate = true;
+			});
+		}
+	}
+}
 
-function buildThreeObject(shape3D) 
+async function buildThreeObject(shape3D) 
 {
-	if (shape3D.three_object != null) // obj is already built
+	if (shape3D.three_object != null || shape3D.mesh_loading) // obj is already built
 		return
 
-	shape3D.default_material = new MeshStandardMaterial({color : shape3D.color, depthWrite: (shape3D.opacity==1)});
+	let materialParams = {color : shape3D.color, depthWrite: (shape3D.opacity==1), flatShading: false, metalness: 0.0, roughness: 1.0};
+	if (shape3D.texture.type == "url"){
+		let textureLoader = new TextureLoader();
+		let texture = textureLoader.load(shape3D.texture.data);
+		materialParams.map = texture;
+	}
+	shape3D.default_material = new MeshStandardMaterial(materialParams);
+	shape3D.default_material.shading = THREE.SmoothShading;
+	shape3D.three_object = await shape3D.buildMesh();
 
-	shape3D.three_object = shape3D.buildMesh();
+	if (shape3D.texture.type == "telem"){
+		setTelemTexture(shape3D);
+	}
 	
 	shape3D.three_object.material.opacity = shape3D.opacity;
 	shape3D.three_object.material.transparent = true;

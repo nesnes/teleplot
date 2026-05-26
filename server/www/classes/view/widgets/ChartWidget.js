@@ -15,6 +15,9 @@ class ChartWidget extends DataWidget{
             height: undefined,
             scales: { x: {  time: true }, y:{} },
             series: [ {} ],
+            axes: [ { gap: 2, size: 28,  font: `8px`, ticks: { show: true, size: 2, } },
+            { space: 20, gap: 2, font: `11px`, ticks: { show: true, size: 2, } }
+            ],
             focus: { alpha: 1.0, },
             cursor: {
                 lock: false,

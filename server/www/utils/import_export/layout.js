@@ -90,6 +90,12 @@ function importLayoutJSON(event) {
                     for (let s of newSeries)
                         widget.addSerie(s);
                 }
+                else if (w.type == "JPG")
+                {
+                    widget = new JPGWidget();
+                    for (let s of newSeries)
+                        widget.addSerie(s);
+                }
                 else throw new Error("widget type "+w.type+" is not supported");
 
                 
