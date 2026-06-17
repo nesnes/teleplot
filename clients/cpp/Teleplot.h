@@ -201,6 +201,7 @@ public:
     Teleplot(std::string address, unsigned int port=47269, unsigned int bufferingFrequencyHz = 30)
         : sockfd_(-1)
         , address_(std::move(address))
+        , udpPort_(port)
         , bufferingFrequencyHz_(bufferingFrequencyHz)
     {
         #ifdef TELEPLOT_DISABLE
@@ -222,10 +223,12 @@ public:
         #endif
         if (sockfd_ >= 0) { (void)::close(sockfd_); sockfd_ = -1; }
     }
-
     // Static localhost instance
     static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
-    
+
+    std::string const& destinationHost() const { return address_; }
+    unsigned int destinationPort() const { return udpPort_; }
+
     template<typename T>
     void update(std::string const& key, T const& value, std::string unit = "", unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
         #ifdef TELEPLOT_DISABLE
@@ -234,6 +237,14 @@ public:
         int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
         double nowMs = static_cast<double>(nowUs)/1000.0;
         updateData(key, nowMs, value, 0, flags, maxFrequencyHz, unit);
+    }
+
+    template<typename T>
+    void updateAt(std::string const& key, double timestamp_ms, T const& value, std::string unit = "", unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
+        #ifdef TELEPLOT_DISABLE
+            return ;
+        #endif
+        updateData(key, timestamp_ms, value, 0, flags, maxFrequencyHz, unit);
     }
 
     template<typename T1, typename T2>
@@ -385,6 +396,7 @@ private:
 
     int sockfd_;
     std::string address_;
+    unsigned int udpPort_;
     sockaddr_in serv_;
     unsigned int bufferingFrequencyHz_;
 };
