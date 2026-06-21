@@ -26,7 +26,6 @@ computed: {
         else
             return "Click to change precision";
     }
-
 },
 methods: {
     onContainerResized()
@@ -40,6 +39,9 @@ methods: {
         if (this.$refs.value_responsive_text2 != undefined)
             this.$refs.value_responsive_text2.triggerTextResize();
         this.$refs.unit_responsive_text.triggerTextResize();
+    },
+    ansi_to_html(txt){
+        return ansi_coloring.ansi_to_html(txt);
     }
 },
 mounted() {
@@ -61,17 +63,18 @@ updated() {
 unmounted(){
     resizeObserverForSingleValue.unobserve(singleValueContainer);
 },
+
 template:'\
         <div ref="single_value_container_ref" class="single-value-container">\
             <div id="single-value-telem-id" class="single-value-telem-div">\
-                <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" >{{telem}}</vue-responsive-text>\
+                <vue-responsive-text ref="telem_responsive_text" v-bind:isTelem="true" ><span v-html="ansi_to_html(telem)"></span></vue-responsive-text>\
             </div>\
             <div @click="widget.changeValuePrecision()" v-bind:title="getWidgetTitle" class="single-value-value-div">\
                 <div class="value1-solo" v-bind:class="{ \'value1-2-duo\': value2!=undefined }">\
-                    <vue-responsive-text ref="value_responsive_text1" v-bind:isValue="true">{{value1}}</vue-responsive-text>\
+                    <vue-responsive-text ref="value_responsive_text1" v-bind:isValue="true"><span v-html="ansi_to_html(value1)"></span></vue-responsive-text>\
                 </div>\
                 <div v-if="value2!=undefined" class="value1-2-duo">\
-                    <vue-responsive-text ref="value_responsive_text2" v-bind:isValue="true">{{value2}}</vue-responsive-text>\
+                    <vue-responsive-text ref="value_responsive_text2" v-bind:isValue="true"><span v-html="ansi_to_html(value2)"></span></vue-responsive-text>\
                 </div>\
             </div>\
             <div class="single-value-unit-div">\

@@ -103,10 +103,20 @@ function parseVariablesData(msg, now)
     }
     
     // Extract values array
-    let values = msg.substring(startIdx+1, endIdx).split(';')
     let xArray = [];
     let yArray = [];
     let zArray = [];
+
+    //If it contains the text flag (singleValue or |t), then ignore ; 
+    let values;
+    if(isTextFormatTelem)
+    {
+        values = msg.substring(startIdx+1, endIdx).split()
+
+    }else{
+        values = msg.substring(startIdx+1, endIdx).split(';')
+    }
+
     for(let value of values)
     {
         /*  All possibilities : 

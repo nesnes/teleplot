@@ -2,6 +2,7 @@ class Telemetry{
     constructor(_name, unit = undefined, type = "number"){
         this.type = type; // either "number", "text", "3D" or "xy"
         this.name = _name;
+        this.colored_name = ansi_coloring.ansi_to_html(_name);
         this.unit = ( unit != "" ) ? unit : undefined;
         this.usageCount = 0;
 
@@ -22,7 +23,7 @@ class Telemetry{
         // this is what will be displayed on the left pannel next to the telem name, 
         // it is either the current value of the telem (number), or its text or the type of the shape ...
         this.values_formatted = ""; 
-
+        this.colored_values_formatted ="";
 
         if (this.type == "3D") 
             this.setShapeTypeDelay();
@@ -94,6 +95,6 @@ class Telemetry{
         {   
             this.values_formatted =  "";
         }
-       
+       this.colored_values_formatted = ansi_coloring.ansi_to_html(this.values_formatted);
     }
 }
