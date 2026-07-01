@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teleplot JS Test page</title>
+  <script src="teleplot-js.js"></script>
+</head>
+<body style="display: flex;gap: 10px; flex-wrap: wrap; justify-content:space-evenly;">
+  <button onclick="Teleplot.state.isPaused = !Teleplot.state.isPaused">Pause / Play</button>
+
+  <script>
+    console.log("Teleplot loaded:", Teleplot);
+    //Teleplot.connection.addConnectionTeleplotServer();
+    let divId = "";
+    let elem = null;
+
+    // Image telemetry
+    let imgPng = "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";
+    let imgJpg = "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";
+    Teleplot.parseDataText(`JPG|img1:${Date.now()}:1/1:${imgJpg}`);
+
+    // Sample telemetry
+    Teleplot.datastore.addTelemetry("text.Telemetry").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [Date.now()/1000, Date.now()/1000+0.5, Date.now()/1000+1], [["one","two","hello world, nice to meet you how are you"]]);
+    Teleplot.datastore.addTelemetry("/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D, [Date.now()/1000], [[42], [43]]);
+    
+    // Very-specific (probably shouldn't be supported)
+    let multiChannelTelem = Teleplot.datastore.addTelemetry("multi-channel-telemetry")
+    multiChannelTelem.addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[42]]);
+    multiChannelTelem.addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [Date.now()/1000], [["coucou"]]);
+    Teleplot.parseDataText(`JPG|multi-channel-telemetry:${Date.now()}:1/1:${imgJpg}`);
+
+
+    // Updated Telemetry
+    Teleplot.datastore.addTelemetry("numberTelemetry").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[42]]);
+    Teleplot.datastore.addTelemetry("number.cos").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[42]]);
+    Teleplot.datastore.getTelemetry("number.cos").setAttribute(Teleplot.protocol.TELEM_ATTR_DATA_TIMEOUT, 5.0); // Custom timeout
+    let telemUpdateCount = 0;
+    let updateTelemInterval = setInterval(()=>{
+      Teleplot.datastore.getTelemetry("numberTelemetry").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[Math.sin(Date.now()/1000)*100]]);
+      Teleplot.datastore.getTelemetry("number.cos").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[Math.cos(Date.now()/1000)*100]]);
+      Teleplot.datastore.getTelemetry("multi-channel-telemetry").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[telemUpdateCount]]);
+      telemUpdateCount++;
+    }, 10);
+    
+    // Update image
+    let imgUpdateCount = 0;
+    let updateImageInterval = setInterval(()=>{
+      if(imgUpdateCount % 2) { Teleplot.parseDataText(`PNG|img1:${Date.now()}:1/1:${imgPng}`); }
+      else                   { Teleplot.parseDataText(`JPG|img1:${Date.now()}:1/1:${imgJpg}`); }
+      imgUpdateCount++;
+    }, 2000);
+
+    function createTestElement(name, width, height) {
+      divId = "teleplot-"+crypto.randomUUID();
+      let container = document.createElement("div");
+      document.body.appendChild(container);
+
+      let title = document.createElement("h3");
+      title.textContent = name;
+      container.appendChild(title);
+      
+      let elem = document.createElement("div");
+      elem.setAttribute("id", divId);
+      elem.style.width  = width;
+      elem.style.height = height;
+      container.appendChild(elem);
+
+      return divId;
+    }
+
+    // Current Value
+    divId = createTestElement("Current Value - Single", "300px", "150px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry"]));
+
+    divId = createTestElement("Current Value - Single, small", "150px", "50px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry"]));
+    divId = createTestElement("Current Value - Single, small - row", "150px", "50px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry"]));
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+    
+    divId = createTestElement("Current Value - Image", "200px", "200px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["img1"]));
+
+    divId = createTestElement("Current Value - Image Row", "200px", "200px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["img1"]));
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+
+    divId = createTestElement("Current Value - Multiple - tall", "200px", "400px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "multi-channel-telemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+
+    divId = createTestElement("Current Value - Multiple - wide", "500px", "200px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "multi-channel-telemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+
+    // Current value row
+    divId = createTestElement("Current Value Row - wide", "600px", "150px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "multi-channel-telemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+
+    divId = createTestElement("Current Value Row - wide and thin", "400px", "50px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "multi-channel-telemetry"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+
+    divId = createTestElement("Current Value Row - image size", "400px", "100px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["img1", "numberTelemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+
+    
+    // Current Value No Name
+    divId = createTestElement("Current Value - NoName", "300px", "150px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "multi-channel-telemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+    Teleplot.view.views.at(-1).setOption("displayTelemetryName", false);
+
+    divId = createTestElement("Current Value Row - NoName - wide", "400px", "50px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "multi-channel-telemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+    Teleplot.view.views.at(-1).setOption("displayTelemetryName", false);
+
+    divId = createTestElement("Current Value Row - NoName - NoColor - wide", "400px", "50px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "multi-channel-telemetry", "img1"]));
+    Teleplot.view.views.at(-1).setOption("displayNumberDecimals", 0, "numberTelemetry");
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+    Teleplot.view.views.at(-1).setOption("displayTelemetryName", false);
+    Teleplot.view.views.at(-1).setOption("displayTelemetryColor", false);
+
+
+    // Charts
+    divId = createTestElement("Chart - Number, Single", "200px", "150px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry"]));
+
+    divId = createTestElement("Chart - Number, Two series", "500px", "300px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry", "number.cos"]));
+
+    divId = createTestElement("Chart - Number and image", "300px", "150px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry", "img1", "number.cos"]));
+
+    divId = createTestElement("Chart - Number and multichannel", "300px", "150px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry", "multi-channel-telemetry"]));
+
+  </script>
+
+</body>
+</html>
