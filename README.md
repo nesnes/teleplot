@@ -121,7 +121,7 @@ trajectory:1:1;2:2;3:3;4:4|xy
 trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy
 ```
 
-> Notice that your data needs to fit in a single UPD packet whick can be limited to 512(Internet), 1432(Intranets) or 8932(Jumbo frames) Bytes depending on the network.
+> Notice that your data needs to fit in a single UPD packet which can be limited to 512(Internet), 1432(Intranets) or 8932(Jumbo frames) Bytes depending on the network.
 
 ### Prevent auto-plot of telemetry
 
@@ -358,3 +358,56 @@ Along with telemetries, you can also send text logs to be display in a console-l
 By adding a millisecond timestamp to your log, you can sync them with the charts.
 
 `echo ">1627551892437:Hello world" | nc -u -w0 127.0.0.1 47269`
+
+# Project goal (future works)
+
+Teleplot is aiming to be a simple-to-use yet powerfull telemetry visualization solution.
+Teleplot is also aiming to provide remote-function-call capabilities.
+Together, those goal shall make Teleplot an easy interface solution for any kind of software and application able to communicate with it.
+
+## Project components
+Teleplot provide an overall solution, but is split a few components to allow integration and various usages.
+- JS library, allowing communication with Teleplot servers, data injection, and chart generation/interaction.
+- Server, allowing communication with non-browser-compatible interfaces, and easing data injection in browser.
+- Web application (that double as a VSCode extension), that leverage the JS library to provide an all-in-one interface to access teleplot features.
+- Client libraries to use advanced and optimized features in various programming languages
+
+## Communication interfaces
+Goal is to be able to send data easily to teleplot, even without official support for a given programming language. or device.
+- UDP packets: for simple network-based communication (on one or several machine)
+- Serial port: for microcontroler-based connectivity
+
+## Communication protocol
+Teleplot shall offer at least 2 communication protocol:
+- Text-based, Human readable, lightweight protocol to ease usage for small applications and newcomers.
+- Binary, optimized (but flexible) protocol for heavy loads or limited bandwidth
+
+## Repository structure
+
+- `packages/teleplot-js/`
+  - Shared JavaScript SDK, able of ingesting data and providing visual representations
+  - built as a standalone browser bundle, and later published as an npm package 
+
+- `packages/webapp/`
+  - Extensively uses `teleplot-js`
+  - Dashboard-style visualization tool for telemetry
+  - Can be hosted independently
+
+- `packages/vscode-extension/`
+  - Uses the `webapp` as its GUI
+  - Contains the additional wiring to make it a VSCode extension
+
+- `packages/server/`
+  - Hosts the `webapp` and forward incoming telemetry and remote commands to it
+
+- `clients/{{programming_language}}` (like `bash`, `cpp`, `python`)
+  - `/lib`
+    - Simple-to-use library to emit telemetry and eventually access advanced teleplot features
+  - `/samples`
+    - Example usage code
+
+- `doc/`
+  - Architecture and protocol documentation
+
+- `images/`
+  - Project illustrations and UI previews

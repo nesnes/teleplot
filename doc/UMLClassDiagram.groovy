@@ -1,146 +1,206 @@
 @startuml
 
 abstract class Connection {
-    {static} ConnectionCount : Number 
+    {static} ConnectionCount : Number
     name : String
     id : String
     type : String
     connected : boolean
     inputs : DataInput []
 
-    void connect(void)
+    void connect()
     void removeInput(input : DataInput)
 }
 
-class ConnectionTeleplotVSCode {
-  vscode : boolean
-  udp : DataInputUDP
-  supportSerial : boolean
-  
-  void connect(void)
-  void disconnect(void)
-  void sendServerCommand(command : {id : String, cmd : String, text : String})
-  void sendCommand(command : String)
-  void updateCMDList(void)
-  void createInput(type : String)
+class ConnectionTeleplotVSCode extends Connection {
+    vscode : Object
+    udp : DataInputUDP
+    supportSerial : boolean
+
+    void connect()
+    void disconnect()
+    void sendServerCommand(command : {id : String, cmd : String, text : String})
+    void sendCommand(command : String)
+    void updateCMDList()
+    void createInput(type : String)
 }
 
-class ConnectionTeleplotWebSocket {
-  socket : WebSocket
-  adress : String
-  port : String
-  udp : DataInputUDP
-  
-  void connect(_address : String, _port : Number)
-  void disconnect(void)
-  void sendServerCommand(command : {id : String, cmd : String, text : String}) 
-  void updateCMDList(void)
-  void createInput(type : String)
+class ConnectionTeleplotWebsocket extends Connection {
+    socket : WebSocket
+    address : String
+    port : String
+    udp : DataInputUDP
+
+    void connect(_address : String, _port : Number)
+    void disconnect()
+    void sendServerCommand(command : {id : String, cmd : String, text : String})
+    void updateCMDList()
+    void createInput(type : String)
 }
 
 abstract class DataInput {
-  {static} DataInputCount : Number
-  connection : Connection
-  name : String
-  id : String
-  type : String
-  connected : boolean
+    {static} DataInputCount : Number
+    connection : Connection
+    name : String
+    id : String
+    type : String
+    connected : boolean
+
+    void connect()
+    void disconnect()
 }
 
-class DataInputSerial {
-  port : Number
-  baudrate : Number
-  portList : Portinfo []
-  textToSend : String
-  endlineToSend : String
-  
-  void connect(void)
-  void disconnect(void)
-  void onMessage(msg : { id : Number, input : DataInput, cmd : String, list : Portinfo []} )
-  void listPorts(void)
-  void sendCommand(void)
-  void updateCMDList(void)
-  void sendText(text : String, lineEndings : String)
-  
+class DataInputSerial extends DataInput {
+    port : String
+    baudrate : Number
+    portList : Portinfo []
+    textToSend : String
+    endlineToSend : String
+
+    void connect()
+    void disconnect()
+    void onMessage(msg : {id : Number, input : DataInput, cmd : String, list : Portinfo []})
+    void listPorts()
+    void sendCommand()
+    void updateCMDList()
+    void sendText(text : String, lineEndings : String)
 }
 
-class DataInputUDP {
-  adress : String
-  port : Number
-  
-  void connect(void)
-  void disconnect(void)
-  void onMessage(msg : String)
-  void sendCOmmand(command : String)
-  void updateCMDList(void)
+class DataInputUDP extends DataInput {
+    address : String
+    port : Number
 
+    void connect()
+    void disconnect()
+    void onMessage(msg : Object)
+    void sendCommand(command : String)
+    void updateCMDList()
 }
 
-class ChartWidget {
-  isXY : boolean
-  data : Number [][][]
-  options : { title : String, width : Number, height : Number, scales : Object, series : DataSerie [], focus : Object, cursor : Object, legend : Object}
-  forceUpdate : boolean
-  
-  void destroy(void)
-  void addSerie(DataSerie)
-  void update(void)
+class DataWidget {
+    {static} widgetCount : Number
+    - {static} widgetBeingResized : DataWidget
+    label : String
+    options : Object
+    series : DataSerie []
+    id : String
+    gridPos : {h : Number, w : Number, x : Number, y : Number}
+    - initialCursorXPos : Number
+    - initialCursorYPos : Number
+    - initialHeight : Number
+    - initialWidth : Number
+    - isResized : boolean
 
+    void isUsingSource(name : String)
+    DataSerie [] _getSourceList()
+    void updateStats()
+}
+
+class ChartWidget extends DataWidget {
+    isXY : boolean
+    data : Object
+    options : { title : String, width : Number, height : Number, scales : Object, series : DataSerie [], focus : Object, cursor : Object, legend : Object}
+    forceUpdate : boolean
+
+    void destroy()
+    void addSerie(serie : DataSerie)
+    void removeSerie(serie : DataSerie)
+    void update()
+}
+
+class JPGWidget extends DataWidget {
+    type : String
+    image : Object
+
+    void addSerie(serie : DataSerie)
+    void destroy()
+    void update()
+}
+
+class SingleValueWidget extends DataWidget {
+    type : String
+    singlevalue : Number []
+    precision_mode : Number
+
+    void addSerie(serie : DataSerie)
+    void destroy()
+    void trimNumberAccordingToPrecision(nb : Number)
+    void updateSingleValue(currentSerie : DataSerie)
+    void update()
+    void changeValuePrecision()
+}
+
+class Widget3D extends DataWidget {
+    type : String
+    worldId : Number
+    onNewSerieAdded : Object
+    onSerieRemoved : Object
+
+    void addSerie(serie : DataSerie)
+    void removeSerie(serie : DataSerie)
+    void destroy()
+    void update()
 }
 
 class DataSerie {
-  {static} DataSerieIdCount : Number
-  name : String
-  id : String
-  sourceNames : String []
-  formula : String
-  initialized : boolean
-  dataIdx : Number
-  data : Number [][]
-  pendingData : Number [][]
-  options : { _serie : String, stroke : String, fill : String, paths : Fun}
-  value : Number
-  stats : {min : Number, max : Number, sum : Number, mean : Number, med : Number, stedv : Number}
+    {static} DataSerieIdCount : Number
+    type : String
+    name : String
+    id : String
+    sourceNames : String []
+    formula : String
+    initialized : boolean
+    dataIdx : Number
+    data : Number [][]
+    pendingData : Number [][]
+    options : { _serie : String, stroke : String, fill : String, paths : Fun}
+    _values : Object
+    stats : {min : Number, max : Number, sum : Number, mean : Number, med : Number, stedv : Number}
+    unit : String
+    values_formatted : String
+    name_color : String
+    details_3d_formatted : Object
+    onSerieChanged : Object
 
-  void destroy(void)
-  void addSource(name : String)
-  void update(void)
-  void updateStats(void)
-  void applyTimeWindow(void)
-  
+    void destroy()
+    void addSource(name : String)
+    void update()
+    void updateStats()
+    void applyTimeWindow()
 }
 
-abstract class DataWidget {
-  {static} widgetCount : Number
-  - {static} widgetBeingResized : DataWidget
-  series : DataSerie []
-  type : String
-  id : String
-  gridPos : {h : Number, w : Number, x : Number, y : Number}
-  - initialCursorPos : Number
-  - initialCursorYPos : Number
-  - initialHeight : Number
-  - initialWidth : Number
-  - isResized : Number
+class Telemetry {
+    type : String
+    name : String
+    unit : String
+    usageCount : Number
+    values : Object
+    data : Number [][]
+    pendingData : Number [][]
+    values_formatted : String
 
-  void isUsingSource(name : String)
-  DataSerie [] _getSourceList(void)
-  void updateStats(void)
+    void setShapeTypeDelay()
+    void setShapeType()
+    void iniFromTelem(telem : Object)
+    void updateFormattedValues()
 }
-
-
 
 Connection <|-- ConnectionTeleplotVSCode
-Connection <|-- ConnectionTeleplotWebSocket
+Connection <|-- ConnectionTeleplotWebsocket
 
 Connection "1" <--> "0..*" DataInput
 
-DataWidget --> "0..*" DataSerie
-
-DataInput <|-- DataInputUDP
 DataInput <|-- DataInputSerial
+DataInput <|-- DataInputUDP
 
 DataWidget <|-- ChartWidget
+DataWidget <|-- JPGWidget
+DataWidget <|-- SingleValueWidget
+DataWidget <|-- Widget3D
+
+DataWidget --> "0..*" DataSerie
+
+DataSerie --> Telemetry
 
 @enduml
 
