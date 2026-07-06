@@ -40,7 +40,16 @@ let groupedUpPacket = "";
 
 // Relay UDP packets to Websocket
 udpServer.on('message',function(msg,info){
-    groupedUpPacket += ("\n" + msg.toString());
+    // Handle binary packets
+    if (msg[0] == 0x10) {
+        expressWs.getWss().clients.forEach((client)=>{
+            client.send(msg, { binary: true });
+        });
+    }
+    // Handle text packets
+    else {
+        groupedUpPacket += ("\n" + msg.toString());
+    }
 });
 
 

@@ -1,6 +1,7 @@
 class Telemetry {
     constructor(id) {
         this.id = id;
+        this.clientId = -1;
         this.attributes = {};
         this.data = {};
     }

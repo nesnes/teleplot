@@ -10,7 +10,10 @@ class DataInputUDP extends DataInput{
     disconnect(){}
 
     onMessage(msg){
-        if("data" in msg) {
+        if (msg instanceof ArrayBuffer) {
+            TELEPLOT.parseDataBinary(msg);
+        }
+        else if("data" in msg) {
             msg.input = this;
             TELEPLOT.parseDataText(msg);
         }

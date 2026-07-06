@@ -1,41 +1,56 @@
 TELEPLOT.parseDataBinary = function(msgIn) {
     if(TELEPLOT.state.isPaused) return;
 
+    console.log("ParseBinary", msgIn)
+
     // Get input buffer
-    if(!(msgIn.data instanceof ArrayBuffer || msgIn.data instanceof Uint8Array)) {
+    if(!(msgIn instanceof ArrayBuffer || msgIn instanceof Uint8Array)) {
         console.error("parseDataBinary: expected ArrayBuffer or Uint8Array");
         return;
     }
-    let buffer = msgIn.data instanceof ArrayBuffer ? msgIn.data : msgIn.data.buffer;
-    if(msgIn.data instanceof Uint8Array && msgIn.data.byteOffset) {
-        buffer = msgIn.data.buffer.slice(msgIn.data.byteOffset, msgIn.data.byteOffset + msgIn.data.byteLength);
+    let buffer = msgIn instanceof ArrayBuffer ? msgIn : msgIn.buffer;
+    if(msgIn instanceof Uint8Array && msgIn.byteOffset) {
+        buffer = msgIn.buffer.slice(msgIn.byteOffset, msgIn.byteOffset + msgIn.byteLength);
     }
 
     try {
         let view = new DataView(buffer);
-        if(view.byteLength < 3) return; // min: PROTOCOL_VERSION + PACKET_ID + CHECKSUM
+        if(view.byteLength < 5) { // min: BINARY_MARKER + PROTOCOL_VERSION + CLIENT_ID + CHECKSUM
+            throw new Error("Packet too small to contain any data");
+        }
 
-        let protocolVersion = view.getUint8(0);
-        // TODO: verify protocolVersion matches expected version
+        let binaryMarker = view.getUint8(0);
+        if (binaryMarker != TELEPLOT.protocol.BINARY_MARKER) {
+            throw new Error("Packet doesn't start with BINARY_MARKER");
+        }
+
+        let protocolVersion = view.getUint8(1);
+        if (protocolVersion != TELEPLOT.protocol.BINARY_VERSION) {
+            throw new Error("Packet doesn't start with BINARY_MARKER 0x10");
+        }
         
-        let packetId = view.getUint8(1);
-        // TODO: implement packet loss detection using packetId
+        let clientId = view.getUint16(2);
 
-        // Extract data section (between PACKET_ID and CHECKSUM)
-        // CHECKSUM is last 16 bytes, but exact checksum algorithm not yet defined
+        // Extract data section (between CLIENT_ID and CHECKSUM)
+        // CHECKSUM is last 2 bytes
         // TODO: implement checksum validation
-        let dataLen = view.byteLength - 2 - 16; // PROTOCOL_VERSION + PACKET_ID + CHECKSUM
-        if(dataLen < 0) return;
+        let dataLen = view.byteLength - 6; // BINARY_MARKER + PROTOCOL_VERSION + CLIENT_ID + CHECKSUM
+        if(dataLen <= 0) {
+            throw new Error("No data in packet");
+        };
 
-        let offset = 2; // skip PROTOCOL_VERSION and PACKET_ID
-        _parseDataBinary_processSections(view, offset, dataLen + offset);
+        // Create client if missing
+        TELEPLOT.clients.getOrCreateClient(clientId);
+
+        let offset = 4; // skip BINARY_MARKER, PROTOCOL_VERSION and CLIENT_ID
+        _parseDataBinary_processSections(view, offset, dataLen + offset, clientId);
     }
     catch(e) {
         console.log("parseDataBinary error:", e);
     }
 }
 
-function _parseDataBinary_processSections(view, offset, endOffset) {
+function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
     while(offset < endOffset) {
         let sectionType = view.getUint8(offset);
         offset++;
@@ -47,47 +62,50 @@ function _parseDataBinary_processSections(view, offset, endOffset) {
 
         try {
             switch(sectionType) {
+                case TELEPLOT.protocol.SECTION_TYPE_CLIENT_NAME:
+                    offset = _parseDataBinary_parseCLIENT_NAME(view, offset, clientId);
+                    break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_ATTR:
-                    offset = _parseDataBinary_parseTELEM_ATTR(view, offset);
+                    offset = _parseDataBinary_parseTELEM_ATTR(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER:
-                    offset = _parseDataBinary_parseTELEM_DATA_NUMBER(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_NUMBER(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D:
-                    offset = _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D:
-                    offset = _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT:
-                    offset = _parseDataBinary_parseTELEM_DATA_TEXT(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_TEXT(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE:
-                    offset = _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_3D_ROTATION:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_STR(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_STR(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_OPACITY(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_OPACITY(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset, clientId);
                     break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE:
-                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset);
+                    offset = _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset, clientId);
                     break;
                 default:
                     console.warn(`parseDataBinary: unknown section type ${sectionType}`);
@@ -101,6 +119,20 @@ function _parseDataBinary_processSections(view, offset, endOffset) {
     }
 }
 
+function _parseDataBinary_makeTimestamp(ref, diff) {
+    const ns = BigInt(ref) + BigInt(diff);
+    const sec = ns / 1000000000n;
+    const rem = ns % 1000000000n;
+    return Number(sec) + Number(rem) / 1e9;
+}
+
+function _parseDataBinary_setCombineClientAndTelem(clientId, telemId) {
+    let combinedId = clientId * 0x10000 + telemId;
+    let telem = TELEPLOT.datastore.getOrCreateTelemetry(combinedId);
+    telem.clientId = clientId;
+    return combinedId
+}
+
 function _parseDataBinary_readString(view, offset) {
     let bytes = [];
     while(offset < view.byteLength && view.getUint8(offset) !== 0) {
@@ -111,23 +143,35 @@ function _parseDataBinary_readString(view, offset) {
     return [new TextDecoder().decode(new Uint8Array(bytes)), offset];
 }
 
-function _parseDataBinary_readTELEM_DATA_HEADER(view, offset) {
-    let telemId = view.getUint16(offset, true); // little-endian
+function _parseDataBinary_parseCLIENT_NAME(view, offset, clientId) {
+    let [name, newOffset] = _parseDataBinary_readString(view, offset);
+    offset = newOffset;
+    let client = TELEPLOT.clients.getOrCreateClient(clientId);
+    client.name = name;
+    return offset;
+}
+
+function _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId) {
+    let telemId = view.getUint16(offset);
     offset += 2;
-    let timeRef = view.getBigUint64(offset, true); // nanoseconds as BigInt
+    let combinedId = _parseDataBinary_setCombineClientAndTelem(clientId, telemId);
+    let telem = TELEPLOT.datastore.getOrCreateTelemetry(combinedId);
+
+    let timeRef = view.getBigUint64(offset); // nanoseconds as BigInt
     offset += 8;
     let count = view.getUint8(offset);
     offset++;
-    return [telemId, timeRef, count, offset]; // return timeRef as BigInt
+    return [combinedId, timeRef, count, offset];
 }
 
-function _parseDataBinary_parseTELEM_ATTR(view, offset) {
-    let telemId = view.getUint16(offset, true);
+function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
+    let telemId = view.getUint16(offset);
     offset += 2;
+    let combinedId = _parseDataBinary_setCombineClientAndTelem(clientId, telemId);
     let count = view.getUint8(offset);
     offset++;
 
-    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(combinedId);
 
     for(let i = 0; i < count; i++) {
         let attrCode = view.getUint8(offset);
@@ -159,7 +203,7 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset) {
                 break;
             }
             case TELEPLOT.protocol.TELEM_ATTR_DATA_TIMEOUT: {
-                let timeout = view.getBigUint64(offset, true);
+                let timeout = view.getBigUint64(offset);
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_DATA_TIMEOUT, timeout);
                 offset += 8;
                 break;
@@ -168,7 +212,7 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset) {
                 let shapeType = view.getUint8(offset);
                 offset++;
                 let shapeData = null;
-                if(shapeType === TELEPLOT.protocol.TELEM_ATTR_SHAPE_STL) {
+                if(shapeType === TELEPLOT.protocol.TELEM_ATTR_SHAPE_TYPE_STL) {
                     let [url, newOffset] = _parseDataBinary_readString(view, offset);
                     shapeData = url;
                     offset = newOffset;
@@ -184,20 +228,20 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_NUMBER(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_NUMBER(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
     let values = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true); // nanoseconds
+        let timeDiff = view.getUint32(offset); // nanoseconds
         offset += 4;
-        let value = view.getFloat32(offset, true);
+        let value = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         values.push(value);
     }
 
@@ -207,8 +251,8 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -216,14 +260,14 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset) {
     let yValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
-        let x = view.getFloat32(offset, true);
+        let x = view.getFloat32(offset);
         offset += 4;
-        let y = view.getFloat32(offset, true);
+        let y = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         xValues.push(x);
         yValues.push(y);
     }
@@ -234,8 +278,8 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -244,16 +288,16 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset) {
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
-        let x = view.getFloat32(offset, true);
+        let x = view.getFloat32(offset);
         offset += 4;
-        let y = view.getFloat32(offset, true);
+        let y = view.getFloat32(offset);
         offset += 4;
-        let z = view.getFloat32(offset, true);
+        let z = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         xValues.push(x);
         yValues.push(y);
         zValues.push(z);
@@ -265,20 +309,20 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_TEXT(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_TEXT(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
     let textValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
         let [text, newOffset] = _parseDataBinary_readString(view, offset);
         offset = newOffset;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         textValues.push(text);
     }
 
@@ -288,28 +332,28 @@ function _parseDataBinary_parseTELEM_DATA_TEXT(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
     let imageData = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
         let imageType = view.getUint8(offset);
         offset++;
-        let partIndex = view.getUint16(offset, true);
+        let partIndex = view.getUint16(offset);
         offset += 2;
-        let partCount = view.getUint16(offset, true);
+        let partCount = view.getUint16(offset);
         offset += 2;
-        let partSize = view.getUint16(offset, true);
+        let partSize = view.getUint16(offset);
         offset += 2;
         let buffer = new Uint8Array(view.buffer, view.byteOffset + offset, partSize);
         offset += partSize;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         // TODO: implement image reassembly and rendering
         imageData.push({type: imageType, partIndex, partCount, buffer});
     }
@@ -321,8 +365,8 @@ function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -331,16 +375,16 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset) {
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
-        let x = view.getFloat32(offset, true);
+        let x = view.getFloat32(offset);
         offset += 4;
-        let y = view.getFloat32(offset, true);
+        let y = view.getFloat32(offset);
         offset += 4;
-        let z = view.getFloat32(offset, true);
+        let z = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         xValues.push(x);
         yValues.push(y);
         zValues.push(z);
@@ -352,8 +396,8 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -362,16 +406,16 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset) {
     let yValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
-        let r = view.getFloat32(offset, true);
+        let r = view.getFloat32(offset);
         offset += 4;
-        let p = view.getFloat32(offset, true);
+        let p = view.getFloat32(offset);
         offset += 4;
-        let y = view.getFloat32(offset, true);
+        let y = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         rValues.push(r);
         pValues.push(p);
         yValues.push(y);
@@ -383,8 +427,8 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -394,18 +438,18 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset) {
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
-        let w = view.getFloat32(offset, true);
+        let w = view.getFloat32(offset);
         offset += 4;
-        let x = view.getFloat32(offset, true);
+        let x = view.getFloat32(offset);
         offset += 4;
-        let y = view.getFloat32(offset, true);
+        let y = view.getFloat32(offset);
         offset += 4;
-        let z = view.getFloat32(offset, true);
+        let z = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         wValues.push(w);
         xValues.push(x);
         yValues.push(y);
@@ -418,20 +462,20 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_STR(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_STR(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
     let colorValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
         let [color, newOffset] = _parseDataBinary_readString(view, offset);
         offset = newOffset;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         colorValues.push(color);
     }
 
@@ -441,8 +485,8 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_STR(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -451,7 +495,7 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset) {
     let bValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
         let r = view.getUint8(offset);
         offset++;
@@ -460,7 +504,7 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset) {
         let b = view.getUint8(offset);
         offset++;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         rValues.push(r);
         gValues.push(g);
         bValues.push(b);
@@ -472,20 +516,20 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_OPACITY(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_OPACITY(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
     let opacityValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
         let opacity = view.getUint8(offset);
         offset++;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         opacityValues.push(opacity);
     }
 
@@ -495,8 +539,8 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_OPACITY(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
@@ -505,16 +549,16 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset) {
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
-        let x = view.getFloat32(offset, true);
+        let x = view.getFloat32(offset);
         offset += 4;
-        let y = view.getFloat32(offset, true);
+        let y = view.getFloat32(offset);
         offset += 4;
-        let z = view.getFloat32(offset, true);
+        let z = view.getFloat32(offset);
         offset += 4;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         xValues.push(x);
         yValues.push(y);
         zValues.push(z);
@@ -526,22 +570,22 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset) {
     return offset;
 }
 
-function _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset) {
-    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset);
+function _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
 
     let timestamps = [];
     let textureData = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset, true);
+        let timeDiff = view.getUint32(offset);
         offset += 4;
         let textureType = view.getUint8(offset);
         offset++;
         let [value, newOffset] = _parseDataBinary_readString(view, offset);
         offset = newOffset;
         
-        timestamps.push(Number((timeRef + BigInt(timeDiff)) / BigInt(1e9)));
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
         textureData.push({type: textureType, value: value});
     }
 

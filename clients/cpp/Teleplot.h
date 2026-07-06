@@ -1,404 +1,545 @@
 // Teleplot
 // Source: https://github.com/nesnes/teleplot
 
-#ifndef TELEPLOT_H
-#define TELEPLOT_H
+#ifndef CPP_TELEPLOT_H
+#define CPP_TELEPLOT_H
 
 #include <arpa/inet.h>
-#include <cerrno>
-#include <chrono>
-#include <cstdint>
 #include <fcntl.h>
-#include <iomanip>
-#include <map>
-#include <sstream>
 #include <string>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <unistd.h>
+#include <functional>
+#include <optional>
+#include <cstdint>
+#include <iostream>
+#include <chrono>
+#include <unordered_map>
+#include <deque>
+#include <variant>
+#include <numeric>
 
-// Enable/Disable implementation optimisations:
-//#define TELEPLOT_DISABLE // Would prevent teleplot from doing anything, useful for production builds
-#define TELEPLOT_USE_FREQUENCY // Allows to set a maxFrequency on updates (per key) but will instanciate a dynamic map
-#define TELEPLOT_USE_BUFFERING // Allows to group updates sent, but will use a dynamic buffer map
+// Binary encoder
+#include <bit>
+#include <cstddef>
+#include <cstring>
+#include <string_view>
+#include <type_traits>
+#include <vector>
 
-#define TELEPLOT_FLAG_DEFAULT ""
-#define TELEPLOT_FLAG_NOPLOT "np"
-#define TELEPLOT_FLAG_2D "xy"
-#define TELEPLOT_FLAG_TEXT "text"
+// #define TELEPLOT_DISABLE // Would prevent teleplot from doing anything, useful for production builds
 
-class ShapeTeleplot {
+class Teleplot 
+{
+    class BinaryEncoder;
+
 public:
-    class ShapeValue
+
+    constexpr static std::uint32_t MAX_PACKET_SIZE = 1432; // from https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+    constexpr static std::uint32_t CHECKSUM_SIZE = 2;
+    constexpr static std::uint8_t BINARY_MARKER = 0x10; 
+    constexpr static std::uint8_t BINARY_PROTOCOL_VERSION = 1; 
+
+    struct TeleplotOptions
     {
-        public :
-            ShapeValue(): isSet(false), value(0){};
-            ShapeValue(double val) : isSet(true), value(val) {};
-
-            bool isSet;
-            double value;
-            std::string valueRounded() const 
-            {
-                return roundValue(value, 3);
-            }
-
-            private :
-                std::string roundValue(const double value, const unsigned short precision) const
-                {
-                    std::string value_str = std::to_string(value);
-                    int res_length = static_cast<int>(value_str.length());
-                    
-                    int i = 0;
-                    bool stop = false;
-
-                    while (i < res_length && !stop)
-                    {
-                        if (value_str[i] == '.')
-                        {
-                            int u = i + precision;
-                            if (u+1 < static_cast<int>(value_str.length()))
-                            {
-                                while (value_str[u] == '0') u--;
-                                
-                                res_length = u;
-                                if (i != u)
-                                    res_length ++;
-                            }
-
-                            stop = true;
-                        }
-                        i++;
-                    }
-
-                    return value_str.substr(0, res_length);
-                }
+        std::string address = "127.0.0.1";
+        std::uint16_t udpPort = 47269;
+        std::string clientName = "";
+        std::uint16_t clientId = 0; // IDs of each telemetry will be incremented from here. Change this number to avoid collisions with multiple clients
+        std::chrono::milliseconds targetAttributesFlushInterval = std::chrono::milliseconds(5000); // How often to re-send telemetry attributes to the server (and some teleplot options like the client name)
+        std::function<void(std::vector<std::byte> const&)> sendPacketFunction = nullptr; // select function used to send packets, default to internal function
     };
 
-    ShapeTeleplot(){};
+    enum TELEM_ATTR : std::uint8_t {
+        TELEM_ATTR_NAME          = 0,
+        TELEM_ATTR_UNIT          = 1,
+        TELEM_ATTR_COLOR         = 2,
+        TELEM_ATTR_AUTOPLOT      = 3,
+        TELEM_ATTR_DATA_TIMEOUT  = 4,
+        TELEM_ATTR_SHAPE         = 5,
+    };
+    enum TELEM_ATTR_SHAPE_TYPE : std::uint8_t {
+        TELEM_ATTR_SHAPE_TYPE_CUBE = 0,
+        TELEM_ATTR_SHAPE_TYPE_SPHERE = 1,
+        TELEM_ATTR_SHAPE_TYPE_CYLINDER = 2,
+        TELEM_ATTR_SHAPE_TYPE_STL = 10,
+    };
 
-    ShapeTeleplot(std::string const& name, std::string const& type, std::string const& color = "") : _name(name), _type(type), _color(color){};
+    enum SECTION_TYPE : std::uint8_t {
+        SECTION_TYPE_RESERVED = 0,
+        SECTION_TYPE_CLIENT_NAME = 1,
+        SECTION_TYPE_TELEM_ATTR = 10,
+        SECTION_TYPE_TELEM_DATA_NUMBER = 20,
+        SECTION_TYPE_TELEM_DATA_NUMBER_2D = 21,
+        SECTION_TYPE_TELEM_DATA_NUMBER_3D = 22,
+        SECTION_TYPE_TELEM_DATA_TEXT = 23,
+        SECTION_TYPE_TELEM_DATA_IMAGE = 24,
+        SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION = 25,
+        SECTION_TYPE_TELEM_DATA_SHAPE_3D_ROTATION = 26,
+        SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION = 27,
+        SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR = 28,
+        SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB = 29,
+        SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY = 30,
+        SECTION_TYPE_TELEM_DATA_SHAPE_SIZE = 31,
+        SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE = 32,
+    };
 
-    std::string const& getName() const
+    enum TELEM_DATA_IMAGE_TYPE : std::uint8_t {
+        TELEM_DATA_IMAGE_TYPE_PNG = 0,
+        TELEM_DATA_IMAGE_TYPE_JPG = 1,
+    };
+
+    /*struct Telemetry
     {
-        return _name;
+        Telemetry() {};
+        std::unordered_map<TELEM_ATTR, std::any> attributes;
+    };
+    
+    std::unordered_map<std::string, Telemetry> telemetryMap;*/
+    struct TelemetryAttributes {
+        // name is not optional
+        std::optional<std::string> unit = std::nullopt;
+        std::optional<std::string> color = std::nullopt;
+        std::optional<bool> autoplot = std::nullopt;
+        std::optional<std::uint64_t> dataTimeout = std::nullopt;
+        std::optional<TELEM_ATTR_SHAPE_TYPE> shape = std::nullopt;
+        std::optional<std::string> shapeData = std::nullopt;
+
+        bool hasChanged = true;
+        void update(TelemetryAttributes const& other) {
+            if (other.unit.has_value())             { hasChanged |= (unit != other.unit);               unit = other.unit; }
+            if (other.color.has_value())            { hasChanged |= (color != other.color);             color = other.color; }
+            if (other.autoplot.has_value())         { hasChanged |= (autoplot != other.autoplot);       autoplot = other.autoplot; }
+            if (other.dataTimeout.has_value())      { hasChanged |= (dataTimeout != other.dataTimeout); dataTimeout = other.dataTimeout; }
+            if (other.shape.has_value())            { hasChanged |= (shape != other.shape);             shape = other.shape; }
+            if (other.shapeData.has_value())        { hasChanged |= (shapeData != other.shapeData);     shapeData = other.shapeData; }
+        };
+    };
+
+    // TELEMETRY DATA TYPES
+    // Number needs no struct
+    struct Number2D {
+        float x;
+        float y;
+    };
+    struct Number3D {
+        float x;
+        float y;
+        float z;
+    };
+    // Text needs no struct
+    struct Image {
+        TELEM_DATA_IMAGE_TYPE type;
+        std::size_t size;
+        std::byte* data;
+    };
+    
+    Teleplot() {
+        TeleplotOptions defaultOptions;
+        setOptions(defaultOptions);
     }
 
-    ShapeTeleplot& setPos(ShapeValue const posX, ShapeValue const posY = {}, ShapeValue const posZ = {})
-    {
-        _posX = posX;
-        _posY = posY;
-        _posZ = posZ;
-
-        return *this;
+    Teleplot(TeleplotOptions options) {
+        setOptions(options);
     }
-
-    ShapeTeleplot& setRot(ShapeValue const rotX, ShapeValue const rotY = {}, ShapeValue const rotZ = {}, ShapeValue const rotW = {})
-    {
-        _rotX = rotX;
-        _rotY = rotY;
-        _rotZ = rotZ;
-        _rotW = rotW;
-
-        return *this;
-    }
-
-    ShapeTeleplot& setCubeProperties(ShapeValue const height, ShapeValue const width = {}, ShapeValue const depth = {})
-    {
-        _height = height;
-        _width = width;
-        _depth = depth;
-
-        return *this;
-    }
-
-    ShapeTeleplot& setSphereProperties(ShapeValue const radius, ShapeValue const precision)
-    {
-        _radius = radius;
-        _precision = precision;
-
-        return *this;
-    }
-
-    std::string toString() const
-    {
-
-        std::stringstream result;
-        result << std::fixed << std::setprecision(4);
-        result << "S:" << _type;
-
-        if (_color != "") { result << ":C:" << _color; }
+    
+    // Static localhost instance
+    static Teleplot &instance() {static Teleplot teleplot; return teleplot;}
+    
+    ~Teleplot() {
         
-        if (_posX.isSet || _posY.isSet || _posZ.isSet) 
-        {
-            result << ":P:";
+    }
 
-            if (_posX.isSet) { result << _posX.valueRounded(); }
-            result << ":";
+    void enable() {
+        enabled_ = true;
+        connect();
+    }
 
-            if (_posY.isSet) { result << _posY.valueRounded(); }
-            result << ":";
+    void disable() {
+        enabled_ = false;
+        disconnect();
+    }
 
-            if (_posZ.isSet) { result << _posZ.valueRounded(); }
+    void setOptions(TeleplotOptions const& options) {
+        options_ = options;
+        // Resolve client id
+        if (options_.clientId == 0 and not options_.clientName.empty()) {
+            options_.clientId = static_cast<std::uint16_t>(hashString_(options_.clientName));
+        }
+        connect();
+    }
+
+    TeleplotOptions getOptions() const {
+        return options_;
+    }
+
+    struct Telemetry {
+        std::string name;
+        std::uint16_t id;
+        SECTION_TYPE type;
+        TelemetryAttributes attributes;
+        std::chrono::milliseconds lastAttributesFlushTime_ = std::chrono::milliseconds(0);
+        std::deque<std::pair<std::chrono::nanoseconds, std::variant<float, Number2D, Number3D, std::string, Image>>> data = {};
+    };
+
+    template<typename T>
+    void update(std::string const& name, T value, std::optional<std::chrono::nanoseconds> timestamp = std::nullopt, TelemetryAttributes const& attributes = {}) {
+        #ifdef TELEPLOT_DISABLE
+            return;
+        #endif
+        if(not enabled_) { return; }
+        if (name.empty()) { return; }
+
+        SECTION_TYPE type = SECTION_TYPE_RESERVED;
+        if constexpr (std::is_convertible_v<T, std::string>) { type = SECTION_TYPE_TELEM_DATA_TEXT; }
+        else if constexpr (std::is_arithmetic_v<T>)          { type = SECTION_TYPE_TELEM_DATA_NUMBER; }
+        else if constexpr (std::is_same_v<T, Number2D>)      { type = SECTION_TYPE_TELEM_DATA_NUMBER_2D;}
+        else if constexpr (std::is_same_v<T, Number3D>)      { type = SECTION_TYPE_TELEM_DATA_NUMBER_3D; }
+        else if constexpr (std::is_same_v<T, Image>)         { type = SECTION_TYPE_TELEM_DATA_IMAGE; }
+        else {
+            static_assert(sizeof(T) == -1, "Value type provided to Teleplot update(...) function is no supported.");
+        }
+        
+        // Only insert in map if missing
+        telemetryMap_.emplace(name, Telemetry{name, static_cast<std::uint16_t>(hashString_(name)), type, attributes});
+
+        // Update attributes
+        telemetryMap_[name].attributes.update(attributes);
+
+        // Use current timestamp if not provided
+        if (not timestamp.has_value()) {
+            timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
         }
 
-        if (_rotX.isSet || _rotY.isSet || _rotZ.isSet || _rotW.isSet) 
-        {
-            if (_rotW.isSet) { result << ":Q:"; }
-            else { result << ":R:"; }
-
-            if (_rotX.isSet) { result << _rotX.valueRounded(); }
-            result << ":";
-
-            if (_rotY.isSet) { result << _rotY.valueRounded(); }
-            result << ":";
-
-            if (_rotZ.isSet) { result << _rotZ.valueRounded(); }
-
-            if (_rotW.isSet) { result << ":" <<_rotW.valueRounded(); }
+        // Insert data into telemetry
+        if constexpr (std::is_arithmetic_v<T>) {
+            telemetryMap_[name].data.emplace_back(timestamp.value(), static_cast<float>(value));
+        }
+        else {
+            telemetryMap_[name].data.emplace_back(timestamp.value(), value);
         }
 
-        if (_type == "sphere")
-        {
-            if (_radius.isSet)    { result << ":RA:" << _radius.valueRounded(); }
-            if (_precision.isSet) { result << ":P:" << _precision.valueRounded(); }
-        }
+        // TODO send data
+        // Need a default automatic way but that is a bit smart like
+        // Need a user-delegated way (like a flush or a send function)
 
-        if (_type == "cube")
-        {
-            if (_height.isSet) { result << ":H:" << _height.valueRounded(); }
-            if (_width.isSet)  { result << ":W:" << _width.valueRounded();  }
-            if (_depth.isSet)  { result << ":D:" << _depth.valueRounded();  }
-        }
+    }
 
-        return result.str();
+    void flush() {
+        #ifdef TELEPLOT_DISABLE
+            return;
+        #endif
+        if(not enabled_) { return; }
+
+        while (hasDataToFlush()) {
+            bool encoderFull = false;
+            BinaryEncoder encoder;
+
+            // Header
+            encoder << BINARY_MARKER << BINARY_PROTOCOL_VERSION << options_.clientId;
+
+            // Options
+            if (shallFlushOptions()) {
+                // Flush options
+                encoder << SECTION_TYPE_CLIENT_NAME;
+                encoder << options_.clientName;
+                lastOptionsFlushTime_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+            }
+
+            // Attributes
+            for (auto& [name, telemetry] : telemetryMap_) {
+                if (shallFlushTelemetryAttributes(telemetry)) {
+                    BinaryEncoder sectionEncoder;
+                    sectionEncoder << SECTION_TYPE_TELEM_ATTR << telemetry.id;
+                    std::unordered_map<TELEM_ATTR, BinaryEncoder> attributesToFlush;
+                    // Name
+                    attributesToFlush[TELEM_ATTR_NAME] << telemetry.name;
+                    if (telemetry.attributes.unit.has_value())          { attributesToFlush[TELEM_ATTR_UNIT] << telemetry.attributes.unit.value(); }
+                    if (telemetry.attributes.color.has_value())         { attributesToFlush[TELEM_ATTR_COLOR] << telemetry.attributes.color.value(); }
+                    if (telemetry.attributes.autoplot.has_value())      { attributesToFlush[TELEM_ATTR_AUTOPLOT] << telemetry.attributes.autoplot.value(); }
+                    if (telemetry.attributes.dataTimeout.has_value())   { attributesToFlush[TELEM_ATTR_DATA_TIMEOUT] << telemetry.attributes.dataTimeout.value(); }
+                    if (telemetry.attributes.shape.has_value()) { 
+                        attributesToFlush[TELEM_ATTR_SHAPE] << telemetry.attributes.shape.value();
+                        if (telemetry.attributes.shape.value() == TELEM_ATTR_SHAPE_TYPE_STL) {
+                            std::string data = "";
+                            if (telemetry.attributes.shapeData.has_value()) { data = telemetry.attributes.shapeData.value(); }
+                            attributesToFlush[TELEM_ATTR_SHAPE] << data;
+                        }
+                    }
+
+                    // Get total telemetry attributes size
+                    std::size_t attrSize = sizeof(std::uint8_t) + std::accumulate(attributesToFlush.begin(), attributesToFlush.end(), std::size_t(0), [](std::size_t sum, auto const& pair) {
+                        return sum + sizeof(TELEM_ATTR) + pair.second.size();
+                    });
+
+                    if (encoder.remainingCapacity() - CHECKSUM_SIZE >= attrSize) {
+                        sectionEncoder << static_cast<std::uint8_t>(attributesToFlush.size());
+                        for (auto& [attrType, attrEncoder] : attributesToFlush) {
+                            sectionEncoder << attrType << attrEncoder;
+                        }
+                        encoder << sectionEncoder;
+                        telemetry.attributes.hasChanged = false;
+                        telemetry.lastAttributesFlushTime_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+                    }
+                    else { encoderFull = true; break; }
+                }
+            }
+
+            // Telemetry data
+            if (!encoderFull and encoder.remainingCapacity() >= 20) { // 20 is a random margin to avoid appending new data to an almost-full encoder (avoids edge cases close to encoder full)
+                for (auto& [name, telemetry] : telemetryMap_) {
+                    if (! shallFlushTelemetryData(telemetry)) { continue; }
+                    BinaryEncoder sectionEncoder;
+                    sectionEncoder << telemetry.type << telemetry.id;
+
+                    // Find the time reference
+                    std::chrono::nanoseconds timeReference = telemetry.data.front().first;
+                    sectionEncoder << static_cast<std::uint64_t>(timeReference.count());
+                    std::size_t dataCountIndex = sectionEncoder.position();
+                    std::uint8_t dataCount = 0;
+                    sectionEncoder << static_cast<std::uint8_t>(0);
+                    
+                    // Add data
+                    for (auto& [timestamp, value] : telemetry.data) {
+                        BinaryEncoder dataEncoder; // Create a new encoder for each data point to check if it fits in the section encoder
+                        // Timediff from reference
+                        std::chrono::nanoseconds timeDiff = timestamp - timeReference;
+                        dataEncoder << static_cast<std::uint32_t>(timeDiff.count());
+                        // Data
+                        switch (telemetry.type) {
+                            case SECTION_TYPE_TELEM_DATA_NUMBER:    { dataEncoder << std::get<float>(value); break; }
+                            case SECTION_TYPE_TELEM_DATA_NUMBER_2D: { dataEncoder << std::get<Number2D>(value).x << std::get<Number2D>(value).y; break; }
+                            case SECTION_TYPE_TELEM_DATA_NUMBER_3D: { dataEncoder << std::get<Number3D>(value).x << std::get<Number3D>(value).y << std::get<Number3D>(value).z; break; }
+                            case SECTION_TYPE_TELEM_DATA_TEXT:      { dataEncoder << std::get<std::string>(value); break; }
+                            case SECTION_TYPE_TELEM_DATA_IMAGE:     { break;  }
+                            default: { break; }
+                        }
+
+                        // Add data in packet
+                        if(encoder.remainingCapacity() - CHECKSUM_SIZE - sectionEncoder.size() >= dataEncoder.size() && dataCount < 255) {
+                            telemetry.data.pop_front();
+                            sectionEncoder << dataEncoder;
+                            dataCount++;
+                            *reinterpret_cast<std::uint8_t*>(sectionEncoder.data_at(dataCountIndex)) = dataCount;
+                        }
+                        else { encoderFull = true; break; }                        
+                    }
+                    encoder << sectionEncoder;
+                    if (encoderFull) { break; }
+                }
+            }
+
+            sendPacket(encoder);
+        }
     }
 
 private:
-    const std::string _name;
-    const std::string _type;
-    const std::string _color;
-
-    ShapeValue _posX;
-    ShapeValue _posY;
-    ShapeValue _posZ;
-
-    ShapeValue _rotX;
-    ShapeValue _rotY;
-    ShapeValue _rotZ;
-    ShapeValue _rotW;
-
-    ShapeValue _height;
-    ShapeValue _width;
-    ShapeValue _depth;
-
-    ShapeValue _radius;
-    ShapeValue _precision;
-
-};
-
-class Teleplot {
-public:
-    Teleplot(std::string address, unsigned int port=47269, unsigned int bufferingFrequencyHz = 30)
-        : sockfd_(-1)
-        , address_(std::move(address))
-        , udpPort_(port)
-        , bufferingFrequencyHz_(bufferingFrequencyHz)
-    {
+    void connect() {
         #ifdef TELEPLOT_DISABLE
-            return ;
+            return;
         #endif
+        if(not enabled_) { return; }
+
+        disconnect();
+
         // Create UDP socket
         sockfd_ = socket(AF_INET, SOCK_DGRAM, 0);
         serv_.sin_family = AF_INET;
-        serv_.sin_port = htons(static_cast<std::uint16_t>(port));
-        serv_.sin_addr.s_addr = inet_addr(address_.c_str());
+        serv_.sin_port = htons(static_cast<std::uint16_t>(options_.udpPort));
+        serv_.sin_addr.s_addr = inet_addr(options_.address.c_str());
         if (sockfd_ >= 0) {
             int fl = fcntl(sockfd_, F_GETFL, 0);
             if (fl >= 0) (void)fcntl(sockfd_, F_SETFL, fl | O_NONBLOCK);
         }
-    };
-    ~Teleplot() {
-        #ifdef TELEPLOT_DISABLE
-            return;
-        #endif
+        std::cout << "connected" << std::endl;
+    }
+
+    void disconnect() {
         if (sockfd_ >= 0) { (void)::close(sockfd_); sockfd_ = -1; }
     }
-    // Static localhost instance
-    static Teleplot &localhost() {static Teleplot teleplot("127.0.0.1"); return teleplot;}
 
-    std::string const& destinationHost() const { return address_; }
-    unsigned int destinationPort() const { return udpPort_; }
+    bool shallFlushOptions() const {
+        std::chrono::milliseconds now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+        return (now - lastOptionsFlushTime_ >= options_.targetAttributesFlushInterval);
+    }
 
-    template<typename T>
-    void update(std::string const& key, T const& value, std::string unit = "", unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
-        #ifdef TELEPLOT_DISABLE
-            return ;
+    bool shallFlushTelemetryAttributes(Telemetry const& telemetry) const {
+        std::chrono::milliseconds now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+        return telemetry.attributes.hasChanged or (now - telemetry.lastAttributesFlushTime_ >= options_.targetAttributesFlushInterval);
+    }
+
+     bool shallFlushTelemetryData(Telemetry const& telemetry) const {
+        return not telemetry.data.empty();
+     }
+
+    bool hasDataToFlush() const {
+        return shallFlushOptions() or std::any_of(telemetryMap_.begin(), telemetryMap_.end(), [this](auto const& pair) {
+            return shallFlushTelemetryAttributes(pair.second) or shallFlushTelemetryData(pair.second);
+        });
+    }
+
+    void sendPacket(BinaryEncoder& encoder) {
+         #ifdef TELEPLOT_DISABLE
+            return;
         #endif
-        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        double nowMs = static_cast<double>(nowUs)/1000.0;
-        updateData(key, nowMs, value, 0, flags, maxFrequencyHz, unit);
-    }
+        if(not enabled_) { return; }
 
-    template<typename T>
-    void updateAt(std::string const& key, double timestamp_ms, T const& value, std::string unit = "", unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
-        #ifdef TELEPLOT_DISABLE
-            return ;
-        #endif
-        updateData(key, timestamp_ms, value, 0, flags, maxFrequencyHz, unit);
-    }
-
-    template<typename T1, typename T2>
-    void update2D(std::string const& key, T1 const& valueX, T2 const& valueY, unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_2D) {
-        #ifdef TELEPLOT_DISABLE
-            return ;
-        #endif
-        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        double nowMs = static_cast<double>(nowUs)/1000.0;
-        updateData(key, valueX, valueY, nowMs, flags, maxFrequencyHz);
-    }
-
-    void update3D(ShapeTeleplot const& mshape, unsigned int maxFrequencyHz = 0, std::string flags = TELEPLOT_FLAG_DEFAULT) {
-        #ifdef TELEPLOT_DISABLE
-            return ;
-        #endif
-        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        double nowMs = static_cast<double>(nowUs)/1000.0;
-        updateData(mshape.getName(), nowMs, nullptr, nullptr, flags, maxFrequencyHz, "", mshape);
-    }
-
-    void log(std::string const& log){
-        int64_t nowMs = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        emit(">"+std::to_string(nowMs)+":"+log);
-    }
-
-    bool shouldUpdateData(std::string const& key, unsigned int frequency)
-    {
-#ifdef TELEPLOT_USE_FREQUENCY 
-        if(frequency<=0) return true;
-        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        if(updateTimestampsUs_.find(key) == updateTimestampsUs_.end()) {
-            return true;
+        // Checksum
+        std::uint16_t checksum = 0;
+        for (std::size_t i = 0; i < encoder.size(); ++i) {
+            checksum += static_cast<std::uint16_t>(encoder.data()[i]);
         }
-        int64_t elapsed = nowUs - updateTimestampsUs_[key];
-        if(elapsed >= static_cast<int64_t>(1e6/frequency)) {
-            return true;
+        encoder << checksum;
+
+        // Send packet
+        if (options_.sendPacketFunction != nullptr) {
+            options_.sendPacketFunction(encoder.data());
         }
-        return false;
-#else
-        (void)key;
-        (void)frequency;
-        return true;
-#endif
-    }
-
-private:
-    #ifdef TELEPLOT_USE_FREQUENCY
-    void saveUpdateDataTime(std::string const& key) {
-        int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-        updateTimestampsUs_[key] = nowUs;
-    }
-    #endif
-
-    template<typename T1, typename T2, typename T3>
-    void updateData(std::string const& key, T1 const& valueX, T2 const& valueY, T3 const& valueZ, std::string const& flags, unsigned int maxFrequencyHz, std::string unit = "", ShapeTeleplot const& mshape = ShapeTeleplot()) {
-        #ifdef TELEPLOT_DISABLE
-            return ;
-        #endif
-        // Filter
-        #ifdef TELEPLOT_USE_FREQUENCY
-            if(not shouldUpdateData(key ,maxFrequencyHz)) return; // may be used to reduce the update frequency by ignoring some values
-            saveUpdateDataTime(key);
-        #else
-            (void)maxFrequencyHz;
-        #endif
-
-        // Format
-        std::string valueStr = formatValues(valueX, valueY, valueZ, mshape, flags);
-
-        // Emit
-        bool is3D = !mshape.getName().empty();
-
-        #ifdef TELEPLOT_USE_BUFFERING
-            buffer(key, valueStr, flags, unit, is3D);
-        #else
-            emit(formatPacket(key, valueStr, flags, unit, is3D));    
-        #endif
-    }
-
-    template<typename T1, typename T2, typename T3>
-    std::string formatValues(T1 const& valueX, T2 const& valueY, T3 const& valueZ, ShapeTeleplot const& mshape, std::string const& flags){
-        std::ostringstream oss;
-        if (!mshape.getName().empty()) 
-        {
-            // valueX contains the timestamp
-            oss << std::fixed << valueX << ":" << mshape.toString();
-        }
-        else
-        {
-            oss << std::fixed << valueX << ":" << valueY;
-            if(flags.find(TELEPLOT_FLAG_2D) != std::string::npos){ oss << std::fixed << ":" << valueZ; }
-        }
-        return oss.str();
-    }
-
-    std::string formatPacket(std::string const &key, std::string const& values, std::string const& flags, std::string unit, bool is3D = false){
-        std::ostringstream oss;        
-        std::string unitFormatted = (unit == "") ? "" : "§" + unit;
-
-        if (is3D)
-            oss << "3D|";
-            
-        oss << key << ":" << values << unitFormatted << "|" << flags;
-        return oss.str();
-    }
-
-    void emit(std::string const& data){
-        (void) sendto(sockfd_, data.c_str(), data.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
-    }
-
-    #ifdef TELEPLOT_USE_BUFFERING
-        void buffer(std::string const &key, std::string const& values, std::string const& flags, std::string unit, bool is3D = false) {
-            //Make sure buffer exists
-            if(bufferingMap_.find(key) == bufferingMap_.end()) {
-                bufferingMap_[key] = "";
-                bufferingFlushTimestampsUs_[key] = 0;
-            }
-            // Check that buffer isn't about to blow up
-            size_t keySize = key.size() + 1;    // +1 is the separator
-            size_t valuesSize = bufferingMap_[key].size() + values.size() + 1; // +1 is the separator
-            size_t flagSize = 1 + flags.size(); // +1 is the separator
-            size_t nextSize = keySize + valuesSize + flagSize;
-            if(nextSize > maxBufferingSize_) {
-                flushBuffer(key, flags, unit, true, is3D); // Force flush
-            }
-            bufferingMap_[key] += values + ";";
-            flushBuffer(key, flags, unit, false, is3D);
-        }
-
-        void flushBuffer(std::string const& key, std::string const& flags, std::string unit, bool force, bool is3D = false) {
-            // Flush the buffer if the frequency is reached
-            int64_t nowUs = std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
-            int64_t elapsed = nowUs - bufferingFlushTimestampsUs_[key];
-            if(force || elapsed >= static_cast<int64_t>(1e6/bufferingFrequencyHz_)) {
-                emit(formatPacket(key, bufferingMap_[key], flags, unit, is3D));
-                bufferingMap_[key].clear();
-                bufferingFlushTimestampsUs_[key] = nowUs;
+        else {
+            if (sockfd_ >= 0) {
+                (void)sendto(sockfd_, encoder.data().data(), encoder.size(), 0, (struct sockaddr *)&serv_, sizeof(serv_));
+                std::cout << "sent" << encoder.size() << std::endl;
             }
         }
-        std::map<std::string, std::string> bufferingMap_;
+    }
 
-        std::map<std::string, int64_t> bufferingFlushTimestampsUs_;
-        size_t maxBufferingSize_ = 1432; // from https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-    #endif
-    #ifdef TELEPLOT_USE_FREQUENCY 
-        std::map<std::string, int64_t> updateTimestampsUs_;
-    #endif
+    // Options
+    bool enabled_ = true;
+    TeleplotOptions options_;
 
-    int sockfd_;
-    std::string address_;
-    unsigned int udpPort_;
+    // Flush
+    std::chrono::milliseconds lastOptionsFlushTime_ = std::chrono::milliseconds(0);
+    std::chrono::milliseconds lastFlushTime_ = std::chrono::milliseconds(0);
+
+    // Tools
+    std::hash<std::string> hashString_;
+
+    // Network
+    int sockfd_{-1};
     sockaddr_in serv_;
-    unsigned int bufferingFrequencyHz_;
+
+    // Telemetry data
+    std::unordered_map<std::string, Telemetry> telemetryMap_;
+
+
+
+
+    class BinaryEncoder
+    {
+    public:
+
+        explicit BinaryEncoder(std::endian order = std::endian::big) : order_(order) {
+            buffer_.reserve(Teleplot::MAX_PACKET_SIZE);
+        }
+
+        std::size_t remainingCapacity() const noexcept {
+            return Teleplot::MAX_PACKET_SIZE - buffer_.size();
+        }
+
+        std::size_t size() const noexcept {
+            return buffer_.size();
+        }
+
+        BinaryEncoder& operator<<(bool value)
+        {
+            std::uint8_t byte = value ? 1 : 0;
+            buffer_.push_back(std::byte{byte});
+            return *this;
+        }
+
+        template<typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+        BinaryEncoder& operator<<(T value) {
+            using U = std::make_unsigned_t<T>;
+            U bits = static_cast<U>(value);
+            if (needs_swap()) { bits = byteswap(bits); }
+            append(bits);
+            return *this;
+        }
+
+        template<typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+        BinaryEncoder& operator<<(T value) {
+            if constexpr (sizeof(T) == 4) { 
+                std::uint32_t u;
+                memcpy(&u, &value, 4);
+                return *this << u;
+            }
+            else {
+                std::uint64_t u;
+                memcpy(&u, &value, 8);
+                return *this << u;
+            }
+        }
+
+        template<typename E, std::enable_if_t<std::is_enum_v<E>, int> = 0>
+        BinaryEncoder& operator<<(E value) {
+            return *this << static_cast<std::underlying_type_t<E>>(value);
+        }
+
+        BinaryEncoder& operator<<(std::string_view s) {
+            const auto* bytes = reinterpret_cast<const std::byte*>(s.data());
+            buffer_.insert(buffer_.end(), bytes, bytes + s.size());
+            buffer_.push_back(std::byte{0}); // Null terminator
+            return *this;
+        }
+
+        BinaryEncoder& operator<<(const BinaryEncoder& other)
+        {
+            buffer_.insert(buffer_.end(), other.buffer_.begin(), other.buffer_.end());
+            return *this;
+        }
+
+        BinaryEncoder& write(const std::byte* data, std::size_t size) {
+            buffer_.insert(buffer_.end(), data, data + size);
+            return *this;
+        }
+
+        [[nodiscard]]
+        const std::vector<std::byte>& data() const noexcept {
+            return buffer_;
+        }
+
+        [[nodiscard]]
+        std::size_t position() const noexcept
+        {
+            return buffer_.size();
+        }
+
+        [[nodiscard]]
+        std::byte* data_at(std::size_t offset) noexcept
+        {
+            return buffer_.data() + offset;
+        }
+
+    private:
+        template<typename T>
+        void append(const T& value) {
+            static_assert(std::is_trivially_copyable_v<T>);
+            const auto* bytes = reinterpret_cast<const std::byte*>(&value);
+            buffer_.insert(buffer_.end(), bytes, bytes + sizeof(T));
+        }
+
+        [[nodiscard]]
+        bool needs_swap() const noexcept {
+            static_assert( std::endian::native == std::endian::little || std::endian::native == std::endian::big);
+            if constexpr (std::endian::native == std::endian::little) { return order_ == std::endian::big; }
+            else                                                      { return order_ == std::endian::little; }
+        }
+
+        template<typename T>
+        static constexpr T byteswap(T value) noexcept
+        {
+            static_assert(std::is_unsigned_v<T>);
+            T result = 0;
+            for (std::size_t i = 0; i < sizeof(T); ++i) {
+                result <<= 8;
+                result |= value & T{0xff};
+                value >>= 8;
+            }
+            return result;
+        }
+
+        std::endian order_;
+        std::vector<std::byte> buffer_;
+    };
 };
 
 #endif

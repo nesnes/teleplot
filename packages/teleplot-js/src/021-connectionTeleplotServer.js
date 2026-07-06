@@ -33,6 +33,12 @@ class ConnectionTeleplotServer extends Connection{
             }, 2000);
         };
         this.socket.onmessage = (msgWS) => {
+            // Binary message from client (through server)
+            if (msgWS.data instanceof Blob) {
+                msgWS.data.arrayBuffer().then((buffer)=>{this.udp.onMessage(buffer);});
+                return;
+            }
+            // Text message reformated to json by teleplot server
             let msg = JSON.parse(msgWS.data);
             if("id" in msg){
                 for(let input of this.inputs){

@@ -2,11 +2,37 @@
 #include "Teleplot.h"
 #include <stdlib.h>
 
-Teleplot teleplot("127.0.0.1", 47269);
+//Teleplot teleplot("127.0.0.1", 47269);
 
-int main(int argc, char* argv[])
+int main(int, char*[])
 {
-    float i = 0;
+    // Set client options like name
+    Teleplot::instance().setOptions({ .address = "192.168.0.170", .clientName = "cpp_sample", 
+        /*.sendPacketFunction = [](std::vector<std::byte> const& packet) {
+            // Display packet as hex string
+            std::string hexString;
+            for (std::byte b : packet) {
+                char buf[6];
+                snprintf(buf, sizeof(buf), "0x%02x ", std::to_integer<unsigned char>(b));
+                hexString += buf;
+            }
+            std::cout << "Sending packet: " << hexString << std::endl;
+        }*/
+    });
+
+    // Telemetry without attributes
+    Teleplot::instance().update("number.simple", 12.5);
+
+    // Telemetry without a unit, and without timestamp (will use current time)
+    Teleplot::instance().update("number.noTimestamp", 12.5, std::nullopt, { .unit = "m/s" });
+
+    // Telemetry with timestamp
+    auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
+    Teleplot::instance().update("number.timestamped", 12.5, now, { .unit = "m/s" });
+
+    Teleplot::instance().flush();
+
+    /*float i = 0;
     int state_arr_length = 3;
     std::string state_arr[state_arr_length] = {"standing", "sitting", "walking"};
 
@@ -31,6 +57,6 @@ int main(int argc, char* argv[])
         usleep(10000);
 
         i+=0.1;
-    }
+    }*/
     return 0;
 }
