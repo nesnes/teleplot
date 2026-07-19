@@ -1,0 +1,285 @@
+html {
+	font-family: Verdana, Geneva, Tahoma, sans-serif;
+	font-size: 12px;
+}
+
+:root {
+    --color-bg-dark-alpha50: hsla(0 0% 90% 0.5);
+    --color-bg-dark: hsl(0 0% 90%);
+    --color-bg: hsl(0 0% 95%);
+    --color-bg-light: hsl(0 0% 100%);
+    --color-text: hsl(0 0% 10%);
+    --color-text-muted: hsl(0 0% 40%);
+    --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%);
+    --color-success: hsl(145, 63%, 49%);
+    --color-danger: hsl(6, 78%, 57%);
+
+    
+    --color-primary-rgb: 41, 128, 185;
+    --color-secondary-rgb: 231, 76, 60;
+}
+
+:root[data-theme="dark"] {
+    --color-bg-dark-alpha50: hsla(0 0% 0% 0.5);
+    --color-bg: hsl(0 0% 5%);
+    --color-bg-light: hsl(0 0% 10%);
+    --color-text: hsl(0 0% 90%);
+    --color-text-muted: hsl(0 0% 60%);
+}
+
+body {
+	margin: 0px;
+	padding: 0px;
+	background-color: var(--color-bg);
+}
+
+button {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.glass-material {
+    padding: 0.5rem 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border-radius: 0.5rem;
+    color: var(--color-text);
+    transition: all 0.1s ease;
+}
+
+.glass-material-shadows {
+    margin: 1rem 1rem;
+    box-shadow: 0px 0.3rem 1.5rem 0 var(--color-shadow);
+}
+
+.glass-material-shadows:hover {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0px 0.3rem 2rem 0 var(--color-shadow);
+}
+
+.glass-material-shadows:active {
+  box-shadow: 0px 0.3rem 0.5rem 0 var(--color-shadow);
+}
+
+.glass-material:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes fadeInLeft {
+  0% {
+    opacity: 0;
+    translate: -1rem 0;
+  }
+  100% {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* MAIN MENU */
+#main-menu-button {
+    z-index: 10;
+    position: absolute;
+    margin: 0rem;
+    top: 2rem;
+    left: 2rem;
+    transition: all 0.15s ease-out;
+
+    background-color: var(--color-bg-dark-alpha50);
+
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    anchor-name: --main-menu-button;
+    img {
+        width: 2rem;
+        height: 2rem;
+        transition: all 0.1s ease-out;
+    }
+}
+#main-menu-button:hover img {
+    width: 2.5rem;
+    height: 2.5rem;
+}
+#main-menu-button:active img {
+    width: 2rem;
+    height: 2rem;
+}
+
+#main-menu {
+    z-index: 10;
+    margin: 0px;
+    position: absolute;
+    position-anchor: --main-menu-button;
+    --padding: 4rem;
+    padding: var(--padding); /* to avoid clipped shadows */
+    top: calc( anchor(bottom) - var(--padding));
+    left:  calc( anchor(left) - var(--padding));
+    pointer-events: none;
+
+    border: none;
+    box-sizing: border-box;
+    background-color: transparent;
+    perspective: 150px;
+    
+    .main-menu-item {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: start;
+        font-size: 0.5rem;
+        border-radius: 3rem;
+        pointer-events: all;
+        transition: all 0.15s ease-out;
+        width: min-content;
+
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+    }
+    .main-menu-item:hover {
+        padding: 0.75rem;
+        margin-top: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    .main-menu-item:active {
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .main-menu-item i {
+        font-size: 1rem;
+        color: var(--color-text);
+    }
+    .main-menu-item span {
+        font-size: 1rem;
+        color: var(--color-text);
+    }
+
+    &:popover-open {
+        /*animation: fadeInLeft 0.15s forwards;*/
+        animation-timing-function: cubic-bezier(.52,1.64,.61,.95);
+        display: flex;
+        flex-direction: column;
+    }
+    &:popover-open .main-menu-item {
+        transform: rotateY(0deg) translateY(0rem);
+        opacity: 1;
+        @starting-style {
+            transform: rotateY(-45deg) translateY(-1.5rem);
+            opacity: 0;
+        }
+    }
+}
+#main-menu:has(.main-menu-item:hover) .main-menu-item:not(:hover) {
+    opacity: 0.5;
+}
+
+.panel-container {
+    display: flex;
+    perspective: 500px;
+}
+
+.side-panel {
+    transition: all 0.15s ease-out;
+    transform: rotateY(0deg) translateY(0rem);
+    opacity: 1;
+    @starting-style {
+        transform: rotateY(-10deg) translateY(-1rem);
+        transform-origin: 0% 50%;
+        opacity: 0;
+    }
+
+    .panel-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        padding: 0.5rem;
+        cursor: pointer;
+    }
+
+    .panel-title {
+        margin-left: 5rem;      
+        h1 {
+            margin: 0rem;
+            font-weight: 500;
+            font-size: 2rem;
+        }
+        span {
+            color: var(--color-text-muted);
+            font-size: 1rem;
+        }
+    }
+    .sources-layout {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding-left: 6rem;
+
+        --line-width: 0.5rem;
+
+        .source-item {
+            position: relative;
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: linear-gradient(45deg, 
+                rgba(var(--color-primary-rgb), 0.15),
+                rgba(var(--color-secondary-rgb), 0.15));
+            &::before {
+                content: '';
+                position: absolute;
+                height: var(--line-width);
+                width: 3rem;
+                background-color: var(--color-primary);
+                top: calc(50% - var(--line-width) / 2);
+                left: -4rem;
+                border-radius: var(--line-width);
+            }
+
+            .status-icon {
+                position: absolute;
+                height: var(--line-width);
+                top: calc(50% - var(--line-width) * 4 / 2);
+                left: -3.5rem;
+                font-size: calc(var(--line-width) * 4);
+                text-shadow: 0px 0px 5px var(--color-bg-light);
+            }
+
+            h3 {
+                margin: 0rem;
+                font-weight: 500;
+                font-size: 1.3rem;
+            }
+            span {
+                color: var(--color-text-muted);
+                font-size: 1rem;
+            }
+        }
+        
+        &::after {
+            content: '';
+            position: absolute;
+            width: var(--line-width);
+            background-color: var(--color-primary);
+            top: 0;
+            bottom: 0;
+            left: calc(1.9rem - var(--line-width) / 2);
+            border-radius: var(--line-width);
+        }
+    }
+}
+
+.main-panel {
+
+}

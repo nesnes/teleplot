@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teleplot</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="libs/icofont/icofont.min.css"> <!-- https://icofont.com/ -->
+  <script src="libs/teleplot-js.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Main Menu -->
+    <button id="main-menu-button" class="glass-material glass-material-shadows" @click="sidePanel=''" popovertarget="main-menu">
+      <img src="media/logo-color-small.svg" />
+    </button>
+    <div id="main-menu" ref="MainMenu" popover>
+      <button class="glass-material glass-material-shadows main-menu-item" @click="sidePanel='sources'; this.$refs.MainMenu.hidePopover();">
+        <i class="icofont-link"></i>
+        <span class="right-panel-menu-item-name">Sources</span>
+      </button>
+      <button class="glass-material glass-material-shadows main-menu-item">
+        <i class="icofont-duotone icofont-chart"></i>
+        <span class="right-panel-menu-item-name">Telemetry</span>
+      </button>
+      <button class="glass-material glass-material-shadows main-menu-item">
+        <i class="icofont-share-alt"></i>
+        <span class="right-panel-menu-item-name">Export</span>
+      </button>
+      <button class="glass-material glass-material-shadows main-menu-item">
+        <i class="icofont-info"></i>
+        <span class="right-panel-menu-item-name">Help</span>
+      </button>
+    </div>
+
+    <!-- Content -->
+    
+    <div class="panel-container">
+      <!-- Sources -->
+       <div v-if="sidePanel=='sources'" class="side-panel glass-material glass-material-shadows">
+        <div class="panel-title">
+          <i class="panel-close status-icon icofont-close" @click="sidePanel='';" ></i>
+          <h1>Sources</h1>
+          <span>List of <b>Connections</b> and <b>static-files</b> feeding this Teleplot session.</span>
+        </div>
+
+        <div class="sources-layout">
+          <div v-for="conn in TP.connection.connections" :key="conn.id" class="source-item glass-material">
+            <h3>{{conn.type}}</h3>
+            <span>{{conn.name}}</span>
+            <i v-if="!conn.connected" class="status-icon icofont-close" style="color:var(--color-danger);"></i>
+          </div>
+        </div>
+      </div>
+      <div class="main-panel">
+
+      </div>
+    </div>
+
+  </div>
+</body>
+
+<script>
+</script>
+<script src="./libs/vue.js"></script>
+<script src="./main.js"></script>
+</html>

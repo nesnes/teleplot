@@ -16,11 +16,13 @@ class ConnectionTeleplotServer extends Connection{
         this.address = _address;
         this.port = _port;
         this.udp.address = this.address;
-        this.socket = new WebSocket("ws://"+this.address+":"+this.port);
+        this.socket = new WebSocket("ws://"+this.address+":"+this.port, );
         this.socket.onopen = (event) => {
-            this.udp.connected = true;
-            this.connected = true;
-            this.sendServerCommand({ cmd: "listSerialPorts"});
+            setTimeout(()=>{
+                this.udp.connected = true;
+                this.connected = true;
+                this.sendServerCommand({ cmd: "listSerialPorts"});
+            }, 30)
         };
         this.socket.onclose = (event) => {
             this.udp.connected = false;
