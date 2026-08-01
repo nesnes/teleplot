@@ -11,23 +11,23 @@
 <body>
   <div id="app">
     <!-- Main Menu -->
-    <button id="main-menu-button" class="glass-material glass-material-shadows" @click="sidePanel=''" popovertarget="main-menu">
+    <button id="main-menu-button" class="glass-material glass-material-shadows" @click="ctx.sidePanel=''" popovertarget="main-menu">
       <img src="media/logo-color-small.svg" />
     </button>
     <div id="main-menu" ref="MainMenu" popover>
-      <button class="glass-material glass-material-shadows main-menu-item" @click="sidePanel='sources'; this.$refs.MainMenu.hidePopover();">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='sources'; this.$refs.MainMenu.hidePopover();">
         <i class="icofont-link"></i>
         <span class="right-panel-menu-item-name">Sources</span>
       </button>
-      <button class="glass-material glass-material-shadows main-menu-item">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='telemetries'; this.$refs.MainMenu.hidePopover();">
         <i class="icofont-duotone icofont-chart"></i>
-        <span class="right-panel-menu-item-name">Telemetry</span>
+        <span class="right-panel-menu-item-name">Telemetries</span>
       </button>
       <button class="glass-material glass-material-shadows main-menu-item">
         <i class="icofont-share-alt"></i>
         <span class="right-panel-menu-item-name">Export</span>
       </button>
-      <button class="glass-material glass-material-shadows main-menu-item">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='help'; this.$refs.MainMenu.hidePopover();">
         <i class="icofont-info"></i>
         <span class="right-panel-menu-item-name">Help</span>
       </button>
@@ -37,22 +37,44 @@
     
     <div class="panel-container">
       <!-- Sources -->
-       <div v-if="sidePanel=='sources'" class="side-panel glass-material glass-material-shadows">
+      <div v-if="ctx.sidePanel=='sources'" class="side-panel glass-material glass-material-shadows">
         <div class="panel-title">
-          <i class="panel-close status-icon icofont-close" @click="sidePanel='';" ></i>
+          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
           <h1>Sources</h1>
           <span>List of <b>Connections</b> and <b>static-files</b> feeding this Teleplot session.</span>
         </div>
-
-        <div class="sources-layout">
-          <div v-for="conn in TP.connection.connections" :key="conn.id" class="source-item glass-material">
-            <h3>{{conn.type}}</h3>
-            <span>{{conn.name}}</span>
-            <i v-if="!conn.connected" class="status-icon icofont-close" style="color:var(--color-danger);"></i>
-          </div>
-        </div>
+        <panel-sources/>
       </div>
+      <!-- Telemetries -->
+      <div v-if="ctx.sidePanel=='telemetries'" class="side-panel glass-material glass-material-shadows">
+        <div class="panel-title">
+          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <h1>Telemetries</h1>
+          <span>Drag telemetries on a dashboard to display them.</span>
+        </div>
+        <panel-telemetries/>
+      </div>
+
+      <div v-if="ctx.sidePanel=='help'" class="side-panel glass-material glass-material-shadows">
+        <div class="panel-title">
+          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <h1>Help</h1>
+          <span>Please help.</span>
+        </div>
+        <panel-help/>
+      </div>
+
       <div class="main-panel">
+
+        <template v-if="Object.entries(TP.dashboards.dashboards).length">
+          <template v-for="dashboard in TP.dashboards.dashboards" :key="dashboard.name">
+            <dashboard :dashboard="dashboard"/>
+          </template>
+        </template>
+        <div v-else-if="ctx.showHelp" class="help-panel">
+          <img src="./media/logo-color.svg" class="help-logo"/>
+          <panel-help/>
+        </div>
 
       </div>
     </div>
@@ -63,5 +85,9 @@
 <script>
 </script>
 <script src="./libs/vue.js"></script>
+<script src="./components/panel-help.js"></script>
+<script src="./components/panel-sources.js"></script>
+<script src="./components/panel-telemetries.js"></script>
+<script src="./components/dashboard.js"></script>
 <script src="./main.js"></script>
 </html>

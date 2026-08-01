@@ -1,4 +1,4 @@
-class ViewCurrentValue extends Views{
+class ViewCurrentValue extends ViewTelemetries{
     constructor(divId, telemetryIdOrNameList, group="default"){
         super(divId, group);
         this.type = "teleplot-current-value";
@@ -8,6 +8,10 @@ class ViewCurrentValue extends Views{
         this.options.displayTelemetryName = true; // Show telemetry name
         this.options.displayTelemetryColor = true; // Show telemetry color
 
+        // Reduce default size
+        this.layout.width = 1;
+        this.layout.height = 1;
+        
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
     }
@@ -21,7 +25,8 @@ class ViewCurrentValue extends Views{
             data() {
                 return {
                     telemetries : self.telemetries,
-                    options : self.options
+                    options : self.options,
+                    layout : self.layout
                 }
             },
             template: ViewCurrentValue.vueHTML,
@@ -36,6 +41,8 @@ class ViewCurrentValue extends Views{
     }
 
     update(){
+        if (!super.__before_update()) return;
+
         let serieIdx = 0;
         for(let telemIdOrName of this.telemetryIdOrNameList){
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
@@ -97,7 +104,8 @@ class ViewCurrentValue extends Views{
     }
     
     static vueHTML = `
-        <div class="teleplot-js-current-value-container teleplot-js-telemetry-card" v-bind:class="{'teleplot-js-current-value-row': options.displayLayoutRow}">
+        <div class="teleplot-js-current-value-container teleplot-js-telemetry-card" v-bind:class="{'teleplot-js-current-value-row': options.displayLayoutRow}"
+        :style=" { '--layout-width': layout.width, '--layout-height': layout.height }">
             <div v-for="(telem, index) in telemetries" v-bind:key="index" class="teleplot-js-current-value-block">
                 
                 <div v-if="options.displayTelemetryColor && Object.keys(telemetries).length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>
@@ -165,7 +173,8 @@ class ViewCurrentValue extends Views{
                 justify-content: end;
                 align-items: center;
                 gap: 5px;
-                min-width: 3em;
+                min-width: 10em;
+                flex-grow: 1;
             }
 
 

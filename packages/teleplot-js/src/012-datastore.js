@@ -127,6 +127,10 @@ TELEPLOT.datastore = {
     telemetriesNameMap : {}, // Telemetries without id (ex: sent with text protocol) need this to be mapped to an id
 }
 
+TELEPLOT.datastore.onNewTelemetryHooks = [
+
+]
+
 TELEPLOT.datastore.addTelemetry = function(idOrName) {
     if (TELEPLOT.datastore.hasTelemetry(idOrName)) {
         console.error(Error(`Trying to add existing telemetry : ${idOrName}`));
@@ -150,6 +154,14 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
     // Register name
     if(name != "") {
         telem.setAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME, name);
+    }
+
+    // Call new telemetry hooks
+    for(let hook of TELEPLOT.datastore.onNewTelemetryHooks) {
+        // Call hook with a delay, giving time to receive attributes and data
+        setTimeout(()=>{
+            hook(telem);
+        }, 100);
     }
     return telem;
 }

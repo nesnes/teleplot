@@ -26,7 +26,14 @@ html {
     --color-bg-light: hsl(0 0% 10%);
     --color-text: hsl(0 0% 90%);
     --color-text-muted: hsl(0 0% 60%);
+
 }
+/*
+TODO handle teleplot-js dark theme within teleplot-js itself, not in the webapp css
+@scope (.teleplot-js-style)
+{
+    color: var(--color-text);
+}*/
 
 body {
 	margin: 0px;
@@ -43,8 +50,8 @@ button {
     padding: 0.5rem 0.5rem;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     border-radius: 0.5rem;
     color: var(--color-text);
     transition: all 0.1s ease;
@@ -82,11 +89,11 @@ button {
 
 /* MAIN MENU */
 #main-menu-button {
-    z-index: 10;
+    z-index: 1100;
     position: absolute;
     margin: 0rem;
-    top: 2rem;
-    left: 2rem;
+    top: 0.5rem;
+    left: 0.5rem;
     transition: all 0.15s ease-out;
 
     background-color: var(--color-bg-dark-alpha50);
@@ -185,14 +192,21 @@ button {
 }
 
 .panel-container {
+    position: relative;
     display: flex;
     perspective: 500px;
 }
 
 .side-panel {
+    z-index: 1000;
+    position: absolute;
     transition: all 0.15s ease-out;
     transform: rotateY(0deg) translateY(0rem);
     opacity: 1;
+
+    corner-top-left-shape: bevel;
+    border-top-left-radius: 3rem;
+
     @starting-style {
         transform: rotateY(-10deg) translateY(-1rem);
         transform-origin: 0% 50%;
@@ -208,7 +222,7 @@ button {
     }
 
     .panel-title {
-        margin-left: 5rem;      
+        margin-left: 3rem;      
         h1 {
             margin: 0rem;
             font-weight: 500;
@@ -219,67 +233,32 @@ button {
             font-size: 1rem;
         }
     }
-    .sources-layout {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        padding-left: 6rem;
+    
 
-        --line-width: 0.5rem;
-
-        .source-item {
-            position: relative;
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            background: linear-gradient(45deg, 
-                rgba(var(--color-primary-rgb), 0.15),
-                rgba(var(--color-secondary-rgb), 0.15));
-            &::before {
-                content: '';
-                position: absolute;
-                height: var(--line-width);
-                width: 3rem;
-                background-color: var(--color-primary);
-                top: calc(50% - var(--line-width) / 2);
-                left: -4rem;
-                border-radius: var(--line-width);
-            }
-
-            .status-icon {
-                position: absolute;
-                height: var(--line-width);
-                top: calc(50% - var(--line-width) * 4 / 2);
-                left: -3.5rem;
-                font-size: calc(var(--line-width) * 4);
-                text-shadow: 0px 0px 5px var(--color-bg-light);
-            }
-
-            h3 {
-                margin: 0rem;
-                font-weight: 500;
-                font-size: 1.3rem;
-            }
-            span {
-                color: var(--color-text-muted);
-                font-size: 1rem;
-            }
-        }
-        
-        &::after {
-            content: '';
-            position: absolute;
-            width: var(--line-width);
-            background-color: var(--color-primary);
-            top: 0;
-            bottom: 0;
-            left: calc(1.9rem - var(--line-width) / 2);
-            border-radius: var(--line-width);
-        }
-    }
+    
 }
 
 .main-panel {
+    min-width: 100vw;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    container-type: inline-size;
+    
+    .help-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100vw;
+
+        .help-logo {
+            width: 100%;
+            height: 100%;
+            max-width: 50vw;
+            max-height: 30vh;
+        }
+    }
 
 }

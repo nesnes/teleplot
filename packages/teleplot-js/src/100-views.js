@@ -1,11 +1,14 @@
 class Views{
-    constructor(divId, group="default"){
+    constructor(divId="", group="default"){
         if (this.constructor === Views)
         {
-            throw new Error("Vues is an abstract class, it should only be inherited and never instanciated !");
+            throw new Error("Views is an abstract class, it should only be inherited but never instanciated !");
         }
-        this.divId = divId;
+        this.id = "view-"+crypto.randomUUID();
+        this.initialized = false;
+        this.divId = divId.length ? divId : this.id;
         this.group = group;
+        this.type = "";
         // Create group if needed
         if (TELEPLOT.view.groups[this.group] === undefined) {
             TELEPLOT.view.groups[this.group] = {
@@ -15,6 +18,11 @@ class Views{
                 timestampTo: -1
             }
         }
+
+        this.layout = TELEPLOT.Vue.reactive({
+            width: 4,
+            height: 4
+        });
 
         // View options
         this.options = TELEPLOT.Vue.reactive({
@@ -40,36 +48,30 @@ class Views{
         });
     }
 
-    update(){
-
-    }
-
-    setOption(name, value, telemetryNameOrId) {
-        // View-wide option
-        if (telemetryNameOrId === null || telemetryNameOrId === undefined || telemetryNameOrId == "") {
-            this.options[name] = value;
-            return;
-        }
-        // Telemetry-specific option
-        let telem = TELEPLOT.datastore.getTelemetry(telemetryNameOrId);
-        if(telem === undefined) return false;
-        if(this.options._telemetry[telem.id] == undefined) { this.options._telemetry[telem.id] = {}; }
-        this.options._telemetry[telem.id][name] = value;
-    }
-
-    getOption(name, telemetryNameOrId=undefined) {
-        // Check for telemetry-specific option
-        if (telemetryNameOrId !== null && telemetryNameOrId !== undefined) {
-            let telem = TELEPLOT.datastore.getTelemetry(telemetryNameOrId);
-            if( telem !== undefined 
-             && this.options._telemetry[telem.id] !== undefined
-             && this.options._telemetry[telem.id][name] !== undefined)
-            { 
-                return this.options._telemetry[telem.id][name];
+    __before_update(){
+        // Check init
+        if (!this.initialized) {
+            let element = document.getElementById(this.divId);
+            if(element !== null) {
+                this.init();
+                this.initialized = true;
             }
+            return false;
         }
-        // Fallback to view-wide options
+        return true;
+    }
+
+    setOption(name, value) {
+        this.options[name] = value;
+    }
+
+    getOption(name) {
         return this.options[name];
+    }
+
+    setSize(width, height) { // No units, relative to other views in a layout, used as flex-grow attributes
+        this.layout.width = width;
+        this.layout.height = height;
     }
     
 }
@@ -81,30 +83,10 @@ TELEPLOT.view = {
 
 TELEPLOT.view.addView = function(view){
     TELEPLOT.view.views.push(view);
-    view.init();
 }
 
 TELEPLOT.view.updateViews = function(){
     for(let view of TELEPLOT.view.views) {
         view.update();
     }
-}
-
-// Add css to head
-{
-    let elem = document.createElement('style');
-    elem.textContent = `
-        @scope (.teleplot-js-style)
-        {
-            .teleplot-js-telemetry-card {
-                backdrop-filter: blur(10px);
-                border-radius: 3px;
-                box-shadow: 0px 0px 3px 0px #85858580;
-                box-sizing: border-box;
-                font-size: 16px;
-                text-wrap-style: balance;
-            }
-        }
-    `;
-    document.head.appendChild(elem);
 }

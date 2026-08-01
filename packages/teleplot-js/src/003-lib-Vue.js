@@ -15504,7 +15504,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
     filename = `template.vue.html`,
     scopeId = null,
     optimizeImports = false,
-    runtimeGlobalName = `Teleplot.Vue`,
+    runtimeGlobalName = `__TeleplotJs4Vue.Vue`,
     runtimeModuleName = `vue`,
     ssrRuntimeModuleName = "vue/server-renderer",
     ssr = false,

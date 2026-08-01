@@ -1,4 +1,4 @@
-class ViewChart extends Views{
+class ViewChart extends ViewTelemetries{
     constructor(divId, telemetryIdOrNameList, group="default"){
         super(divId, group);
         this.type = "teleplot-chart";
@@ -28,7 +28,8 @@ class ViewChart extends Views{
                     chartData: self.chartData,
                     chart: self.chart,
                     telemetries : self.telemetries,
-                    options : self.options
+                    options : self.options,
+                    layout : self.layout
                 }
             },
             template: ViewChart.vueHTML,
@@ -139,6 +140,7 @@ class ViewChart extends Views{
     }
 
     update(){
+        if (!super.__before_update()) return;
         this.updateRunning = true;
 
         // Trigger chart resize (only if needed)
@@ -230,7 +232,8 @@ class ViewChart extends Views{
     }
     
     static vueHTML = `
-        <div class="teleplot-js-chart-container teleplot-js-telemetry-card">
+        <div class="teleplot-js-chart-container teleplot-js-telemetry-card"
+        :style=" { '--layout-width': layout.width, '--layout-height': layout.height }">
             <div class="teleplot-js-chart-legend">
                 <div v-for="(telem, index) in telemetries" v-bind:key="index" class="teleplot-js-chart-legend-block">
                     
@@ -247,7 +250,7 @@ class ViewChart extends Views{
                     
                 </div>
             </div>
-            <div class="teleplot-js-chart-container" v-bind:id="chartDivId"></div>
+            <div class="teleplot-js-chart-uplot" v-bind:id="chartDivId"></div>
         </div>
     `;
     
@@ -255,10 +258,14 @@ class ViewChart extends Views{
         @scope (.teleplot-js-style)
         {
             .teleplot-js-chart-container {
-                font-size: 14px;
+                font-size: 0.8em;
                 width: 100%;
-                height: calc(100% - 1.5em) !important;  /* keyword probably not required, but this dimension is important */
-                display: block;
+                display: flex;
+                flex-direction: column;
+            }
+            .teleplot-js-chart-uplot {
+                flex-grow: 1;
+                height: auto;
             }
             .teleplot-js-chart-legend {
                 height: 1.5em !important;               /* keyword probably not required, but this dimension is important */

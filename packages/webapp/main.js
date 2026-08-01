@@ -7,17 +7,32 @@ var app = Vue.createApp({
     data() {
         return {
             TP: Vue.reactive({}),
-            sidePanel: ""
+            ctx: Vue.reactive({
+                sidePanel: "",
+                showHelp: true
+            })
         }
     },
     created() {
-        initTeleplot(this.TP)
+        initTeleplot(this.TP);
+        this.TP.datastore.onNewTelemetryHooks.push((telem)=>{
+            console.log("On new telem", telem, this);
+        });
         console.log("Teleplot loaded:", this.TP);
-        setTimeout(()=>{
-            this.TP.connection.addConnectionTeleplotServer("127.0.0.1", 8080);
-        }, 1000)
+        Vue.provide("TP", this.TP);
+        Vue.provide("ctx", this.ctx);
+
+        // Create default connection
+        this.TP.connection.addConnectionTeleplotServer("127.0.0.1", 8080);
     }
 });
+
+// Load components
+initComponent_panel_help(app);
+initComponent_panel_sources(app);
+initComponent_panel_telemetries(app);
+initComponent_dashboard(app);
+
 app.mount("#app")
 
 
