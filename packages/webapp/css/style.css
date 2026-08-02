@@ -123,7 +123,7 @@ button {
 }
 
 #main-menu {
-    z-index: 10;
+    z-index: 1000;
     margin: 0px;
     position: absolute;
     position-anchor: --main-menu-button;
@@ -138,6 +138,12 @@ button {
     background-color: transparent;
     perspective: 150px;
     
+    animation-timing-function: cubic-bezier(.52,1.64,.61,.95);
+    display: flex;
+    flex-direction: column;
+}
+
+#main-menu, #main-menu-dashboards {
     .main-menu-item {
         display: flex;
         flex-direction: row;
@@ -167,18 +173,12 @@ button {
         font-size: 1rem;
         color: var(--color-text);
     }
-    .main-menu-item span {
+    .right-panel-menu-item-name {
         font-size: 1rem;
         color: var(--color-text);
     }
 
-    &:popover-open {
-        /*animation: fadeInLeft 0.15s forwards;*/
-        animation-timing-function: cubic-bezier(.52,1.64,.61,.95);
-        display: flex;
-        flex-direction: column;
-    }
-    &:popover-open .main-menu-item {
+    .main-menu-item {
         transform: rotateY(0deg) translateY(0rem);
         opacity: 1;
         @starting-style {
@@ -187,8 +187,46 @@ button {
         }
     }
 }
-#main-menu:has(.main-menu-item:hover) .main-menu-item:not(:hover) {
+:is(#main-menu, #main-menu-dashboards):has(.main-menu-item:hover) .main-menu-item:not(:hover) {
     opacity: 0.5;
+}
+
+
+#main-menu-dashboards {
+    z-index: 1000;
+    position: absolute;
+    position-anchor: --main-menu-button;
+    top: calc( anchor(top) - 0.2rem);
+    left:  calc( anchor(right));
+
+    display: flex;
+    flex-direction: row;
+    align-items: start;
+    justify-content: start;
+    
+    .main-menu-item {
+        border-radius: 0.5rem;
+    }
+
+    .right-panel-menu-item-edit {
+        border-left: 1px solid var(--color-text-muted);
+        padding-left: 0.5rem;
+        margin-left: 0.5rem;
+        i {
+            font-size: 1.5rem;
+            color: var(--color-text-muted);
+        }
+    }
+    .right-panel-menu-item-edit:hover {
+        i {
+            color: var(--color-primary);
+        }
+    }
+    .main-menu-item:has(.right-panel-menu-item-edit:hover) {
+        .right-panel-menu-item-name {
+            color: var(--color-text-muted);
+        }
+    }
 }
 
 .panel-container {
@@ -215,14 +253,22 @@ button {
 
     .panel-close {
         position: absolute;
-        top: 1rem;
-        right: 1rem;
+        top: 0rem;
+        right: 0rem;
         padding: 0.5rem;
         cursor: pointer;
+        font-size: 1.5rem;
+        color: var(--color-text-muted);
+    }
+    .panel-close:hover {
+        color: var(--color-danger);
+        padding: 0.25rem;
+        font-size: 2rem;
     }
 
     .panel-title {
-        margin-left: 3rem;      
+        margin-left: 3rem;  
+        margin-right: 2rem;      
         h1 {
             margin: 0rem;
             font-weight: 500;

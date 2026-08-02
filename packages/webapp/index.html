@@ -11,26 +11,37 @@
 <body>
   <div id="app">
     <!-- Main Menu -->
-    <button id="main-menu-button" class="glass-material glass-material-shadows" @click="ctx.sidePanel=''" popovertarget="main-menu">
+    <button id="main-menu-button" class="glass-material glass-material-shadows" @click="ctx.showMenu=!ctx.showMenu; ctx.sidePanel=''">
       <img src="media/logo-color-small.svg" />
     </button>
-    <div id="main-menu" ref="MainMenu" popover>
-      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='sources'; this.$refs.MainMenu.hidePopover();">
+    <div v-if="ctx.showMenu" id="main-menu">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='sources'; ctx.showMenu=false;">
         <i class="icofont-link"></i>
         <span class="right-panel-menu-item-name">Sources</span>
       </button>
-      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='telemetries'; this.$refs.MainMenu.hidePopover();">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='telemetries'; ctx.showMenu=false;">
         <i class="icofont-duotone icofont-chart"></i>
         <span class="right-panel-menu-item-name">Telemetries</span>
       </button>
-      <button class="glass-material glass-material-shadows main-menu-item">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='export'; ctx.showMenu=false;">
         <i class="icofont-share-alt"></i>
         <span class="right-panel-menu-item-name">Export</span>
       </button>
-      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='help'; this.$refs.MainMenu.hidePopover();">
+      <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.sidePanel='help'; ctx.showMenu=false;">
         <i class="icofont-info"></i>
         <span class="right-panel-menu-item-name">Help</span>
       </button>
+    </div>
+    <div v-if="ctx.showMenu" id="main-menu-dashboards">
+      <template v-for="dashboard in TP.dashboards.dashboards" :key="dashboard.name">
+        <button class="glass-material glass-material-shadows main-menu-item" @click="ctx.activeDashboard=dashboard; ctx.showMenu=false;">
+          <i class="icofont-dashboard"></i>
+          <span class="right-panel-menu-item-name">{{dashboard.name}}</span>
+          <div class="right-panel-menu-item-edit" @click.stop="ctx.activeDashboard=dashboard; ctx.sidePanel='dashboard'; ctx.showMenu=false;">
+            <i class="icofont-duotone icofont-pencil"></i>
+          </div>
+        </button>
+      </template>
     </div>
 
     <!-- Content -->
@@ -64,11 +75,20 @@
         <panel-help/>
       </div>
 
+      <div v-if="ctx.sidePanel=='dashboard' && ctx.activeDashboard" class="side-panel glass-material glass-material-shadows">
+        <div class="panel-title">
+          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <h1>{{ctx.activeDashboard.name}}</h1>
+          <span>Please help.</span>
+        </div>
+        <panel-dashboard/>
+      </div>
+
       <div class="main-panel">
 
         <template v-if="Object.entries(TP.dashboards.dashboards).length">
           <template v-for="dashboard in TP.dashboards.dashboards" :key="dashboard.name">
-            <dashboard :dashboard="dashboard"/>
+            <dashboard v-if="dashboard === ctx.activeDashboard" :dashboard="dashboard"/>
           </template>
         </template>
         <div v-else-if="ctx.showHelp" class="help-panel">
@@ -88,6 +108,7 @@
 <script src="./components/panel-help.js"></script>
 <script src="./components/panel-sources.js"></script>
 <script src="./components/panel-telemetries.js"></script>
+<script src="./components/panel-dashboard.js"></script>
 <script src="./components/dashboard.js"></script>
 <script src="./main.js"></script>
 </html>

@@ -8,8 +8,10 @@ var app = Vue.createApp({
         return {
             TP: Vue.reactive({}),
             ctx: Vue.reactive({
+                showMenu: false,
                 sidePanel: "",
-                showHelp: true
+                showHelp: true,
+                activeDashboard: null
             })
         }
     },
@@ -31,6 +33,7 @@ var app = Vue.createApp({
 initComponent_panel_help(app);
 initComponent_panel_sources(app);
 initComponent_panel_telemetries(app);
+initComponent_panel_dashboard(app);
 initComponent_dashboard(app);
 
 app.mount("#app")

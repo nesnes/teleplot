@@ -111,6 +111,7 @@ function initComponent_panel_help(vue) {
                         view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
                         this.TP.view.addView(view);
                         mainLayout.addView(view);
+                        this.ctx.activeDashboard = dashboard;
                     }
 
 
