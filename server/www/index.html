@@ -298,7 +298,7 @@
                     <div v-for="conn in connections" class="flex-col">
                         <div v-for="input in conn.inputs" class="flex-col">
                             <div v-if="input.type=='serial' && input.port" class="send-text-container">
-                                <input v-on:keyup.enter="input.sendText(input.textToSend)" type="text" v-bind:placeholder="'Send to '+input.name+' '+input.port+' ('+input.connection.name+')'" v-model="input.textToSend" style="width:100%"/>
+                                <input v-on:keyup.enter="input.sendText(input.textToSend, input.endlineToSend)" type="text" v-bind:placeholder="'Send to '+input.name+' '+input.port+' ('+input.connection.name+')'" v-model="input.textToSend" style="width:100%"/>
                                 <select v-model="input.endlineToSend" style="max-width: 60px;">
                                     <option value="\r\n">\r\n</option>
                                     <option value="\n">\n</option>
