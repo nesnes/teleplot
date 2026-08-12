@@ -21,6 +21,21 @@ function getFormatedSerieUnit(dataSerie)
     return "";
 } 
 
+function formatCSVValue(value) {
+    if (value == null) {
+        return "";
+    }
+
+    if (typeof value == "number") {
+        if (!Number.isFinite(value)) {
+            return "";
+        }
+        value = ("" + value).replace(".", app.csvDecimalSeparator);
+    }
+
+    return '"' + ("" + value).replace(/"/g, '""') + '"';
+}
+
 function exportSessionCSV() {
 
     let csv = "timestamp(ms)"+app.csvCellSeparator;
@@ -39,11 +54,7 @@ function exportSessionCSV() {
     for(let i=0;i<joinedData[0].length;i++) {
         for(let j=0;j<joinedData.length;j++) {
             let value = joinedData[j][i];
-            if(isFinite(value) && !isNaN(value)) {
-                valueStr = (""+joinedData[j][i]).replace('.',',').replace(',',app.csvDecimalSeparator)
-                csv += '"'+valueStr+'"';
-
-            }
+            csv += formatCSVValue(value);
             csv += app.csvCellSeparator
         }
         csv += "\n";
