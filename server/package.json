@@ -7,7 +7,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node main.js",
-    "make": "npm i -g pkg && pkg . && chmod -R 777 build"
+    "make": "npm i -g pkg && pkg . && chmod -R 777 build",
+    "test:csv": "node test/session-csv.test.js"
   },
   "author": "",
   "license": "MIT",
