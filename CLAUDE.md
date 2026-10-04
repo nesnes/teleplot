@@ -1,0 +1,45 @@
+# Teleplot V2 — project memory
+
+Rework of Teleplot for better performance and UI.
+
+## Guidelines
+- Minimize dependencies; always tell the user when wanting to add one.
+- Goals: performance of data ingestion and display; UI intuitive for newcomers yet powerful for experts; retro-compatible with the V1 text-based protocol.
+- For each new feature, decide whether it belongs in the lib (`packages/teleplot-js`) or in the GUI (`packages/webapp`).
+- `packages/teleplot-js/`: everything about telemetry and how it is displayed. Split into `src/` files aggregated by `build.sh` (libs included). Keep `test.html` updated with a demo of ALL lib features.
+- `packages/webapp/`: GUI for end users, exposes all lib features.
+- `clients/`: source libraries per language, as simple as possible.
+- `doc/`: documentation, must be expanded and kept updated.
+- `README.md`: V1 info + V2 targets at the end; must be rewritten and kept updated.
+- Legacy V1 (reference only, do NOT update): `server/`, `vscode/`, `images/`, other old folders.
+- Note: the folder is `packages/` (plural), not `package/`.
+
+## Build
+- `cd packages/teleplot-js && ./build.sh` concatenates `src/NNN-*.js` by numeric prefix into `teleplot-js.js`, then copies it to `packages/webapp/libs/`. Always rebuild after editing `src/`.
+- Everything lives inside one function `initTeleplot(TELEPLOT)` opened in `000-init.js` and closed in `999-export.js`. Vue (003) and uPlot (001/002) are embedded.
+
+## teleplot-js src order
+- 01x: state, protocol constants, datastore (Telemetry class), clients
+- 02x: connection (TeleplotServer WebSocket)
+- 03x: data input (UDP, Serial)
+- 040 parseDataText (V1 text protocol), 041 parseDataBinary
+- 10x: views (layout, stack, telemetries, colors); 106 decimator (MinMaxDecimator, incremental min/max decimation used by charts); 110 viewCurrentValue; 111 viewChart
+- 150 dashboards; 998 update loop (30 fps, hooks); 999 export
+
+## Protocol
+- Binary: marker 0x10, version 1, client id uint16, typed sections (client name, telem attr, data number/2D/3D/text/image, 3D shape position/rotation/quaternion/color/opacity/size/texture), checksum still TODO. Spec in `doc/binaryProtocol.md`; constants in `src/011-protocol.js`.
+- Text: V1 `name:value` style, UDP port 47269; commands UDP 47268.
+
+## Server and webapp
+- `packages/server/main.js` (Express + express-ws): relays UDP 47269 to WebSocket on 8080 (text batched every 50 ms, binary forwarded as is), forwards commands to UDP 47268, serves `../webapp`.
+- Webapp: Vue 3 (`main.js`, `index.html`, `components/` panel-help/sources/telemetries/dashboard + dashboard.js, icofont). Default connection 127.0.0.1:8080.
+
+## Performance
+- Charts decimate data before giving it to uPlot (avoids `uPlot.join` on all stored points): see `doc/performance.md`. Stored data is never reduced. Chart option `decimation` (default true).
+- `packages/teleplot-js/test-performance.html` = stress/perf page (configurable through URL, reports fps/ingestion/heap/update time). Keep it working when touching ingestion or views. `test.html` links to it.
+- Files are CRLF (Windows checkout): keep CRLF when editing/creating files.
+
+## State (as of 2026-10-04)
+- Recent work: dashboard support and panel (WIP), client identification, chart decimation (done, verified in headless Chromium: 4 series x 5 kHz stays at 60 fps).
+- Perf ideas not done yet: ring buffer / typed arrays for stored data, avoiding splice on prune and late insertion, parser allocations, optional min/max pyramid for instant full-view decimation.
+- Many tracked files appear modified in `git status` (probably line endings) — not investigated.

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teleplot JS Performance test</title>
+  <script src="teleplot-js.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 10px; }
+    #controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; }
+    #controls label { display: flex; gap: 4px; align-items: center; }
+    #controls input[type=number] { width: 6em; }
+    #stats { font-family: monospace; white-space: pre; background: #f2f2f2; padding: 6px; margin-bottom: 8px; min-height: 8em; }
+    #charts { display: flex; flex-wrap: wrap; gap: 10px; }
+    .chart { width: 48%; min-width: 400px; height: 300px; }
+  </style>
+</head>
+<body>
+  <h3>Teleplot JS - Performance test</h3>
+  <p>Streams synthetic telemetries through the text protocol, with all of them in each chart.
+     Changing a value and clicking "Apply" reloads the page with the new setup (it is kept in the URL, so a setup can be shared).</p>
+
+  <div id="controls">
+    <label>Series per chart <input id="series" type="number" min="1" max="32"></label>
+    <label>Samples/s per series <input id="rate" type="number" min="1"></label>
+    <label>Data timeout (s, 0 = keep all) <input id="timeout" type="number" min="0"></label>
+    <label>Out-of-order samples (%) <input id="late" type="number" min="0" max="100"></label>
+    <label>Charts <input id="charts-count" type="number" min="1" max="8"></label>
+    <button id="apply">Apply</button>
+    <label><input id="decimation" type="checkbox"> Chart decimation (live)</label>
+    <button id="run">Stop</button>
+    <button id="pause">Pause / Play</button>
+  </div>
+  <div id="stats">Starting...</div>
+  <div id="charts"></div>
+
+  <script>
+    initTeleplot();
+
+    // ---- Setup (from URL) ----
+    const params = new URLSearchParams(location.search);
+    const setup = {
+      series: +(params.get("series") ?? 4),
+      rate: +(params.get("rate") ?? 1000),
+      timeout: +(params.get("timeout") ?? 15),
+      late: +(params.get("late") ?? 0),
+      charts: +(params.get("charts") ?? 1),
+      decimation: params.get("decimation") !== "0",
+    };
+    document.getElementById("series").value = setup.series;
+    document.getElementById("rate").value = setup.rate;
+    document.getElementById("timeout").value = setup.timeout;
+    document.getElementById("late").value = setup.late;
+    document.getElementById("charts-count").value = setup.charts;
+    document.getElementById("decimation").checked = setup.decimation;
+
+    document.getElementById("apply").onclick = () => {
+      const value = (id) => document.getElementById(id).value;
+      location.search = new URLSearchParams({
+        series: value("series"), rate: value("rate"), timeout: value("timeout"), late: value("late"),
+        charts: value("charts-count"), decimation: document.getElementById("decimation").checked ? 1 : 0,
+      });
+    };
+    document.getElementById("pause").onclick = () => { Teleplot.state.isPaused = !Teleplot.state.isPaused; };
+
+    Teleplot.state.dataTimeout = setup.timeout;
+
+    // ---- Charts ----
+    const telemNames = Array.from({length: setup.series}, (_, i) => "perf.series" + i);
+    const chartViews = [];
+    for (let i = 0; i < setup.charts; i++) {
+      const div = document.createElement("div");
+      div.id = "chart-" + i;
+      div.className = "chart";
+      document.getElementById("charts").appendChild(div);
+      const view = new Teleplot.view.ViewChart(div.id, telemNames);
+      view.setOption("decimation", setup.decimation);
+      Teleplot.view.addView(view);
+      chartViews.push(view);
+    }
+    document.getElementById("decimation").onchange = (event) => {
+      for (const view of chartViews) { view.setOption("decimation", event.target.checked); view.updateForced = true; }
+    };
+
+    // ---- Data generator (through the text protocol, in batches like a real client would) ----
+    const generator = { running: true, startMs: Date.now(), emitted: 0, ingestMs: 0, ingestedSamples: 0 };
+    document.getElementById("run").onclick = (event) => {
+      generator.running = !generator.running;
+      if (generator.running) { generator.startMs = Date.now() - generator.emitted / setup.rate * 1000; }
+      event.target.textContent = generator.running ? "Stop" : "Start";
+    };
+
+    function generate() {
+      if (!generator.running) return;
+      const target = Math.floor((Date.now() - generator.startMs) / 1000 * setup.rate); // Samples that should exist by now
+      if (target <= generator.emitted) return;
+      const lines = [];
+      for (let s = 0; s < setup.series; s++) {
+        const samples = [];
+        for (let n = generator.emitted; n < target; n++) {
+          let timestampMs = generator.startMs + (n + s * 0.37) / setup.rate * 1000; // Series do not share timestamps
+          if (Math.random() * 100 < setup.late) timestampMs -= 200;
+          const value = Math.sin(timestampMs / 1000 * (1 + s)) * 10 + Math.random();
+          samples.push(timestampMs.toFixed(3) + ":" + value.toFixed(3));
+        }
+        lines.push(telemNames[s] + ":" + samples.join(";"));
+      }
+      const start = performance.now();
+      Teleplot.parseDataText(lines.join("\n"));
+      generator.ingestMs += performance.now() - start;
+      generator.ingestedSamples += (target - generator.emitted) * setup.series;
+      generator.emitted = target;
+    }
+    setInterval(generate, 20);
+
+    // ---- Measures ----
+    // Time spent in each update hook (data timeout, views update), over the last report period
+    const hookLabels = ["Data timeout update", "Views update"]; // Same order as Teleplot.updates.onUpdateHooks
+    const hookTimes = {};
+    Teleplot.updates.onUpdateHooks.forEach((hook, i) => {
+      const label = hookLabels[i] ?? "Hook " + i;
+      Teleplot.updates.onUpdateHooks[i] = () => {
+        const start = performance.now();
+        hook();
+        const elapsed = performance.now() - start;
+        const t = hookTimes[label] ??= {sum: 0, max: 0, count: 0};
+        t.sum += elapsed; t.max = Math.max(t.max, elapsed); t.count++;
+      };
+    });
+    let frameCount = 0;
+    (function countFrames() { frameCount++; requestAnimationFrame(countFrames); })();
+
+    const REPORT_MS = 1000;
+    let lastReport = performance.now();
+    setInterval(() => {
+      const seconds = (performance.now() - lastReport) / 1000;
+      lastReport = performance.now();
+
+      let storedPoints = 0;
+      for (const name of telemNames) {
+        const telem = Teleplot.datastore.getTelemetry(name);
+        if (telem) for (const type in telem.data) storedPoints += telem.data[type].timestamps.length;
+      }
+      const heap = performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + " MB" : "n/a (Chrome only)";
+      let text = `Page frame rate      : ${(frameCount / seconds).toFixed(0)} fps\n`
+               + `Ingested             : ${(generator.ingestedSamples / seconds / 1000).toFixed(1)} k samples/s (${(generator.ingestMs / seconds / 10).toFixed(1)} % of time spent parsing)\n`
+               + `Stored points        : ${storedPoints.toLocaleString()}\n`
+               + `JS heap              : ${heap}\n`;
+      for (const [name, t] of Object.entries(hookTimes)) {
+        text += `${name.padEnd(21)}: avg ${(t.sum / Math.max(t.count, 1)).toFixed(2)} ms, max ${t.max.toFixed(1)} ms per update (budget ${Teleplot.state.updateIntervalMs} ms)\n`;
+        delete hookTimes[name];
+      }
+      document.getElementById("stats").textContent = text;
+      frameCount = 0; generator.ingestedSamples = 0; generator.ingestMs = 0;
+    }, REPORT_MS);
+  </script>
+</body>
+</html>

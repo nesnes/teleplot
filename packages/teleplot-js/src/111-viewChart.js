@@ -7,11 +7,14 @@ class ViewChart extends ViewTelemetries{
         this.updateForced = true; // Force initial update
         this.updateRunning = false;
         this.supportedDataTypes = [""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER];
+        this.setOption("decimation", true); // Only give the chart what it can display (see MinMaxDecimator), stored data is untouched
+        this.decimators = {};               // One MinMaxDecimator per telemetry id
+        this.lastDisplayRange = "";         // Time range and resolution used to build chartData, to detect a need for update
 
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
         this.chartDivId = "teleplot-chart-"+crypto.randomUUID();
-        this.chartData = TELEPLOT.Vue.reactive([]);
+        this.chartData = TELEPLOT.Vue.markRaw([]); // Not reactive: uPlot reads it all the time, proxies would slow it down
         this.chart = TELEPLOT.Vue.reactive({});
         this.chartOptions = TELEPLOT.Vue.reactive({});
     }
@@ -202,20 +205,18 @@ class ViewChart extends ViewTelemetries{
         }
 
         // Create chart data
+        let displayRange = this.getDisplayRange();
+        needUpdate |= this.lastDisplayRange != displayRange.key;
         if(needUpdate || this.updateForced) {
+            this.lastDisplayRange = displayRange.key;
             let dataList = [];
             for(let telemIdOrName of this.telemetryIdOrNameList){
                 let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
                 if(telem === undefined) continue;
                 
-                for(let dataType in telem.data) {
-                    if(!this.supportedDataTypes.includes(dataType)) continue;
-                    dataList.push([
-                            telem.data[dataType].timestamps,
-                            ...telem.data[dataType].data // only 1 channel expected
-                    ]);
-                    break; // only 1 datatype expected
-                }
+                let dataEntry = this.getSupportedDataEntry(telem);
+                if(dataEntry === undefined) continue;
+                dataList.push(this.getSeriesData(telem, dataEntry, displayRange));
             }
             this.chartData.length = 0;
             this.chartData.push(...TELEPLOT.uPlot.join(dataList));
@@ -239,6 +240,59 @@ class ViewChart extends ViewTelemetries{
         queueMicrotask(()=>{this.updateRunning = false;}); // Need to use queueMicrotask to make sure to run after uPlot hooks are fired
     }
     
+    // Data entry of the telemetry that this chart can display (only 1 datatype expected)
+    getSupportedDataEntry(telem) {
+        for(let dataType in telem.data) {
+            if(this.supportedDataTypes.includes(dataType)) return telem.data[dataType];
+        }
+        return undefined;
+    }
+
+    // Time range currently displayed (the zoomed range, or all the data), and number of pixel columns to display it
+    getDisplayRange() {
+        let group = TELEPLOT.view.groups[this.group];
+        let from = Infinity;
+        let to = -Infinity;
+        if(group.cursorActive) {
+            from = group.timestampFrom;
+            to = group.timestampTo;
+        }
+        else {
+            for(let telemIdOrName of this.telemetryIdOrNameList){
+                let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
+                let dataEntry = telem && this.getSupportedDataEntry(telem);
+                if(dataEntry === undefined || dataEntry.timestamps.length == 0) continue;
+                from = Math.min(from, dataEntry.timestamps[0]);
+                to = Math.max(to, dataEntry.timestamps.at(-1));
+            }
+        }
+        let maxBuckets = Math.max(this.chartOptions.width || 0, 100);
+        return { from, to, maxBuckets, key: `${from},${to},${maxBuckets}` };
+    }
+
+    // [timestamps, values] of a series, as given to uPlot
+    getSeriesData(telem, dataEntry, displayRange) {
+        if(!this.getOption("decimation") || !(displayRange.from < displayRange.to) || dataEntry.timestamps.length == 0) {
+            return [dataEntry.timestamps, ...dataEntry.data]; // only 1 channel expected
+        }
+        if(this.decimators[telem.id] === undefined) {
+            this.decimators[telem.id] = new MinMaxDecimator();
+        }
+        let view = this.decimators[telem.id].getView(dataEntry, displayRange.from, displayRange.to, displayRange.maxBuckets);
+
+        // Always include the first and last samples: uPlot uses the extent of its data to reset the zoom
+        let last = dataEntry.timestamps.length - 1;
+        if(!(dataEntry.timestamps[0] >= view.timestamps[0])) {
+            view.timestamps.unshift(dataEntry.timestamps[0]);
+            view.values.unshift(dataEntry.data[0][0]);
+        }
+        if(!(dataEntry.timestamps[last] <= view.timestamps.at(-1))) {
+            view.timestamps.push(dataEntry.timestamps[last]);
+            view.values.push(dataEntry.data[0][last]);
+        }
+        return [view.timestamps, view.values];
+    }
+
     static vueHTML = `
         <div class="teleplot-js-chart-container teleplot-js-telemetry-card"
         :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"

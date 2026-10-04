@@ -29,7 +29,8 @@ class Telemetry {
 
         // Create data type if needed
         if (this.data[dataType] == undefined) {
-            this.data[dataType] = {timestamps: [], data: [], lastUpdate: 0};
+            // lateInsertions counts samples inserted before the end of the data, it lets caches (ex: decimation) know when they are outdated
+            this.data[dataType] = {timestamps: [], data: [], lastUpdate: 0, lateInsertions: 0};
             for(let i=0;i<dataList.length;i++) {
                 this.data[dataType].data[i] = [];
             }
@@ -46,6 +47,7 @@ class Telemetry {
                 else { insertIdx = closestDataPoint.index+1; } // insert "after" 
             }
             // Insert data
+            if (insertIdx < this.data[dataType].timestamps.length) this.data[dataType].lateInsertions++;
             this.data[dataType].timestamps.splice(insertIdx, 0, timestamp);
             for(let j=0;j<dataList.length;j++) {
                 this.data[dataType].data[j].splice(insertIdx, 0, dataList[j][i]);
