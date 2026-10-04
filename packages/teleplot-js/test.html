@@ -181,6 +181,41 @@
     Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry", "multi-channel-telemetry"]));
 
 
+    // Log: text telemetries as lines (oldest at the top, newest at the bottom), same time window and cursor as the charts of the group
+    Teleplot.datastore.addTelemetry("log.main");
+    Teleplot.datastore.addTelemetry("log.events");
+    Teleplot.datastore.addTelemetry("log.empty").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[1]]); // No text at all
+    const logLevels = ["INFO", "INFO", "INFO", "WARN", "ERROR"];
+    const logLongLine = "A very long line without any problem to wrap: " + "lorem ipsum dolor sit amet ".repeat(8) + "https://example.com/a/very/long/path/that/has/no/space/in/it/at/all/".repeat(2);
+    let logCount = 0;
+    setInterval(() => {
+      let now = Date.now() / 1000;
+      let text = (logCount % 17 == 16) ? logLongLine : (logCount % 11 == 10) ? "two\nlines" : `[${logLevels[logCount % logLevels.length]}] message #${logCount}`;
+      Teleplot.datastore.getTelemetry("log.main").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [now], [[text]]);
+      if (logCount % 5 == 0) Teleplot.datastore.getTelemetry("log.events").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [now], [["event " + (logCount / 5)]]);
+      logCount++;
+    }, 400);
+
+    divId = createTestElement("Log - Single (follows the newest line, scroll up to read, hover a line to move the cursor)", "400px", "210px")
+    Teleplot.view.addView(new Teleplot.view.ViewLog(divId, ["log.main"]));
+
+    divId = createTestElement("Log - Two telemetries merged, with a chart: hover the chart to highlight the log line", "500px", "210px")
+    Teleplot.view.addView(new Teleplot.view.ViewLog(divId, ["log.main", "log.events"]));
+    divId = createTestElement("Chart synchronized with the log above (same group)", "500px", "210px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry"]));
+
+    divId = createTestElement("Log - Without time, 5 lines max", "300px", "210px")
+    Teleplot.view.addView(new Teleplot.view.ViewLog(divId, ["log.main"]));
+    Teleplot.view.views.at(-1).setOption("displayTimestamp", false);
+    Teleplot.view.views.at(-1).setOption("maxLines", 5);
+
+    divId = createTestElement("Log - Narrow", "150px", "210px")
+    Teleplot.view.addView(new Teleplot.view.ViewLog(divId, ["log.main", "log.events"]));
+
+    divId = createTestElement("Log - Nothing to display (number telemetry, no data yet)", "300px", "210px")
+    Teleplot.view.addView(new Teleplot.view.ViewLog(divId, ["log.empty", "does.not.exist"]));
+
+
     // Auto dashboard: telemetries created after this call are displayed without any setup
     const autoDivId = createTestElement("Auto dashboard (enableAutoDashboard)", "600px", "300px")
     Teleplot.dashboards.enableAutoDashboard("Auto demo", (dashboard) => {

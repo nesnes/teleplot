@@ -23,7 +23,7 @@ Rework of Teleplot for better performance and UI.
 - 02x: connection (TeleplotServer WebSocket)
 - 03x: data input (UDP, Serial)
 - 040 parseDataText (V1 text protocol), 041 parseDataBinary
-- 10x: views (layout, stack, telemetries, colors); 106 decimator (MinMaxDecimator, incremental min/max decimation used by charts); 110 viewCurrentValue; 111 viewChart
+- 10x: views (layout, stack, telemetries, colors); 106 decimator (MinMaxDecimator, incremental min/max decimation used by charts); 110 viewCurrentValue; 111 viewChart; 112 viewLog (text telemetries as lines, newest at the bottom, follows the group time window and cursor, maxLines option)
 - 150 dashboards; 998 update loop (30 fps, hooks); 999 export
 
 ## Protocol

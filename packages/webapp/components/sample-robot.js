@@ -1,7 +1,7 @@
 /*
  * Sample data: a tiny robot wandering in a 4 x 3 m arena, to demo every kind of telemetry.
  * Self-contained: only uses the Teleplot API (TP.datastore, TP.view, TP.dashboards).
- * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, log), image (camera).
+ * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, log lines shown in a Log view), image (camera).
  * TODO: 3D telemetries (robot position/rotation) once the 3D views exist.
  *
  *   const robot = createRobotSample(TP);   // robot.start(), robot.stop(), robot.running, robot.dashboard
@@ -118,7 +118,7 @@ function createRobotSample(TP) {
         const stack = new TP.view.ViewStack("", group);
         stack.setSize(2, 4);
         bottom.addView(stack);
-        const log = values(["robot.log"], 2, 4); log.name = "Log"; stack.addView(log);
+        const log = new TP.view.ViewLog("", ["robot.log"], group); log.setSize(2, 4); log.name = "Log"; stack.addView(log);
         const gyro = chart(["robot.gyro.z"], 2, 4); gyro.name = "Gyro"; stack.addView(gyro);
         return dashboard;
     }
