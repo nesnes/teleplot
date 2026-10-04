@@ -1,8 +1,8 @@
 /*
  * Log view: every text update of one or more telemetries as a line, oldest at the top, newest at the bottom.
  * - Follows the time window of its group (the zoomed range when set, all the stored data otherwise).
- * - Cursor synchronisation: the line closest to the group cursor is highlighted (and scrolled into view when the cursor
- *   comes from another view), hovering a line moves the group cursor to its timestamp.
+ * - Cursor synchronisation: the line closest to the group cursor is highlighted and scrolled into view when the cursor comes from
+ *   another view (only the lines scroll, never the page), hovering a line moves the group cursor to its timestamp.
  * - Sticks to the newest line while scrolled to the bottom, stays where it is when the user scrolled up to read.
  * - Only the newest "maxLines" lines of the window are rendered (the stored data is untouched).
  */
@@ -31,7 +31,7 @@ class ViewLog extends ViewTelemetries{
         });
         this.lastKey = "";
         this.followLatest = true; // Is the view scrolled to the bottom ?
-        this.hovering = false;    // Is the mouse over the view ? (then the cursor comes from this view, do not scroll)
+        this.hovering = false;    // Is the mouse over the view ? (then the cursor comes from this view: no scrolling under the user's mouse)
         this.lastScrolledCursor = -2;
     }
 
@@ -191,26 +191,31 @@ class ViewLog extends ViewTelemetries{
 
     getScrollElement() {
         let element = document.getElementById(this.divId);
-        return element ? element.querySelector(".teleplot-js-log-container") : null;
+        return element ? element.querySelector(".teleplot-js-log-scroll") : null;
     }
 
     scrollToFollow() {
         let scroller = this.getScrollElement();
-        if (!scroller || !this.followLatest || this.state.cursorIndex >= 0) return;
+        if (!scroller || !this.followLatest) return;
         scroller.scrollTop = scroller.scrollHeight;
     }
 
+    // Bring the highlighted line into view by moving the scroll area only: Element.scrollIntoView() would also scroll the page
     scrollToCursor() {
         let scroller = this.getScrollElement();
         let row = scroller && scroller.querySelector(".teleplot-js-log-row-cursor");
-        if (row) row.scrollIntoView({ block: "nearest" });
+        if (!row) return;
+        let top = row.offsetTop, bottom = top + row.offsetHeight; // The scroll area is the offset parent of the lines
+        if (top < scroller.scrollTop) scroller.scrollTop = top;
+        else if (bottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = bottom - scroller.clientHeight;
     }
 
     static vueHTML = `
         <div class="teleplot-js-log-container teleplot-js-telemetry-card"
         :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"
-        @scroll="onScroll($event)" @mouseleave="onLeave()"
+        @mouseleave="onLeave()"
         ${ViewTelemetries.dragDropHtml}>
+          <div class="teleplot-js-log-scroll" @scroll="onScroll($event)">
             <div v-if="state.hidden > 0" class="teleplot-js-log-hidden">&hellip; {{state.hidden}} older line{{state.hidden > 1 ? 's' : ''}} not shown</div>
             <div v-for="(row, index) in state.rows" v-bind:key="index" class="teleplot-js-log-row"
                 v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex}"
@@ -221,6 +226,7 @@ class ViewLog extends ViewTelemetries{
                 <span class="teleplot-js-log-text">{{row.text}}</span>
             </div>
             <div v-if="!state.rows.length" class="teleplot-js-log-empty">No log yet</div>
+          </div>
         </div>
     `;
 
@@ -228,9 +234,15 @@ class ViewLog extends ViewTelemetries{
         @scope (.teleplot-js-style)
         {
             .teleplot-js-log-container {
+                position: relative;
                 width: 100%;
                 height: 100%;
                 font-size: 0.8em;
+                overflow: hidden;
+            }
+            .teleplot-js-log-scroll { /* Out of the flow: the lines never make the view grow, it keeps the size the layout gives it */
+                position: absolute;
+                inset: 0;
                 overflow-x: hidden;
                 overflow-y: auto;
                 scrollbar-width: thin;

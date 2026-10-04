@@ -8,6 +8,7 @@ html {
     --color-bg-dark: hsl(0 0% 90%);
     --color-bg: hsl(192 15% 94%);
     --color-bg-light: hsl(192 15% 100%);
+    --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%); /* Side panels: a softer surface than pure --color-bg-light, so it does not glare next to the page */
     --color-text: hsl(0 0% 10%);
     --color-text-muted: hsl(0 0% 40%);
     --color-shadow: hsl(0deg 0% 50% / 50%);
@@ -142,7 +143,7 @@ button {
 }
 
 .side-panel {
-    background-color: var(--color-bg-light);
+    background-color: var(--color-bg-panel);
     margin-right: 1em;
     border: 2px solid var(--color-bg-dark);
     border-left: 0px;

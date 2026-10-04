@@ -59,23 +59,27 @@ class ViewTelemetries extends Views {
         view.dragContext.isActive = view.dragContext.counter > 0;
     }
     onDragDrop(event, view) {
-        console.log("onDragDrop", event)
         view.dragContext.isActive = false;
         view.dragContext.counter = 0;
 
         let isTelemetry = event.dataTransfer.types.includes("text/x-teleplot-drag-type-telemetry")
-        let hasId = event.dataTransfer.types.includes("text/x-teleplot-drag-id")        
-        if(isTelemetry && hasId) {
-            // Add telemetry
-            let id = Number(event.dataTransfer.getData("text/x-teleplot-drag-id"));
-            let telemToDrop = TELEPLOT.datastore.getTelemetry(id);
-            for(let telemIdOrName of view.telemetryIdOrNameList){
-                let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
-                if(telem.id == telemToDrop.id) { return; }
-            }
-            view.telemetryIdOrNameList.push(telemToDrop.id);
-        }
+        let hasId = event.dataTransfer.types.includes("text/x-teleplot-drag-id")
+        if(!(isTelemetry && hasId)) return;
 
+        // One telemetry ("drag-id"), or several (a group: "drag-ids", comma separated ids)
+        let ids = [Number(event.dataTransfer.getData("text/x-teleplot-drag-id"))];
+        if(event.dataTransfer.types.includes("text/x-teleplot-drag-ids")) {
+            ids = event.dataTransfer.getData("text/x-teleplot-drag-ids").split(",").map(Number);
+        }
+        for(let id of ids) {
+            let telemToDrop = TELEPLOT.datastore.getTelemetry(id);
+            if(telemToDrop === undefined) continue;
+            let alreadyThere = view.telemetryIdOrNameList.some((telemIdOrName) => {
+                let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
+                return telem !== undefined && telem.id == telemToDrop.id;
+            });
+            if(!alreadyThere) view.telemetryIdOrNameList.push(telemToDrop.id);
+        }
     }
 
     static dragDropHtml = `

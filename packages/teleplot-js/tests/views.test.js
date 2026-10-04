@@ -94,6 +94,16 @@ test('dropping a telemetry on a view adds it once', () => {
     assert.equal(chart.dragContext.isActive, false);
 });
 
+test('dropping a group of telemetries adds each of them once', () => {
+    const T = loadTeleplot();
+    const a = T.datastore.getOrCreateTelemetry('a'), b = T.datastore.getOrCreateTelemetry('b'), c = T.datastore.getOrCreateTelemetry('c');
+    const chart = new T.view.ViewChart('x', ['b']);
+    const types = ['text/x-teleplot-drag-type-telemetry', 'text/x-teleplot-drag-id', 'text/x-teleplot-drag-ids'];
+    const drop = ids => ({ dataTransfer: { types, getData: type => type.endsWith('-ids') ? ids.join(',') : String(ids[0]) } });
+    chart.onDragDrop(drop([a.id, b.id, c.id, 123456]), chart); // 123456: unknown id, ignored
+    assert.deepEqual(chart.telemetryIdOrNameList, ['b', a.id, c.id]);
+});
+
 test('drag enter/leave highlight only for telemetries', () => {
     const T = loadTeleplot();
     const chart = new T.view.ViewChart('x', []);
