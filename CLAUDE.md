@@ -44,3 +44,7 @@ Rework of Teleplot for better performance and UI.
 - Ingestion: `addData` has an append fast path; binary parser has no BigInt/console.log; binary data timeout attribute is converted from ns to seconds; WebSocket uses `binaryType = "arraybuffer"`; update hooks are isolated with try/catch.
 - Perf ideas not done yet: ring buffer / typed arrays for stored data, avoiding splice on prune and late insertion, text parser allocations, optional min/max pyramid for instant full-view decimation, batching binary packets in the server.
 - Many tracked files appear modified in `git status` (probably line endings) — not investigated.
+
+## Tests
+
+- `packages/teleplot-js/tests/` (zero dependency, Node built-in runner): run `./test.sh` from `packages/teleplot-js/`. Library only (no external files). Loads every `src/` file except Vue/uPlot via `helpers/load.js`, with stubs for DOM/Vue/uPlot/WebSocket/timers (`helpers/stubs.js`). Covers datastore, parsers, decimator, protocol, views, chart data, connections. Keep tests updated with new features; see `tests/README.md`.

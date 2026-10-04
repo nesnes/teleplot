@@ -139,3 +139,5 @@ class MinMaxDecimator {
         }
     }
 }
+
+TELEPLOT.MinMaxDecimator = MinMaxDecimator;
