@@ -1,9 +1,9 @@
 # teleplot-js tests
 
-No dependency: Node's built-in test runner (Node 20+). Only the library is tested (nothing outside `packages/teleplot-js/`).
+No dependency: a tiny runner (`run.js`, `helpers/mini-test.js`) on top of `node:assert`, works on Node 16+ (`node:test` needs Node 18). Only the library is tested (nothing outside `packages/teleplot-js/`).
 
     ./test.sh                                   # from packages/teleplot-js/
-    ./test.sh --test-name-pattern=decimat       # extra arguments go to `node --test`
+    ./test.sh decimat                           # only tests whose file/name match this regex
 
 The tests load the library sources (`src/NNN-*.js`) directly, not the built bundle, into a fresh isolated instance. Vue, uPlot, the DOM, WebSocket and timers are replaced by light stubs (`helpers/stubs.js`), so views and connections run in Node and nothing runs by itself (`T.__timers.run()` fires pending timers).
 

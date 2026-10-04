@@ -19,6 +19,7 @@ FakeWebSocket.instances = [];
 // Globals used directly by the sources (installed once, they hold no state that matters)
 function installGlobals() {
     if (globalThis.document && globalThis.document.__teleplotStub) return;
+    if (!globalThis.crypto) globalThis.crypto = require('node:crypto'); // Node < 19 has no global crypto (randomUUID is used by the views)
     globalThis.document = { __teleplotStub: true, head: makeElement(), createElement: makeElement, getElementById: () => null };
     globalThis.WebSocket = FakeWebSocket;
 }

@@ -1,5 +1,5 @@
 // 111-viewChart and 110-viewCurrentValue (data side: what is given to the chart / displayed), without DOM
-const test = require('node:test');
+const test = require('./helpers/mini-test');
 const assert = require('node:assert/strict');
 const { loadTeleplot } = require('./helpers/load');
 

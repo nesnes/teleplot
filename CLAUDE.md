@@ -47,4 +47,4 @@ Rework of Teleplot for better performance and UI.
 
 ## Tests
 
-- `packages/teleplot-js/tests/` (zero dependency, Node built-in runner): run `./test.sh` from `packages/teleplot-js/`. Library only (no external files). Loads every `src/` file except Vue/uPlot via `helpers/load.js`, with stubs for DOM/Vue/uPlot/WebSocket/timers (`helpers/stubs.js`). Covers datastore, parsers, decimator, protocol, views, chart data, connections. Keep tests updated with new features; see `tests/README.md`.
+- `packages/teleplot-js/tests/` (zero dependency, tiny runner on node:assert, Node 16+): run `./test.sh` from `packages/teleplot-js/`. Library only (no external files). Loads every `src/` file except Vue/uPlot via `helpers/load.js`, with stubs for DOM/Vue/uPlot/WebSocket/timers (`helpers/stubs.js`). Covers datastore, parsers, decimator, protocol, views, chart data, connections. Keep tests updated with new features; see `tests/README.md`.

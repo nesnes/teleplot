@@ -1,5 +1,5 @@
 // 020-connection, 021-connectionTeleplotServer, 030-dataInput, 031-dataInputUDP, 032-dataInputSerial (fake WebSocket)
-const test = require('node:test');
+const test = require('./helpers/mini-test');
 const assert = require('node:assert/strict');
 const { loadTeleplot, captureConsole } = require('./helpers/load');
 const { FakeWebSocket } = require('./helpers/stubs');

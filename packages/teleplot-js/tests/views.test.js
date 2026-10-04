@@ -1,5 +1,5 @@
 // 100-views, 101-viewLayout, 102-viewStack, 103-viewTelemetries, 150-dashboards, 998-update
-const test = require('node:test');
+const test = require('./helpers/mini-test');
 const assert = require('node:assert/strict');
 const { loadTeleplot, captureConsole } = require('./helpers/load');
 

@@ -1,5 +1,5 @@
 // 011-protocol, 013-clients, 105-colors
-const test = require('node:test');
+const test = require('./helpers/mini-test');
 const assert = require('node:assert/strict');
 const { loadTeleplot, captureConsole } = require('./helpers/load');
 
