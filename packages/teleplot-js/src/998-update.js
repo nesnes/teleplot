@@ -7,7 +7,8 @@ TELEPLOT.updates.onUpdateHooks = [
 
 TELEPLOT.updates.update = function() {
     for(let hook of TELEPLOT.updates.onUpdateHooks) {
-        hook();
+        try { hook(); }
+        catch(e) { console.error("Teleplot update hook failed:", e); } // A failing hook must not prevent the others (ex: views) from running
     }
 }
 

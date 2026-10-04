@@ -16,9 +16,27 @@ A chart now only gives uPlot what a screen can show (`src/106-decimator.js`, use
 
 The decimation is a chart option (on by default): `view.setOption("decimation", false)` gives uPlot the raw data like before, which is useful to compare.
 
+## Ingestion
+
+- **Datastore append fast path**: `Telemetry.addData` appends samples that arrive in order (the common case) directly. Only late samples pay for a binary search and an `splice` insertion (counted in `lateInsertions`). Samples sharing an identical timestamp are now kept in arrival order.
+- **Binary protocol parser** (`src/041-parseDataBinary.js`): no per-packet `console.log`, no BigInt (timestamps and the 64-bit time reference are computed from two 32-bit halves, with the precision of a double as before), strings decoded with a shared `TextDecoder`, no copy of `Uint8Array` inputs.
+- `TELEM_ATTR_DATA_TIMEOUT` is sent in nanoseconds (uint64) and converted to seconds when parsed, like `Teleplot.state.dataTimeout`. It used to be kept as a BigInt, which made the data timeout code throw and block the views update on every update.
+- The update loop isolates its hooks: if one throws (error reported in the console), the others still run.
+- WebSocket binary messages are received as `ArrayBuffer` (`binaryType`), so they are handled synchronously and in order (`Blob` decoding is asynchronous and doesn't keep the packets order).
+
+Parsing speed in Node, one telemetry (million samples per second):
+
+| Samples per message | Text V1 before | Text V1 now | Binary before | Binary now |
+|---|---|---|---|---|
+| 10 | 1.05 | 2.07 | 1.49 | 6.7 |
+| 100 | 1.16 | 2.50 | 1.74 | 11.3 |
+| 175 (full UDP packet) | | | 1.75 | 10.9 |
+
+Binary is also 8 bytes per number sample on the wire, against about 25 for text.
+
 ## Measuring
 
-`packages/teleplot-js/test-performance.html` streams synthetic telemetries (series count, rate, data timeout, out-of-order samples, number of charts, all configurable and kept in the URL) through the text protocol, and reports frame rate, ingestion rate, stored points, JS heap (Chrome only) and the time spent per update.
+`packages/teleplot-js/test-performance.html` streams synthetic telemetries (series count, rate, data timeout, out-of-order samples, number of charts and text or binary protocol, all configurable and kept in the URL) straight into the parsers, and reports frame rate, ingestion rate, input size, stored points, JS heap (Chrome only) and the time spent per update.
 
 Reference measurements (headless Chromium, 4 series with distinct timestamps, 15 s window):
 
@@ -26,3 +44,5 @@ Reference measurements (headless Chromium, 4 series with distinct timestamps, 15
 |---|---|---|---|
 | 5 kHz per series, decimation on | 2.1 ms avg (6.7 ms max) | 60 | 12 MB |
 | 5 kHz per series, decimation off | 108 ms avg (271 ms max) | 4 | 121 MB |
+| binary, 5 kHz per series, decimation on | 3.5 ms avg (4.7 ms max) | 60 | 21 MB |
+| binary, 20 kHz per series, 8 series (1.9 M points stored) | 7.9 ms avg (11.9 ms max) | 60 | 43 MB |

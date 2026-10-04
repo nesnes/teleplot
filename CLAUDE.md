@@ -36,10 +36,11 @@ Rework of Teleplot for better performance and UI.
 
 ## Performance
 - Charts decimate data before giving it to uPlot (avoids `uPlot.join` on all stored points): see `doc/performance.md`. Stored data is never reduced. Chart option `decimation` (default true).
-- `packages/teleplot-js/test-performance.html` = stress/perf page (configurable through URL, reports fps/ingestion/heap/update time). Keep it working when touching ingestion or views. `test.html` links to it.
+- `packages/teleplot-js/test-performance.html` = stress/perf page (text or binary protocol, configurable through URL, reports fps/ingestion/heap/update time). Keep it working when touching ingestion or views. `test.html` links to it.
 - Files are CRLF (Windows checkout): keep CRLF when editing/creating files.
 
 ## State (as of 2026-10-04)
 - Recent work: dashboard support and panel (WIP), client identification, chart decimation (done, verified in headless Chromium: 4 series x 5 kHz stays at 60 fps).
-- Perf ideas not done yet: ring buffer / typed arrays for stored data, avoiding splice on prune and late insertion, parser allocations, optional min/max pyramid for instant full-view decimation.
+- Ingestion: `addData` has an append fast path; binary parser has no BigInt/console.log; binary data timeout attribute is converted from ns to seconds; WebSocket uses `binaryType = "arraybuffer"`; update hooks are isolated with try/catch.
+- Perf ideas not done yet: ring buffer / typed arrays for stored data, avoiding splice on prune and late insertion, text parser allocations, optional min/max pyramid for instant full-view decimation, batching binary packets in the server.
 - Many tracked files appear modified in `git status` (probably line endings) — not investigated.

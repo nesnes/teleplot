@@ -36,25 +36,32 @@ class Telemetry {
             }
         }
         // For each incoming data, insert ordered
+        let stored = this.data[dataType];
+        let lastTimestamp = stored.timestamps.length ? stored.timestamps[stored.timestamps.length-1] : -Infinity;
         for(let i=0;i<timestamps.length;i++) {
             let timestamp = timestamps[i];
             if (timestamp<0) continue; // Do not use negative timestamps (not supported and -1 could interact with getDataPoint)
-            // Find insertion point (keeping data timestamp-ordered)
-            let closestDataPoint = this.getDataPoint(dataType, timestamp);
-            let insertIdx = timestamps.length; // insert at the end
-            if (closestDataPoint.index !== undefined) {
-                if (closestDataPoint.timestamp > timestamp) { insertIdx = closestDataPoint.index; } // insert "before"
-                else { insertIdx = closestDataPoint.index+1; } // insert "after" 
+            // Fast path: data coming in order is appended (the common case, much cheaper than a search and an insertion)
+            if (timestamp >= lastTimestamp) {
+                stored.timestamps.push(timestamp);
+                for(let j=0;j<dataList.length;j++) {
+                    stored.data[j].push(dataList[j][i]);
+                }
+                lastTimestamp = timestamp;
+                continue;
             }
+            // Late data: find insertion point (keeping data timestamp-ordered)
+            let closestDataPoint = this.getDataPoint(dataType, timestamp);
+            let insertIdx = closestDataPoint.timestamp > timestamp ? closestDataPoint.index : closestDataPoint.index+1; // insert "before" or "after" the closest data point
             // Insert data
-            if (insertIdx < this.data[dataType].timestamps.length) this.data[dataType].lateInsertions++;
-            this.data[dataType].timestamps.splice(insertIdx, 0, timestamp);
+            stored.lateInsertions++;
+            stored.timestamps.splice(insertIdx, 0, timestamp);
             for(let j=0;j<dataList.length;j++) {
-                this.data[dataType].data[j].splice(insertIdx, 0, dataList[j][i]);
+                stored.data[j].splice(insertIdx, 0, dataList[j][i]);
             }
         }
 
-        this.data[dataType].lastUpdate = Date.now();
+        stored.lastUpdate = Date.now();
     };
     getDataPoint(dataType, timestamp=-1) { // timestamp=-1 means "the latest value"
         let result = {timestamp:-1, data:[], index:undefined};

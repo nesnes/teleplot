@@ -17,7 +17,7 @@
 </head>
 <body>
   <h3>Teleplot JS - Performance test</h3>
-  <p>Streams synthetic telemetries through the text protocol, with all of them in each chart.
+  <p>Streams synthetic telemetries through the text or binary protocol (straight into the parsers, without network), with all of them in each chart.
      Changing a value and clicking "Apply" reloads the page with the new setup (it is kept in the URL, so a setup can be shared).</p>
 
   <div id="controls">
@@ -26,6 +26,7 @@
     <label>Data timeout (s, 0 = keep all) <input id="timeout" type="number" min="0"></label>
     <label>Out-of-order samples (%) <input id="late" type="number" min="0" max="100"></label>
     <label>Charts <input id="charts-count" type="number" min="1" max="8"></label>
+    <label>Protocol <select id="protocol"><option value="text">Text (V1)</option><option value="binary">Binary</option></select></label>
     <button id="apply">Apply</button>
     <label><input id="decimation" type="checkbox"> Chart decimation (live)</label>
     <button id="run">Stop</button>
@@ -45,6 +46,7 @@
       timeout: +(params.get("timeout") ?? 15),
       late: +(params.get("late") ?? 0),
       charts: +(params.get("charts") ?? 1),
+      protocol: params.get("protocol") === "binary" ? "binary" : "text",
       decimation: params.get("decimation") !== "0",
     };
     document.getElementById("series").value = setup.series;
@@ -52,13 +54,14 @@
     document.getElementById("timeout").value = setup.timeout;
     document.getElementById("late").value = setup.late;
     document.getElementById("charts-count").value = setup.charts;
+    document.getElementById("protocol").value = setup.protocol;
     document.getElementById("decimation").checked = setup.decimation;
 
     document.getElementById("apply").onclick = () => {
       const value = (id) => document.getElementById(id).value;
       location.search = new URLSearchParams({
         series: value("series"), rate: value("rate"), timeout: value("timeout"), late: value("late"),
-        charts: value("charts-count"), decimation: document.getElementById("decimation").checked ? 1 : 0,
+        charts: value("charts-count"), protocol: value("protocol"), decimation: document.getElementById("decimation").checked ? 1 : 0,
       });
     };
     document.getElementById("pause").onclick = () => { Teleplot.state.isPaused = !Teleplot.state.isPaused; };
@@ -66,14 +69,17 @@
     Teleplot.state.dataTimeout = setup.timeout;
 
     // ---- Charts ----
+    // Telemetries are referenced by name with the text protocol, and by id (client id * 0x10000 + telemetry id) with the binary one
+    const BINARY_CLIENT_ID = 1;
     const telemNames = Array.from({length: setup.series}, (_, i) => "perf.series" + i);
+    const telemRefs = setup.protocol === "binary" ? telemNames.map((_, i) => BINARY_CLIENT_ID * 0x10000 + i) : telemNames;
     const chartViews = [];
     for (let i = 0; i < setup.charts; i++) {
       const div = document.createElement("div");
       div.id = "chart-" + i;
       div.className = "chart";
       document.getElementById("charts").appendChild(div);
-      const view = new Teleplot.view.ViewChart(div.id, telemNames);
+      const view = new Teleplot.view.ViewChart(div.id, telemRefs);
       view.setOption("decimation", setup.decimation);
       Teleplot.view.addView(view);
       chartViews.push(view);
@@ -82,31 +88,77 @@
       for (const view of chartViews) { view.setOption("decimation", event.target.checked); view.updateForced = true; }
     };
 
-    // ---- Data generator (through the text protocol, in batches like a real client would) ----
-    const generator = { running: true, startMs: Date.now(), emitted: 0, ingestMs: 0, ingestedSamples: 0 };
+    // ---- Data generator (in batches, like a real client would send them) ----
+    const generator = { running: true, startMs: Date.now(), emitted: 0, ingestMs: 0, ingestedSamples: 0, bytes: 0, sentAttributes: false };
     document.getElementById("run").onclick = (event) => {
       generator.running = !generator.running;
       if (generator.running) { generator.startMs = Date.now() - generator.emitted / setup.rate * 1000; }
       event.target.textContent = generator.running ? "Stop" : "Start";
     };
 
+    // Text protocol: "name:timestampMs:value;timestampMs:value;..."
+    function textBatch(series, timestampsMs, values) {
+      const samples = timestampsMs.map((t, i) => t.toFixed(3) + ":" + values[i].toFixed(3));
+      return telemNames[series] + ":" + samples.join(";");
+    }
+
+    // Binary protocol (see doc/binaryProtocol.md), sections of at most BINARY_MAX_SAMPLES samples so that packets stay UDP-sized
+    const BINARY_MAX_SAMPLES = 170;
+    function binaryPackets(series, timestampsMs, values) {
+      const packets = [];
+      for (let from = 0; from < timestampsMs.length; from += BINARY_MAX_SAMPLES) {
+        const count = Math.min(BINARY_MAX_SAMPLES, timestampsMs.length - from);
+        const name = new TextEncoder().encode(telemNames[series] + "\0");
+        const attrBytes = generator.sentAttributes ? 0 : 1 + 2 + 1 + 1 + name.length; // TELEM_ATTR section with the name, in the first packet only
+        const buffer = new ArrayBuffer(4 + attrBytes + 1 + 2 + 8 + 1 + count * 8 + 2);
+        const view = new DataView(buffer);
+        let o = 0;
+        view.setUint8(o++, Teleplot.protocol.BINARY_MARKER); view.setUint8(o++, Teleplot.protocol.BINARY_VERSION); view.setUint16(o, BINARY_CLIENT_ID); o += 2;
+        if (attrBytes) {
+          view.setUint8(o++, Teleplot.protocol.SECTION_TYPE_TELEM_ATTR); view.setUint16(o, series); o += 2;
+          view.setUint8(o++, 1); view.setUint8(o++, Teleplot.protocol.TELEM_ATTR_NAME);
+          new Uint8Array(buffer, o, name.length).set(name); o += name.length;
+        }
+        const refNs = Math.min(...timestampsMs.slice(from, from + count)) * 1e6; // Lowest timestamp, so that all TIMEDIFF are positive
+        view.setUint8(o++, Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER); view.setUint16(o, series); o += 2;
+        view.setBigUint64(o, BigInt(Math.round(refNs))); o += 8;
+        view.setUint8(o++, count);
+        for (let i = from; i < from + count; i++) {
+          view.setUint32(o, Math.round(timestampsMs[i] * 1e6 - refNs)); o += 4;
+          view.setFloat32(o, values[i]); o += 4;
+        }
+        // 2 bytes of checksum left at 0 (not verified yet)
+        packets.push(buffer);
+      }
+      return packets;
+    }
+
     function generate() {
       if (!generator.running) return;
       const target = Math.floor((Date.now() - generator.startMs) / 1000 * setup.rate); // Samples that should exist by now
       if (target <= generator.emitted) return;
-      const lines = [];
+
+      // Build the messages (not measured: the client side is not what we test)
+      const textMessages = [];
+      const binaryMessages = [];
       for (let s = 0; s < setup.series; s++) {
-        const samples = [];
+        const timestampsMs = [];
+        const values = [];
         for (let n = generator.emitted; n < target; n++) {
           let timestampMs = generator.startMs + (n + s * 0.37) / setup.rate * 1000; // Series do not share timestamps
           if (Math.random() * 100 < setup.late) timestampMs -= 200;
-          const value = Math.sin(timestampMs / 1000 * (1 + s)) * 10 + Math.random();
-          samples.push(timestampMs.toFixed(3) + ":" + value.toFixed(3));
+          timestampsMs.push(timestampMs);
+          values.push(Math.sin(timestampMs / 1000 * (1 + s)) * 10 + Math.random());
         }
-        lines.push(telemNames[s] + ":" + samples.join(";"));
+        if (setup.protocol === "binary") binaryMessages.push(...binaryPackets(s, timestampsMs, values));
+        else textMessages.push(textBatch(s, timestampsMs, values));
       }
+      generator.sentAttributes = true;
+
+      // Ingest them
       const start = performance.now();
-      Teleplot.parseDataText(lines.join("\n"));
+      if (setup.protocol === "binary") { for (const packet of binaryMessages) { Teleplot.parseDataBinary(packet); generator.bytes += packet.byteLength; } }
+      else { const text = textMessages.join("\n"); Teleplot.parseDataText(text); generator.bytes += text.length; }
       generator.ingestMs += performance.now() - start;
       generator.ingestedSamples += (target - generator.emitted) * setup.series;
       generator.emitted = target;
@@ -137,13 +189,14 @@
       lastReport = performance.now();
 
       let storedPoints = 0;
-      for (const name of telemNames) {
-        const telem = Teleplot.datastore.getTelemetry(name);
+      for (const ref of telemRefs) {
+        const telem = Teleplot.datastore.getTelemetry(ref);
         if (telem) for (const type in telem.data) storedPoints += telem.data[type].timestamps.length;
       }
       const heap = performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + " MB" : "n/a (Chrome only)";
       let text = `Page frame rate      : ${(frameCount / seconds).toFixed(0)} fps\n`
                + `Ingested             : ${(generator.ingestedSamples / seconds / 1000).toFixed(1)} k samples/s (${(generator.ingestMs / seconds / 10).toFixed(1)} % of time spent parsing)\n`
+               + `Input size           : ${(generator.bytes / seconds / 1024).toFixed(0)} kB/s (${setup.protocol}, ${(generator.bytes / Math.max(generator.ingestedSamples, 1)).toFixed(1)} bytes per sample)\n`
                + `Stored points        : ${storedPoints.toLocaleString()}\n`
                + `JS heap              : ${heap}\n`;
       for (const [name, t] of Object.entries(hookTimes)) {
@@ -151,7 +204,7 @@
         delete hookTimes[name];
       }
       document.getElementById("stats").textContent = text;
-      frameCount = 0; generator.ingestedSamples = 0; generator.ingestMs = 0;
+      frameCount = 0; generator.ingestedSamples = 0; generator.ingestMs = 0; generator.bytes = 0;
     }, REPORT_MS);
   </script>
 </body>

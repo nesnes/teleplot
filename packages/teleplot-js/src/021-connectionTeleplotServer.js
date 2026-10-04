@@ -17,6 +17,7 @@ class ConnectionTeleplotServer extends Connection{
         this.port = _port;
         this.udp.address = this.address;
         this.socket = new WebSocket("ws://"+this.address+":"+this.port, );
+        this.socket.binaryType = "arraybuffer"; // Default is Blob, whose async decoding doesn't guarantee the packets order
         this.socket.onopen = (event) => {
             setTimeout(()=>{
                 this.udp.connected = true;
@@ -36,8 +37,8 @@ class ConnectionTeleplotServer extends Connection{
         };
         this.socket.onmessage = (msgWS) => {
             // Binary message from client (through server)
-            if (msgWS.data instanceof Blob) {
-                msgWS.data.arrayBuffer().then((buffer)=>{this.udp.onMessage(buffer);});
+            if (msgWS.data instanceof ArrayBuffer) {
+                this.udp.onMessage(msgWS.data);
                 return;
             }
             // Text message reformated to json by teleplot server

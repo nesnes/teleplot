@@ -1,20 +1,13 @@
 TELEPLOT.parseDataBinary = function(msgIn) {
     if(TELEPLOT.state.isPaused) return;
 
-    console.log("ParseBinary", msgIn)
-
     // Get input buffer
     if(!(msgIn instanceof ArrayBuffer || msgIn instanceof Uint8Array)) {
         console.error("parseDataBinary: expected ArrayBuffer or Uint8Array");
         return;
     }
-    let buffer = msgIn instanceof ArrayBuffer ? msgIn : msgIn.buffer;
-    if(msgIn instanceof Uint8Array && msgIn.byteOffset) {
-        buffer = msgIn.buffer.slice(msgIn.byteOffset, msgIn.byteOffset + msgIn.byteLength);
-    }
-
     try {
-        let view = new DataView(buffer);
+        let view = msgIn instanceof ArrayBuffer ? new DataView(msgIn) : new DataView(msgIn.buffer, msgIn.byteOffset, msgIn.byteLength);
         if(view.byteLength < 5) { // min: BINARY_MARKER + PROTOCOL_VERSION + CLIENT_ID + CHECKSUM
             throw new Error("Packet too small to contain any data");
         }
@@ -119,11 +112,15 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
     }
 }
 
+// Read an uint64 as a Number (BigInt-free, it is slow). Above 2^53 the lowest bits are lost, which is the precision of a double anyway.
+function _parseDataBinary_readUint64(view, offset) {
+    return view.getUint32(offset) * 4294967296 + view.getUint32(offset + 4);
+}
+
+// Timestamps are in seconds in the datastore (a double keeps ~200ns of precision for unix timestamps)
+// ref is the section TIME_REFERENCE in seconds (see _parseDataBinary_readTELEM_DATA_HEADER), diff is a TIMEDIFF in nanoseconds
 function _parseDataBinary_makeTimestamp(ref, diff) {
-    const ns = BigInt(ref) + BigInt(diff);
-    const sec = ns / 1000000000n;
-    const rem = ns % 1000000000n;
-    return Number(sec) + Number(rem) / 1e9;
+    return ref + diff / 1e9;
 }
 
 function _parseDataBinary_setCombineClientAndTelem(clientId, telemId) {
@@ -133,14 +130,13 @@ function _parseDataBinary_setCombineClientAndTelem(clientId, telemId) {
     return combinedId
 }
 
+const _parseDataBinary_textDecoder = new TextDecoder();
+
 function _parseDataBinary_readString(view, offset) {
-    let bytes = [];
-    while(offset < view.byteLength && view.getUint8(offset) !== 0) {
-        bytes.push(view.getUint8(offset));
-        offset++;
-    }
-    offset++; // skip null terminator
-    return [new TextDecoder().decode(new Uint8Array(bytes)), offset];
+    let end = offset;
+    while(end < view.byteLength && view.getUint8(end) !== 0) { end++; }
+    let text = _parseDataBinary_textDecoder.decode(new Uint8Array(view.buffer, view.byteOffset + offset, end - offset));
+    return [text, end + 1]; // skip null terminator
 }
 
 function _parseDataBinary_parseCLIENT_NAME(view, offset, clientId) {
@@ -155,9 +151,8 @@ function _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId) {
     let telemId = view.getUint16(offset);
     offset += 2;
     let combinedId = _parseDataBinary_setCombineClientAndTelem(clientId, telemId);
-    let telem = TELEPLOT.datastore.getOrCreateTelemetry(combinedId);
 
-    let timeRef = view.getBigUint64(offset); // nanoseconds as BigInt
+    let timeRef = _parseDataBinary_readUint64(view, offset) / 1e9; // nanoseconds to seconds
     offset += 8;
     let count = view.getUint8(offset);
     offset++;
@@ -203,7 +198,7 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 break;
             }
             case TELEPLOT.protocol.TELEM_ATTR_DATA_TIMEOUT: {
-                let timeout = view.getBigUint64(offset);
+                let timeout = _parseDataBinary_readUint64(view, offset) / 1e9; // nanoseconds on the wire, seconds in the datastore (like TELEPLOT.state.dataTimeout)
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_DATA_TIMEOUT, timeout);
                 offset += 8;
                 break;
