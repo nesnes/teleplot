@@ -3,7 +3,8 @@ class ViewLayout extends Views {
         super(divId, group);
         this.type = "teleplot-layout";
 
-        this.views = TELEPLOT.Vue.reactive({});
+        this.name = "layout";
+        this.views = TELEPLOT.Vue.reactive([]);
         this.layout.type =    "row";   // "row" or "column",
         this.layout.justify = "start"; // "start", "center", "end", "space-between", "space-around"
         this.layout.align =   "start"; // "start", "center", "end", "stretch"
@@ -39,8 +40,20 @@ class ViewLayout extends Views {
         if (!super.__before_update()) return;
     }
 
-    addView(view) {
-        this.views[view.id] = view;
+    addView(view, index=-1) {
+        if (index==-1) index = this.views.length;
+        TELEPLOT.view.addView(view);
+        this.views.splice(index, 0, view);
+    }
+
+    getViewFromId(viewId) {
+        return this.views.find((v)=> v.id === viewId);
+    }
+
+    removeView(viewId) {
+        let viewIdx = this.views.findIndex((v)=> v.id === viewId);
+        if(viewIdx < 0) return;
+        this.views.splice(viewIdx , 1);
     }
 
     static vueHTML = `
@@ -53,7 +66,7 @@ class ViewLayout extends Views {
                 'gap': layout.gap + 'em'
             }"
         >
-            <template v-for="(view, viewId) in views" :key="viewId">
+            <template v-for="view of views" :key="view.id">
                 <div :id="view.divId"
                 :style="{ 
                     'container-type': 'inline-size',

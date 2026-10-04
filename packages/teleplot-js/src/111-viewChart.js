@@ -1,6 +1,7 @@
 class ViewChart extends ViewTelemetries{
     constructor(divId, telemetryIdOrNameList, group="default"){
         super(divId, group);
+        this.name = "chart";
         this.type = "teleplot-chart";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
         this.updateForced = true; // Force initial update
@@ -23,14 +24,21 @@ class ViewChart extends ViewTelemetries{
             name: this.type,
             data() {
                 return {
+                    self: self,
                     chartDivId: self.chartDivId,
                     chartOptions: self.chartOptions,
                     chartData: self.chartData,
                     chart: self.chart,
                     telemetries : self.telemetries,
                     options : self.options,
-                    layout : self.layout
+                    layout : self.layout,
+                    dragContext: self.dragContext
                 }
+            },
+            methods: {
+                onDragEnter: self.onDragEnter,
+                onDragLeave: self.onDragLeave,
+                onDragDrop: self.onDragDrop
             },
             template: ViewChart.vueHTML,
         });
@@ -233,7 +241,8 @@ class ViewChart extends ViewTelemetries{
     
     static vueHTML = `
         <div class="teleplot-js-chart-container teleplot-js-telemetry-card"
-        :style=" { '--layout-width': layout.width, '--layout-height': layout.height }">
+        :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"
+        ${ViewTelemetries.dragDropHtml}>
             <div class="teleplot-js-chart-legend">
                 <div v-for="(telem, index) in telemetries" v-bind:key="index" class="teleplot-js-chart-legend-block">
                     

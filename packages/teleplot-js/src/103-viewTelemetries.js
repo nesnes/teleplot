@@ -1,6 +1,7 @@
 class ViewTelemetries extends Views {
     constructor(divId="", group="default"){
         super(divId, group);
+        this.name = "telemetry";
         if (this.constructor === ViewTelemetries)
         {
             throw new Error("ViewTelemetries is an abstract class, it should only be inherited but never instanciated !");
@@ -9,6 +10,12 @@ class ViewTelemetries extends Views {
         // View options
         this.options._telemetry = {};
         this.setOption("displayNumberDecimals", 3);
+
+        this.telemetryIdOrNameList = [];
+        this.dragContext =  TELEPLOT.Vue.reactive({
+            isActive: false,
+            counter: 0
+        });
     }
 
     setOption(name, value, telemetryNameOrId) {
@@ -38,6 +45,46 @@ class ViewTelemetries extends Views {
         // Fallback to view-wide options
         return super.getOption(name);
     }
+
+    onDragEnter(event, view) {
+        let isTelemetry = event.dataTransfer.types.includes("text/x-teleplot-drag-type-telemetry")
+        if(!isTelemetry) return;
+        view.dragContext.counter++;
+        view.dragContext.isActive = true;
+    }
+    onDragLeave(event, view) {
+        let isTelemetry = event.dataTransfer.types.includes("text/x-teleplot-drag-type-telemetry")
+        if(!isTelemetry) return;
+        view.dragContext.counter--;
+        view.dragContext.isActive = view.dragContext.counter > 0;
+    }
+    onDragDrop(event, view) {
+        console.log("onDragDrop", event)
+        view.dragContext.isActive = false;
+        view.dragContext.counter = 0;
+
+        let isTelemetry = event.dataTransfer.types.includes("text/x-teleplot-drag-type-telemetry")
+        let hasId = event.dataTransfer.types.includes("text/x-teleplot-drag-id")        
+        if(isTelemetry && hasId) {
+            // Add telemetry
+            let id = Number(event.dataTransfer.getData("text/x-teleplot-drag-id"));
+            let telemToDrop = TELEPLOT.datastore.getTelemetry(id);
+            for(let telemIdOrName of view.telemetryIdOrNameList){
+                let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
+                if(telem.id == telemToDrop.id) { return; }
+            }
+            view.telemetryIdOrNameList.push(telemToDrop.id);
+        }
+
+    }
+
+    static dragDropHtml = `
+        @dragover.prevent
+        @dragenter.stop.prevent="onDragEnter($event, self)"
+        @dragleave="onDragLeave($event, self)"
+        @drop.prevent="onDragDrop($event, self)"
+        :class="{'teleplot-js-telemetry-card-drag-over': dragContext.isActive}"
+    `;
     
 }
 
@@ -57,6 +104,10 @@ TELEPLOT.view.ViewTelemetries = ViewTelemetries;
                 font-size: 1em;
                 text-wrap-style: balance;
                 min-height: calc( 1em * pow(2, var(--layout-height, 1)));
+            }
+
+            .teleplot-js-telemetry-card-drag-over {
+                box-shadow: 0px 0px 10px 0px #007eff94;
             }
         }
     `;

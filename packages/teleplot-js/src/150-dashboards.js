@@ -14,7 +14,10 @@ class Dashboard {
 
     getGroupName() { return this.name; }
 
-    setView(view) { this.view = view; }
+    setView(view) {     
+        TELEPLOT.view.addView(view);
+        this.view = view;
+    }
     getView() { return this.view; }
 }
 

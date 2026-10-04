@@ -4,8 +4,8 @@ class Views{
         {
             throw new Error("Views is an abstract class, it should only be inherited but never instanciated !");
         }
+        this.name = "view";
         this.id = "view-"+crypto.randomUUID();
-        this.initialized = false;
         this.divId = divId.length ? divId : this.id;
         this.group = group;
         this.type = "";
@@ -39,7 +39,9 @@ class Views{
             return;
         }
         element.setAttribute("v-pre", ""); // Prevent an eventual higher-level Vue-js from parsing this element
+                                           // Also used for initialization check
         element.classList.add("teleplot-js-style");
+        element.classList.add("teleplot-js-view");
         
         this.vue = TELEPLOT.Vue.createApp({
             data() {
@@ -50,14 +52,14 @@ class Views{
 
     __before_update(){
         // Check init
-        if (!this.initialized) {
-            let element = document.getElementById(this.divId);
-            if(element !== null) {
-                this.init();
-                this.initialized = true;
-            }
-            return false;
+        let element = document.getElementById(this.divId);
+        let isInitialized = () => {return element && element.hasAttribute("v-pre")};
+        
+        if(element && !isInitialized()) {
+            this.init();
+            return isInitialized();
         }
+        
         return true;
     }
 
@@ -74,7 +76,23 @@ class Views{
         this.layout.height = height;
     }
     
+    static vueCSS = `
+        @scope (.teleplot-js-style)
+        {
+            .teleplot-js-view {
+            
+            }
+        }
+    `;
 }
+
+// Add css to head
+{
+    let elem = document.createElement('style');
+    elem.textContent = Views.vueCSS;
+    document.head.appendChild(elem);
+}
+
 
 TELEPLOT.view = {
     views: [],
@@ -82,7 +100,12 @@ TELEPLOT.view = {
 };
 
 TELEPLOT.view.addView = function(view){
+    if(TELEPLOT.view.getView(view.id) !== undefined) { return; }
     TELEPLOT.view.views.push(view);
+}
+
+TELEPLOT.view.getView = function(viewId){
+    return TELEPLOT.view.views.find((v)=> v.id === viewId);
 }
 
 TELEPLOT.view.updateViews = function(){

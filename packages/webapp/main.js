@@ -10,9 +10,16 @@ var app = Vue.createApp({
             ctx: Vue.reactive({
                 showMenu: false,
                 sidePanel: "",
+                topPanel: "",
                 showHelp: true,
                 activeDashboard: null
             })
+        }
+    },
+    methods: {
+        setTopPanel(name){
+            if (this.ctx.topPanel == name) { this.ctx.topPanel = ""; }
+            else { this.ctx.topPanel = name; }
         }
     },
     created() {

@@ -1,6 +1,7 @@
 class ViewCurrentValue extends ViewTelemetries{
     constructor(divId, telemetryIdOrNameList, group="default"){
         super(divId, group);
+        this.name = "value";
         this.type = "teleplot-current-value";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
 
@@ -11,7 +12,7 @@ class ViewCurrentValue extends ViewTelemetries{
         // Reduce default size
         this.layout.width = 1;
         this.layout.height = 1;
-        
+
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
     }
@@ -24,10 +25,17 @@ class ViewCurrentValue extends ViewTelemetries{
             name: this.type,
             data() {
                 return {
+                    self: self,
                     telemetries : self.telemetries,
                     options : self.options,
-                    layout : self.layout
+                    layout : self.layout,
+                    dragContext: self.dragContext
                 }
+            },
+            methods: {
+                onDragEnter: self.onDragEnter,
+                onDragLeave: self.onDragLeave,
+                onDragDrop: self.onDragDrop
             },
             template: ViewCurrentValue.vueHTML,
         });
@@ -104,8 +112,11 @@ class ViewCurrentValue extends ViewTelemetries{
     }
     
     static vueHTML = `
-        <div class="teleplot-js-current-value-container teleplot-js-telemetry-card" v-bind:class="{'teleplot-js-current-value-row': options.displayLayoutRow}"
-        :style=" { '--layout-width': layout.width, '--layout-height': layout.height }">
+        <div class="teleplot-js-current-value-container teleplot-js-telemetry-card" 
+        v-bind:class="{'teleplot-js-current-value-row': options.displayLayoutRow, 'teleplot-js-telemetry-card-drag-over':dragContext.isActive}"
+        :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"
+        ${ViewTelemetries.dragDropHtml}
+        >
             <div v-for="(telem, index) in telemetries" v-bind:key="index" class="teleplot-js-current-value-block">
                 
                 <div v-if="options.displayTelemetryColor && Object.keys(telemetries).length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>

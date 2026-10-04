@@ -55,20 +55,17 @@ function initComponent_panel_help(vue) {
                         divId = dashboard.name + "main-layout";
                         let mainLayout = new this.TP.view.ViewLayout(divId, dashboard.getGroupName());
                         mainLayout.layout.type = "column";
-                        this.TP.view.addView(mainLayout);
                         dashboard.setView(mainLayout);
 
                         // Top Layout
                         {
                             let topLayout = new this.TP.view.ViewLayout("", dashboard.getGroupName());
                             topLayout.layout.type = "row";
-                            this.TP.view.addView(topLayout);
                             mainLayout.addView(topLayout);
 
                             divId = dashboard.name + "sample-view-chart-sin-cos-2";
                             view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
                             view.setSize(2, 4);
-                            this.TP.view.addView(view);
                             topLayout.addView(view);
 
                             // Value Layout
@@ -76,41 +73,48 @@ function initComponent_panel_help(vue) {
                                 divId = dashboard.name + "value-layout";
                                 let valueLayout = new this.TP.view.ViewLayout(divId, dashboard.getGroupName());
                                 valueLayout.setSize(4, 2);
-                                this.TP.view.addView(valueLayout);
                                 topLayout.addView(valueLayout);
                                 
                                 divId = dashboard.name + "sample-view-value-sin";
                                 view = new this.TP.view.ViewCurrentValue(divId, ["sample.sin"], dashboard.getGroupName());
-                                this.TP.view.addView(view);
                                 valueLayout.addView(view);
                                 
                                 divId = dashboard.name + "sample-view-value-sin-2";
                                 view = new this.TP.view.ViewCurrentValue(divId, ["sample.sin"], dashboard.getGroupName());
-                                this.TP.view.addView(view);
                                 valueLayout.addView(view);
 
                                 divId = dashboard.name + "sample-view-value-sin-3";
                                 view = new this.TP.view.ViewCurrentValue(divId, ["sample.sin"], dashboard.getGroupName());
-                                this.TP.view.addView(view);
                                 valueLayout.addView(view);
 
                                 divId = dashboard.name + "sample-view-value-text-cos";
                                 view = new this.TP.view.ViewCurrentValue(divId, ["sample.text", "sample.cos"], dashboard.getGroupName());
                                 view.setSize(1, 2);
-                                this.TP.view.addView(view);
                                 valueLayout.addView(view);
                             }
 
                             divId = dashboard.name + "sample-view-chart-sin-cos-3";
                             view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
                             view.setSize(2, 4);
-                            this.TP.view.addView(view);
                             topLayout.addView(view);
                         }
-                        divId = dashboard.name + "sample-view-chart-sin-cos";
-                        view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
-                        this.TP.view.addView(view);
-                        mainLayout.addView(view);
+
+                        // Stack
+                        {
+                            divId = dashboard.name + "value-stack";
+                            let valueStack = new this.TP.view.ViewStack(divId, dashboard.getGroupName());
+                            mainLayout.addView(valueStack);
+
+                            divId = dashboard.name + "sample-view-chart-sin-cos";
+                            view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
+                            valueStack.addView(view);
+
+                            divId = dashboard.name + "sample-view-value-text-cos-bis";
+                            view = new this.TP.view.ViewCurrentValue(divId, ["sample.text", "sample.cos"], dashboard.getGroupName());
+                            view.name="Text and cos current values";
+                            valueStack.addView(view);
+
+                        }
                         this.ctx.activeDashboard = dashboard;
                     }
 
