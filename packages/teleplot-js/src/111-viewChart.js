@@ -58,7 +58,19 @@ class ViewChart extends ViewTelemetries{
     }
     
     destroyChart() {
-        
+        if(this.chart && this.chart.destroy) this.chart.destroy();
+    }
+
+    // Telemetries that have a series in the chart, in series order (the order of the joined chartData).
+    // A telemetry only counts once it has data of a supported type: the list changes when data shows up or a telemetry is dropped on the view.
+    getSeriesTelemetries() {
+        let list = [];
+        for(let telemIdOrName of this.telemetryIdOrNameList){
+            let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
+            if(telem === undefined || this.getSupportedDataEntry(telem) === undefined) continue;
+            list.push(telem);
+        }
+        return list;
     }
     
     createChart() {
@@ -110,21 +122,12 @@ class ViewChart extends ViewTelemetries{
             }
         };
         // Configure series
-        let telemIdx = 0;
-        for(let telemIdOrName of this.telemetryIdOrNameList){
-            let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
-            if(telem === undefined) continue;
-            let supportedType = false;
-            for(let dataType in telem.data) {
-                if(!this.supportedDataTypes.includes(dataType)) continue;
-                supportedType = true;
-                break;
-            }
-            if (!supportedType) continue;
-
+        let seriesTelemetries = this.getSeriesTelemetries();
+        this.seriesKey = seriesTelemetries.map(t => t.id).join();
+        for(let telem of seriesTelemetries) {
             this.chartOptions.series.push({
                 label: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME),
-                stroke: () =>{ return this.telemetries[telem.id].color; }
+                stroke: () =>{ return this.telemetries[telem.id] ? this.telemetries[telem.id].color : "gray"; }
             });
         }
         // Create chart
@@ -202,6 +205,15 @@ class ViewChart extends ViewTelemetries{
                 }
                 break;
             }
+        }
+
+        // A telemetry got its first data (or was added) after the chart was created: the chart needs a series for it
+        if(this.seriesKey !== undefined && this.seriesKey != this.getSeriesTelemetries().map(t => t.id).join()) {
+            this.destroyChart();
+            let container = document.getElementById(this.chartDivId);
+            if(container) container.innerHTML = "";
+            this.createChart();
+            this.updateForced = true;
         }
 
         // Create chart data

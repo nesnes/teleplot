@@ -37,6 +37,25 @@ test('large data is decimated, stored data is untouched, extent is kept', () => 
     assert.equal(xs.length, ys.length);
 });
 
+test('a telemetry that gets data after the chart was created gets a series (chart is rebuilt once)', () => {
+    const T = loadTeleplot();
+    const chart = new T.view.ViewChart('chart-div', ['late', 'early']);
+    let created = 0;
+    chart.createChart = () => { created++; chart.seriesKey = chart.getSeriesTelemetries().map(t => t.id).join(); chart.chart = new T.uPlot({}, [], null); };
+    T.datastore.getOrCreateTelemetry('early').addData(NUMBER, [1], [[1]]);
+    chart.createChart(); // as init() does: only 'early' has data yet
+    assert.equal(chart.getSeriesTelemetries().length, 1);
+    chart.update();
+    assert.equal(created, 1);
+    T.datastore.getOrCreateTelemetry('late').addData(NUMBER, [1], [[2]]);
+    chart.update();
+    assert.equal(created, 2);
+    assert.equal(chart.getSeriesTelemetries().length, 2);
+    chart.update();
+    assert.equal(created, 2); // nothing changed: no rebuild
+    assert.equal(chart.chartData.length, 3);
+});
+
 test('decimation can be disabled', () => {
     const { telems, chart } = setup();
     chart.setOption('decimation', false);
