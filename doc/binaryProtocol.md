@@ -1,3 +1,5 @@
+**Byte order**: all multi-byte values (uint16, uint32, uint64, float32, ...), including the **CHECKSUM**, are **little-endian** (least significant byte first). Every platform Teleplot targets is little-endian, so encoders can copy values from memory without swapping bytes.
+
 Bellow is the structure of a **PACKET**:
 
 `{BINARY_MARKER[uint8]} - {PROTOCOL_VERSION[uint8]} - {CLIENT_ID[uint16]} - {DATA[x]} - {CHECKSUM[16]}`
@@ -57,6 +59,7 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
       - **TELEM_ID**(uint16): client-defined id of the telemetry to update.
       - **TIME_REFERENCE**(uint64, nanoseconds): the unix epoch timestamp (in nanoseconds) of this telemetry update.
       - **COUNT**(uint8): the number **TELEM_DATA**s.
+      - Every **TIMEDIFF** of a section is an uint32 in nanoseconds from the **TIME_REFERENCE**, so it must be in `[0, 4294967295]` (about 4.29 s). Encoders must not put a sample outside of this range in the section (later or earlier than the reference): it starts a new section (with its own **TIME_REFERENCE**) instead, otherwise the timestamp wraps around and is decoded wrong.
 
   - `20` **TELEM_DATA_NUMBER**:
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_NUMBER( {TIMEDIFF[32]} - {VALUE[32]} )...`

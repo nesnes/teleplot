@@ -27,7 +27,7 @@ Rework of Teleplot for better performance and UI.
 - 150 dashboards; 998 update loop (30 fps, hooks); 999 export
 
 ## Protocol
-- Binary: marker 0x10, version 1, client id uint16, typed sections (client name, telem attr, data number/2D/3D/text/image, 3D shape position/rotation/quaternion/color/opacity/size/texture), checksum still TODO. Spec in `doc/binaryProtocol.md`; constants in `src/011-protocol.js`.
+- Binary: little-endian everywhere (C++ `BinaryEncoder` default, JS `_parseDataBinary_LITTLE_ENDIAN`), marker 0x10, version 1, client id uint16, typed sections (client name, telem attr, data number/2D/3D/text/image, 3D shape position/rotation/quaternion/color/opacity/size/texture), checksum still TODO. Spec in `doc/binaryProtocol.md`; constants in `src/011-protocol.js`.
 - Text: V1 `name:value` style, UDP port 47269; commands UDP 47268.
 
 ## Server and webapp

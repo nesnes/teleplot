@@ -34,6 +34,8 @@ Parsing speed in Node, one telemetry (million samples per second):
 
 Binary is also 8 bytes per number sample on the wire, against about 25 for text.
 
+The binary protocol is little-endian: the C++ client doesn't swap bytes on little-endian machines (every target platform), and the JS parser reads little-endian `DataView` values.
+
 ## Measuring
 
 `packages/teleplot-js/test-performance.html` streams synthetic telemetries (series count, rate, data timeout, out-of-order samples, number of charts and text or binary protocol, all configurable and kept in the URL) straight into the parsers, and reports frame rate, ingestion rate, input size, stored points, JS heap (Chrome only) and the time spent per update.

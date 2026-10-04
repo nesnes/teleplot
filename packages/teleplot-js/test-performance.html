@@ -102,7 +102,7 @@
       return telemNames[series] + ":" + samples.join(";");
     }
 
-    // Binary protocol (see doc/binaryProtocol.md), sections of at most BINARY_MAX_SAMPLES samples so that packets stay UDP-sized
+    // Binary protocol (see doc/binaryProtocol.md, all multi-byte values are little-endian), sections of at most BINARY_MAX_SAMPLES samples so that packets stay UDP-sized
     const BINARY_MAX_SAMPLES = 170;
     function binaryPackets(series, timestampsMs, values) {
       const packets = [];
@@ -113,19 +113,19 @@
         const buffer = new ArrayBuffer(4 + attrBytes + 1 + 2 + 8 + 1 + count * 8 + 2);
         const view = new DataView(buffer);
         let o = 0;
-        view.setUint8(o++, Teleplot.protocol.BINARY_MARKER); view.setUint8(o++, Teleplot.protocol.BINARY_VERSION); view.setUint16(o, BINARY_CLIENT_ID); o += 2;
+        view.setUint8(o++, Teleplot.protocol.BINARY_MARKER); view.setUint8(o++, Teleplot.protocol.BINARY_VERSION); view.setUint16(o, BINARY_CLIENT_ID, true); o += 2;
         if (attrBytes) {
-          view.setUint8(o++, Teleplot.protocol.SECTION_TYPE_TELEM_ATTR); view.setUint16(o, series); o += 2;
+          view.setUint8(o++, Teleplot.protocol.SECTION_TYPE_TELEM_ATTR); view.setUint16(o, series, true); o += 2;
           view.setUint8(o++, 1); view.setUint8(o++, Teleplot.protocol.TELEM_ATTR_NAME);
           new Uint8Array(buffer, o, name.length).set(name); o += name.length;
         }
         const refNs = Math.min(...timestampsMs.slice(from, from + count)) * 1e6; // Lowest timestamp, so that all TIMEDIFF are positive
-        view.setUint8(o++, Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER); view.setUint16(o, series); o += 2;
-        view.setBigUint64(o, BigInt(Math.round(refNs))); o += 8;
+        view.setUint8(o++, Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER); view.setUint16(o, series, true); o += 2;
+        view.setBigUint64(o, BigInt(Math.round(refNs)), true); o += 8;
         view.setUint8(o++, count);
         for (let i = from; i < from + count; i++) {
-          view.setUint32(o, Math.round(timestampsMs[i] * 1e6 - refNs)); o += 4;
-          view.setFloat32(o, values[i]); o += 4;
+          view.setUint32(o, Math.round(timestampsMs[i] * 1e6 - refNs), true); o += 4;
+          view.setFloat32(o, values[i], true); o += 4;
         }
         // 2 bytes of checksum left at 0 (not verified yet)
         packets.push(buffer);

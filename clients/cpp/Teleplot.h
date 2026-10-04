@@ -17,6 +17,7 @@
 #include <deque>
 #include <variant>
 #include <numeric>
+#include <limits>
 
 // Binary encoder
 #include <bit>
@@ -303,6 +304,9 @@ public:
                         BinaryEncoder dataEncoder; // Create a new encoder for each data point to check if it fits in the section encoder
                         // Timediff from reference
                         std::chrono::nanoseconds timeDiff = timestamp - timeReference;
+                        // TIMEDIFF is an uint32 of nanoseconds (about 4.29 s): a sample outside of its range (too late after the reference, or before it)
+                        // can't be encoded in this section. It stays queued and is sent as the reference of a new section (next flush loop).
+                        if (timeDiff.count() < 0 or timeDiff.count() > std::numeric_limits<std::uint32_t>::max()) { break; }
                         dataEncoder << static_cast<std::uint32_t>(timeDiff.count());
                         // Data
                         switch (telemetry.type) {
@@ -427,7 +431,7 @@ private:
     {
     public:
 
-        explicit BinaryEncoder(std::endian order = std::endian::big) : order_(order) {
+        explicit BinaryEncoder(std::endian order = std::endian::little) : order_(order) { // Protocol byte order (see doc/binaryProtocol.md). No swap is needed on little-endian machines
             buffer_.reserve(Teleplot::MAX_PACKET_SIZE);
         }
 

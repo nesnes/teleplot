@@ -1,3 +1,6 @@
+// All multi-byte values of the binary protocol are little-endian (see doc/binaryProtocol.md), pass this to every DataView read
+const _parseDataBinary_LITTLE_ENDIAN = true;
+
 TELEPLOT.parseDataBinary = function(msgIn) {
     if(TELEPLOT.state.isPaused) return;
 
@@ -22,7 +25,7 @@ TELEPLOT.parseDataBinary = function(msgIn) {
             throw new Error("Packet doesn't start with BINARY_MARKER 0x10");
         }
         
-        let clientId = view.getUint16(2);
+        let clientId = view.getUint16(2, _parseDataBinary_LITTLE_ENDIAN);
 
         // Extract data section (between CLIENT_ID and CHECKSUM)
         // CHECKSUM is last 2 bytes
@@ -114,7 +117,7 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
 
 // Read an uint64 as a Number (BigInt-free, it is slow). Above 2^53 the lowest bits are lost, which is the precision of a double anyway.
 function _parseDataBinary_readUint64(view, offset) {
-    return view.getUint32(offset) * 4294967296 + view.getUint32(offset + 4);
+    return view.getUint32(offset + 4, _parseDataBinary_LITTLE_ENDIAN) * 4294967296 + view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN); // Low part first
 }
 
 // Timestamps are in seconds in the datastore (a double keeps ~200ns of precision for unix timestamps)
@@ -148,7 +151,7 @@ function _parseDataBinary_parseCLIENT_NAME(view, offset, clientId) {
 }
 
 function _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId) {
-    let telemId = view.getUint16(offset);
+    let telemId = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
     offset += 2;
     let combinedId = _parseDataBinary_setCombineClientAndTelem(clientId, telemId);
 
@@ -160,7 +163,7 @@ function _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId) {
 }
 
 function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
-    let telemId = view.getUint16(offset);
+    let telemId = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
     offset += 2;
     let combinedId = _parseDataBinary_setCombineClientAndTelem(clientId, telemId);
     let count = view.getUint8(offset);
@@ -231,9 +234,9 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER(view, offset, clientId) {
     let values = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset); // nanoseconds
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN); // nanoseconds
         offset += 4;
-        let value = view.getFloat32(offset);
+        let value = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -255,11 +258,11 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER_2D(view, offset, clientId) {
     let yValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let x = view.getFloat32(offset);
+        let x = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let y = view.getFloat32(offset);
+        let y = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -283,13 +286,13 @@ function _parseDataBinary_parseTELEM_DATA_NUMBER_3D(view, offset, clientId) {
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let x = view.getFloat32(offset);
+        let x = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let y = view.getFloat32(offset);
+        let y = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let z = view.getFloat32(offset);
+        let z = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -312,7 +315,7 @@ function _parseDataBinary_parseTELEM_DATA_TEXT(view, offset, clientId) {
     let textValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         let [text, newOffset] = _parseDataBinary_readString(view, offset);
         offset = newOffset;
@@ -335,15 +338,15 @@ function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset, clientId) {
     let imageData = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         let imageType = view.getUint8(offset);
         offset++;
-        let partIndex = view.getUint16(offset);
+        let partIndex = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 2;
-        let partCount = view.getUint16(offset);
+        let partCount = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 2;
-        let partSize = view.getUint16(offset);
+        let partSize = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 2;
         let buffer = new Uint8Array(view.buffer, view.byteOffset + offset, partSize);
         offset += partSize;
@@ -370,13 +373,13 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset, client
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let x = view.getFloat32(offset);
+        let x = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let y = view.getFloat32(offset);
+        let y = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let z = view.getFloat32(offset);
+        let z = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -401,13 +404,13 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_ROTATION(view, offset, client
     let yValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let r = view.getFloat32(offset);
+        let r = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let p = view.getFloat32(offset);
+        let p = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let y = view.getFloat32(offset);
+        let y = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -433,15 +436,15 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_QUATERNION(view, offset, clie
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let w = view.getFloat32(offset);
+        let w = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let x = view.getFloat32(offset);
+        let x = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let y = view.getFloat32(offset);
+        let y = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let z = view.getFloat32(offset);
+        let z = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -465,7 +468,7 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_STR(view, offset, clientId
     let colorValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         let [color, newOffset] = _parseDataBinary_readString(view, offset);
         offset = newOffset;
@@ -490,7 +493,7 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_COLOR_RGB(view, offset, clientId
     let bValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         let r = view.getUint8(offset);
         offset++;
@@ -519,7 +522,7 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_OPACITY(view, offset, clientId) 
     let opacityValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         let opacity = view.getUint8(offset);
         offset++;
@@ -544,13 +547,13 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_SIZE(view, offset, clientId) {
     let zValues = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let x = view.getFloat32(offset);
+        let x = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let y = view.getFloat32(offset);
+        let y = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
-        let z = view.getFloat32(offset);
+        let z = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
@@ -573,7 +576,7 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset, clientId) 
     let textureData = [];
 
     for(let i = 0; i < count; i++) {
-        let timeDiff = view.getUint32(offset);
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
         offset += 4;
         let textureType = view.getUint8(offset);
         offset++;
