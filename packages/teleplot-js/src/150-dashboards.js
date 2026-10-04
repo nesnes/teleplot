@@ -46,3 +46,38 @@ TELEPLOT.dashboards.getOrCreateDashboard = function(name) {
     }
     return dashboard;
 }
+
+/*
+ * Auto dashboard: new telemetries are displayed without any setup (like Teleplot V1: send data, see it).
+ * Number telemetries get a chart, other types a current value view, telemetries with the autoplot
+ * attribute set to false (text protocol flag "np") are left alone. Views are added to a "row" layout that wraps.
+ * The dashboard is created when the first telemetry shows up; onCreated(dashboard) lets the caller
+ * display it (the library doesn't decide where a dashboard goes on the page).
+ */
+TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = () => {}) {
+    let layout = undefined;
+    TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
+        if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
+        let dataType = Object.keys(telem.data)[0];
+        if (dataType === undefined) return; // No data (yet): nothing to display
+
+        let isNew = layout === undefined;
+        let dashboard = TELEPLOT.dashboards.getOrCreateDashboard(name);
+        if (isNew) {
+            layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
+            layout.layout.type = "row";
+            dashboard.setView(layout);
+        }
+
+        let view;
+        if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) {
+            view = new TELEPLOT.view.ViewChart("", [telem.id], dashboard.getGroupName());
+            view.setSize(2, 4);
+        }
+        else {
+            view = new TELEPLOT.view.ViewCurrentValue("", [telem.id], dashboard.getGroupName());
+        }
+        layout.addView(view);
+        if (isNew) onCreated(dashboard);
+    });
+}

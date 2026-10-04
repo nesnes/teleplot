@@ -110,6 +110,7 @@ TELEPLOT.view.getView = function(viewId){
 
 TELEPLOT.view.updateViews = function(){
     for(let view of TELEPLOT.view.views) {
-        view.update();
+        try { view.update(); }
+        catch(e) { console.error("Teleplot view update failed:", view.id, e); } // A failing view must not prevent the others from updating
     }
 }

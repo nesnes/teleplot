@@ -1,7 +1,7 @@
 function initComponent_panel_telemetries(vue) {
     let name = "panel-telemetries";
 
-    vueHTML = `
+    const vueHTML = `
         <div class="telemetries-layout">
 
             <div v-for="client in {...TP.clients.clients, 'default':{'name':'', 'id':-1}}" :key="client.id">
@@ -18,7 +18,7 @@ function initComponent_panel_telemetries(vue) {
         </div>
     `;
 
-    vueCSS = `
+    const vueCSS = `
         .telemetries-layout {
             display: flex;
             flex-direction: row;
@@ -62,7 +62,6 @@ function initComponent_panel_telemetries(vue) {
             onDragStart(event, id) {
                 event.dataTransfer.setData("text/x-teleplot-drag-type-telemetry", "");
                 event.dataTransfer.setData("text/x-teleplot-drag-id", id);
-                console.log("onTelemDragStart", event);
                 return true;
             },
         },

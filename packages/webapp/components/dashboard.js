@@ -1,14 +1,14 @@
 function initComponent_dashboard(vue) {
     let name = "dashboard";
 
-    vueHTML = `
+    const vueHTML = `
         <div v-if="dashboard && dashboard.view" class="dashboard-layout">
             <div :id="dashboard.view.divId" class="dashboard-view">
             </div>
         </div>
     `;
 
-    vueCSS = `
+    const vueCSS = `
         .dashboard-layout {
             position: relative;
             width: 100%;

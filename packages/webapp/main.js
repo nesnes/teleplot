@@ -24,8 +24,9 @@ var app = Vue.createApp({
     },
     created() {
         initTeleplot(this.TP);
-        this.TP.datastore.onNewTelemetryHooks.push((telem)=>{
-            console.log("On new telem", telem, this);
+        // Display new telemetries automatically, and show the dashboard that gets created for them
+        this.TP.dashboards.enableAutoDashboard("Live", (dashboard)=>{
+            if (!this.ctx.activeDashboard) this.ctx.activeDashboard = dashboard;
         });
         console.log("Teleplot loaded:", this.TP);
         Vue.provide("TP", this.TP);

@@ -1,16 +1,19 @@
+let robotSample = null; // Created on first use (kept out of Vue data: no reactivity needed)
+
 function initComponent_panel_help(vue) {
     let name = "panel-help";
 
-    vueHTML = `
+    const vueHTML = `
         <div class="help-layout">
             <span style="color:var(--color-text-muted);">Ridiculously-simple telemetry viewer.</span>
+            <span>Send data to UDP port 47269: it shows up here automatically.</span>
             
-            <button v-if="!sampleDataInterval" @click="startSampleData()">Preview sample data</button>
+            <button v-if="!sampleRunning" @click="startSampleData()">Preview sample data</button>
             <button v-else @click="stopSampleData()">Stop sample data</button>
         </div>
     `;
 
-    vueCSS = `
+    const vueCSS = `
         .help-layout {
             display: flex;
             flex-direction: column;
@@ -32,100 +35,19 @@ function initComponent_panel_help(vue) {
         },
         data() {
             return {
-                sampleDataInterval: false
+                sampleRunning: !!(robotSample && robotSample.running)
             }
         },
-         methods: {
-            startSampleData() {
-                let
-                sampleDataInterval = setInterval(()=>{
-                    // Update Telemetries
-                    this.TP.datastore.getOrCreateTelemetry("sample.sin").addData(this.TP.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[Math.sin(Date.now()/1000)*100]]);
-                    this.TP.datastore.getOrCreateTelemetry("sample.cos").addData(this.TP.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[Math.cos(Date.now()/1000)*100]]);
-                    this.TP.datastore.getOrCreateTelemetry("sample.text").addData(this.TP.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [Date.now()/1000], [[`Hello world`]]);
-                    
-                    // Create Dashboard
-                    let initialized = this.TP.dashboards.hasDashboard("SampleDashboard");
-                    let dashboard = this.TP.dashboards.getOrCreateDashboard("SampleDashboard");
-
-                    if (!initialized) {
-                        let divId = ""
-                        let view = undefined;
-
-                        divId = dashboard.name + "main-layout";
-                        let mainLayout = new this.TP.view.ViewLayout(divId, dashboard.getGroupName());
-                        mainLayout.layout.type = "column";
-                        dashboard.setView(mainLayout);
-
-                        // Top Layout
-                        {
-                            let topLayout = new this.TP.view.ViewLayout("", dashboard.getGroupName());
-                            topLayout.layout.type = "row";
-                            mainLayout.addView(topLayout);
-
-                            divId = dashboard.name + "sample-view-chart-sin-cos-2";
-                            view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
-                            view.setSize(2, 4);
-                            topLayout.addView(view);
-
-                            // Value Layout
-                            {
-                                divId = dashboard.name + "value-layout";
-                                let valueLayout = new this.TP.view.ViewLayout(divId, dashboard.getGroupName());
-                                valueLayout.setSize(4, 2);
-                                topLayout.addView(valueLayout);
-                                
-                                divId = dashboard.name + "sample-view-value-sin";
-                                view = new this.TP.view.ViewCurrentValue(divId, ["sample.sin"], dashboard.getGroupName());
-                                valueLayout.addView(view);
-                                
-                                divId = dashboard.name + "sample-view-value-sin-2";
-                                view = new this.TP.view.ViewCurrentValue(divId, ["sample.sin"], dashboard.getGroupName());
-                                valueLayout.addView(view);
-
-                                divId = dashboard.name + "sample-view-value-sin-3";
-                                view = new this.TP.view.ViewCurrentValue(divId, ["sample.sin"], dashboard.getGroupName());
-                                valueLayout.addView(view);
-
-                                divId = dashboard.name + "sample-view-value-text-cos";
-                                view = new this.TP.view.ViewCurrentValue(divId, ["sample.text", "sample.cos"], dashboard.getGroupName());
-                                view.setSize(1, 2);
-                                valueLayout.addView(view);
-                            }
-
-                            divId = dashboard.name + "sample-view-chart-sin-cos-3";
-                            view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
-                            view.setSize(2, 4);
-                            topLayout.addView(view);
-                        }
-
-                        // Stack
-                        {
-                            divId = dashboard.name + "value-stack";
-                            let valueStack = new this.TP.view.ViewStack(divId, dashboard.getGroupName());
-                            mainLayout.addView(valueStack);
-
-                            divId = dashboard.name + "sample-view-chart-sin-cos";
-                            view = new this.TP.view.ViewChart(divId, ["sample.sin", "sample.cos"], dashboard.getGroupName());
-                            valueStack.addView(view);
-
-                            divId = dashboard.name + "sample-view-value-text-cos-bis";
-                            view = new this.TP.view.ViewCurrentValue(divId, ["sample.text", "sample.cos"], dashboard.getGroupName());
-                            view.name="Text and cos current values";
-                            valueStack.addView(view);
-
-                        }
-                        this.ctx.activeDashboard = dashboard;
-                    }
-
-
-                }, 50);
+        methods: {
+            startSampleData() { // See sample-robot.js
+                if (!robotSample) robotSample = createRobotSample(this.TP);
+                robotSample.start();
+                this.sampleRunning = true;
+                this.ctx.activeDashboard = robotSample.dashboard;
             },
             stopSampleData() {
-                if (this.sampleDataInterval) {
-                    clearInterval(this.sampleDataInterval)
-                }
-                this.sampleDataInterval = false;
+                robotSample.stop();
+                this.sampleRunning = false;
             }
         },
         template: vueHTML,

@@ -1,7 +1,7 @@
 function initComponent_panel_sources(vue) {
     let name = "panel-sources";
 
-    vueHTML = `
+    const vueHTML = `
         <div class="sources-layout">
           <div v-for="conn in TP.connection.connections" :key="conn.id" class="source-item glass-material">
             <h3>{{conn.type}}</h3>
@@ -11,7 +11,7 @@ function initComponent_panel_sources(vue) {
         </div>
     `;
 
-    vueCSS = `
+    const vueCSS = `
         .sources-layout {
             position: relative;
             display: flex;

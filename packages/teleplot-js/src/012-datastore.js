@@ -3,7 +3,8 @@ class Telemetry {
         this.id = id;
         this.clientId = -1;
         this.attributes = {};
-        this.data = {};
+        // Raw (not reactive): a UI framework wrapping the datastore in proxies would make ingestion ~100x slower. Views read it through update().
+        this.data = TELEPLOT.Vue.markRaw({});
     }
     setAttribute(code, data) {
         this.attributes[code] = data;
@@ -157,7 +158,7 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
     }
 
     // Create telemetry
-    telem = new Telemetry(id);
+    let telem = new Telemetry(id);
     TELEPLOT.datastore.telemetries[id] = telem;
 
     // Register name

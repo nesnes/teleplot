@@ -27,7 +27,7 @@ function installGlobals() {
 // Vue is only used for reactivity: plain objects behave the same for the logic we test
 const makeVue = () => ({
     reactive: x => x,
-    markRaw: x => x,
+    markRaw: x => Object.defineProperty(x, '__v_skip', { value: true, configurable: true }), // same flag as real Vue
     createApp: () => ({ component() {}, mount() {} }),
 });
 

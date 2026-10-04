@@ -219,10 +219,10 @@ class ViewChart extends ViewTelemetries{
                 dataList.push(this.getSeriesData(telem, dataEntry, displayRange));
             }
             this.chartData.length = 0;
-            this.chartData.push(...TELEPLOT.uPlot.join(dataList));
+            this.chartData.push(...(dataList.length ? TELEPLOT.uPlot.join(dataList) : [[]])); // Nothing to display yet: uPlot.join() cannot join no series
             // Update chart
             this.updateForced = false;
-            if(this.chart) {
+            if(this.chart && this.chart.batch) { // Not the case while the view isn't mounted (ex: hidden in a stack)
                 this.chart.batch(() => {
                     //Set data
                     this.chart.setData(this.chartData);

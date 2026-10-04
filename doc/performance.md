@@ -48,3 +48,8 @@ Reference measurements (headless Chromium, 4 series with distinct timestamps, 15
 | 5 kHz per series, decimation off | 108 ms avg (271 ms max) | 4 | 121 MB |
 | binary, 5 kHz per series, decimation on | 3.5 ms avg (4.7 ms max) | 60 | 21 MB |
 | binary, 20 kHz per series, 8 series (1.9 M points stored) | 7.9 ms avg (11.9 ms max) | 60 | 43 MB |
+
+## Reactive frameworks and the datastore
+
+Wrapping the library instance in a reactive object (the webapp did `Vue.reactive` on it) makes every timestamp and value array a Vue proxy: ingestion measured **0.09 M samples/s instead of 16 M samples/s** (about 180 times slower). `Telemetry.data` is therefore created with `TELEPLOT.Vue.markRaw`, which keeps stored samples out of any Vue instance. The UI reads data through the views (`update()`), never reactively. Keep new per-sample storage out of reactive objects; attributes, telemetry lists and dashboards can stay reactive.
+

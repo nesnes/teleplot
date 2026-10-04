@@ -48,3 +48,10 @@ Rework of Teleplot for better performance and UI.
 ## Tests
 
 - `packages/teleplot-js/tests/` (zero dependency, tiny runner on node:assert, Node 16+): run `./test.sh` from `packages/teleplot-js/`. Library only (no external files). Loads every `src/` file except Vue/uPlot via `helpers/load.js`, with stubs for DOM/Vue/uPlot/WebSocket/timers (`helpers/stubs.js`). Covers datastore, parsers, decimator, protocol, views, chart data, connections. Keep tests updated with new features; see `tests/README.md`.
+
+## Webapp notes
+
+- Never let a UI framework proxy sample storage: `Telemetry.data` is `markRaw` (see doc/performance.md). Regression test in `tests/datastore.test.js`.
+- `TP.dashboards.enableAutoDashboard(name, onCreated)` (lib, `150-dashboards.js`) charts new telemetries automatically (number -> chart, others -> current value, `autoplot=false` skipped); the webapp enables it as "Live" and activates it on creation.
+- Webapp drag and drop (`panel-dashboard.js`) refuses drops into the view itself or its children, and never removes a view without re-inserting it. There are no webapp tests; check it in a browser (stage the folder, serve it, `app._container._vnode.component.proxy` gives the root component).
+- Sample data: `packages/webapp/components/sample-robot.js` (self-contained robot simulation: numbers, 2D, text, image; 3D TODO) builds its own "Robot sample" dashboard; its telemetries have autoplot=false so the auto dashboard ignores them. The help panel only has the start/stop button.

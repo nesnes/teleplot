@@ -139,3 +139,44 @@ test('update loop: hooks run in isolation, timed-out data is pruned, interval ca
     assert.equal(T.__timers.pending.size, 1);
     assert.equal([...T.__timers.pending.values()][0].ms, 100);
 });
+
+test('auto dashboard: new telemetries get a chart (numbers) or a value view (others), np is respected', () => {
+    const T = loadTeleplot();
+    let created = [];
+    T.dashboards.enableAutoDashboard('Live', d => created.push(d));
+    T.datastore.getOrCreateTelemetry('speed').addData(20, [1], [[1]]);
+    T.datastore.getOrCreateTelemetry('state').addData(23, [1], [['on']]);
+    const hidden = T.datastore.getOrCreateTelemetry('hidden');
+    hidden.setAttribute(T.protocol.TELEM_ATTR_AUTOPLOT, false);
+    hidden.addData(20, [1], [[1]]);
+    T.datastore.getOrCreateTelemetry('empty'); // no data yet
+    assert.equal(T.dashboards.hasDashboard('Live'), false, 'nothing before the hooks run');
+
+    T.__timers.run(); // hooks are delayed to let attributes and data arrive
+
+    assert.equal(created.length, 1, 'onCreated once');
+    const layout = T.dashboards.getDashboard('Live').getView();
+    assert.deepEqual(layout.views.map(v => v.type), ['teleplot-chart', 'teleplot-current-value']);
+    assert.deepEqual(layout.views[0].telemetryIdOrNameList, [T.datastore.getTelemetry('speed').id]);
+    assert.equal(T.view.getView(layout.id), layout);
+});
+
+test('auto dashboard: nothing is created without displayable telemetry', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard();
+    T.datastore.getOrCreateTelemetry('empty');
+    T.__timers.run();
+    assert.equal(T.dashboards.hasDashboard('Live'), false);
+});
+
+test('a failing view does not stop the other views from updating', () => {
+    const T = loadTeleplot();
+    const [bad, good] = [new T.view.ViewLayout(), new T.view.ViewLayout()];
+    let updated = false;
+    bad.update = () => { throw new Error('boom'); };
+    good.update = () => { updated = true; };
+    T.view.addView(bad); T.view.addView(good);
+    const out = captureConsole(() => T.view.updateViews());
+    assert.equal(out.error.length, 1);
+    assert.ok(updated);
+});

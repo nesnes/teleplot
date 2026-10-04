@@ -1,7 +1,7 @@
 function initComponent_panel_dashboard_view(vue) {
     let name = "panel-dashboard-view";
 
-    vueHTML = `
+    const vueHTML = `
         <div v-if="view" class="panel-dashboard-view"
         :class="{'panel-dashboard-view-layout':isLayout(), 'panel-dashboard-view-highlight': dragCtx.isOver}">
           
@@ -12,6 +12,7 @@ function initComponent_panel_dashboard_view(vue) {
 
             draggable="true"
             @dragstart.stop="onDragStart($event)"
+            @dragend.stop="onDragEnd()"
             @dragover.stop.prevent
             >
                 <template v-if="!isLayout()">
@@ -43,7 +44,7 @@ function initComponent_panel_dashboard_view(vue) {
         </div>
     `;
 
-    vueCSS = `
+    const vueCSS = `
         .panel-dashboard-view {
             display: flex;
             flex-direction: column;
@@ -156,7 +157,6 @@ function initComponent_panel_dashboard_view(vue) {
                 }
             },
             onDragStart(event) {
-                console.log("onDragStart", event);
                 event.dataTransfer.setData("text/plain", '');
                 this.ctx.dragevent = {
                     view: this.view,
@@ -176,26 +176,34 @@ function initComponent_panel_dashboard_view(vue) {
                     this.dragCtx.isOver = false;
                 }
             },
-            onDragDrop(event, overView, position) {
-                // TODO: rewrite to use function from teleplot directly (to be created) -> In Vue props are readonly and cannot be updated
-                console.log("drop", this.ctx.dragevent)
-                if (!this.ctx.dragevent.parentView) return;
-                let viewToDrop = this.TP.view.getView(this.ctx.dragevent.view.id);
-
-                // Remove from origin
-                let sourceView = this.TP.view.getView(this.ctx.dragevent.parentView.id);
-                sourceView.removeView(viewToDrop.id);
-
-                // Insert in destination
-                let destinationView = this.TP.view.getView(this.view.id);
-                let destinationIndex = destinationView.views.findIndex((v) => v.id === overView.id);
-                if (destinationIndex === -1) return;
-                destinationIndex += position=='after' ? 1 : 0;
-                destinationView.addView(viewToDrop, destinationIndex);
-                //this.view.views.splice(destinationIndex + (position=='after'?1:0), 0,this.ctx.dragevent.view)
-                
+            onDragEnd() { // Drag finished, dropped or not
                 delete this.ctx.dragevent;
                 this.dragCtx.isOver = false;
+                this.dragCtx.overId = null;
+                this.dragCtx.overPosition = null;
+            },
+            onDragDrop(event, overView, position) {
+                // TODO: rewrite to use function from teleplot directly (to be created) -> In Vue props are readonly and cannot be updated
+                const drag = this.ctx.dragevent;
+                this.onDragEnd();
+                if (!drag || !drag.parentView) return; // Not a view dragged from this panel (ex: a telemetry), or the root view
+
+                let viewToDrop = this.TP.view.getView(drag.view.id);
+                let sourceView = this.TP.view.getView(drag.parentView.id);
+                let destinationView = this.TP.view.getView(this.view.id);
+                if (!viewToDrop || !sourceView || !destinationView) return;
+                if (viewToDrop === overView) return; // Dropped next to itself: nothing to do
+                // A view cannot go into itself or into one of its own children: it would disappear from the dashboard
+                if (viewToDrop === destinationView || this.containsView(viewToDrop, destinationView)) return;
+                if (destinationView.views.findIndex((v) => v.id === overView.id) === -1) return;
+
+                // Remove from origin, then insert in destination (index computed after the removal: origin can be the destination)
+                sourceView.removeView(viewToDrop.id);
+                let destinationIndex = destinationView.views.findIndex((v) => v.id === overView.id);
+                destinationView.addView(viewToDrop, destinationIndex + (position == 'after' ? 1 : 0));
+            },
+            containsView(parent, searched) { // Is "searched" somewhere under "parent" ?
+                return (parent.views || []).some((v) => v === searched || this.containsView(v, searched));
             }
 
         },
@@ -208,13 +216,13 @@ function initComponent_panel_dashboard(vue) {
 
     let name = "panel-dashboard";
 
-    vueHTML = `
+    const vueHTML = `
         <div class="dashboard-layout">
-            <panel-dashboard-view v-if="ctx.activeDashboard && ctx.activeDashboard.view" :view="ctx.activeDashboard.view" :parentView=""/>
+            <panel-dashboard-view v-if="ctx.activeDashboard && ctx.activeDashboard.view" :view="ctx.activeDashboard.view"/>
         </div>
     `;
 
-    vueCSS = `
+    const vueCSS = `
         .dashboard-layout {
             display: flex;
             flex-direction: column;

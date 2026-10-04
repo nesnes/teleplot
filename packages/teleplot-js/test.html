@@ -27,6 +27,14 @@
     Teleplot.datastore.addTelemetry("text.Telemetry").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [Date.now()/1000, Date.now()/1000+0.5, Date.now()/1000+1], [["one","two","hello world, nice to meet you how are you"]]);
     Teleplot.datastore.addTelemetry("/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D, [Date.now()/1000], [[42], [43]]);
     
+    Teleplot.datastore.addTelemetry("pose.3D").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D, [Date.now()/1000], [[1.23456], [-2.5], [1000]]);
+    Teleplot.datastore.addTelemetry("empty.telemetry"); // Created, but no data yet
+    {
+      let longUnit = Teleplot.datastore.addTelemetry("long.unit");
+      longUnit.setAttribute(Teleplot.protocol.TELEM_ATTR_UNIT, "W/(m2.K) per square meter of surface");
+      longUnit.addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[12345.6789]]);
+    }
+
     // Very-specific (probably shouldn't be supported)
     let multiChannelTelem = Teleplot.datastore.addTelemetry("multi-channel-telemetry")
     multiChannelTelem.addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now()/1000], [[42]]);
@@ -134,6 +142,31 @@
     Teleplot.view.views.at(-1).setOption("displayTelemetryColor", false);
 
 
+    // Current Value edge cases: nothing should be clipped (text wraps, names are truncated with a tooltip, small views scroll)
+    const longName = "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space";
+    divId = createTestElement("Current Value - Too many for the view (scrolls)", "200px", "80px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "number.cos", "text.Telemetry", "long.unit", "multi-channel-telemetry"]));
+
+    divId = createTestElement("Current Value - Narrow, long names and unit", "120px", "250px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, [longName, "text.Telemetry", "long.unit"]));
+
+    divId = createTestElement("Current Value - 2D and 3D", "250px", "100px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, [longName, "pose.3D", "numberTelemetry"]));
+
+    divId = createTestElement("Current Value - No data yet", "200px", "80px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "empty.telemetry"]));
+
+    divId = createTestElement("Current Value - Image and values, tall", "250px", "300px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["img1", "numberTelemetry", "text.Telemetry"]));
+
+    divId = createTestElement("Current Value Row - Image and values, narrow", "250px", "180px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["img1", "numberTelemetry", "text.Telemetry"]));
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+
+    divId = createTestElement("Current Value Row - Too many for the view (scrolls)", "250px", "100px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry", "number.cos", "text.Telemetry", "long.unit", longName]));
+    Teleplot.view.views.at(-1).setOption("displayLayoutRow", true);
+
     // Charts
     divId = createTestElement("Chart - Number, Single", "200px", "150px")
     Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry"]));
@@ -146,6 +179,20 @@
 
     divId = createTestElement("Chart - Number and multichannel", "300px", "150px")
     Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["numberTelemetry", "multi-channel-telemetry"]));
+
+
+    // Auto dashboard: telemetries created after this call are displayed without any setup
+    const autoDivId = createTestElement("Auto dashboard (enableAutoDashboard)", "600px", "300px")
+    Teleplot.dashboards.enableAutoDashboard("Auto demo", (dashboard) => {
+        let element = document.createElement("div");
+        element.id = dashboard.getView().divId;
+        document.getElementById(autoDivId).appendChild(element);
+    });
+    setInterval(() => {
+        let now = Date.now() / 1000;
+        Teleplot.datastore.getOrCreateTelemetry("auto.sin").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [now], [[Math.sin(now)]]);
+        Teleplot.datastore.getOrCreateTelemetry("auto.text").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [now], [["auto " + Math.floor(now % 10)]]);
+    }, 50);
 
   </script>
 

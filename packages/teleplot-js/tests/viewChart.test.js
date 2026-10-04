@@ -123,3 +123,13 @@ test('current value view: latest value, decimals, image data URI', () => {
     view.update();
     assert.deepEqual(view.telemetries[n.id].data[NUMBER].lastDisplayValue, ['3']);
 });
+
+test('a chart that is not mounted yet (no uPlot) or has no data does not throw (regression: hidden stack views broke every update)', () => {
+    const T = loadTeleplot();
+    T.datastore.getOrCreateTelemetry('a').addData(20, [1, 2], [[1, 2]]);
+    const unmounted = new T.view.ViewChart('x', ['a']);   // chart is {} until init() creates uPlot
+    const empty = new T.view.ViewChart('y', ['ghost']);
+    assert.doesNotThrow(() => { unmounted.update(); empty.update(); });
+    assert.deepEqual(unmounted.chartData, [[1, 2], [1, 2]]);
+    assert.deepEqual(empty.chartData, [[]]);
+});

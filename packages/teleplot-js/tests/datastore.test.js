@@ -105,3 +105,18 @@ test('telemetries are reachable by name and by generated id', () => {
     assert.equal(T.datastore.getOrCreateTelemetry(42).id, 42);
     assert.equal(T.datastore.hasTelemetry('nope'), false);
 });
+
+test('stored data is marked raw so a reactive UI framework never wraps it (webapp ingestion perf)', () => {
+    const { telem } = setup();
+    telem.addData(NUMBER, [1], [[1]]);
+    assert.equal(telem.data.__v_skip, true); // Vue's "do not proxy" flag
+});
+
+test('new telemetry hooks receive the telemetry that was created, even when several are created at once (regression: implicit global)', () => {
+    const T = loadTeleplot();
+    const seen = [];
+    T.datastore.onNewTelemetryHooks.push(t => seen.push(t.getAttribute(T.protocol.TELEM_ATTR_NAME)));
+    ['a', 'b', 'c'].forEach(n => T.datastore.getOrCreateTelemetry(n));
+    T.__timers.run();
+    assert.deepEqual(seen, ['a', 'b', 'c']);
+});
