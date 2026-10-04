@@ -17,12 +17,26 @@ var app = Vue.createApp({
         }
     },
     methods: {
+        toggleSidePanel(name){
+            this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;
+            this.ctx.showMenu = false;
+        },
         setTopPanel(name){
             if (this.ctx.topPanel == name) { this.ctx.topPanel = ""; }
             else { this.ctx.topPanel = name; }
         }
     },
     created() {
+        // Escape closes the open panel (top panel first, then side panel)
+        this._onKeyDown = (e)=>{
+            if (e.key != "Escape") return;
+            const t = e.target;
+            if (t && (t.tagName == "INPUT" || t.tagName == "TEXTAREA" || t.isContentEditable)) { if (t.blur) t.blur(); return; }
+            if (t && t.blur && t.classList && t.classList.contains("top-menu-item")) t.blur();
+            if (this.ctx.topPanel) this.ctx.topPanel = "";
+            else if (this.ctx.sidePanel) this.ctx.sidePanel = "";
+        };
+        window.addEventListener("keydown", this._onKeyDown);
         initTeleplot(this.TP);
         // Display new telemetries automatically, and show the dashboard that gets created for them
         this.TP.dashboards.enableAutoDashboard("Live", (dashboard)=>{

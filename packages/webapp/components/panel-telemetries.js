@@ -37,6 +37,7 @@ function initComponent_panel_telemetries(vue) {
                             <span class="telemetries-value-line">
                                 <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
                                 <span class="telemetries-val">{{item.valueText}}<span v-if="item.unit" class="telemetries-unit">{{item.unit}}</span></span>
+                                <span v-if="item.rateText" class="telemetries-rate">{{item.rateText}}</span>
                             </span>
                         </div>
                     </div>
@@ -58,6 +59,7 @@ function initComponent_panel_telemetries(vue) {
                                 <span class="telemetries-value-line">
                                     <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
                                     <span class="telemetries-val">{{item.valueText}}<span v-if="item.unit" class="telemetries-unit">{{item.unit}}</span></span>
+                                <span v-if="item.rateText" class="telemetries-rate">{{item.rateText}}</span>
                                 </span>
                             </div>
                         </div>
@@ -155,6 +157,7 @@ function initComponent_panel_telemetries(vue) {
         .telemetries-value-line { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--color-text-muted); min-width: 0; }
         .telemetries-unit { margin-left: 0.25em; }
         .telemetries-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .telemetries-rate { flex: none; margin-left: auto; padding-left: 0.4rem; font-size: 0.8rem; opacity: 0.65; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .telemetries-badge {
             flex: none; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; background: var(--tc);
             border-radius: 0.2rem; padding: 0 0.3rem; line-height: 1.3; min-width: 2.6em; text-align: center;
@@ -212,12 +215,14 @@ function initComponent_panel_telemetries(vue) {
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
                     const rest = path.slice(1).join(sep);
                     const mainType = types.length ? types[0] : "other";
+                    const rate = this.rateText(telem, types);
                     list.push({
                         id: telem.id, name, unit, types, mainType, clientId: telem.clientId,
                         group: path.length > 1 ? path[0] : null,
                         dimLength: path.length > 1 ? name.length - rest.length : 0, // The group and its separator are dimmed
                         valueText: this.valueText(telem, types),
-                        tooltip: name + "\n" + (types.length ? types.map(t => this.typeLabel(t)).join(", ") : "No data yet") + (unit ? "\nUnit: " + unit : ""),
+                        rateText: this.rateText(telem, types),
+                        tooltip: name + "\n" + (types.length ? types.map(t => this.typeLabel(t)).join(", ") : "No data yet") + (unit ? "\nUnit: " + unit : "") + (rate ? "\nUpdate rate: " + rate : ""),
                         lower: name.toLowerCase(),
                     });
                 }
@@ -268,6 +273,22 @@ function initComponent_panel_telemetries(vue) {
                 if (type == P.SECTION_TYPE_TELEM_DATA_IMAGE) return "image";
                 if (type == P.SECTION_TYPE_TELEM_DATA_TEXT) return String(last[0]);
                 return last.map(v => (typeof v === "number") ? String(+v.toFixed(Math.abs(v) >= 1000 ? 0 : 3)) : String(v)).join(", ");
+            },
+            // Estimated update rate from the timestamps of the latest samples ("" until 2 samples, "idle" when the data stopped coming)
+            rateText(telem, types) {
+                const entry = types.length ? telem.data[types[0]] : undefined;
+                if (!entry || entry.timestamps.length < 2) return "";
+                const ts = entry.timestamps;
+                const count = Math.min(ts.length, 32);
+                const span = ts[ts.length - 1] - ts[ts.length - count];
+                if (!(span > 0)) return "";
+                const rate = (count - 1) / span;
+                const silence = Date.now() - entry.lastUpdate; // Wall clock of the last arrival: sample timestamps may come from the device's own clock
+                if (silence > Math.max(2000, 3000 / rate)) return "idle";
+                if (rate >= 1000) return (rate / 1000).toFixed(rate >= 10000 ? 0 : 1) + " kHz";
+                if (rate >= 10) return Math.round(rate) + " Hz";
+                if (rate >= 1) return rate.toFixed(1) + " Hz";
+                return rate.toFixed(2) + " Hz";
             },
             badge(code) { const t = this.typeList.find(t => t.code == code); return t ? t.badge : "?"; },
             typeLabel(code) { const t = this.typeList.find(t => t.code == code); return t ? t.label : "Other"; },

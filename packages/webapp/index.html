@@ -17,24 +17,24 @@
       <div class="top-menu-section">
         <img src="media/logo-color.svg" class="top-menu-logo"/>
         
-        <button class="top-menu-item" @click="setTopPanel('dashboard');">
+        <button class="top-menu-item" :class="{active: ctx.topPanel=='dashboard' || ctx.sidePanel=='dashboard'}" :aria-pressed="ctx.topPanel=='dashboard'" @click="setTopPanel('dashboard');">
           <i class="icofont-dashboard"></i>
           <span v-if="ctx.activeDashboard" class="top-menu-item-upper-text">Dashboard</span>
           <span>{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
         </button>
-        <button class="top-menu-item" @click="ctx.sidePanel='telemetries'; ctx.showMenu=false;">
+        <button class="top-menu-item" :class="{active: ctx.sidePanel=='telemetries'}" :aria-pressed="ctx.sidePanel=='telemetries'" @click="toggleSidePanel('telemetries');">
           <i class="icofont-duotone icofont-chart"></i>
           <span>Telemetries</span>
         </button>
-        <button class="top-menu-item" @click="ctx.sidePanel='sources'; ctx.showMenu=false;">
+        <button class="top-menu-item" :class="{active: ctx.sidePanel=='sources'}" :aria-pressed="ctx.sidePanel=='sources'" @click="toggleSidePanel('sources');">
           <i class="icofont-link"></i>
           <span>Sources</span>
         </button>
-        <button class="top-menu-item" @click="ctx.sidePanel='export'; ctx.showMenu=false;">
+        <button class="top-menu-item" :class="{active: ctx.sidePanel=='export'}" :aria-pressed="ctx.sidePanel=='export'" @click="toggleSidePanel('export');">
           <i class="icofont-share-alt"></i>
           <span>Export</span>
         </button>
-        <button class="top-menu-item" @click="ctx.sidePanel='help'; ctx.showMenu=false;">
+        <button class="top-menu-item" :class="{active: ctx.sidePanel=='help'}" :aria-pressed="ctx.sidePanel=='help'" @click="toggleSidePanel('help');">
           <i class="icofont-info"></i>
           <span class="top-menu-item-name">Help</span>
         </button>
@@ -64,7 +64,7 @@
       <!-- Sources -->
       <div v-if="ctx.sidePanel=='sources'" class="side-panel">
         <div class="panel-title">
-          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
           <h1>Sources</h1>
           <span>List of <b>Connections</b> and <b>static-files</b> feeding this Teleplot session.</span>
         </div>
@@ -73,7 +73,7 @@
       <!-- Telemetries -->
       <div v-if="ctx.sidePanel=='telemetries'" class="side-panel">
         <div class="panel-title">
-          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
           <h1>Telemetries</h1>
           <span>Drag telemetries on a dashboard to display them.</span>
         </div>
@@ -82,7 +82,7 @@
 
       <div v-if="ctx.sidePanel=='help'" class="side-panel">
         <div class="panel-title">
-          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
           <h1>Help</h1>
           <span>Please help.</span>
         </div>
@@ -91,7 +91,7 @@
 
       <div v-if="ctx.sidePanel=='dashboard' && ctx.activeDashboard" class="side-panel">
         <div class="panel-title">
-          <i class="panel-close status-icon icofont-close" @click="ctx.sidePanel='';" ></i>
+          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
         </div>
         <panel-dashboard/>
       </div>
