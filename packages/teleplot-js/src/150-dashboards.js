@@ -10,6 +10,7 @@ class Dashboard {
         this.name = name;
         this.id = "dashboard-layout-"+crypto.randomUUID();
         this.view = undefined;
+        this.isAuto = false; // true for the dashboard filled automatically (enableAutoDashboard)
     }
 
     getGroupName() { return this.name; }
@@ -19,6 +20,23 @@ class Dashboard {
         this.view = view;
     }
     getView() { return this.view; }
+
+    // Content summary, to list dashboards: number of displayed views (layouts excluded) and of distinct telemetries they show
+    getStats() {
+        let viewCount = 0;
+        let telemetries = new Set();
+        let visit = (view) => {
+            if (!view) return;
+            if (Array.isArray(view.views)) { view.views.forEach(visit); return; }
+            viewCount++;
+            for (let idOrName of (view.telemetryIdOrNameList || [])) {
+                let telem = TELEPLOT.datastore.getTelemetry(idOrName);
+                telemetries.add(telem ? telem.id : idOrName);
+            }
+        };
+        visit(this.view);
+        return { viewCount: viewCount, telemetryCount: telemetries.size };
+    }
 }
 
 TELEPLOT.dashboards.getDashboard = function(name) {
@@ -30,10 +48,9 @@ TELEPLOT.dashboards.hasDashboard = function(name) {
 }
 
 TELEPLOT.dashboards.addDashboard = function(name) {
-    let id = -1;
-    while(TELEPLOT.dashboards.hasDashboard(name)) {
-        id = -1 * Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-    }
+    // Names are unique: "name 2", "name 3"... if already taken
+    let baseName = name;
+    for (let n = 2; TELEPLOT.dashboards.hasDashboard(name); n++) name = baseName + " " + n;
     let dashboard = new Dashboard(name);
     TELEPLOT.dashboards.dashboards[name] = dashboard;
     return dashboard;
@@ -44,6 +61,21 @@ TELEPLOT.dashboards.getOrCreateDashboard = function(name) {
     if(dashboard === undefined) {
         dashboard = TELEPLOT.dashboards.addDashboard(name);
     }
+    return dashboard;
+}
+
+// Creates an empty dashboard (a wrapping "row" layout) ready to receive views. An empty name gives "Dashboard 1", "Dashboard 2"...
+TELEPLOT.dashboards.createDashboard = function(name = "") {
+    if (name == "") {
+        for (let n = 1; ; n++) {
+            name = "Dashboard " + n;
+            if (!TELEPLOT.dashboards.hasDashboard(name)) break;
+        }
+    }
+    let dashboard = TELEPLOT.dashboards.addDashboard(name);
+    let layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
+    layout.layout.type = "row";
+    dashboard.setView(layout);
     return dashboard;
 }
 
@@ -64,6 +96,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         let isNew = layout === undefined;
         let dashboard = TELEPLOT.dashboards.getOrCreateDashboard(name);
         if (isNew) {
+            dashboard.isAuto = true;
             layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
             layout.layout.type = "row";
             dashboard.setView(layout);

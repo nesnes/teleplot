@@ -106,46 +106,120 @@ button {
     }
 }
 
-.top-panel {
+.top-menu-anchor {
+    position: relative;
+    display: flex;
+}
+.top-menu-caret {
+    font-size: 0.7em;
+    opacity: 0.7;
+}
+.dashboard-dropdown-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+}
+.dashboard-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 20;
+    min-width: 18rem;
+    max-width: 90vw;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 0.25rem;
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-bg-dark);
+    border-radius: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    transition: all 0.1s ease-out;
+    @starting-style {
+        transform: translate(0, -0.5rem);
+        opacity: 0;
+    }
 
-    .top-panel-dashboard-list {
+    button {
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        text-align: left;
+    }
+    .dashboard-dropdown-row {
         display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 1em;
-        margin: 0.25em;
-
-        .top-panel-dashboard-card {
-            cursor: pointer;
-            padding: 1em;
-            border-radius: 1em;
-            border: 2px solid var(--color-shadow);
-            transition: 0.1s ease-out;
-            position: relative;
-                
-            .top-panel-dashboard-card-edit {
-                transform: translate(-50%, 100%);
-                border-radius: 1rem;
-                border: none;
-                background-color: var(--color-primary);
-                color: #fff;
-                padding: 0.1rem 0.5rem;
-                position: absolute;
-                left: 50%;
-                bottom: 0;
-                opacity: 0;
-                transition: 0.1s ease-out;
-            }
-        }
-        .top-panel-dashboard-card:hover {
-            border-color: var(--color-primary);
-            box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.25);
-            .top-panel-dashboard-card-edit {
-                transform: translate(-50%, 50%);
-                opacity: 1;
-            }
-        }
-
+        align-items: stretch;
+        border-radius: 0.3rem;
+    }
+    .dashboard-dropdown-row:hover, .dashboard-dropdown-row:focus-within, .dashboard-dropdown-row.current {
+        background: var(--color-bg-light);
+    }
+    .dashboard-dropdown-main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        font-weight: 500;
+        min-width: 0;
+    }
+    .dashboard-dropdown-name {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .dashboard-dropdown-sub {
+        color: var(--color-text-muted);
+        font-size: 0.8em;
+        font-weight: 400;
+    }
+    .dashboard-dropdown-live {
+        display: inline-block;
+        width: 0.5rem;
+        height: 0.5rem;
+        margin-right: 0.4rem;
+        border-radius: 50%;
+        background: #27ae60;
+    }
+    .dashboard-dropdown-check {
+        color: var(--color-primary);
+    }
+    .dashboard-dropdown-edit {
+        padding: 0 0.7rem;
+        color: var(--color-text-muted);
+        opacity: 0;
+        border-radius: 0.3rem;
+    }
+    .dashboard-dropdown-row:hover .dashboard-dropdown-edit,
+    .dashboard-dropdown-edit:focus-visible {
+        opacity: 1;
+    }
+    .dashboard-dropdown-edit:hover {
+        color: var(--color-primary);
+    }
+    .dashboard-dropdown-sep {
+        height: 1px;
+        margin: 0.25rem 0;
+        background: var(--color-bg-dark);
+    }
+    .dashboard-dropdown-empty {
+        padding: 0.5rem 0.6rem;
+        color: var(--color-text-muted);
+    }
+    .dashboard-dropdown-new {
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        border-radius: 0.3rem;
+        font-weight: 500;
+    }
+    .dashboard-dropdown-new:hover {
+        background: var(--color-bg-light);
     }
 }
 

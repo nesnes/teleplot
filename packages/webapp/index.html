@@ -17,11 +17,39 @@
       <div class="top-menu-section">
         <img src="media/logo-color.svg" class="top-menu-logo"/>
         
-        <button class="top-menu-item" :class="{active: ctx.topPanel=='dashboard' || ctx.sidePanel=='dashboard'}" :aria-pressed="ctx.topPanel=='dashboard'" @click="setTopPanel('dashboard');">
-          <i class="icofont-dashboard"></i>
-          <span v-if="ctx.activeDashboard" class="top-menu-item-upper-text">Dashboard</span>
-          <span>{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
-        </button>
+        <div class="top-menu-anchor">
+          <button class="top-menu-item" :class="{active: ctx.topPanel=='dashboard' || ctx.sidePanel=='dashboard'}" :aria-expanded="ctx.topPanel=='dashboard'" aria-haspopup="menu" @click="setTopPanel('dashboard');">
+            <i class="icofont-dashboard"></i>
+            <span v-if="ctx.activeDashboard" class="top-menu-item-upper-text">Dashboard</span>
+            <span>{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
+            <i class="icofont-simple-down top-menu-caret"></i>
+          </button>
+          <template v-if="ctx.topPanel=='dashboard'">
+            <div class="dashboard-dropdown-backdrop" @click="setTopPanel('');"></div>
+            <div class="dashboard-dropdown" role="menu">
+              <template v-for="dashboard in dashboardList()" :key="dashboard.name">
+                <div class="dashboard-dropdown-row" :class="{current: dashboard === ctx.activeDashboard}">
+                  <button class="dashboard-dropdown-main" role="menuitem" @click="selectDashboard(dashboard);">
+                    <span class="dashboard-dropdown-name">
+                      <span><span v-if="dashboard.isAuto" class="dashboard-dropdown-live"></span>{{dashboard.name}}</span>
+                      <span class="dashboard-dropdown-sub">{{dashboardSummary(dashboard)}}</span>
+                    </span>
+                    <i v-if="dashboard === ctx.activeDashboard" class="icofont-check dashboard-dropdown-check"></i>
+                  </button>
+                  <button class="dashboard-dropdown-edit" title="Edit dashboard" aria-label="Edit dashboard" @click="editDashboard(dashboard);">
+                    <i class="icofont-duotone icofont-pencil"></i>
+                  </button>
+                </div>
+                <div v-if="dashboard.isAuto" class="dashboard-dropdown-sep"></div>
+              </template>
+              <div v-if="!dashboardList().length" class="dashboard-dropdown-empty">No dashboard yet. Send some data, or create one.</div>
+              <div class="dashboard-dropdown-sep"></div>
+              <button class="dashboard-dropdown-new" role="menuitem" @click="newDashboard();">
+                <i class="icofont-plus"></i> New dashboard
+              </button>
+            </div>
+          </template>
+        </div>
         <button class="top-menu-item" :class="{active: ctx.sidePanel=='telemetries'}" :aria-pressed="ctx.sidePanel=='telemetries'" @click="toggleSidePanel('telemetries');">
           <i class="icofont-duotone icofont-chart"></i>
           <span>Telemetries</span>
@@ -48,18 +76,6 @@
       </div>
     </div>
 
-    <div class="top-panel" v-if="ctx.topPanel=='dashboard'">
-      <div class="top-panel-dashboard-list">
-        <div v-for="dashboard in TP.dashboards.dashboards" :key="dashboard.name"
-          class="top-panel-dashboard-card" @click="ctx.activeDashboard=dashboard; setTopPanel('');">
-          <span class="">{{dashboard.name}}</span>
-          <div class="top-panel-dashboard-card-edit" @click.stop="ctx.activeDashboard=dashboard; ctx.sidePanel='dashboard'; setTopPanel('');">
-            <i class="icofont-duotone icofont-pencil"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
     <div class="panel-container">
       <!-- Sources -->
       <div v-if="ctx.sidePanel=='sources'" class="side-panel">

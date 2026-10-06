@@ -21,6 +21,31 @@ var app = Vue.createApp({
             this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;
             this.ctx.showMenu = false;
         },
+        // Dashboards in the order they are listed: the auto one first, then the others by creation
+        dashboardList(){
+            const all = Object.values(this.TP.dashboards.dashboards);
+            return all.filter(d=>d.isAuto).concat(all.filter(d=>!d.isAuto));
+        },
+        dashboardSummary(dashboard){
+            const s = dashboard.getStats();
+            const telemetries = s.telemetryCount + (s.telemetryCount == 1 ? " telemetry" : " telemetries");
+            if (dashboard.isAuto) return "auto · " + telemetries;
+            return s.viewCount + (s.viewCount == 1 ? " view" : " views") + " · " + telemetries;
+        },
+        selectDashboard(dashboard){
+            this.ctx.activeDashboard = dashboard;
+            this.ctx.topPanel = "";
+        },
+        editDashboard(dashboard){
+            this.ctx.activeDashboard = dashboard;
+            this.ctx.sidePanel = "dashboard";
+            this.ctx.topPanel = "";
+        },
+        newDashboard(){
+            this.ctx.activeDashboard = this.TP.dashboards.createDashboard();
+            this.ctx.sidePanel = "dashboard";
+            this.ctx.topPanel = "";
+        },
         setTopPanel(name){
             if (this.ctx.topPanel == name) { this.ctx.topPanel = ""; }
             else { this.ctx.topPanel = name; }
