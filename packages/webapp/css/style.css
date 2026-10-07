@@ -6,7 +6,7 @@ html {
 :root {
     --color-bg-dark-alpha50: hsla(0 0% 90% 0.5);
     --color-bg-dark: hsl(0 0% 90%);
-    --color-bg: hsl(192 15% 94%);
+    --color-bg: var(--teleplot-bg, hsl(192 15% 94%)); /* Shared with the library so page and cards use one palette */
     --color-bg-light: hsl(192 15% 100%);
     --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%); /* Side panels: a softer surface than pure --color-bg-light, so it does not glare next to the page */
     --color-text: hsl(0 0% 10%);
@@ -23,8 +23,9 @@ html {
 
 :root[data-theme="dark"] {
     --color-bg-dark-alpha50: hsla(0 0% 0% 0.5);
-    --color-bg: hsl(0 0% 5%);
-    --color-bg-light: hsl(0 0% 10%);
+    --color-bg: var(--teleplot-bg, hsl(210 17% 7%));
+    --color-bg-light: var(--teleplot-surface, hsl(210 17% 10%));
+    --color-bg-dark: hsl(0 0% 24%);
     --color-text: hsl(0 0% 90%);
     --color-text-muted: hsl(0 0% 60%);
 

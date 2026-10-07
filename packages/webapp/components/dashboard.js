@@ -13,7 +13,12 @@ function initComponent_dashboard(vue) {
             position: relative;
             width: 100%;
             height: 100%;
+            display: flex;
+            flex-direction: column;
         }
+        .dashboard-layout > .dashboard-view { flex: 1 1 auto; min-height: 0; }
+        /* Room under the dashboard, always there (the layout does not jump): the drop zone of a telemetry drag lives in it (dashboard-editor.js) */
+        .dashboard-layout::after { content: ""; flex: none; height: 84px; }
     `;
     // Add css to head
     {
@@ -36,4 +41,4 @@ function initComponent_dashboard(vue) {
         },
         template: vueHTML,
     });
-}
+}

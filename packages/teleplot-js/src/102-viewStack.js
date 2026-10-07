@@ -7,6 +7,9 @@ class ViewStack extends Views {
         this.views = TELEPLOT.Vue.reactive([]);
         this.layout.type =    "stack";
         this.layout.selected = undefined;
+        this.layout.height = 0; // Minimum height step (4 × height em), 0 = the content decides
+        this.layout.appearance = "inherit"; // Look of the views inside, see ViewLayout
+        this.layout.accent = "inherit";
     }
 
     init(){
@@ -22,6 +25,9 @@ class ViewStack extends Views {
                     options : self.options,
                     layout : self.layout
                 }
+            },
+            computed: {
+                appearanceStyle() { return TELEPLOT.view.ViewLayout.appearanceStyle(this.layout); }
             },
             template: ViewStack.vueHTML,
         });
@@ -69,18 +75,26 @@ class ViewStack extends Views {
         if(isAvailable) this.layout.selected = viewId;
     }
 
+    clone() {
+        let copy = this.__copyStateTo(new this.constructor("", this.group));
+        copy.layout.selected = undefined;
+        for(let child of this.views) copy.addView(child.clone());
+        return copy;
+    }
+
     static vueHTML = `
         <div class="teleplot-js-view-stack-container"
-            :style=" {
-                'flex': '' + layout.width + ' ' + layout.width + ' 1em'
-            }"
+            :style="[appearanceStyle, {
+                'flex': '' + layout.width + ' ' + layout.width + ' 1em',
+                'min-height': layout.height > 0 ? (layout.height * 4) + 'em' : undefined
+            }]"
         >
             <div class="teleplot-js-view-stack-header">
                 <template v-for="view of views" :key="view.id">
                     <div class="teleplot-js-view-stack-header-item"
                       :class="{'teleplot-js-view-stack-header-item-selected': view.id == layout.selected}"
                       @click="self.selectView(view.id)">
-                        {{view.name}}
+                        {{view.options && view.options.title ? view.options.title : view.name}}
                     </div>
                 </template>
             </div>
@@ -109,18 +123,24 @@ class ViewStack extends Views {
                 display: flex;
                 flex-direction: row;
             }
+            .teleplot-js-view-stack-header { gap: 0.3em; padding-left: 0.5em; }
             .teleplot-js-view-stack-header-item {
-                backdrop-filter: blur(10px);
-                border-radius: 4px 4px 0px 0px;
-                box-shadow: 0px 0px 3px 0px #85858580;
                 box-sizing: border-box;
-                margin-left: 0.5em;
-                padding: 0.2em 0.5em;
-                background: #7f7f7f7f;
+                padding: 0.25em 0.8em;
+                border: 1px solid var(--teleplot-line);
+                border-bottom: 0;
+                border-radius: 6px 6px 0 0;
+                background: color-mix(in srgb, var(--teleplot-muted) 12%, transparent);
+                color: var(--teleplot-muted);
+                font-size: 0.9em;
                 cursor: pointer;
             }
+            .teleplot-js-view-stack-header-item:hover { color: var(--teleplot-text); }
             .teleplot-js-view-stack-header-item-selected {
-                background: unset;
+                background: var(--teleplot-surface);
+                color: var(--teleplot-text);
+                font-weight: 600;
+                box-shadow: inset 0 2px 0 0 var(--teleplot-primary);
             }
         }
     `;

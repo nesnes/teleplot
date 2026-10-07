@@ -46,6 +46,6 @@ test('color palette wraps around, default color without index, rgba string', () 
     const n = colors.palette.length;
     assert.equal(colors.getColor(0), colors.palette[0]);
     assert.equal(colors.getColor(n + 2), colors.palette[2]);
-    assert.equal(colors.getColor().toStrRGB(), 'rgba(44,62,80,1)');
+    assert.equal(colors.getColor().toStrRGB(), 'rgba(120,144,156,1)');
     assert.equal(new colors.Color(1, 2, 3, 0.5).toStrRGB(), 'rgba(1,2,3,0.5)');
 });

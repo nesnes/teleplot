@@ -1,0 +1,146 @@
+/* Dashboard edit mode: chrome drawn over the dashboard by components/dashboard-editor.js */
+:root {
+    --tp-edit-view: #2980b9; --tp-edit-container: #e67e22; --tp-edit-nested: #9b59b6;
+    --tp-edit-bg: #ffffff; --tp-edit-bg-light: #f0f2f4; --tp-edit-border: #cfd4d9; --tp-edit-text: #1d2329; --tp-edit-muted: #6b7580;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --tp-edit-bg: #161a1e; --tp-edit-bg-light: #242a30; --tp-edit-border: #39414a; --tp-edit-text: #e8ebee; --tp-edit-muted: #8d98a3; }
+}
+:root[data-theme="dark"] { --tp-edit-bg: #161a1e; --tp-edit-bg-light: #242a30; --tp-edit-border: #39414a; --tp-edit-text: #e8ebee; --tp-edit-muted: #8d98a3; }
+
+
+/* Elements while editing */
+.teleplot-js-view.tp-v { position: relative; --tp-c: var(--tp-edit-view); }
+.teleplot-js-view.tp-c, .teleplot-js-view.tp-c2 { position: relative; box-sizing: border-box; border: 1.5px solid var(--tp-c); border-radius: 9px; padding: 34px 6px 6px; --tp-c: var(--tp-edit-container); }
+.teleplot-js-view.tp-c2 { --tp-c: var(--tp-edit-nested); }
+.teleplot-js-view.tp-root { border: 0; border-radius: 0; padding: 6px; min-height: 100%; }
+.teleplot-js-view.tp-root.tp-empty { min-height: 140px; }
+.teleplot-js-view.tp-c.tp-empty, .teleplot-js-view.tp-c2.tp-empty { min-height: 96px; }
+.teleplot-js-view.tp-v.tp-sel { outline: 2.5px solid var(--tp-c); outline-offset: -2px; border-radius: 4px; }
+.teleplot-js-view.tp-c.tp-sel, .teleplot-js-view.tp-c2.tp-sel { outline: 2.5px solid var(--tp-c); outline-offset: 1px; }
+.teleplot-js-view.tp-dragsrc { opacity: 0.35; }
+.teleplot-js-view.tp-droptarget { box-shadow: inset 0 0 0 2px var(--tp-c, var(--tp-edit-view)); background: color-mix(in srgb, var(--tp-c, var(--tp-edit-view)) 8%, transparent); }
+
+/* Inert views: a shield above them */
+.teleplot-js-view .tp-shield { position: absolute; inset: 0; z-index: 3; background: color-mix(in srgb, var(--tp-edit-muted) 7%, transparent); cursor: default; /* faint tint: the view is inert but stays readable */}
+
+/* Empty container */
+.teleplot-js-view .tp-placeholder { position: absolute; inset: 34px 6px 6px; display: grid; place-items: center; border: 2px dashed var(--tp-edit-border); border-radius: 7px; color: var(--tp-edit-muted); font-size: 12px; pointer-events: none; text-align: center; padding: 4px; }
+.teleplot-js-view.tp-root > .tp-placeholder { inset: 6px; }
+
+/* Pills */
+.teleplot-js-view .tp-chrome { position: absolute; z-index: 5; left: 6px; top: 6px; max-width: calc(100% - 12px); font: 600 11px/1.2 system-ui, sans-serif; color: var(--tp-edit-text); }
+.teleplot-js-view.tp-c > .tp-chrome, .teleplot-js-view.tp-c2 > .tp-chrome { left: 10px; top: -11px; }
+.teleplot-js-view .tp-pc { display: inline-flex; flex-direction: column; align-items: stretch; filter: drop-shadow(0 1px 3px #0003); }
+.teleplot-js-view .tp-pc.tp-flat { flex-direction: row; align-items: center; }
+.teleplot-js-view .tp-pill { display: flex; gap: 5px; align-items: center; height: 20px; padding: 0 9px 0 7px; box-sizing: border-box; border: 1.5px solid var(--tp-c); border-radius: 12px; background: var(--tp-edit-bg); color: var(--tp-edit-text); font-weight: 700; white-space: nowrap; cursor: grab; user-select: none; touch-action: none; }
+.teleplot-js-view .tp-grip { opacity: 0.55; letter-spacing: -2px; font-size: 10px; }
+.teleplot-js-view .tp-on .tp-pill { background: var(--tp-c); color: #fff; border-radius: 12px 12px 0 0; }
+.teleplot-js-view .tp-on.tp-flat .tp-pill { border-radius: 12px 0 0 12px; }
+.teleplot-js-view .tp-szrow { display: flex; gap: 2px; align-items: center; background: var(--tp-edit-bg); border: 1.5px solid var(--tp-c); border-top: 0; border-radius: 0 0 12px 12px; padding: 2px 5px 2px 4px; box-sizing: border-box; font-weight: 600; }
+.teleplot-js-view .tp-flat .tp-szrow { height: 20px; border-top: 1.5px solid var(--tp-c); border-left: 0; border-radius: 0 12px 12px 0; padding-top: 0; padding-bottom: 0; }
+.teleplot-js-view .tp-sg { display: flex; align-items: center; flex: 1; justify-content: center; }
+.teleplot-js-view .tp-sg + .tp-sg { border-left: 1px solid var(--tp-edit-border); margin-left: 3px; padding-left: 3px; }
+.teleplot-js-view .tp-k { color: var(--tp-edit-muted); padding: 0 2px 0 3px; }
+.teleplot-js-view .tp-szrow b { min-width: 14px; text-align: center; }
+.teleplot-js-view .tp-szrow button { border: 0; background: transparent; color: var(--tp-edit-text); width: 19px; height: 19px; border-radius: 50%; font-size: 14px; line-height: 1; cursor: pointer; padding: 0; }
+.teleplot-js-view .tp-szrow button:hover:not(:disabled) { background: var(--tp-edit-bg-light); color: var(--tp-c); }
+.teleplot-js-view .tp-pill .tp-del { display: inline-grid; place-items: center; flex: none; margin: 0 -4px 0 auto; padding: 0; width: 16px; height: 16px; border: 0; border-radius: 50%; background: transparent; color: inherit; opacity: 0.85; font-size: 11px; line-height: 1; cursor: pointer; }
+.teleplot-js-view .tp-pill .tp-del i { display: block; line-height: 1; pointer-events: none; }
+.teleplot-js-view .tp-pill .tp-del:hover { opacity: 1; background: rgba(255, 255, 255, 0.28); color: #ffd9d4; }
+.teleplot-js-view .tp-szrow button:disabled { opacity: 0.3; cursor: default; }
+
+/* Drag and drop */
+body.tp-dragging, body.tp-dragging * { cursor: grabbing !important; user-select: none; }
+.tp-ghost { position: fixed; z-index: 10000; pointer-events: none; background: var(--tp-edit-view); color: #fff; border-radius: 12px; padding: 2px 10px; font: 700 11px system-ui, sans-serif; box-shadow: 0 6px 18px #0006; white-space: nowrap; }
+.tp-ins { position: fixed; z-index: 9999; pointer-events: none; background: var(--tp-edit-view); border-radius: 3px; box-shadow: 0 0 0 2px #2980b955; }
+.tp-ins::before, .tp-ins::after { content: ""; position: absolute; width: 8px; height: 8px; background: var(--tp-edit-view); border-radius: 50%; }
+.tp-ins-v::before { left: -2.5px; top: -4px; } .tp-ins-v::after { left: -2.5px; bottom: -4px; }
+.tp-ins-h::before { top: -2.5px; left: -4px; } .tp-ins-h::after { top: -2.5px; right: -4px; }
+
+/* "+" slots: where a view can be added (always in edit mode, while a telemetry is dragged otherwise) and their menu */
+.tp-slots { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+body.tp-dragging .tp-slots { display: none; }
+.tp-slot { position: absolute; display: block; padding: 0; border: 0; background: transparent; cursor: pointer; color: var(--tp-edit-view); font: inherit; }
+.tp-slot > * { position: absolute; pointer-events: none; }
+/* Only the dot catches the mouse (the whole box would cover the pills and views next to it: a row's pill sits right on the line of the slot above it). During a telemetry drag the whole box is a drop target */
+.tp-slot { pointer-events: none; }
+.tp-slot > .tp-slot-dot { pointer-events: auto; }
+.tp-telemetry-drag .tp-slot { pointer-events: auto; }
+.tp-slot-line { background: var(--tp-edit-view); border-radius: 2px; opacity: 0; transition: opacity 0.12s; }
+.tp-slot-v .tp-slot-line { left: calc(50% - 1.5px); top: 0; bottom: 0; width: 3px; }
+.tp-slot-h .tp-slot-line { top: calc(50% - 1.5px); left: 0; right: 0; height: 3px; }
+.tp-slot-dot { left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; border: 1.5px solid var(--tp-edit-view); border-radius: 50%; background: var(--tp-edit-bg); color: var(--tp-edit-view);
+    font: 700 14px/14px system-ui, sans-serif; text-align: center; opacity: 0.7; transition: opacity 0.12s, transform 0.12s, background 0.12s; box-shadow: 0 1px 3px #0003; }
+.tp-slot-e .tp-slot-dot { width: 28px; height: 28px; margin: -14px 0 0 -14px; font-size: 20px; line-height: 24px; }
+.tp-slot:hover .tp-slot-dot, .tp-slot:focus-visible .tp-slot-dot, .tp-slot.tp-open .tp-slot-dot, .tp-slot.tp-hot .tp-slot-dot { opacity: 1; background: var(--tp-edit-view); color: #fff; transform: scale(1.15); }
+.tp-slot:hover .tp-slot-line, .tp-slot:focus-visible .tp-slot-line, .tp-slot.tp-open .tp-slot-line, .tp-slot.tp-hot .tp-slot-line { opacity: 0.85; }
+.tp-slot:focus-visible { outline: none; }
+/* A telemetry is being dragged: slots stay faint, those near the pointer show up, the one under it is fully lit */
+.tp-telemetry-drag .tp-slot-dot { opacity: 0.25; box-shadow: none; }
+.tp-telemetry-drag .tp-slot.tp-near .tp-slot-dot { opacity: 0.9; }
+.tp-telemetry-drag .tp-slot.tp-hot .tp-slot-dot { opacity: 1; background: var(--tp-edit-view); color: #fff; transform: scale(1.25); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tp-edit-view) 25%, transparent); }
+.tp-telemetry-drag .tp-slot .tp-slot-line, .tp-telemetry-drag .tp-slot:hover .tp-slot-line { opacity: 0; }
+.tp-telemetry-drag .tp-slot.tp-hot .tp-slot-line { opacity: 0.9; }
+.tp-telemetry-drag .tp-slot-e .tp-slot-dot { opacity: 0.45; }
+.tp-menu { position: fixed; z-index: 9500; min-width: 150px; padding: 4px; background: var(--tp-edit-bg); color: var(--tp-edit-text); border: 1px solid var(--tp-edit-border); border-radius: 9px; box-shadow: 0 8px 24px #0004; font: 13px system-ui, sans-serif; }
+.tp-menu-title { padding: 4px 8px 2px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tp-edit-muted); }
+.tp-menu button { display: block; width: 100%; text-align: left; padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.tp-menu button:hover, .tp-menu button:focus-visible { background: var(--tp-edit-view); color: #fff; outline: none; }
+.tp-menu hr { border: 0; border-top: 1px solid var(--tp-edit-border); margin: 4px 0; }
+
+/* Edit panel (right side), see components/panel-edit.js */
+.edit-panel { width: 280px; flex: none; margin-left: 1em; display: flex; flex-direction: column; background-color: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-right: 0; border-top: 0; border-bottom-left-radius: 1em; font-size: 1rem; color: var(--color-text); overflow-y: auto; max-height: calc(100vh - 3em); box-sizing: border-box; }
+.edit-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 0.6em 0.8em; font-weight: 700; font-size: 1.1em; border-bottom: 1px solid var(--color-bg-dark); }
+.edit-title i { color: var(--color-primary); margin-right: 0.2em; }
+.edit-actions { display: flex; gap: 4px; }
+.edit-icon { display: inline-grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text-muted); border-radius: 5px; cursor: pointer; }
+.edit-icon:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.edit-icon.danger:hover { color: var(--color-danger); border-color: var(--color-danger); }
+.edit-icon.small { width: 20px; height: 20px; border-color: transparent; background: transparent; }
+.edit-done, .edit-btn { border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text); border-radius: 5px; padding: 2px 10px; cursor: pointer; font: inherit; }
+.edit-done { background: var(--color-primary); border-color: var(--color-primary); color: #fff; font-weight: 600; }
+.edit-btn:disabled { opacity: 0.4; cursor: default; }
+.edit-crumb { padding: 0.4em 0.8em; font-size: 0.9em; color: var(--color-text-muted); border-bottom: 1px solid var(--color-bg-dark); }
+.edit-crumb a { color: var(--color-primary); cursor: pointer; }
+.edit-crumb a:hover { text-decoration: underline; }
+.edit-tabs { display: flex; border-bottom: 1px solid var(--color-bg-dark); }
+.edit-tabs span { flex: 1; text-align: center; padding: 0.5em 0; color: var(--color-text-muted); cursor: pointer; }
+.edit-tabs span.on { color: var(--color-primary); font-weight: 700; box-shadow: inset 0 -2px 0 var(--color-primary); }
+.edit-body { padding: 0.4em 0.8em 0.8em; }
+.edit-section { margin: 1em 0 0.3em; font-size: 0.85em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); }
+.edit-section.first { margin-top: 0.3em; }
+.edit-count { background: var(--color-bg-dark); border-radius: 8px; padding: 0 6px; margin-left: 4px; letter-spacing: 0; }
+.edit-field { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 0; min-height: 24px; }
+.edit-child { cursor: pointer; }
+.edit-child:hover { color: var(--color-primary); }
+.edit-muted, .edit-value { color: var(--color-text-muted); }
+.edit-value { display: inline-flex; align-items: center; gap: 6px; }
+.edit-input { font: inherit; color: var(--color-text); background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-radius: 4px; padding: 2px 6px; min-width: 0; box-sizing: border-box; }
+.edit-field > .edit-input:not(.edit-number) { flex: 1; max-width: 62%; text-align: right; }
+.edit-number { width: 5.5em; text-align: right; }
+.edit-combo { position: relative; margin-top: 6px; }
+.edit-add { width: 100%; text-align: left; color: var(--color-text); }
+.edit-combo-list { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin-top: 2px; max-height: 220px; overflow-y: auto; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-radius: 5px; box-shadow: 0 6px 18px #0004; }
+.edit-combo-item { padding: 4px 8px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edit-combo-item:hover { background: var(--color-primary); color: #fff; }
+.edit-combo-empty { margin: 0; padding: 6px 8px; }
+.edit-check { accent-color: var(--color-primary); width: 1.1em; height: 1.1em; }
+.edit-telem { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edit-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; }
+.edit-seg { display: inline-flex; border: 1px solid var(--color-bg-dark); border-radius: 5px; overflow: hidden; }
+.edit-seg button { border: 0; padding: 2px 9px; background: var(--color-bg-light); color: var(--color-text-muted); cursor: pointer; font: inherit; }
+.edit-seg button.on { background: var(--color-primary); color: #fff; }
+.edit-step { display: inline-flex; align-items: center; border: 1px solid var(--color-bg-dark); border-radius: 5px; background: var(--color-bg-light); overflow: hidden; }
+.edit-step button { border: 0; background: transparent; color: var(--color-text); width: 24px; height: 22px; cursor: pointer; font-size: 1.2em; }
+.edit-step button:hover:not(:disabled) { color: var(--color-primary); }
+.edit-step button:disabled { opacity: 0.3; }
+.edit-step span { min-width: 2.4em; text-align: center; }
+.edit-hint { margin-top: 0.8em; font-size: 0.9em; color: var(--color-text-muted); line-height: 1.5; }
+.edit-hint kbd { background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font-size: 0.9em; }
+
+/* Drop zone at the bottom of the dashboard (telemetry drag): append a view at the end */
+.tp-slot-a { box-sizing: border-box; border: 2px dashed color-mix(in srgb, var(--tp-edit-view) 55%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--tp-edit-view) 7%, transparent); display: grid; place-items: center; transition: background 0.12s, border-color 0.12s; }
+.tp-slot-a::after { content: "Drop here to add at the end"; color: var(--tp-edit-view); font-weight: 700; pointer-events: none; }
+.tp-slot-a > * { display: none; }
+.tp-telemetry-drag .tp-slot-a.tp-hot { border-style: solid; border-color: var(--tp-edit-view); background: color-mix(in srgb, var(--tp-edit-view) 22%, transparent); }

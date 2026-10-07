@@ -13,6 +13,7 @@ class ViewLog extends ViewTelemetries{
         this.type = "teleplot-log";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
         this.supportedDataTypes = [""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
+        this.supportedLabel = "text";
 
         this.options.displayTimestamp = true;      // Show the time of each line
         this.options.displayTelemetryName = true;  // Show the telemetry name of each line (only when several telemetries are displayed)
@@ -47,7 +48,8 @@ class ViewLog extends ViewTelemetries{
                     state: self.state,
                     options : self.options,
                     layout : self.layout,
-                    dragContext: self.dragContext
+                    dragContext: self.dragContext,
+                    emptyState: self.emptyState
                 }
             },
             methods: {
@@ -113,6 +115,15 @@ class ViewLog extends ViewTelemetries{
         return { from: -Infinity, to: Infinity };
     }
 
+    getOptionsSchema() {
+        return [
+            { key: "displayTimestamp", label: "Timestamps", type: "bool" },
+            { key: "displayTelemetryName", label: "Telemetry names", type: "bool" },
+            { key: "displayTelemetryColor", label: "Telemetry colors", type: "bool" },
+            { key: "maxLines", label: "Max lines", type: "int", min: 10, max: 100000, step: 100 },
+        ];
+    }
+
     update(){
         if (!super.__before_update()) return;
 
@@ -149,7 +160,8 @@ class ViewLog extends ViewTelemetries{
             let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
             for (let i = Math.max(from, to - maxLines); i < to; i++) {
                 let t = entry.timestamps[i];
-                rows.push({ t, time: ViewLog.formatTime(t), text: ""+entry.data[0][i], color, name });
+                let text = ""+entry.data[0][i];
+                rows.push({ t, time: ViewLog.formatTime(t), text, color, name, level: ViewLog.getLevel(text) });
             }
         });
         if (sources.length > 1) rows.sort((a, b) => a.t - b.t); // Stable: lines of the same instant keep the telemetry order
@@ -160,6 +172,13 @@ class ViewLog extends ViewTelemetries{
         this.state.hidden = hidden;
         this.state.rows = TELEPLOT.Vue.markRaw(rows);
         this.afterRender(() => this.scrollToFollow());
+    }
+
+    // 2 for lines that look like errors, 1 for warnings, 0 otherwise (the word, in any case, anywhere in the line: "[ERROR] ...", "warning: ...")
+    static getLevel(text) {
+        if(/\b(error|err|fatal|critical|crit)\b/i.test(text)) return 2;
+        if(/\b(warn|warning)\b/i.test(text)) return 1;
+        return 0;
     }
 
     // Highlight the line closest to the group cursor
@@ -218,14 +237,17 @@ class ViewLog extends ViewTelemetries{
           <div class="teleplot-js-log-scroll" @scroll="onScroll($event)">
             <div v-if="state.hidden > 0" class="teleplot-js-log-hidden">&hellip; {{state.hidden}} older line{{state.hidden > 1 ? 's' : ''}} not shown</div>
             <div v-for="(row, index) in state.rows" v-bind:key="index" class="teleplot-js-log-row"
-                v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex}"
+                v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex, 'teleplot-js-log-row-warn': row.level == 1, 'teleplot-js-log-row-error': row.level == 2}"
                 v-bind:style="state.multi && options.displayTelemetryColor ? {'border-left-color': row.color} : {}"
                 v-bind:title="row.text" @mouseenter="onRowEnter(row)">
                 <span v-if="options.displayTimestamp" class="teleplot-js-log-time">{{row.time}}</span>
                 <span v-if="state.multi && options.displayTelemetryName" class="teleplot-js-log-name">{{row.name}}</span>
                 <span class="teleplot-js-log-text">{{row.text}}</span>
             </div>
-            <div v-if="!state.rows.length" class="teleplot-js-log-empty">No log yet</div>
+          </div>
+          <div v-if="emptyState.text || !state.rows.length" class="teleplot-js-empty">
+              <div class="teleplot-js-empty-title">{{emptyState.text || 'No line in this time window'}}</div>
+              <div v-if="emptyState.hint" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>
           </div>
         </div>
     `;
@@ -238,8 +260,11 @@ class ViewLog extends ViewTelemetries{
                 width: 100%;
                 height: 100%;
                 font-size: 0.8em;
+                font-family: var(--teleplot-mono);
                 overflow: hidden;
+                padding: 0;
             }
+            .teleplot-js-has-title .teleplot-js-log-scroll { top: 2.3em; }
             .teleplot-js-log-scroll { /* Out of the flow: the lines never make the view grow, it keeps the size the layout gives it */
                 position: absolute;
                 inset: 0;
@@ -259,10 +284,12 @@ class ViewLog extends ViewTelemetries{
             .teleplot-js-log-row-cursor {
                 background-color: rgba(0, 126, 255, 0.25);
             }
+            .teleplot-js-log-row-warn .teleplot-js-log-text { color: var(--teleplot-warn); }
+            .teleplot-js-log-row-error .teleplot-js-log-text { color: var(--teleplot-error); }
+            .teleplot-js-log-row-error { border-left-color: var(--teleplot-error); }
             .teleplot-js-log-time {
                 flex: 0 0 auto;
-                font-family: monospace;
-                opacity: 0.6;
+                color: var(--teleplot-muted);
             }
             .teleplot-js-log-name {
                 flex: 0 1 auto;
@@ -278,7 +305,7 @@ class ViewLog extends ViewTelemetries{
                 white-space: pre-wrap;
                 overflow-wrap: anywhere;
             }
-            .teleplot-js-log-hidden, .teleplot-js-log-empty {
+            .teleplot-js-log-hidden {
                 padding: 0.3em 0.5em;
                 opacity: 0.6;
                 font-style: italic;

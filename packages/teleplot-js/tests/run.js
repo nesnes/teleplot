@@ -4,13 +4,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const registry = require('./helpers/mini-test');
 
-const pattern = process.argv[2] ? new RegExp(process.argv[2], 'i') : null;
-for (const file of fs.readdirSync(__dirname).filter(f => f.endsWith('.test.js')).sort()) {
+// runDir(dir, pattern): runs the *.test.js of a folder (the webapp has its own tests/ folder and reuses this runner)
+async function runDir(dir, patternText) {
+const pattern = patternText ? new RegExp(patternText, 'i') : null;
+for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.test.js')).sort()) {
     registry.setCurrentFile(file);
-    require(path.join(__dirname, file));
+    require(path.join(dir, file));
 }
 
-(async () => {
+await (async () => {
     const results = { pass: 0, fail: 0, skip: 0 };
     const started = Date.now();
     let lastFile = '';
@@ -31,3 +33,7 @@ for (const file of fs.readdirSync(__dirname).filter(f => f.endsWith('.test.js'))
     console.log(`\n${results.pass} passed, ${results.fail} failed, ${results.skip} skipped (${Date.now() - started} ms)`);
     process.exit(results.fail ? 1 : 0);
 })();
+}
+
+module.exports = { runDir };
+if (require.main === module) runDir(__dirname, process.argv[2]);

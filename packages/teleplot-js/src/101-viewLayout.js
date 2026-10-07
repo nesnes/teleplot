@@ -9,7 +9,10 @@ class ViewLayout extends Views {
         this.layout.justify = "start"; // "start", "center", "end", "space-between", "space-around"
         this.layout.align =   "start"; // "start", "center", "end", "stretch"
         this.layout.gap = 1;
-        
+        this.layout.height = 0;        // Minimum height step (4 × height em), 0 = the content decides
+        this.layout.appearance = "inherit"; // How the views inside look: "card" (default at the top), "flat" (no card, hairlines, no gap) or "inherit". Applies to everything inside.
+        this.layout.accent = "inherit";     // Top color of the views inside: "on", "off" or "inherit" (on at the top)
+
     }
 
     init(){
@@ -24,6 +27,9 @@ class ViewLayout extends Views {
                     options : self.options,
                     layout : self.layout
                 }
+            },
+            computed: {
+                appearanceStyle() { return ViewLayout.appearanceStyle(this.layout); }
             },
             template: ViewLayout.vueHTML,
         });
@@ -56,15 +62,39 @@ class ViewLayout extends Views {
         this.views.splice(viewIdx , 1);
     }
 
+    // CSS variables that give the views inside a layout their look (they inherit down the page: a layout inside another one can choose its own).
+    // Shared with ViewStack. See 104-theme.js for what they do.
+    static appearanceStyle(layout) {
+        let style = {};
+        if(layout.appearance === "flat") {
+            Object.assign(style, { "--teleplot-card-bg": "var(--teleplot-surface)", "--teleplot-card-radius": "0", "--teleplot-card-bw": "0px",
+                "--teleplot-card-shadow": "0 0 0 0.5px var(--teleplot-line)", "--teleplot-flat-gap": "0" });
+        }
+        else if(layout.appearance === "card") {
+            Object.assign(style, { "--teleplot-card-bg": "var(--teleplot-surface)", "--teleplot-card-radius": "8px", "--teleplot-card-bw": "1px",
+                "--teleplot-card-shadow": "0 0 0 0 transparent", "--teleplot-flat-gap": "initial" });
+        }
+        if(layout.accent === "on") style["--teleplot-accent-w"] = "2px";
+        else if(layout.accent === "off") style["--teleplot-accent-w"] = "0px";
+        return style;
+    }
+
+    clone() {
+        let copy = this.__copyStateTo(new this.constructor("", this.group));
+        for(let child of this.views) copy.addView(child.clone());
+        return copy;
+    }
+
     static vueHTML = `
         <div class="teleplot-js-view-layout-container"
-            :style=" {
+            :style="[appearanceStyle, {
                 'flex-direction': layout.type,
                 'justify-content': layout.justify,
                 'align-items': layout.align,
                 'flex': '' + layout.width + ' ' + layout.width + ' 1em',
-                'gap': layout.gap + 'em'
-            }"
+                'gap': 'var(--teleplot-flat-gap, ' + layout.gap + 'em)',
+                'min-height': layout.height > 0 ? (layout.height * 4) + 'em' : undefined
+            }]"
         >
             <template v-for="view of views" :key="view.id">
                 <div :id="view.divId"
@@ -98,22 +128,3 @@ class ViewLayout extends Views {
 }
 
 TELEPLOT.view.ViewLayout = ViewLayout;
-
-// Add css to head
-{
-    let elem = document.createElement('style');
-    elem.textContent = `
-        @scope (.teleplot-js-style)
-        {
-            .teleplot-js-telemetry-card {
-                backdrop-filter: blur(10px);
-                border-radius: 3px;
-                box-shadow: 0px 0px 3px 0px #85858580;
-                box-sizing: border-box;
-                font-size: 1em;
-                text-wrap-style: balance;
-            }
-        }
-    `;
-    document.head.appendChild(elem);
-}

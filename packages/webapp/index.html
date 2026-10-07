@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teleplot</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/editor.css">
   <link rel="stylesheet" href="libs/icofont/icofont.min.css"> <!-- https://icofont.com/ -->
   <script src="libs/teleplot-js.js"></script>
 </head>
@@ -18,7 +19,7 @@
         <img src="media/logo-color.svg" class="top-menu-logo"/>
         
         <div class="top-menu-anchor">
-          <button class="top-menu-item" :class="{active: ctx.topPanel=='dashboard' || ctx.sidePanel=='dashboard'}" :aria-expanded="ctx.topPanel=='dashboard'" aria-haspopup="menu" @click="setTopPanel('dashboard');">
+          <button class="top-menu-item" :class="{active: ctx.topPanel=='dashboard'}" :aria-expanded="ctx.topPanel=='dashboard'" aria-haspopup="menu" @click="setTopPanel('dashboard');">
             <i class="icofont-dashboard"></i>
             <span v-if="ctx.activeDashboard" class="top-menu-item-upper-text">Dashboard</span>
             <span>{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
@@ -72,7 +73,10 @@
       </div>
       
       <div class="top-menu-section">
-
+        <button class="top-menu-item" :class="{active: editor.state.enabled}" :aria-pressed="editor.state.enabled" :disabled="!ctx.activeDashboard" title="Edit the dashboard" @click="toggleEdit();">
+          <i class="icofont-duotone icofont-pencil"></i>
+          <span>Edit</span>
+        </button>
       </div>
     </div>
 
@@ -105,13 +109,6 @@
         <panel-help/>
       </div>
 
-      <div v-if="ctx.sidePanel=='dashboard' && ctx.activeDashboard" class="side-panel">
-        <div class="panel-title">
-          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
-        </div>
-        <panel-dashboard/>
-      </div>
-
       <div class="main-panel">
 
         <template v-if="Object.entries(TP.dashboards.dashboards).length">
@@ -125,6 +122,9 @@
         </div>
 
       </div>
+
+      <!-- Edit panel: follows the selection made on the dashboard -->
+      <panel-edit v-if="editor.state.enabled"/>
     </div>
 
   </div>
@@ -137,7 +137,8 @@
 <script src="./components/panel-help.js"></script>
 <script src="./components/panel-sources.js"></script>
 <script src="./components/panel-telemetries.js"></script>
-<script src="./components/panel-dashboard.js"></script>
+<script src="./components/dashboard-editor.js"></script>
+<script src="./components/panel-edit.js"></script>
 <script src="./components/dashboard.js"></script>
 <script src="./main.js"></script>
 </html>

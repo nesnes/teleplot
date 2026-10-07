@@ -13,6 +13,11 @@ class ViewCurrentValue extends ViewTelemetries{
         this.layout.width = 1;
         this.layout.height = 1;
 
+        // Rows can be made interactive by whoever embeds the view (ex: the chart legend lists its series with a ViewCurrentValue):
+        // rowHandlers = { click(id), enter(id), leave(id) } (all optional), dimmed = reactive { telemetryId: true } of rows drawn as switched off
+        this.rowHandlers = {};
+        this.dimmed = TELEPLOT.Vue.reactive({});
+
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
     }
@@ -29,10 +34,15 @@ class ViewCurrentValue extends ViewTelemetries{
                     telemetries : self.telemetries,
                     options : self.options,
                     layout : self.layout,
-                    dragContext: self.dragContext
+                    dragContext: self.dragContext,
+                    emptyState: self.emptyState,
+                    dimmed: self.dimmed
                 }
             },
             methods: {
+                onRowClick: (id) => { if(self.rowHandlers.click) self.rowHandlers.click(id); },
+                onRowEnter: (id) => { if(self.rowHandlers.enter) self.rowHandlers.enter(id); },
+                onRowLeave: (id) => { if(self.rowHandlers.leave) self.rowHandlers.leave(id); },
                 onDragEnter: self.onDragEnter,
                 onDragLeave: self.onDragLeave,
                 onDragDrop: self.onDragDrop
@@ -46,6 +56,15 @@ class ViewCurrentValue extends ViewTelemetries{
         let innerElement = document.createElement(this.type);
         element.append(innerElement);        
         this.vue.mount(`#${this.divId}`);
+    }
+
+    getOptionsSchema() {
+        return [
+            ...super.getOptionsSchema(),
+            { key: "displayLayoutRow", label: "Values in a row", type: "bool" },
+            { key: "displayTelemetryName", label: "Telemetry names", type: "bool" },
+            { key: "displayTelemetryColor", label: "Telemetry colors", type: "bool" },
+        ];
     }
 
     update(){
@@ -119,8 +138,14 @@ class ViewCurrentValue extends ViewTelemetries{
         :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"
         ${ViewTelemetries.dragDropHtml}
         >
+            <div v-if="emptyState.text" class="teleplot-js-empty">
+                <div class="teleplot-js-empty-title">{{emptyState.text}}</div>
+                <div v-if="emptyState.hint" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>
+            </div>
+            <template v-if="!emptyState.text">
             <div v-for="(telem, index) in telemetries" v-bind:key="index" class="teleplot-js-current-value-block"
-                v-bind:class="{'teleplot-js-current-value-block-image-only': telem.imageOnly}">
+                v-bind:class="{'teleplot-js-current-value-block-image-only': telem.imageOnly, 'teleplot-js-current-value-off': dimmed[index], 'teleplot-js-current-value-selectable': !!self.rowHandlers.click}"
+                v-on:click="onRowClick(index)" v-on:mouseenter="onRowEnter(index)" v-on:mouseleave="onRowLeave(index)">
                 
                 <div v-if="options.displayTelemetryColor && Object.keys(telemetries).length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>
                 
@@ -160,6 +185,7 @@ class ViewCurrentValue extends ViewTelemetries{
                     </div>
                 </div>
             </div>
+            </template>
         </div>
     `;
     
@@ -174,6 +200,7 @@ class ViewCurrentValue extends ViewTelemetries{
         @scope (.teleplot-js-style)
         {
             .teleplot-js-current-value-container {
+                padding: 0.25em 0.3em;
                 width: 100%;
                 height: 100%;
                 display: flex;
@@ -197,6 +224,11 @@ class ViewCurrentValue extends ViewTelemetries{
                 flex: 1 0 auto; /* Shares the free height, never shrinks below its content */
             }
 
+            .teleplot-js-current-value-selectable { cursor: pointer; }
+            .teleplot-js-current-value-selectable:hover { background: color-mix(in srgb, var(--teleplot-text) 7%, transparent); }
+            .teleplot-js-current-value-off { opacity: 0.45; }
+            .teleplot-js-current-value-off .teleplot-js-current-value-name { text-decoration: line-through; }
+
             .teleplot-js-current-value-color {
                 position: absolute;
                 left: 0px;
@@ -206,6 +238,8 @@ class ViewCurrentValue extends ViewTelemetries{
             }
 
             .teleplot-js-current-value-name {
+                color: var(--teleplot-muted);
+                font-size: 0.9em;
                 flex: 1 1 6em;
                 min-width: 0;
                 overflow: hidden;
@@ -225,6 +259,9 @@ class ViewCurrentValue extends ViewTelemetries{
                 text-align: end;
             }
             .teleplot-js-current-value-value {
+                font-family: var(--teleplot-mono);
+                font-weight: 650;
+                font-size: 1.25em;
                 overflow-wrap: anywhere;
                 font-variant-numeric: tabular-nums; /* Digits keep their width: live values don't jitter */
             }
@@ -253,6 +290,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 flex-grow: 4; /* Images are what people look at: they get more of the free height than numbers */
             }
             .teleplot-js-current-value-image img {
+                border-radius: 4px;
                 position: absolute;
                 inset: 0;
                 width: 100%;
@@ -264,7 +302,8 @@ class ViewCurrentValue extends ViewTelemetries{
                 top: 0.1em;
                 left: 0.1em;
                 max-width: calc(100% - 0.2em);
-                background: #ffffff61;
+                color: var(--teleplot-text);
+                background: color-mix(in srgb, var(--teleplot-surface) 65%, transparent);
                 backdrop-filter: blur(5px);
                 border-radius: 3px;
                 box-sizing: border-box;
@@ -343,4 +382,4 @@ class ViewCurrentValue extends ViewTelemetries{
     document.head.appendChild(elem);
 }
 
-TELEPLOT.view.ViewCurrentValue = ViewCurrentValue;
+TELEPLOT.view.ViewCurrentValue = ViewCurrentValue;

@@ -128,6 +128,53 @@ test('legend data: name, unit, color, formatted value; value follows the cursor'
     assert.deepEqual(a.actualStrValue, ['1.2']);
 });
 
+test('legend value slots only grow, so entries do not shake as values change', () => {
+    const { T, telems, chart } = setup(['a']);
+    telems[0].addData(NUMBER, [1], [[1234.5]]);
+    chart.update();
+    const a = chart.telemetries[telems[0].id];
+    assert.equal(a.valueChars, 7);
+    telems[0].addData(NUMBER, [2], [[7]]);
+    chart.update();
+    assert.deepEqual(a.actualStrValue, ['7']);
+    assert.equal(a.valueChars, 7); // narrower value, same slot
+    telems[0].addData(NUMBER, [3], [[-1234567.25]]);
+    chart.update();
+    assert.equal(a.valueChars, 13); // wider value, slot grows
+});
+
+test('series can be switched off from the legend: shown flag follows, hidden state is shared with the list', () => {
+    const { telems, chart } = setup(['a', 'b']);
+    telems[0].addData(NUMBER, [1], [[1]]);
+    telems[1].addData(NUMBER, [1], [[2]]);
+    chart.update();
+    const calls = [];
+    chart.chart = { setSeries: (i, o) => calls.push([i, o]), batch: (f) => f(), destroy() {} };
+    const idB = telems[1].id;
+    chart.toggleSeries(idB);
+    assert.equal(chart.hidden[idB], true);
+    assert.deepEqual(calls, [[2, { show: false }], [null, { focus: false }]]); // switched off: no highlight left behind
+    calls.length = 0;
+    chart.toggleSeries(idB);
+    assert.ok(!chart.hidden[idB]);
+    assert.deepEqual(calls, [[2, { show: true }], [2, { focus: true }]]);
+    calls.length = 0;
+    chart.highlightSeries(idB);
+    assert.deepEqual(calls.pop(), [2, { focus: true }]);
+    chart.highlightSeries(undefined);
+    assert.deepEqual(calls.pop(), [null, { focus: false }]);
+    chart.toggleSeries(idB);
+    chart.highlightSeries(idB); // switched off: nothing to highlight
+    assert.deepEqual(calls.pop(), [null, { focus: false }]);
+});
+
+test('current value rows can be made interactive (handlers, dimmed rows)', () => {
+    const T = loadTeleplot();
+    const view = new T.view.ViewCurrentValue('v', []);
+    assert.deepEqual(view.rowHandlers, {});
+    assert.deepEqual(view.dimmed, {});
+});
+
 test('current value view: latest value, decimals, image data URI', () => {
     const T = loadTeleplot();
     const n = T.datastore.getOrCreateTelemetry('n'), img = T.datastore.getOrCreateTelemetry('img');

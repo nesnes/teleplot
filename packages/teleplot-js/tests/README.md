@@ -18,4 +18,6 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 | `viewChart.test.js` | data given to the chart (decimation, multi-series, zoom), legend values, current value view |
 | `connection.test.js` | WebSocket connection, message routing, UDP and serial inputs |
 
+`views.test.js` also covers clone, dispose/removeView, telemetry list helpers, the options schema, appearance/top color inheritance, empty states, log levels, time axis labels and the theme. The webapp has its own tests (`packages/webapp/test.sh`, same runner): `tests/dashboard-editor.test.js` covers the editor commands.
+
 Add a test next to the feature it covers. Not covered: rendering (Vue templates, real uPlot), which needs a browser.

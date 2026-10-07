@@ -6,8 +6,9 @@
   <title>Teleplot JS Test page</title>
   <script src="teleplot-js.js"></script>
 </head>
-<body style="display: flex;gap: 10px; flex-wrap: wrap; justify-content:space-evenly;">
+<body style="background: var(--teleplot-bg); color: var(--teleplot-text); display: flex;gap: 10px; flex-wrap: wrap; justify-content:space-evenly;">
   <button onclick="Teleplot.state.isPaused = !Teleplot.state.isPaused">Pause / Play</button>
+  <button onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme == 'dark' ? 'light' : 'dark'">Light / Dark</button>
   <a href="test-performance.html">Performance test page</a>
 
   <script>
@@ -216,6 +217,113 @@
     Teleplot.view.addView(new Teleplot.view.ViewLog(divId, ["log.empty", "does.not.exist"]));
 
 
+    // View titles, telemetry list helpers, clone() and dispose() (what an editor needs; the editor itself is in the webapp)
+    divId = createTestElement("Layout: titled views, clone() of a row, add/remove telemetry, min-height of a container", "700px", "260px")
+    {
+      const row = new Teleplot.view.ViewLayout(divId, "default");
+      row.layout.align = "stretch"; row.setSize(1, 1);
+      Teleplot.view.addView(row);
+      const titled = new Teleplot.view.ViewChart("", ["numberTelemetry"], "default");
+      titled.setOption("title", "Sine (title option)");
+      const values = new Teleplot.view.ViewCurrentValue("", ["number.cos"], "default");
+      values.setOption("title", "Cosine");
+      row.addView(titled); row.addView(values);
+      row.addView(row.views[0].clone());                 // A copy: same telemetries, options and layout, own state
+      setTimeout(() => titled.addTelemetry("number.cos"), 2000);     // The chart gets a second series...
+      setTimeout(() => titled.removeTelemetry("number.cos"), 5000);  // ...then loses it
+      console.log("Options a form can edit for a chart:", titled.getOptionsSchema());
+    }
+
+    // Look: cards (default) or flat, top color on or off, light or dark. Set on a layout, inherited by everything inside it.
+    // Use the buttons at the top of the page to switch the theme of the whole page.
+    function lookDemo(name, appearance, accent) {
+      const id = createTestElement("Look - " + name, "700px", "200px");
+      const row = new Teleplot.view.ViewLayout(id, "default");
+      row.layout.align = "stretch"; row.layout.appearance = appearance; row.layout.accent = accent; row.setSize(1, 1);
+      Teleplot.view.addView(row);
+      row.addView(new Teleplot.view.ViewChart("", ["numberTelemetry", "number.cos"], "default"));
+      row.addView(new Teleplot.view.ViewCurrentValue("", ["numberTelemetry", "number.cos", "text.Telemetry"], "default"));
+      row.addView(new Teleplot.view.ViewLog("", ["log.main"], "default"));
+      return row;
+    }
+    lookDemo("cards, top color (default)", "card", "on");
+    lookDemo("cards, no top color", "card", "off");
+    lookDemo("flat (no card, hairlines, no gap), top color", "flat", "on");
+    lookDemo("flat, no top color", "flat", "off");
+    {
+      // A child can override what it inherits
+      const row = lookDemo("flat row where the second child is its own card", "flat", "off");
+      const inner = new Teleplot.view.ViewLayout("", "default");
+      inner.layout.appearance = "card"; inner.layout.accent = "on";
+      row.addView(inner);
+      inner.addView(new Teleplot.view.ViewCurrentValue("", ["numberTelemetry"], "default"));
+    }
+
+    // Empty and wrong states: each view says why it shows nothing (no telemetry, no data yet, wrong data type, not text...)
+    divId = createTestElement("Empty - chart without telemetry", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, []));
+    divId = createTestElement("Empty - values without telemetry", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, []));
+    divId = createTestElement("Empty - log without telemetry", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewLog(divId, []));
+    divId = createTestElement("Empty - chart on a telemetry with no data yet", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["empty.telemetry"]));
+    divId = createTestElement("Empty - chart on text only (cannot be plotted)", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["text.Telemetry"]));
+    divId = createTestElement("Empty - chart on a telemetry that does not exist", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["does.not.exist"]));
+    divId = createTestElement("Empty - values on a telemetry that does not exist", "300px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["does.not.exist"]));
+
+    // Titles: short, long (truncated), and in a view too small to hold them
+    divId = createTestElement("Titles - long title on a narrow view", "180px", "120px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry"]));
+    Teleplot.view.views.at(-1).setOption("title", "A very very long title that cannot fit in this view");
+    divId = createTestElement("Titles - tiny view", "100px", "40px")
+    Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(divId, ["numberTelemetry"]));
+    Teleplot.view.views.at(-1).setOption("title", "Tiny");
+
+    // Time axis with a very short range: labels get decimals (longer ranges are covered by the unit tests, the chart only shows the live window)
+    {
+      const now = Date.now() / 1000, xs = [], ys = [];
+      for (let i = 0; i < 50; i++) { xs.push(now - 0.2 + 0.2 * i / 49); ys.push(Math.sin(i / 7)); }
+      Teleplot.datastore.addTelemetry("range.200ms").addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, xs, [ys]);
+      divId = createTestElement("Time axis - 200 ms", "400px", "150px")
+      Teleplot.view.addView(new Teleplot.view.ViewChart(divId, ["range.200ms"]));
+    }
+
+    // Chart legend with many series: values keep a fixed slot (no shaking), entries that don't fit are folded behind "+N",
+    // which opens the list of all the series (a Values view: scrolls when the height is short). Click an entry or a row to hide/show a series, hover to highlight it.
+    {
+      const names = [];
+      for (let i = 1; i <= 12; i++) names.push("many.series" + i);
+      setInterval(() => {
+        const now = Date.now() / 1000;
+        names.forEach((n, i) => Teleplot.datastore.getOrCreateTelemetry(n).addData(Teleplot.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [now], [[Math.sin(now / (1 + i / 3)) * Math.pow(10, i % 5) * (i % 3 == 0 ? 1 : 1.234)]]));
+      }, 50);
+      createTestElement("Legend - 12 series, values with very different magnitudes (nothing shakes, the rest is under +N)", "700px", "220px");
+      Teleplot.view.addView(new Teleplot.view.ViewChart(divId, names));
+      createTestElement("Legend - narrow view, 4 series", "260px", "200px");
+      Teleplot.view.addView(new Teleplot.view.ViewChart(divId, names.slice(0, 4)));
+      createTestElement("Legend - short view: the list of series scrolls", "500px", "140px");
+      Teleplot.view.addView(new Teleplot.view.ViewChart(divId, names));
+    }
+
+    // Which view suits a telemetry (suggestViewType) and creating it (createView): what an application needs to build a view from a dropped telemetry
+    divId = createTestElement("createView(suggestViewType(telemetry)): number -> chart, text and 2D -> values, no data yet -> chart", "700px", "220px")
+    {
+      const row = new Teleplot.view.ViewLayout(divId, "default");
+      row.layout.align = "stretch"; row.setSize(1, 1);
+      Teleplot.view.addView(row);
+      for (const name of ["numberTelemetry", "text.Telemetry", "pose.3D", "empty.telemetry"]) {
+        const type = Teleplot.view.suggestViewType(name);
+        const view = Teleplot.view.createView(type, [name], "default");
+        view.setOption("title", name + " → " + type);
+        row.addView(view);
+      }
+      console.log("View types:", Teleplot.view.VIEW_TYPES);
+    }
+
     // Auto dashboard: telemetries created after this call are displayed without any setup
     const autoDivId = createTestElement("Auto dashboard (enableAutoDashboard)", "600px", "300px")
     Teleplot.dashboards.enableAutoDashboard("Auto demo", (dashboard) => {
@@ -232,4 +340,4 @@
   </script>
 
 </body>
-</html>
+</html>

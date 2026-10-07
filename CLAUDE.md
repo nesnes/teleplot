@@ -23,8 +23,8 @@ Rework of Teleplot for better performance and UI.
 - 02x: connection (TeleplotServer WebSocket)
 - 03x: data input (UDP, Serial)
 - 040 parseDataText (V1 text protocol), 041 parseDataBinary
-- 10x: views (layout, stack, telemetries, colors); 106 decimator (MinMaxDecimator, incremental min/max decimation used by charts); 110 viewCurrentValue; 111 viewChart; 112 viewLog (text telemetries as lines, newest at the bottom, follows the group time window and cursor, maxLines option)
-- 150 dashboards; 998 update loop (30 fps, hooks); 999 export
+- 10x: views (layout, stack, telemetries); 104 theme (`TELEPLOT.theme`, `--teleplot-*` CSS variables for light/dark, card look, empty-state overlay: every view colors itself from these variables, never hard-coded colors; dark = `data-theme="dark"` or the OS preference unless `data-theme="light"`); 105 colors (palette readable on both themes); 106 decimator (MinMaxDecimator, incremental min/max decimation used by charts); 110 viewCurrentValue (rows can be interactive: `rowHandlers`, shared `dimmed`; scrolls when short); 111 viewChart (legend: fixed value slots, entries that don't fit fold behind a "+N" chip whose popover is a real ViewCurrentValue; click = hide/show a series, hover = highlight); 112 viewLog (text telemetries as lines, newest at the bottom, follows the group time window and cursor, maxLines option)
+- 150 dashboards (create/rename/auto dashboard); 998 update loop (30 fps, hooks); 999 export
 
 ## Protocol
 - Binary: little-endian everywhere (C++ `BinaryEncoder` default, JS `_parseDataBinary_LITTLE_ENDIAN`), marker 0x10, version 1, client id uint16, typed sections (client name, telem attr, data number/2D/3D/text/image, 3D shape position/rotation/quaternion/color/opacity/size/texture), checksum still TODO. Spec in `doc/binaryProtocol.md`; constants in `src/011-protocol.js`.
@@ -32,7 +32,7 @@ Rework of Teleplot for better performance and UI.
 
 ## Server and webapp
 - `packages/server/main.js` (Express + express-ws): relays UDP 47269 to WebSocket on 8080 (text batched every 50 ms, binary forwarded as is), forwards commands to UDP 47268, serves `../webapp`.
-- Webapp: Vue 3 (`main.js`, `index.html`, `components/` panel-help/sources/telemetries/dashboard + dashboard.js, icofont). Default connection 127.0.0.1:8080.
+- Webapp: Vue 3 (`main.js`, `index.html`, `components/` panel-help/sources/telemetries/edit + dashboard.js + dashboard-editor.js, `css/style.css` + `css/editor.css`, icofont). Default connection 127.0.0.1:8080.
 
 ## Performance
 - Charts decimate data before giving it to uPlot (avoids `uPlot.join` on all stored points): see `doc/performance.md`. Stored data is never reduced. Chart option `decimation` (default true).
@@ -45,13 +45,18 @@ Rework of Teleplot for better performance and UI.
 - Perf ideas not done yet: ring buffer / typed arrays for stored data, avoiding splice on prune and late insertion, text parser allocations, optional min/max pyramid for instant full-view decimation, batching binary packets in the server.
 - Many tracked files appear modified in `git status` (probably line endings) — not investigated.
 
+## Dashboard editing
+- Edit mode is a GUI feature (see `doc/dashboard-editing.md`, target design `doc/dashboard-edit-prototype.html`): `webapp/components/dashboard-editor.js` (commands + pills/DnD chrome, `initDashboardEditor(TP)`), `components/panel-edit.js` (right panel following the selection), `css/editor.css`. "+" slots (add a view from a menu, or by dropping a telemetry; shown outside edit mode only during a telemetry drag) live in dashboard-editor.js. The lib only has generic helpers: `TELEPLOT.view.suggestViewType/createView`, `view.clone()/dispose()`, `TELEPLOT.view.removeView/disposeView`, `addTelemetry/removeTelemetry`, `title` option, `getOptionsSchema()`, container `layout.height`, `renameDashboard`.
+- Children of a layout come out of a reactive array as Vue proxies: compare views by id, never by `===`.
+- A view that gets a new DOM element (moved, stack tab switched) is disposed and mounts again on its next update (`Views.__before_update`).
+
 ## Tests
 
-- `packages/teleplot-js/tests/` (zero dependency, tiny runner on node:assert, Node 16+): run `./test.sh` from `packages/teleplot-js/`. Library only (no external files). Loads every `src/` file except Vue/uPlot via `helpers/load.js`, with stubs for DOM/Vue/uPlot/WebSocket/timers (`helpers/stubs.js`). Covers datastore, parsers, decimator, protocol, views, chart data, connections. Keep tests updated with new features; see `tests/README.md`.
+- `packages/teleplot-js/tests/` (zero dependency, tiny runner on node:assert, Node 16+): run `./test.sh` from `packages/teleplot-js/`. Library only (no external files). Loads every `src/` file except Vue/uPlot via `helpers/load.js`, with stubs for DOM/Vue/uPlot/WebSocket/timers (`helpers/stubs.js`). Covers datastore, parsers, decimator, protocol, views, chart data, connections. Keep tests updated with new features; see `tests/README.md`. Webapp logic (editor commands) has its own tests: `packages/webapp/test.sh` (same runner, `tests/run.js` of the lib exports `runDir`).
 
 ## Webapp notes
 
 - Never let a UI framework proxy sample storage: `Telemetry.data` is `markRaw` (see doc/performance.md). Regression test in `tests/datastore.test.js`.
 - `TP.dashboards.enableAutoDashboard(name, onCreated)` (lib, `150-dashboards.js`) charts new telemetries automatically (number -> chart, others -> current value, `autoplot=false` skipped); the webapp enables it as "Live" and activates it on creation.
-- Webapp drag and drop (`panel-dashboard.js`) refuses drops into the view itself or its children, and never removes a view without re-inserting it. There are no webapp tests; check it in a browser (stage the folder, serve it, `app._container._vnode.component.proxy` gives the root component).
+- The old tree panel (`panel-dashboard.js`) was replaced by the edit mode. DOM behaviour (pills, drag and drop) has no automated test: check it in a browser (serve `packages/webapp`, `app._container._vnode.component.proxy` gives the root component, `.editor` the editor; click the sample start button of the Help panel, then Edit).
 - Sample data: `packages/webapp/components/sample-robot.js` (self-contained robot simulation: numbers, 2D, text, image; 3D TODO) builds its own "Robot sample" dashboard; its telemetries have autoplot=false so the auto dashboard ignores them. The help panel only has the start/stop button.

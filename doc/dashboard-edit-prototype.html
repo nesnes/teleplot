@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit mode prototype</title>
+<style>
+:root{--primary:#2980b9;--bg:#fff;--bg-light:#f0f2f4;--bg-dark:#cfd4d9;--text:#1d2329;--muted:#6b7580;--page:#e6e9ec;--danger:#e74c3c;--ok:#27ae60;--warn:#e67e22;--purple:#9b59b6}
+@media (prefers-color-scheme:dark){:root{--bg:#161a1e;--bg-light:#242a30;--bg-dark:#39414a;--text:#e8ebee;--muted:#8d98a3;--page:#0c0e10}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text);font:14px/1.4 system-ui,sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}.lead{color:var(--muted);margin:0 0 12px;max-width:95ch;font-size:13px}
+.app{border:1px solid var(--bg-dark);border-radius:8px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;height:min(640px,calc(100vh - 150px));min-height:460px}
+.menu{height:36px;flex:none;background:var(--primary);display:flex;align-items:center;color:#fff;font-weight:600;font-size:13px}
+.menu .logo{width:42px;text-align:center}.menu .mi{padding:0 12px;height:100%;display:flex;align-items:center;color:#ebebeb}
+.menu .sp{flex:1}.menu .mpill{background:#ffffff30;border-radius:12px;padding:2px 12px;margin-right:8px;cursor:default}
+.work{flex:1;display:flex;min-height:0}
+.stage{flex:1;padding:14px 12px 10px;display:flex;flex-direction:column;min-width:0;overflow:auto}
+.node{position:relative;min-width:0}
+.cont{display:flex;border:1.5px solid var(--warn);border-radius:9px;padding:30px 6px 6px;gap:8px}
+.cont.d2{border-color:var(--purple)}
+.cont.root{border-color:transparent;padding:0}
+.view{border-radius:7px;background:var(--bg-light);overflow:hidden;position:relative}
+.view.inert:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 6px,#00000008 6px 12px)}
+.view svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:70%}
+.view .val{position:absolute;inset:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;font-weight:700}
+.view .log{position:absolute;inset:26px 8px 4px;font:11px/1.5 ui-monospace,monospace;color:var(--muted);overflow:hidden;white-space:nowrap}
+.chip{display:inline-flex;gap:4px;align-items:center;padding:1px 8px;border-radius:10px;background:var(--bg);border:1px solid var(--bg-dark);font-size:12px}
+.sel>.view,.view.sel{outline:2.5px solid var(--primary);outline-offset:-2px}
+.cont.sel{outline:2.5px solid var(--warn);outline-offset:1px}.cont.d2.sel{outline-color:var(--purple)}
+.pc{position:absolute;z-index:5;display:inline-flex;flex-direction:column;align-items:stretch;left:6px;top:6px;--c:var(--primary);filter:drop-shadow(0 1px 3px #0003)}
+.cont>.pc{left:10px;top:-11px;--c:var(--warn)}.cont.d2>.pc{--c:var(--purple)}
+.pill{display:flex;gap:5px;align-items:center;border:1.5px solid var(--c);color:var(--text);background:var(--bg);border-radius:12px;padding:0 9px 0 7px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;user-select:none;height:20px}
+.cont>.pc .pill{font-size:10.5px;height:19px}
+.pc.on .pill{background:var(--c);color:#fff;border-radius:12px 12px 0 0}
+.pc.on .szrow{display:flex}
+.szrow{display:none;gap:2px;align-items:center;background:var(--bg);border:1.5px solid var(--c);border-top:0;border-radius:0 0 12px 12px;padding:2px 5px 2px 4px;font-size:11px}
+.szrow .sg{display:flex;align-items:center;flex:1;justify-content:center}
+.szrow .sg+.sg{border-left:1px solid var(--bg-dark);margin-left:3px;padding-left:3px}
+.szrow .k{color:var(--muted);font-weight:700;padding:0 2px 0 3px}
+.szrow b{min-width:14px;text-align:center}
+.szrow button{border:0;background:transparent;color:var(--text);width:19px;height:19px;border-radius:50%;font-size:14px;line-height:1;cursor:pointer;padding:0}
+.szrow button:hover{background:var(--bg-light);color:var(--c)}.szrow button:disabled{opacity:.3;cursor:default}
+.tip{position:absolute;left:calc(100% + 6px);bottom:2px;background:#000d;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;white-space:nowrap;pointer-events:none;font-weight:500}
+.pill{touch-action:none;cursor:grab}.pill .grip{opacity:.55;letter-spacing:-2px;font-size:10px;margin-right:1px}
+body.dragging,body.dragging *{cursor:grabbing!important;user-select:none}
+.node.dragsrc{opacity:.35}
+.ghost{position:fixed;z-index:100;pointer-events:none;background:var(--primary);color:#fff;border-radius:12px;padding:2px 10px;font-size:11px;font-weight:700;box-shadow:0 6px 18px #0006;white-space:nowrap}
+.ins{position:fixed;z-index:90;pointer-events:none;background:var(--primary);border-radius:3px;box-shadow:0 0 0 2px #2980b955}
+.ins:before,.ins:after{content:"";position:absolute;width:8px;height:8px;background:var(--primary);border-radius:50%}
+.ins.h:before{left:-4px;top:-2px}.ins.h:after{right:-4px;top:-2px}.ins.v:before{top:-4px;left:-2px}.ins.v:after{bottom:-4px;left:-2px}
+.cont.droptarget{background:#2980b912;box-shadow:inset 0 0 0 2px #2980b9aa}
+.empty{flex:1;min-height:44px;border:2px dashed var(--bg-dark);border-radius:7px;display:grid;place-items:center;color:var(--muted);font-size:12px}
+/* panel */
+.panel{width:270px;flex:none;background:var(--bg-light);border-left:1px solid var(--bg-dark);font-size:12.5px;display:flex;flex-direction:column;min-height:0}
+.ph{padding:8px 10px;font-weight:700;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--bg-dark);gap:6px}
+.acts{display:flex;gap:4px}.ib{display:inline-grid;place-items:center;border:1px solid var(--bg-dark);background:var(--bg);color:var(--muted);border-radius:5px;width:24px;height:22px;cursor:pointer;font-size:12px;padding:0}.ib:hover{color:var(--primary);border-color:var(--primary)}.ib.del:hover{color:var(--danger);border-color:var(--danger)}
+.ph .m{font-weight:400;color:var(--muted);font-size:11.5px}
+.tabs{display:flex;border-bottom:1px solid var(--bg-dark);flex:none}.tabs span{flex:1;text-align:center;padding:6px 0;color:var(--muted);cursor:pointer}.tabs span.on{color:var(--primary);font-weight:700;box-shadow:inset 0 -2px 0 var(--primary)}
+.pb{padding:4px 10px 10px;overflow:auto;flex:1}
+.sec{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:10px 0 3px}
+.fld{display:flex;justify-content:space-between;align-items:center;padding:3px 0;gap:8px}
+.ctl{background:var(--bg);border:1px solid var(--bg-dark);border-radius:4px;padding:1px 8px;min-width:80px;text-align:right}
+.sw{display:inline-block;width:13px;height:13px;border-radius:4px;vertical-align:middle}
+.tg{display:inline-block;width:26px;height:14px;border-radius:8px;background:var(--bg-dark);position:relative;vertical-align:middle;cursor:pointer}.tg:after{content:"";position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#fff}.tg.on{background:var(--primary)}.tg.on:after{left:14px}
+.stp{display:inline-flex;align-items:center;border:1px solid var(--bg-dark);border-radius:5px;background:var(--bg);overflow:hidden}
+.stp button{border:0;background:transparent;color:var(--text);width:22px;height:22px;cursor:pointer;font-size:14px}.stp button:hover{background:var(--bg-light);color:var(--primary)}.stp button:disabled{opacity:.3}
+.stp span{min-width:26px;text-align:center;font-weight:700}
+.seg{display:inline-flex;border:1px solid var(--bg-dark);border-radius:5px;overflow:hidden}.seg button{border:0;padding:2px 9px;background:var(--bg);color:var(--muted);cursor:pointer}.seg button.on{background:var(--primary);color:#fff}
+.crumb{font-size:11.5px;color:var(--muted);padding:5px 10px;border-bottom:1px solid var(--bg-dark)}.crumb a{color:var(--primary);cursor:pointer;text-decoration:none}.crumb a:hover{text-decoration:underline}
+.btn{display:inline-block;border:1px solid var(--bg-dark);background:var(--bg);color:var(--text);border-radius:5px;padding:2px 10px;font-size:12px;cursor:pointer}
+.hint{margin-top:10px;font-size:12px;color:var(--muted)}
+kbd{background:var(--bg-light);border:1px solid var(--bg-dark);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px}
+</style></head><body>
+<h1>Edit mode — size controls folded into the element pill (interactive mock)</h1>
+<p class="lead">Option 1 (pills + tabbed right panel). Instead of resize handles, the selected element’s pill unfolds into a connected second line with <b>w</b> and <b>h</b> − / + buttons: width = flex weight among siblings, height = minimum-height step (2<sup>h</sup> em). Click pills to select (views and containers), use the − / + buttons, the panel steppers (containers), or the keyboard (<kbd>←</kbd><kbd>→</kbd> width, <kbd>↑</kbd><kbd>↓</kbd> height). Views are inert (hatched). <b>Drag a pill to reorder</b>: a blue insertion line shows where it will land, and you can drop into any container, empty ones included (Alt + arrows or the ◂ ▸ buttons in the panel also move it; Esc cancels a drag). In edit mode each container reserves a thin band at its top for its pill, so the pill can unfold without covering its children. Click empty space to select the dashboard.</p>
+<div class="app" id="app"></div>
+<script>
+const clone=o=>JSON.parse(JSON.stringify(o));
+const INIT={id:'root',kind:'cont',dir:'column',w:1,h:0,align:'stretch',gap:1,root:true,children:[
+ {id:'r1',kind:'cont',dir:'row',w:3,h:0,align:'stretch',gap:1,children:[
+  {id:'v1',kind:'view',type:'chart',title:'Wheels speed',w:3,h:5,series:[['robot.wheel.left','#2980b9'],['robot.wheel.right','#27ae60']],seed:1},
+  {id:'v2',kind:'view',type:'chart',title:'Currents',w:3,h:5,series:[['robot.motor.current','#e67e22']],seed:2},
+  {id:'c1',kind:'cont',dir:'column',w:1,h:0,align:'stretch',gap:1,children:[
+    {id:'v3',kind:'view',type:'chart',title:'Distance',w:1,h:3,series:[['robot.distance','#9b59b6']],seed:3},
+    {id:'v4',kind:'view',type:'chart',title:'Gyro',w:1,h:3,series:[['robot.gyro.z','#e74c3c']],seed:4}]}]},
+ {id:'r2',kind:'cont',dir:'row',w:2,h:0,align:'stretch',gap:1,children:[
+  {id:'v5',kind:'view',type:'values',title:'Values',w:2,h:4,series:[['robot.battery','#27ae60']]},
+  {id:'v6',kind:'view',type:'log',title:'Robot logs',w:4,h:4,series:[['robot.nav.log','#2980b9'],['motor.log','#e67e22']]}]}]};
+let tree=clone(INIT),selId=null,tab='Data',tipFor=null;
+const $=s=>document.querySelector(s);
+const find=(n,id,p=null)=>{if(n.id===id)return[n,p];for(const c of n.children||[]){const r=find(c,id,n);if(r)return r}return null};
+const depth=(id)=>{let d=0,cur=find(tree,id);while(cur&&cur[1]){d++;cur=find(tree,cur[1].id)}return d};
+const ICON={chart:'📈',values:'🔢',log:'📜'};
+const TYPE={chart:'Chart',values:'Values',log:'Log',row:'Row',column:'Column',stack:'Stack'};
+const typeOf=n=>n.kind==='view'?TYPE[n.type]:TYPE[n.dir];
+const MAXW=8,MAXH=8;
+function siblingsShare(n,p){if(!p)return 100;const t=p.children.reduce((a,c)=>a+c.w,0);return Math.round(n.w*100/t)}
+function setSize(id,k,delta){const r=find(tree,id);if(!r)return;const n=r[0];if(n.root&&k==='w')return;n[k]=Math.max(k==='w'?1:0,Math.min(k==='w'?MAXW:MAXH,n[k]+delta));tipFor={id,k};render();clearTimeout(setSize.t);setSize.t=setTimeout(()=>{tipFor=null;render()},1400)}
+const pts=(seed,t)=>{let s='';for(let i=0;i<=40;i++){const x=i*100/40,y=50+22*Math.sin((i+t)*0.28+seed)+12*Math.sin((i+t)*0.11*seed+seed*2);s+=x.toFixed(1)+','+y.toFixed(1)+' '}return s};
+function sizeRow(n,p){
+  const share=siblingsShare(n,p);
+  const tip=tipFor&&tipFor.id===n.id?`<span class="tip">${tipFor.k==='w'?`width ${n.w} of ${p?p.children.reduce((a,c)=>a+c.w,0):n.w} · ${share} %`:`min height ${Math.pow(2,n.h)} em`}</span>`:'';
+  return `<div class="szrow">${n.root?'':`<span class="sg" title="Width weight (←/→)"><span class="k">w</span><button data-a="w-" ${n.w<=1?'disabled':''}>−</button><b>${n.w}</b><button data-a="w+" ${n.w>=MAXW?'disabled':''}>+</button></span>`}<span class="sg" title="Minimum height step (↑/↓)"><span class="k">h</span><button data-a="h-" ${n.h<=0?'disabled':''}>−</button><b>${n.h}</b><button data-a="h+" ${n.h>=MAXH?'disabled':''}>+</button></span>${tip}</div>`}
+function nodeHTML(n,p,d){
+  const sel=n.id===selId;
+  const style=`flex:${n.w} ${n.w} 1em;${n.h?`min-height:${Math.pow(2,n.h)*3.2}px;`:''}`;
+  if(n.kind==='cont'){
+    const pill=n.root?'':`<div class="pc ${sel?'on':''}"><span class="pill" data-sel="${n.id}" title="Click to select, drag to move"><span class="grip">⋮⋮</span> ▤ ${typeOf(n)}</span>${sizeRow(n,p)}</div>`;
+    return `<div class="node cont ${n.root?'root':''} ${d%2===0&&!n.root?'d2':''} ${sel?'sel':''}" style="${n.root?'flex:1;':style}flex-direction:${n.dir};align-items:${n.align};gap:${n.gap*8}px" data-id="${n.id}">${pill}${n.children.length?n.children.map(c=>nodeHTML(c,n,d+1)).join(''):'<div class="empty">empty — drop a view here</div>'}</div>`}
+  const body=n.type==='chart'?`<svg viewBox="0 0 100 100" preserveAspectRatio="none">${n.series.map((s,i)=>`<polyline data-seed="${n.seed+i*1.7}" fill="none" stroke="${s[1]}" stroke-width="1.6" vector-effect="non-scaling-stroke" points="${pts(n.seed+i*1.7,0)}"/>`).join('')}</svg>`
+   :n.type==='values'?`<div class="val"><span class="chip"><i class="sw" style="background:#27ae60"></i>12.1 V</span><span class="chip">0.31 m/s</span></div>`
+   :`<div class="log">12:01:07 nav goal reached<br>12:01:09 motor spike 1.7 A<br>12:01:12 power ok<br>12:01:16 camera frame 1280x720</div>`;
+  return `<div class="node view inert ${sel?'sel':''}" style="${style}" data-id="${n.id}"><div class="pc ${sel?'on':''}"><span class="pill" data-sel="${n.id}" title="Click to select, drag to move"><span class="grip">⋮⋮</span> ${ICON[n.type]} ${typeOf(n)}</span>${sizeRow(n,p)}</div>${body}</div>`}
+function stp(k,n){return `<span class="stp"><button data-pa="${k}-">−</button><span>${n[k]}</span><button data-pa="${k}+">+</button></span>`}
+function acts(){return `<span class="acts"><button class="ib" data-act="dup" title="Duplicate">⧉</button><button class="ib del" data-act="del" title="Delete" aria-label="Delete"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/></svg></button></span>`}
+function reid(n){n.id='n'+(++reid.c);(n.children||[]).forEach(reid);return n}reid.c=100;
+function doAct(a){const r=find(tree,selId);if(!r||!r[1])return;const [n,p]=r,i=p.children.indexOf(n);if(a==='dup'){const c=reid(clone(n));if(c.title)c.title+=' copy';p.children.splice(i+1,0,c);selId=c.id}else{p.children.splice(i,1);selId=null}render()}
+function panel(){
+  if(!selId)return `<div class="ph"><span>▦ Robot sample</span><span class="m">dashboard</span></div><div class="pb"><div class="fld">Name<span class="ctl">Robot sample</span></div><div class="fld">Time window<span class="ctl">60 s ▾</span></div><div class="fld">Cursor sync<span class="tg on"></span></div><div class="fld">Theme<span class="ctl">auto ▾</span></div><div class="sec">Structure</div><div class="fld">3 rows · 6 views</div><div class="hint">Select a pill on the canvas to edit it. Nothing selected = dashboard settings.</div></div>`;
+  const [n,p]=find(tree,selId);
+  const crumb=(()=>{const chain=[];let cur=n,par=p;chain.unshift(`<b>${typeOf(n)}</b>`);while(par){chain.unshift(`<a data-sel="${par.root?'':par.id}">${par.root?'Dashboard':typeOf(par)}</a>`);const r=find(tree,par.id);par=r[1]}if(!chain[0].includes('Dashboard'))chain.unshift('<a data-sel="">Dashboard</a>');return chain.join(' › ')})();
+  if(n.kind==='cont')return `<div class="ph"><span>▤ ${n.root?'Dashboard layout':'Container'}</span>${n.root?'':acts()}</div><div class="crumb">${crumb}</div><div class="pb"><div class="sec" style="margin-top:2px">Layout</div><div class="fld">Direction<span class="seg"><button data-dir="row" class="${n.dir==='row'?'on':''}">↔ row</button><button data-dir="column" class="${n.dir==='column'?'on':''}">↕ col</button></span></div><div class="fld">Align<span class="seg">${['start','center','stretch'].map(a=>`<button data-al="${a}" class="${n.align===a?'on':''}">${a}</button>`).join('')}</span></div><div class="fld">Gap<span class="stp"><button data-gap="-">−</button><span>${n.gap}</span><button data-gap="+">+</button></span></div>${n.root?'':`<div class="sec">Size in parent</div><div class="fld">Width weight${stp('w',n)}</div><div class="fld">Height step${stp('h',n)}</div><div class="fld"><span class="m" style="color:var(--muted)">share ${siblingsShare(n,p)} % · min ${Math.pow(2,n.h)} em</span></div>`}${n.root?'':`<div class="sec">Position</div><div class="fld">Order in parent<span class="stp"><button data-mv="-1">◂</button><span>${p.children.indexOf(n)+1}/${p.children.length}</span><button data-mv="1">▸</button></span></div>`}<div class="sec">Children</div>${n.children.map(c=>`<div class="fld"><a data-sel="${c.id}" style="color:var(--primary);cursor:pointer">${c.kind==='view'?ICON[c.type]+' '+typeOf(c)+' · '+c.title:'▤ '+typeOf(c)}</a><span class="m" style="color:var(--muted)">w ${c.w}</span></div>`).join('')}</div>`;
+  const tabs=`<div class="tabs">${['Data','Display'].map(t=>`<span data-tab="${t}" class="${tab===t?'on':''}">${t}</span>`).join('')}</div>`;
+  let body='';
+  if(tab==='Data')body=`<div class="fld">Title<span class="ctl">${n.title}</span></div><div class="sec">${n.type==='log'?'Telemetries':'Series'}</div>${n.series.map(s=>`<div class="fld"><span><i class="sw" style="background:${s[1]}"></i> ${s[0]}</span><span class="ctl" style="min-width:0">✕</span></div>`).join('')}<div class="fld" style="color:var(--primary)">＋ add telemetry…</div>${n.type==='chart'?`<div class="sec">Axes</div><div class="fld">Y range<span class="ctl">auto ▾</span></div><div class="fld">Unit<span class="ctl">m/s</span></div>`:''}`;
+  if(tab==='Display')body=n.type==='chart'?`<div class="fld">Legend values<span class="tg on"></span></div><div class="fld">Decimation<span class="tg on"></span></div><div class="fld">Time window<span class="ctl">group ▾</span></div>`:n.type==='log'?`<div class="fld">Timestamp<span class="tg on"></span></div><div class="fld">Telemetry name<span class="tg on"></span></div><div class="fld">Colour<span class="tg on"></span></div><div class="fld">Max lines<span class="ctl">500</span></div>`:`<div class="fld">Layout<span class="ctl">grid ▾</span></div><div class="fld">Show unit<span class="tg on"></span></div>`;
+  return `<div class="ph"><span>${ICON[n.type]} ${n.type[0].toUpperCase()+n.type.slice(1)}</span>${acts()}</div><div class="crumb">${crumb}</div>${tabs}<div class="pb">${body}</div>`}
+function render(){
+  $('#app').innerHTML=`<div class="menu"><div class="logo">◉</div><div class="mi">Robot sample ▾</div><div class="mi">Telemetries</div><div class="sp"></div><div class="mpill" id="reset" style="cursor:pointer">↺ Reset</div><div class="mpill">✓ Done editing</div></div><div class="work"><div class="stage" id="stage">${nodeHTML(tree,null,0)}</div><div class="panel">${panel()}</div></div>`}
+let t0=0;setInterval(()=>{t0++;document.querySelectorAll('polyline[data-seed]').forEach(p=>p.setAttribute('points',pts(+p.dataset.seed,t0)))},180);
+document.addEventListener('click',e=>{
+  if(suppressClick){return}
+  const ac=e.target.closest('[data-act]');if(ac){doAct(ac.dataset.act);return}
+  const mv=e.target.closest('[data-mv]');if(mv){moveBy(selId,+mv.dataset.mv);return}
+  const sel=e.target.closest('[data-sel]');if(sel){selId=sel.dataset.sel||null;render();return}
+  const a=e.target.closest('[data-a]');if(a){const[k,s]=[a.dataset.a[0],a.dataset.a[1]];setSize(selId,k,s==='+'?1:-1);return}
+  const pa=e.target.closest('[data-pa]');if(pa){const k=pa.dataset.pa[0],s=pa.dataset.pa[1];setSize(selId,k,s==='+'?1:-1);return}
+  const tb=e.target.closest('[data-tab]');if(tb){tab=tb.dataset.tab;render();return}
+  const dr=e.target.closest('[data-dir]');if(dr){find(tree,selId)[0].dir=dr.dataset.dir;render();return}
+  const al=e.target.closest('[data-al]');if(al){find(tree,selId)[0].align=al.dataset.al;render();return}
+  const g=e.target.closest('[data-gap]');if(g){const n=find(tree,selId)[0];n.gap=Math.max(0,Math.min(4,n.gap+(g.dataset.gap==='+'?1:-1)));render();return}
+  if(e.target.closest('#reset')){tree=clone(INIT);selId=null;render();return}
+  if(e.target.closest('.stage')&&!e.target.closest('.sz')){selId=null;render()}
+});
+document.addEventListener('keydown',e=>{if(!selId||/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.altKey&&/^Arrow/.test(e.key)){e.preventDefault();moveBy(selId,/Right|Down/.test(e.key)?1:-1);return}const m={ArrowRight:['w',1],ArrowLeft:['w',-1],ArrowUp:['h',1],ArrowDown:['h',-1]}[e.key];if(m){e.preventDefault();setSize(selId,m[0],m[1])}else if(e.key==='Escape'){selId=null;render()}});
+let drag=null,suppressClick=false;
+function moveNode(id,contId,index){const r=find(tree,id);if(!r||!r[1])return false;const [n,p]=r;const tc=find(tree,contId);if(!tc)return false;if(find(n,contId))return false;const old=p.children.indexOf(n);p.children.splice(old,1);if(p.id===contId&&old<index)index--;index=Math.max(0,Math.min(tc[0].children.length,index));tc[0].children.splice(index,0,n);return true}
+function moveBy(id,delta){const r=find(tree,id);if(!r||!r[1])return;const p=r[1],i=p.children.indexOf(r[0]),j=i+delta;if(j<0||j>=p.children.length)return;p.children.splice(i,1);p.children.splice(j,0,r[0]);render()}
+function dropTarget(x,y){
+  const dragEl=document.querySelector('[data-id="'+drag.id+'"]');
+  const conts=document.elementsFromPoint(x,y).filter(el=>el.classList&&el.classList.contains('cont')&&(!dragEl||!dragEl.contains(el)));
+  const ce=conts[0];if(!ce)return null;
+  const cid=ce.dataset.id,cn=find(tree,cid)[0];
+  const kids=[...ce.children].filter(k=>k.classList.contains('node'));
+  const cr=ce.getBoundingClientRect(),horiz=cn.dir==='row';
+  let index=0;
+  kids.forEach(k=>{const r=k.getBoundingClientRect();const mid=horiz?(r.left+r.right)/2:(r.top+r.bottom)/2;if((horiz?x:y)>mid)index++});
+  // line position
+  let pos;const gap=cn.gap*8;
+  if(!kids.length)pos=null;
+  else if(index===0){const r=kids[0].getBoundingClientRect();pos=(horiz?r.left:r.top)-gap/2}
+  else if(index===kids.length){const r=kids[kids.length-1].getBoundingClientRect();pos=(horiz?r.right:r.bottom)+gap/2}
+  else{const a=kids[index-1].getBoundingClientRect(),b=kids[index].getBoundingClientRect();pos=horiz?(a.right+b.left)/2:(a.bottom+b.top)/2}
+  return {ce,cid,index,horiz,pos,cr,kids}
+}
+function clearOverlays(){document.querySelectorAll('.ins,.ghost').forEach(e=>e.remove());document.querySelectorAll('.droptarget').forEach(e=>e.classList.remove('droptarget'))}
+function startDrag(){drag.on=true;selId=drag.id;render();document.body.classList.add('dragging');const el=document.querySelector('[data-id="'+drag.id+'"]');if(el)el.classList.add('dragsrc');drag.ghost=document.createElement('div');drag.ghost.className='ghost';drag.ghost.textContent=drag.label.replace('⋮⋮','').trim();document.body.appendChild(drag.ghost);drag.ins=document.createElement('div');document.body.appendChild(drag.ins)}
+function moveDrag(e){
+  drag.ghost.style.left=(e.clientX+12)+'px';drag.ghost.style.top=(e.clientY+10)+'px';
+  document.querySelectorAll('.droptarget').forEach(x=>x.classList.remove('droptarget'));
+  const t=dropTarget(e.clientX,e.clientY);drag.target=t;
+  if(!t){drag.ins.className='';drag.ins.style.cssText='';return}
+  t.ce.classList.add('droptarget');
+  if(t.pos==null){drag.ins.className='';drag.ins.style.cssText='';return}
+  const th=3;drag.ins.className='ins '+(t.horiz?'v':'h');
+  if(t.horiz){drag.ins.style.cssText=`left:${t.pos-th/2}px;top:${t.cr.top+8}px;width:${th}px;height:${t.cr.height-16}px`}
+  else{drag.ins.style.cssText=`top:${t.pos-th/2}px;left:${t.cr.left+8}px;height:${th}px;width:${t.cr.width-16}px`}
+}
+function endDrag(commit){
+  document.body.classList.remove('dragging');clearOverlays();
+  if(commit&&drag.target)moveNode(drag.id,drag.target.cid,drag.target.index);
+  render();
+}
+document.addEventListener('pointerdown',e=>{const pill=e.target.closest('.pill[data-sel]');if(!pill||!pill.dataset.sel||e.button!==0)return;drag={id:pill.dataset.sel,x:e.clientX,y:e.clientY,on:false,label:pill.textContent.trim()}});
+document.addEventListener('pointermove',e=>{if(!drag)return;if(!drag.on){if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<6)return;startDrag()}moveDrag(e)});
+document.addEventListener('pointerup',()=>{if(!drag)return;if(drag.on){endDrag(true);suppressClick=true;setTimeout(()=>suppressClick=false,0)}drag=null});
+document.addEventListener('keydown',e=>{if(drag&&drag.on&&e.key==='Escape'){endDrag(false);drag=null;suppressClick=true;setTimeout(()=>suppressClick=false,0)}},true);
+render();
+</script></body></html>

@@ -56,6 +56,19 @@ TELEPLOT.dashboards.addDashboard = function(name) {
     return dashboard;
 }
 
+// Renames a dashboard (the name stays unique: "name 2" if taken). The auto dashboard keeps its name, it is looked up by it. Returns the final name.
+TELEPLOT.dashboards.renameDashboard = function(oldName, newName) {
+    let dashboard = TELEPLOT.dashboards.getDashboard(oldName);
+    newName = String(newName).trim();
+    if (dashboard === undefined || dashboard.isAuto || newName == "" || newName == oldName) return oldName;
+    let baseName = newName;
+    for (let n = 2; TELEPLOT.dashboards.hasDashboard(newName); n++) newName = baseName + " " + n;
+    delete TELEPLOT.dashboards.dashboards[oldName];
+    dashboard.name = newName;
+    TELEPLOT.dashboards.dashboards[newName] = dashboard;
+    return newName;
+}
+
 TELEPLOT.dashboards.getOrCreateDashboard = function(name) {
     let dashboard = TELEPLOT.dashboards.getDashboard(name);
     if(dashboard === undefined) {
@@ -77,6 +90,31 @@ TELEPLOT.dashboards.createDashboard = function(name = "") {
     layout.layout.type = "row";
     dashboard.setView(layout);
     return dashboard;
+}
+
+/*
+ * Which view displays a telemetry best, and creating that view. Used by the auto dashboard and by applications that let users
+ * add views (drop a telemetry on a dashboard...).
+ * View types: "chart", "values", "log".
+ */
+TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log"];
+
+// Numbers are plotted, anything else (text, images, 2D/3D...) is shown as values. A telemetry without data yet defaults to a chart.
+TELEPLOT.view.suggestViewType = function(telemIdOrName) {
+    let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
+    if(telem === undefined) return "chart";
+    let dataType = Object.keys(telem.data)[0];
+    if(dataType === undefined || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) return "chart";
+    return "values";
+}
+
+// New view of a type ("chart", "values" or "log"), showing the telemetries (ids or names), with a size that suits it. Undefined for an unknown type.
+TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
+    let view;
+    if(type == "chart") { view = new TELEPLOT.view.ViewChart("", telemetries, group); view.setSize(2, 4); }
+    else if(type == "values") view = new TELEPLOT.view.ViewCurrentValue("", telemetries, group);
+    else if(type == "log") { view = new TELEPLOT.view.ViewLog("", telemetries, group); view.setSize(2, 4); }
+    return view;
 }
 
 /*
@@ -102,14 +140,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
             dashboard.setView(layout);
         }
 
-        let view;
-        if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) {
-            view = new TELEPLOT.view.ViewChart("", [telem.id], dashboard.getGroupName());
-            view.setSize(2, 4);
-        }
-        else {
-            view = new TELEPLOT.view.ViewCurrentValue("", [telem.id], dashboard.getGroupName());
-        }
+        let view = TELEPLOT.view.createView(TELEPLOT.view.suggestViewType(telem.id), [telem.id], dashboard.getGroupName());
         layout.addView(view);
         if (isNew) onCreated(dashboard);
     });
