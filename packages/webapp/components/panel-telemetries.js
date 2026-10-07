@@ -74,7 +74,7 @@ function initComponent_panel_telemetries(vue) {
             --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-other: #7f8c8d;
             --mark: hsl(48 100% 70%);
             color: var(--color-text);
-            width: min(34rem, 45vw);
+            width: 100%;
             max-height: calc(100vh - 11rem);
             display: flex;
             flex-direction: column;
@@ -276,15 +276,9 @@ function initComponent_panel_telemetries(vue) {
             },
             // Estimated update rate from the timestamps of the latest samples ("" until 2 samples, "idle" when the data stopped coming)
             rateText(telem, types) {
-                const entry = types.length ? telem.data[types[0]] : undefined;
-                if (!entry || entry.timestamps.length < 2) return "";
-                const ts = entry.timestamps;
-                const count = Math.min(ts.length, 32);
-                const span = ts[ts.length - 1] - ts[ts.length - count];
-                if (!(span > 0)) return "";
-                const rate = (count - 1) / span;
-                const silence = Date.now() - entry.lastUpdate; // Wall clock of the last arrival: sample timestamps may come from the device's own clock
-                if (silence > Math.max(2000, 3000 / rate)) return "idle";
+                const rate = estimateRate(types.length ? telem.data[types[0]] : undefined);
+                if (rate == 0) return "";
+                if (rate < 0) return "idle";
                 if (rate >= 1000) return (rate / 1000).toFixed(rate >= 10000 ? 0 : 1) + " kHz";
                 if (rate >= 10) return Math.round(rate) + " Hz";
                 if (rate >= 1) return rate.toFixed(1) + " Hz";

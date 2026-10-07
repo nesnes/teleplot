@@ -14,117 +14,54 @@
 
     <!-- Content -->
 
-    <div class="top-menu">
-      <div class="top-menu-section">
-        <img src="media/logo-color.svg" class="top-menu-logo"/>
-        
-        <div class="top-menu-anchor">
-          <button class="top-menu-item" :class="{active: ctx.topPanel=='dashboard'}" :aria-expanded="ctx.topPanel=='dashboard'" aria-haspopup="menu" @click="setTopPanel('dashboard');">
-            <i class="icofont-dashboard"></i>
-            <span v-if="ctx.activeDashboard" class="top-menu-item-upper-text">Dashboard</span>
-            <span>{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
-            <i class="icofont-simple-down top-menu-caret"></i>
-          </button>
-          <template v-if="ctx.topPanel=='dashboard'">
-            <div class="dashboard-dropdown-backdrop" @click="setTopPanel('');"></div>
-            <div class="dashboard-dropdown" role="menu">
-              <template v-for="dashboard in dashboardList()" :key="dashboard.name">
-                <div class="dashboard-dropdown-row" :class="{current: dashboard === ctx.activeDashboard}">
-                  <button class="dashboard-dropdown-main" role="menuitem" @click="selectDashboard(dashboard);">
-                    <span class="dashboard-dropdown-name">
-                      <span><span v-if="dashboard.isAuto" class="dashboard-dropdown-live"></span>{{dashboard.name}}</span>
-                      <span class="dashboard-dropdown-sub">{{dashboardSummary(dashboard)}}</span>
-                    </span>
-                    <i v-if="dashboard === ctx.activeDashboard" class="icofont-check dashboard-dropdown-check"></i>
-                  </button>
-                  <button class="dashboard-dropdown-edit" title="Edit dashboard" aria-label="Edit dashboard" @click="editDashboard(dashboard);">
-                    <i class="icofont-duotone icofont-pencil"></i>
-                  </button>
-                </div>
-                <div v-if="dashboard.isAuto" class="dashboard-dropdown-sep"></div>
-              </template>
-              <div v-if="!dashboardList().length" class="dashboard-dropdown-empty">No dashboard yet. Send some data, or create one.</div>
-              <div class="dashboard-dropdown-sep"></div>
-              <button class="dashboard-dropdown-new" role="menuitem" @click="newDashboard();">
-                <i class="icofont-plus"></i> New dashboard
-              </button>
+    <div class="panel-container" @transitionrun="motion($event, 1)" @transitionend="motion($event, -1)" @transitioncancel="motion($event, -1)">
+      <!-- Left dock: opens and closes by sliding its space, the dashboard follows without jumping. The panel stays displayed until the dock is closed. -->
+      <div class="dock dock-left" :class="{open: !!ctx.sidePanel}">
+        <transition name="dock-swap" mode="out-in">
+          <div v-if="shownPanel=='telemetries'" key="telemetries" class="side-panel">
+            <div class="panel-title">
+              <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
+              <h1>Telemetries</h1>
+              <span>Drag telemetries on a dashboard to display them.</span>
             </div>
+            <panel-telemetries></panel-telemetries>
+          </div>
+          <div v-else-if="shownPanel=='sources'" key="sources" class="side-panel">
+            <div class="panel-title">
+              <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
+              <h1>Sources</h1>
+              <span>List of <b>Connections</b> and <b>static-files</b> feeding this Teleplot session.</span>
+            </div>
+            <panel-sources></panel-sources>
+          </div>
+          <div v-else-if="shownPanel=='help'" key="help" class="side-panel">
+            <div class="panel-title">
+              <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
+              <h1>Help</h1>
+              <span>Send your data, shortcuts, sample data.</span>
+            </div>
+            <panel-help></panel-help>
+          </div>
+        </transition>
+      </div>
+
+      <!-- Workspace: scrolls on its own; the top menu floats above the dashboard (it fades out when the mouse rests, see top-menu.js) -->
+      <div class="workspace">
+        <top-menu></top-menu>
+        <div class="main-panel">
+          <template v-if="Object.entries(TP.dashboards.dashboards).length">
+            <template v-for="dashboard in TP.dashboards.dashboards" :key="dashboard.name">
+              <dashboard v-if="dashboard === ctx.activeDashboard" :dashboard="dashboard"></dashboard>
+            </template>
           </template>
+          <welcome v-else-if="ctx.showHelp"></welcome>
         </div>
-        <button class="top-menu-item" :class="{active: ctx.sidePanel=='telemetries'}" :aria-pressed="ctx.sidePanel=='telemetries'" @click="toggleSidePanel('telemetries');">
-          <i class="icofont-duotone icofont-chart"></i>
-          <span>Telemetries</span>
-        </button>
-        <button class="top-menu-item" :class="{active: ctx.sidePanel=='sources'}" :aria-pressed="ctx.sidePanel=='sources'" @click="toggleSidePanel('sources');">
-          <i class="icofont-link"></i>
-          <span>Sources</span>
-        </button>
-        <button class="top-menu-item" :class="{active: ctx.sidePanel=='export'}" :aria-pressed="ctx.sidePanel=='export'" @click="toggleSidePanel('export');">
-          <i class="icofont-share-alt"></i>
-          <span>Export</span>
-        </button>
-        <button class="top-menu-item" :class="{active: ctx.sidePanel=='help'}" :aria-pressed="ctx.sidePanel=='help'" @click="toggleSidePanel('help');">
-          <i class="icofont-info"></i>
-          <span class="top-menu-item-name">Help</span>
-        </button>
       </div>
 
-      <div class="top-menu-section">
+      <!-- Right dock: the edit panel follows the selection made on the dashboard -->
+      <div class="dock dock-right" :class="{open: editor.state.enabled}">
+        <panel-edit></panel-edit>
       </div>
-      
-      <div class="top-menu-section">
-        <button class="top-menu-item" :class="{active: editor.state.enabled}" :aria-pressed="editor.state.enabled" :disabled="!ctx.activeDashboard" title="Edit the dashboard" @click="toggleEdit();">
-          <i class="icofont-duotone icofont-pencil"></i>
-          <span>Edit</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="panel-container">
-      <!-- Sources -->
-      <div v-if="ctx.sidePanel=='sources'" class="side-panel">
-        <div class="panel-title">
-          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
-          <h1>Sources</h1>
-          <span>List of <b>Connections</b> and <b>static-files</b> feeding this Teleplot session.</span>
-        </div>
-        <panel-sources/>
-      </div>
-      <!-- Telemetries -->
-      <div v-if="ctx.sidePanel=='telemetries'" class="side-panel">
-        <div class="panel-title">
-          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
-          <h1>Telemetries</h1>
-          <span>Drag telemetries on a dashboard to display them.</span>
-        </div>
-        <panel-telemetries/>
-      </div>
-
-      <div v-if="ctx.sidePanel=='help'" class="side-panel">
-        <div class="panel-title">
-          <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
-          <h1>Help</h1>
-          <span>Please help.</span>
-        </div>
-        <panel-help/>
-      </div>
-
-      <div class="main-panel">
-
-        <template v-if="Object.entries(TP.dashboards.dashboards).length">
-          <template v-for="dashboard in TP.dashboards.dashboards" :key="dashboard.name">
-            <dashboard v-if="dashboard === ctx.activeDashboard" :dashboard="dashboard"/>
-          </template>
-        </template>
-        <div v-else-if="ctx.showHelp" class="help-panel">
-          <img src="./media/logo-color.svg" class="help-logo"/>
-          <panel-help/>
-        </div>
-
-      </div>
-
-      <!-- Edit panel: follows the selection made on the dashboard -->
-      <panel-edit v-if="editor.state.enabled"/>
     </div>
 
   </div>
@@ -134,6 +71,10 @@
 </script>
 <script src="./libs/vue.js"></script>
 <script src="./components/sample-robot.js"></script>
+<script src="./components/telemetry-rate.js"></script>
+<script src="./components/top-menu.js"></script>
+<script src="./components/sample-controls.js"></script>
+<script src="./components/welcome.js"></script>
 <script src="./components/panel-help.js"></script>
 <script src="./components/panel-sources.js"></script>
 <script src="./components/panel-telemetries.js"></script>

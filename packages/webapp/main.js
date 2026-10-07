@@ -8,60 +8,63 @@ var app = Vue.createApp({
         return {
             TP: Vue.reactive({}),
             ctx: Vue.reactive({
-                showMenu: false,
                 sidePanel: "",
                 topPanel: "",
                 showHelp: true,
+                sampleRunning: false,
+                bandVisible: false, // The band above the dashboard (room for the top menu) is scrolled into view
                 activeDashboard: null
             }),
-            editor: null
+            editor: null,
+            shownPanel: "" // The side panel on display: it stays until the dock has finished closing
         }
     },
     methods: {
-        toggleSidePanel(name){
-            this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;
-            this.ctx.showMenu = false;
-        },
-        // Dashboards in the order they are listed: the auto one first, then the others by creation
-        dashboardList(){
-            const all = Object.values(this.TP.dashboards.dashboards);
-            return all.filter(d=>d.isAuto).concat(all.filter(d=>!d.isAuto));
-        },
-        dashboardSummary(dashboard){
-            const s = dashboard.getStats();
-            const telemetries = s.telemetryCount + (s.telemetryCount == 1 ? " telemetry" : " telemetries");
-            if (dashboard.isAuto) return "auto · " + telemetries;
-            return s.viewCount + (s.viewCount == 1 ? " view" : " views") + " · " + telemetries;
-        },
-        selectDashboard(dashboard){
-            this.ctx.activeDashboard = dashboard;
-            this.ctx.topPanel = "";
-        },
-        editDashboard(dashboard){
-            this.ctx.activeDashboard = dashboard;
-            this.ctx.topPanel = "";
-            this.editor.setRoot(dashboard.getView());
-            this.editor.setEnabled(true);
-        },
-        newDashboard(){
-            this.editDashboard(this.TP.dashboards.createDashboard());
-        },
-        toggleEdit(){
-            if (!this.ctx.activeDashboard) return;
-            this.editor.setRoot(this.ctx.activeDashboard.getView());
-            this.editor.setEnabled(!this.editor.state.enabled);
-        },
-        setTopPanel(name){
-            if (this.ctx.topPanel == name) { this.ctx.topPanel = ""; }
-            else { this.ctx.topPanel = name; }
+        // The edit chrome (pills, "+") follows the views while a dock opens or closes: refresh it on every frame until the motion ends
+        motion(event, delta){
+            const t = event.target;
+            if (!t.classList || !(t.classList.contains("dock") || t.classList.contains("main-panel"))) return;
+            this._moving = Math.max(0, (this._moving || 0) + delta);
+            if (this._moving && !this._frame) {
+                const frame = ()=>{
+                    this.editor.refresh();
+                    this._frame = this._moving ? requestAnimationFrame(frame) : 0;
+                };
+                this._frame = requestAnimationFrame(frame);
+            }
         }
     },
     watch: {
+        // Editing keeps the menu: show the band so that it does not hide the data
+        "editor.state.enabled"(enabled){
+            if (enabled && this._workspace) this._workspace.scrollTo({ top: 0, behavior: "smooth" });
+        },
+        "ctx.sidePanel"(name){
+            clearTimeout(this._dockTimer);
+            if (name) this.shownPanel = name;
+            else this._dockTimer = setTimeout(()=>{ if (!this.ctx.sidePanel) this.shownPanel = ""; }, 400); // Longer than the dock transition (style.css)
+        },
         // The editor works on the displayed dashboard
         "ctx.activeDashboard"(dashboard){
             this.editor.setRoot(dashboard ? dashboard.getView() : undefined);
             if (!dashboard) this.editor.setEnabled(false);
         }
+    },
+    mounted() {
+        // The workspace starts scrolled past the band of room for the top menu (style.css): full stage for the data. Scrolling up reveals the band.
+        const ws = this._workspace = document.querySelector(".workspace");
+        const band = ()=> parseFloat(getComputedStyle(ws).getPropertyValue("--tm-h")) * parseFloat(getComputedStyle(document.documentElement).fontSize);
+        ws.scrollTop = band();
+        ws.addEventListener("scroll", ()=>{
+            this.ctx.bandVisible = ws.scrollTop < band() - 1;
+            this.editor.refresh(); // The edit chrome follows the scroll
+            // Never rest half way through the band: settle on one side
+            clearTimeout(this._settleTimer);
+            this._settleTimer = setTimeout(()=>{
+                const top = ws.scrollTop, b = band();
+                if (top > 0 && top < b - 1) ws.scrollTo({ top: top < b / 2 ? 0 : b, behavior: "smooth" });
+            }, 140);
+        }, { passive: true });
     },
     created() {
         // Escape closes the open panel (top panel first, then side panel)
@@ -69,7 +72,7 @@ var app = Vue.createApp({
             if (e.key != "Escape") return;
             const t = e.target;
             if (t && (t.tagName == "INPUT" || t.tagName == "TEXTAREA" || t.isContentEditable)) { if (t.blur) t.blur(); return; }
-            if (t && t.blur && t.classList && t.classList.contains("top-menu-item")) t.blur();
+            if (t && t.blur && t.closest && t.closest(".tm")) t.blur();
             if (this.ctx.topPanel) this.ctx.topPanel = "";
             else if (this.ctx.sidePanel) this.ctx.sidePanel = "";
             else if (this.editor.state.enabled) this.editor.setEnabled(false);
@@ -93,6 +96,8 @@ var app = Vue.createApp({
 });
 
 // Load components
+initComponent_top_menu(app);
+initComponent_welcome(app);
 initComponent_panel_help(app);
 initComponent_panel_sources(app);
 initComponent_panel_telemetries(app);

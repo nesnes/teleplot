@@ -15,8 +15,14 @@ html {
     --color-primary: hsl(204, 64%, 44%);
     --color-success: hsl(145, 63%, 49%);
     --color-danger: hsl(6, 78%, 57%);
+    --color-warning: hsl(41, 100%, 47%);
 
     
+    /* Motion: quick enough for power users, long enough to follow what moves */
+    --motion-fast: 0.12s;
+    --dock-time: 0.16s;
+    --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
     --color-primary-rgb: 41, 128, 185;
     --color-secondary-rgb: 231, 76, 60;
 }
@@ -37,6 +43,10 @@ TODO handle teleplot-js dark theme within teleplot-js itself, not in the webapp 
     color: var(--color-text);
 }*/
 
+@media (prefers-reduced-motion: reduce) {
+    :root { --motion-fast: 0s; --dock-time: 0s; }
+}
+
 body {
 	margin: 0px;
 	padding: 0px;
@@ -49,202 +59,36 @@ button {
 }
 
 
-.top-menu {
-    position: relative;
-    display: flex;
-    flex-direction: row;
-    align-content: center;
-    justify-content: space-between;
-    min-height: 3rem;
-    background-color: var(--color-primary);
-
-    .top-menu-section {
-        position: relative;
-        display: flex;
-        flex-direction: row;
-        align-content: center;
-        justify-content: space-around;
-        flex-wrap: wrap;
-    }
-    .top-menu-logo {
-        height: 3em;
-        width: auto;
-        padding: 0.2em 1em;
-        box-sizing: border-box;
-    }
-    .top-menu-item {
-        background: transparent;
-        border: none;
-    }
-    .top-menu-item {
-        position: relative;
-        background: transparent;
-        border: none;
-        color: #ebebeb;
-    }
-    .top-menu-item:hover {
-        background: #FFFFFF20;
-        border: none;
-    }
-    .top-menu-item:focus { outline: none; }
-    .top-menu-item:focus-visible {
-        outline: none;
-        box-shadow: inset 0 0 0 2px #FFFFFF80;
-    }
-    .top-menu-item.active {
-        background: #FFFFFF30;
-        color: #FFFFFF;
-        box-shadow: inset 0 -3px 0 #FFFFFF;
-    }
-    .top-menu-item.active:focus-visible {
-        box-shadow: inset 0 -3px 0 #FFFFFF, inset 0 0 0 2px #FFFFFF80;
-    }
-    .top-menu-item-upper-text {
-        position: absolute;
-        top: 0px;
-        color: #FFFFFF90;
-        font-size: 0.8em;
-    }
-}
-
-.top-menu-anchor {
-    position: relative;
-    display: flex;
-}
-.top-menu-caret {
-    font-size: 0.7em;
-    opacity: 0.7;
-}
-.dashboard-dropdown-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 19;
-}
-.dashboard-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    z-index: 20;
-    min-width: 18rem;
-    max-width: 90vw;
-    max-height: 70vh;
-    overflow-y: auto;
-    padding: 0.25rem;
-    background: var(--color-bg);
-    color: var(--color-text);
-    border: 1px solid var(--color-bg-dark);
-    border-radius: 0.5rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    transition: all 0.1s ease-out;
-    @starting-style {
-        transform: translate(0, -0.5rem);
-        opacity: 0;
-    }
-
-    button {
-        font: inherit;
-        color: inherit;
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        text-align: left;
-    }
-    .dashboard-dropdown-row {
-        display: flex;
-        align-items: stretch;
-        border-radius: 0.3rem;
-    }
-    .dashboard-dropdown-row:hover, .dashboard-dropdown-row:focus-within, .dashboard-dropdown-row.current {
-        background: var(--color-bg-light);
-    }
-    .dashboard-dropdown-main {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.4rem 0.6rem;
-        font-weight: 500;
-        min-width: 0;
-    }
-    .dashboard-dropdown-name {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .dashboard-dropdown-sub {
-        color: var(--color-text-muted);
-        font-size: 0.8em;
-        font-weight: 400;
-    }
-    .dashboard-dropdown-live {
-        display: inline-block;
-        width: 0.5rem;
-        height: 0.5rem;
-        margin-right: 0.4rem;
-        border-radius: 50%;
-        background: #27ae60;
-    }
-    .dashboard-dropdown-check {
-        color: var(--color-primary);
-    }
-    .dashboard-dropdown-edit {
-        padding: 0 0.7rem;
-        color: var(--color-text-muted);
-        opacity: 0;
-        border-radius: 0.3rem;
-    }
-    .dashboard-dropdown-row:hover .dashboard-dropdown-edit,
-    .dashboard-dropdown-edit:focus-visible {
-        opacity: 1;
-    }
-    .dashboard-dropdown-edit:hover {
-        color: var(--color-primary);
-    }
-    .dashboard-dropdown-sep {
-        height: 1px;
-        margin: 0.25rem 0;
-        background: var(--color-bg-dark);
-    }
-    .dashboard-dropdown-empty {
-        padding: 0.5rem 0.6rem;
-        color: var(--color-text-muted);
-    }
-    .dashboard-dropdown-new {
-        width: 100%;
-        padding: 0.45rem 0.6rem;
-        border-radius: 0.3rem;
-        font-weight: 500;
-    }
-    .dashboard-dropdown-new:hover {
-        background: var(--color-bg-light);
-    }
-}
-
 .panel-container {
     position: relative;
     display: flex;
-    perspective: 500px;
+    height: 100vh; /* The workspace scrolls by itself, the docks stay in place */
 }
 
+/* Docks hold the side panels. Opening or closing slides their space, so the dashboard resizes smoothly instead of jumping. */
+.dock {
+    display: flex;
+    flex: none;
+    width: 0;
+    overflow: hidden;
+    transition: width var(--dock-time) var(--ease-out);
+}
+.dock-left { --side-w: min(32rem, 44vw); align-items: flex-start; } /* Panels keep the height of their content */
+.dock-left.open { width: calc(var(--side-w) + 1em); }
+.dock-right.open { width: calc(280px + 1em); } /* The width of .edit-panel (editor.css) and its margin */
+
 .side-panel {
+    flex: none;
+    width: var(--side-w);
+    box-sizing: border-box;
+    padding: 0.7rem 0 0 0.8rem; /* Docked at the very top: room around the title */
     background-color: var(--color-bg-panel);
     margin-right: 1em;
     border: 2px solid var(--color-bg-dark);
     border-left: 0px;
     border-top: 0px;
     border-bottom-right-radius: 1em;
-    
-    transition: all 0.1s cubic-bezier(0.22, 0.61, 0.36, 1);
-    transform: translate(0%, 0);
-    opacity: 1;
-    @starting-style {
-        transform: translate(-50%, 0);
-        opacity: 0;
-    }
+    position: relative;
 
     .panel-close {
         position: absolute;
@@ -281,32 +125,37 @@ button {
             font-size: 1rem;
         }
     }
-    
+}
+/* Switching panel: the content fades while the dock keeps its size */
+.dock-swap-enter-active { transition: opacity var(--motion-fast) ease-out, transform var(--motion-fast) var(--ease-out); }
+.dock-swap-leave-active { transition: opacity 0.06s ease-in; }
+.dock-swap-enter-from { opacity: 0; transform: translateX(-1.2rem); }
+.dock-swap-leave-to { opacity: 0; }
 
-    
+/*
+ * Workspace: scrolls on its own. At the top there is a band of free room for the top menu (components/top-menu.js, sticky above the scroll).
+ * It starts scrolled past the band, so the dashboard has the whole stage and the menu floats over it (main.js).
+ * Scroll up to reveal the band: the menu then sits clear of the data. Scroll down to get the stage back.
+ */
+.workspace {
+    --tm-h: 4.4rem; /* Height of the band */
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
 }
 
 .main-panel {
     display: flex;
-    flex-grow: 1;
+    flex: 1 0 auto;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     container-type: inline-size;
-    margin-top: 1em;
-    
-    .help-panel {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-
-        .help-logo {
-            width: 100%;
-            height: 100%;
-            max-width: 50vw;
-            max-height: 30vh;
-        }
-    }
-
+    min-height: 100vh; /* So that the band can always be scrolled away */
+    margin-top: calc(1em + var(--tm-h));
 }

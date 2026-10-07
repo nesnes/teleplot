@@ -5,7 +5,7 @@ Target design: `doc/dashboard-edit-prototype.html` (interactive mockup, open it 
 ## Principles
 
 - Dashboards keep their layouts: **row**, **column** and **stack** containers, sized by weights. A view's **width** is its flex-grow weight among its siblings (1 to 12); its **height** is a step: minimum height of `4 × h` em, linear (0 to 12). Containers have both too (height 0 = the content decides).
-- Edit mode is toggled with the **Edit** button of the top menu (or the pencil of a dashboard in the dashboard list). Views are inert while editing (no cursor, zoom or hover) but keep showing live data, and still accept telemetries dropped from the Telemetries panel.
+- Edit mode is toggled with the **Edit** button of the top menu (see `doc/top-menu.md`; shortcut `E`) or the pencil of a dashboard in the dashboard list. Views are inert while editing (no cursor, zoom or hover) but keep showing live data, and still accept telemetries dropped from the Telemetries panel.
 - **Pills** are the only selectors. Blue for views, orange for containers (purple when nested), at the top left of the element, labelled with the element type (Chart, Values, Log, Row, Column, Stack - never the content title). Click selects, drag moves.
 - The selected pill unfolds a connected second line `w - n +` / `h - n +`. Small views unfold it beside the pill.
 - Every container reserves a band at its top while editing, so its pill never covers its children. The dashboard itself has no pill: nothing selected means "dashboard settings".
