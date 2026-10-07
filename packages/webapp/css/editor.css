@@ -144,3 +144,9 @@ body.tp-dragging .tp-slots { display: none; }
 .tp-slot-a::after { content: "Drop here to add at the end"; color: var(--tp-edit-view); font-weight: 700; pointer-events: none; }
 .tp-slot-a > * { display: none; }
 .tp-telemetry-drag .tp-slot-a.tp-hot { border-style: solid; border-color: var(--tp-edit-view); background: color-mix(in srgb, var(--tp-edit-view) 22%, transparent); }
+
+/* Telemetry list of a view: drag a row to reorder */
+.edit-draggable { cursor: grab; border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
+.edit-draggable.edit-dragging { opacity: 0.4; }
+.edit-draggable.edit-drop-before { border-top-color: var(--tp-edit-view, #2980b9); }
+.edit-draggable.edit-drop-after { border-bottom-color: var(--tp-edit-view, #2980b9); }

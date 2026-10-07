@@ -37,6 +37,16 @@ class ViewTelemetries extends Views {
         return true;
     }
 
+    // Moves a telemetry in the list (display order, series order of a chart): from an index to another. false when an index is out of range.
+    moveTelemetry(fromIndex, toIndex) {
+        let list = this.telemetryIdOrNameList;
+        if(!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= list.length || toIndex >= list.length) return false;
+        if(fromIndex === toIndex) return true;
+        let [entry] = list.splice(fromIndex, 1);
+        list.splice(toIndex, 0, entry);
+        return true;
+    }
+
     // Stop showing a telemetry (id or name). false when it wasn't shown.
     removeTelemetry(telemIdOrName) {
         let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);

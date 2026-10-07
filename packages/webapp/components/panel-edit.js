@@ -102,7 +102,11 @@ function initComponent_panel_edit(vue) {
                   </label>
                   <div class="edit-section">{{ selected.type == 'teleplot-chart' ? 'Series' : 'Telemetries' }} <span class="edit-count">{{ telemetries.length }}</span></div>
                   <div v-if="!telemetries.length" class="edit-hint">Nothing displayed yet. Add a telemetry below, or drop one from the Telemetries panel on the view.</div>
-                  <div v-for="t in telemetries" :key="t.key" class="edit-field">
+                  <div v-for="(t, i) in telemetries" :key="t.key" class="edit-field edit-draggable"
+                    :class="{'edit-drop-before': dropAt === i && dragFrom > i, 'edit-drop-after': dropAt === i && dragFrom < i, 'edit-dragging': dragFrom === i}"
+                    draggable="true" title="Drag to reorder"
+                    @dragstart="onTelemDragStart($event, i)" @dragover="onTelemDragOver($event, i)" @dragleave="dropAt === i && (dropAt = -1)"
+                    @drop.prevent="onTelemDrop(i)" @dragend="dragFrom = -1; dropAt = -1">
                     <span class="edit-telem" :title="t.name"><i class="edit-swatch" :style="{background: t.color}"></i> {{ t.name }}</span>
                     <button class="edit-icon small" title="Remove" aria-label="Remove" @click="selected.removeTelemetry(t.key); tick++"><i class="icofont-close"></i></button>
                   </div>
@@ -144,7 +148,7 @@ function initComponent_panel_edit(vue) {
             return { TP, ctx, editor };
         },
         data() {
-            return { tick: 0, tab: "data", addQuery: "", addOpen: false, theme: document.documentElement.dataset["theme"] || "light" };
+            return { tick: 0, tab: "data", addQuery: "", addOpen: false, dragFrom: -1, dropAt: -1, theme: document.documentElement.dataset["theme"] || "light" };
         },
         computed: {
             dashboard() { return this.ctx.activeDashboard; },
@@ -216,6 +220,23 @@ function initComponent_panel_edit(vue) {
                 document.documentElement.dataset["theme"] = theme;
             },
             remove() { this.editor.removeView(this.selected.id); },
+            // Reorder the telemetries of the view by dragging a row (own drag type: the dashboard's drop zones ignore it)
+            onTelemDragStart(event, index) {
+                this.dragFrom = index;
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/x-teleplot-reorder", String(index));
+            },
+            onTelemDragOver(event, index) {
+                if (this.dragFrom < 0) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                this.dropAt = index;
+            },
+            onTelemDrop(index) {
+                if (this.dragFrom >= 0) this.selected.moveTelemetry(this.dragFrom, index);
+                this.dragFrom = -1; this.dropAt = -1;
+                this.tick++;
+            },
             addTelemetry(id) {
                 this.selected.addTelemetry(Number(id));
                 this.tick++;

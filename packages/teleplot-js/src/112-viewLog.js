@@ -260,6 +260,7 @@ class ViewLog extends ViewTelemetries{
                 width: 100%;
                 height: 100%;
                 font-size: 0.8em;
+                min-height: calc(5em * var(--layout-height, 1)); /* 4em of the normal font size per height step, see the chart */
                 font-family: var(--teleplot-mono);
                 overflow: hidden;
                 padding: 0;

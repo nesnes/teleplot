@@ -299,6 +299,24 @@ class ViewChart extends ViewTelemetries{
         // Create chart
         this.resize();
         this.chart = new TELEPLOT.uPlot(this.chartOptions, this.chartData, document.getElementById(this.chartDivId));
+        // The pointer on this chart drives the cursor of the group; on the other charts the cursor follows the group (see syncCursor)
+        this.pointerInside = false;
+        if(this.chart.over && this.chart.over.addEventListener) {
+            this.chart.over.addEventListener("mouseenter", () => { this.pointerInside = true; });
+            this.chart.over.addEventListener("mouseleave", () => { this.pointerInside = false; });
+        }
+    }
+
+    // Shows the cursor of the group (the timestamp hovered on any view) as a vertical line on a chart the pointer is not on,
+    // so every chart marks the instant the other views show. Hidden when there is no cursor or it is outside of this chart's range.
+    syncCursor() {
+        let u = this.chart;
+        if(this.pointerInside || !u || !u.setCursor || !u.valToPos || !u.scales || !u.scales.x || u.scales.x.min == null) return;
+        let ts = TELEPLOT.view.groups[this.group].cursorTimestamp;
+        let left = -10;
+        if(ts >= 0 && ts >= u.scales.x.min && ts <= u.scales.x.max) left = u.valToPos(ts, "x");
+        if(Math.abs((u.cursor.left === undefined ? -10 : u.cursor.left) - left) < 0.5) return;
+        u.setCursor({ left: left, top: -10 }, false); // false: do not fire the setCursor hook, it is the pointer's business (top < 0: no horizontal line)
     }
 
     resize(){
@@ -440,6 +458,7 @@ class ViewChart extends ViewTelemetries{
                 });// Allows a single chart redraw even if we call multiple updates (data and scale)
             }
         }
+        this.syncCursor();
         // Used to ignore hooks triggered by updating the chart
         queueMicrotask(()=>{this.updateRunning = false;}); // Need to use queueMicrotask to make sure to run after uPlot hooks are fired
     }
@@ -537,6 +556,7 @@ class ViewChart extends ViewTelemetries{
             .teleplot-js-chart-container {
                 position: relative;
                 font-size: 0.8em;
+                min-height: calc(5em * var(--layout-height, 1)); /* the height step is 4em of the normal font size: this view's font is 0.8em, so 5em here (else it is shorter than the other views of the same height) */
                 width: 100%;
                 display: flex;
                 flex-direction: column;

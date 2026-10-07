@@ -199,3 +199,21 @@ test('a chart that is not mounted yet (no uPlot) or has no data does not throw (
     assert.deepEqual(unmounted.chartData, [[1, 2], [1, 2]]);
     assert.deepEqual(empty.chartData, [[]]);
 });
+
+test('charts the pointer is not on follow the cursor of the group (vertical line, hidden without cursor or out of range)', () => {
+    const { T, chart } = setup(['a']);
+    const calls = [];
+    chart.chart = { cursor: { left: -10 }, scales: { x: { min: 10, max: 20 } }, valToPos: (v) => (v - 10) * 10, setCursor: (o, fire) => { calls.push([o.left, o.top, fire]); chart.chart.cursor.left = o.left; } };
+    T.view.groups.default.cursorTimestamp = 15;
+    chart.syncCursor();
+    assert.deepEqual(calls.pop(), [50, -10, false]);
+    chart.syncCursor();
+    assert.equal(calls.length, 0); // already there: nothing to do
+    T.view.groups.default.cursorTimestamp = 25; // outside of this chart's range
+    chart.syncCursor();
+    assert.deepEqual(calls.pop(), [-10, -10, false]);
+    T.view.groups.default.cursorTimestamp = 15;
+    chart.pointerInside = true; // the pointer is on this chart: it owns the cursor
+    chart.syncCursor();
+    assert.equal(calls.length, 0);
+});

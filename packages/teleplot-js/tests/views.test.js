@@ -212,6 +212,19 @@ test('telemetry views: add and remove telemetries (by id or name, no duplicates)
     assert.deepEqual(Array.from(v.telemetryIdOrNameList), ['b']);
 });
 
+test('telemetry views: moveTelemetry reorders the list, and the chart rebuilds its series in the new order', () => {
+    const T = loadTeleplot();
+    const v = new T.view.ViewChart('', ['a', 'b', 'c']);
+    assert.equal(v.moveTelemetry(0, 2), true);
+    assert.deepEqual(Array.from(v.telemetryIdOrNameList), ['b', 'c', 'a']);
+    assert.equal(v.moveTelemetry(2, 1), true);
+    assert.deepEqual(Array.from(v.telemetryIdOrNameList), ['b', 'a', 'c']);
+    assert.equal(v.moveTelemetry(1, 1), true);
+    assert.equal(v.moveTelemetry(3, 0), false);
+    assert.equal(v.moveTelemetry(0, -1), false);
+    assert.deepEqual(Array.from(v.telemetryIdOrNameList), ['b', 'a', 'c']);
+});
+
 test('clone copies content, options and layout but not identity', () => {
     const T = loadTeleplot();
     const row = new T.view.ViewLayout('', 'g');
