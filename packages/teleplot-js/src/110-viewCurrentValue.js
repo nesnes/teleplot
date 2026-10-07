@@ -20,6 +20,7 @@ class ViewCurrentValue extends ViewTelemetries{
 
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
+        this.displayOrder = TELEPLOT.Vue.reactive([]); // see syncDisplayOrder
     }
 
     init(){
@@ -32,12 +33,16 @@ class ViewCurrentValue extends ViewTelemetries{
                 return {
                     self: self,
                     telemetries : self.telemetries,
+                    displayOrder: self.displayOrder,
                     options : self.options,
                     layout : self.layout,
                     dragContext: self.dragContext,
                     emptyState: self.emptyState,
                     dimmed: self.dimmed
                 }
+            },
+            computed: {
+                ordered() { return this.displayOrder.map((id) => this.telemetries[id]).filter(Boolean); }
             },
             methods: {
                 onRowClick: (id) => { if(self.rowHandlers.click) self.rowHandlers.click(id); },
@@ -71,14 +76,16 @@ class ViewCurrentValue extends ViewTelemetries{
         if (!super.__before_update()) return;
 
         let serieIdx = 0;
+        let shown = [];
         for(let telemIdOrName of this.telemetryIdOrNameList){
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
             if(telem === undefined) continue;
             serieIdx += 1;
+            if(!shown.includes(telem.id)) shown.push(telem.id);
 
             // Add telem to vue data
             if(this.telemetries[telem.id] === undefined) {
-                this.telemetries[telem.id] = {telem: telem, name: "", unit: "", color:"", data: {}};
+                this.telemetries[telem.id] = {id: telem.id, telem: telem, name: "", unit: "", color:"", data: {}};
             }
             
             // Resolve color
@@ -130,6 +137,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 }
             }
         }
+        this.syncDisplayOrder(shown);
     }
     
     static vueHTML = `
@@ -143,11 +151,11 @@ class ViewCurrentValue extends ViewTelemetries{
                 <div v-if="emptyState.hint" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>
             </div>
             <template v-if="!emptyState.text">
-            <div v-for="(telem, index) in telemetries" v-bind:key="index" class="teleplot-js-current-value-block"
-                v-bind:class="{'teleplot-js-current-value-block-image-only': telem.imageOnly, 'teleplot-js-current-value-off': dimmed[index], 'teleplot-js-current-value-selectable': !!self.rowHandlers.click}"
-                v-on:click="onRowClick(index)" v-on:mouseenter="onRowEnter(index)" v-on:mouseleave="onRowLeave(index)">
+            <div v-for="telem in ordered" v-bind:key="telem.id" class="teleplot-js-current-value-block"
+                v-bind:class="{'teleplot-js-current-value-block-image-only': telem.imageOnly, 'teleplot-js-current-value-off': dimmed[telem.id], 'teleplot-js-current-value-selectable': !!self.rowHandlers.click}"
+                v-on:click="onRowClick(telem.id)" v-on:mouseenter="onRowEnter(telem.id)" v-on:mouseleave="onRowLeave(telem.id)">
                 
-                <div v-if="options.displayTelemetryColor && Object.keys(telemetries).length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>
+                <div v-if="options.displayTelemetryColor && ordered.length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>
                 
                 <!-- NAME & UNIT -->
                 <div v-if="options.displayTelemetryName && !telem.imageOnly" class="teleplot-js-current-value-name" v-bind:title="telem.name">

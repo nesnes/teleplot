@@ -217,3 +217,19 @@ test('charts the pointer is not on follow the cursor of the group (vertical line
     chart.syncCursor();
     assert.equal(calls.length, 0);
 });
+
+test('views display telemetries in the order of their list, and drop the ones removed from it', () => {
+    const T = loadTeleplot();
+    const [a, b, c] = ['a', 'b', 'c'].map((n) => { const t = T.datastore.getOrCreateTelemetry(n); t.addData(NUMBER, [1], [[1]]); return t; });
+    for (const view of [new T.view.ViewCurrentValue('v', ['a', 'b', 'c']), new T.view.ViewChart('c', ['a', 'b', 'c'])]) {
+        view.update();
+        assert.deepEqual(Array.from(view.displayOrder), [a.id, b.id, c.id]);
+        view.moveTelemetry(0, 2);
+        view.update();
+        assert.deepEqual(Array.from(view.displayOrder), [b.id, c.id, a.id]);
+        view.removeTelemetry('c');
+        view.update();
+        assert.deepEqual(Array.from(view.displayOrder), [b.id, a.id]);
+        assert.equal(view.telemetries[c.id], undefined);
+    }
+});

@@ -25,6 +25,15 @@ class ViewTelemetries extends Views {
     get telemetryIdOrNameList() { return this._telemetryIdOrNameList; }
     set telemetryIdOrNameList(list) { this._telemetryIdOrNameList = TELEPLOT.Vue.reactive(Array.from(list || [])); }
 
+    // What a view displays, in the order of the telemetry list: ids (of the telemetries that exist) of this.telemetries, which holds the data of each.
+    // Components iterate this order, never the keys of this.telemetries (integer keys always come out in ascending order, whatever the list says).
+    // Entries of telemetries no longer in the list are dropped.
+    syncDisplayOrder(ids) {
+        if(!this.displayOrder) this.displayOrder = TELEPLOT.Vue.reactive([]);
+        if(this.displayOrder.length !== ids.length || ids.some((id, i) => this.displayOrder[i] !== id)) this.displayOrder.splice(0, this.displayOrder.length, ...ids);
+        for(let key of Object.keys(this.telemetries)) if(!ids.some((id) => String(id) === key)) delete this.telemetries[key];
+    }
+
     // Show a telemetry (id or name) in the view. false when it already is.
     addTelemetry(telemIdOrName) {
         let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);

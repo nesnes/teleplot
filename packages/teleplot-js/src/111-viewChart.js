@@ -14,6 +14,7 @@ class ViewChart extends ViewTelemetries{
 
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
+        this.displayOrder = TELEPLOT.Vue.reactive([]); // see syncDisplayOrder
         this.chartDivId = "teleplot-chart-"+crypto.randomUUID();
         this.chartData = TELEPLOT.Vue.markRaw([]); // Not reactive: uPlot reads it all the time, proxies would slow it down
         this.chart = TELEPLOT.Vue.reactive({});
@@ -42,6 +43,7 @@ class ViewChart extends ViewTelemetries{
                     chartData: self.chartData,
                     chart: self.chart,
                     telemetries : self.telemetries,
+                    displayOrder: self.displayOrder,
                     options : self.options,
                     layout : self.layout,
                     dragContext: self.dragContext,
@@ -50,6 +52,9 @@ class ViewChart extends ViewTelemetries{
                     hidden: self.hidden,
                     popoverDivId: self.popoverDivId
                 }
+            },
+            computed: {
+                ordered() { return this.displayOrder.map((id) => this.telemetries[id]).filter(Boolean); }
             },
             methods: {
                 onLegendClick: (id) => self.toggleSeries(id),
@@ -365,14 +370,16 @@ class ViewChart extends ViewTelemetries{
         // For each telemetry
         let needUpdate = false;
         let serieIdx = 0;
+        let shown = [];
         for(let telemIdOrName of this.telemetryIdOrNameList){
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
             if(telem === undefined) continue;
             serieIdx += 1;
+            if(!shown.includes(telem.id)) shown.push(telem.id);
 
             // Get name and unit
             if(this.telemetries[telem.id] === undefined) {
-                this.telemetries[telem.id] = {telem: telem, name: "", unit: "", color: "", lastUpdate: 0, lastTargetTimestamp: 0, actualValue: [], actualStrValue: []};
+                this.telemetries[telem.id] = {id: telem.id, telem: telem, name: "", unit: "", color: "", lastUpdate: 0, lastTargetTimestamp: 0, actualValue: [], actualStrValue: []};
             }
             this.telemetries[telem.id].name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
             this.telemetries[telem.id].unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
@@ -409,6 +416,8 @@ class ViewChart extends ViewTelemetries{
                 break;
             }
         }
+
+        this.syncDisplayOrder(shown);
 
         // Legend: value slots only grow (no shaking), entries are measured again when something that changes their width did
         let slots = [];
@@ -521,10 +530,10 @@ class ViewChart extends ViewTelemetries{
         :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"
         ${ViewTelemetries.dragDropHtml}>
             <div class="teleplot-js-chart-legend">
-                <div v-for="(telem, key, i) in telemetries" v-bind:key="key" class="teleplot-js-chart-legend-block"
-                    v-bind:class="{'teleplot-js-chart-legend-folded': i >= legend.visible, 'teleplot-js-chart-legend-off': hidden[key]}"
+                <div v-for="(telem, i) in ordered" v-bind:key="telem.id" class="teleplot-js-chart-legend-block"
+                    v-bind:class="{'teleplot-js-chart-legend-folded': i >= legend.visible, 'teleplot-js-chart-legend-off': hidden[telem.id]}"
                     v-bind:style="{'--chip-color': telem.color}"
-                    v-on:click="onLegendClick(key)" v-on:mouseenter="onLegendEnter(key)" v-on:mouseleave="onLegendLeave()">
+                    v-on:click="onLegendClick(telem.id)" v-on:mouseenter="onLegendEnter(telem.id)" v-on:mouseleave="onLegendLeave()">
 
                     <div v-if="telem.actualStrValue && telem.actualStrValue.length" class="teleplot-js-chart-legend-value"
                         v-bind:style="{'min-width': ''+(telem.valueChars || 0)+'ch' }"
