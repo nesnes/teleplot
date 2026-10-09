@@ -4,9 +4,10 @@ Target design: `doc/dashboard-edit-prototype.html` (interactive mockup, open it 
 
 ## Principles
 
-- Dashboards keep their layouts: **row**, **column** and **stack** containers, sized by weights. A view's **width** is its flex-grow weight among its siblings (1 to 12); its **height** is a step: minimum height of `4 × h` em, linear (0 to 12). Containers have both too (height 0 = the content decides).
+- Dashboards keep their layouts: **row**, **column**, **grid** and **stack** containers. A view's **width** is its flex-grow weight among its siblings (1 to 12), or the number of columns it takes in a grid; its **height** is a step: minimum height of `4 × h` em, linear (0 to 12). Containers have both too (height 0 = the content decides).
+- **Grid** is what a new dashboard and the automatic one are made of: views flow line after line on columns of equal width, so they spread over the page without any arranging. The number of columns follows the width of the grid (`layout.columnWidth`, 16 em by default, is the minimum width of a column) and goes by pairs (1, 2, 4, 6...), so that views two columns wide always fill the lines. A chart or a log starts 2 columns wide, a values view 1; a view never takes more columns than there are. A line is as tall as its tallest view. Library feature (`ViewLayout`, `layout.type = "grid"`), demo in `packages/teleplot-js/test.html`.
 - Edit mode is toggled with the **Edit** button of the top menu (see `doc/top-menu.md`; shortcut `E`) or the pencil of a dashboard in the dashboard list. Views are inert while editing (no cursor, zoom or hover) but keep showing live data, and still accept telemetries dropped from the Telemetries panel.
-- **Pills** are the only selectors. Blue for views, orange for containers (purple when nested), at the top left of the element, labelled with the element type (Chart, Values, Log, Row, Column, Stack - never the content title). Click selects, drag moves.
+- **Pills** are the only selectors. Blue for views, orange for containers (purple when nested), at the top left of the element, labelled with the element type (Chart, Values, Log, Row, Column, Grid, Stack - never the content title). Click selects, drag moves.
 - The selected pill unfolds a connected second line `w - n +` / `h - n +`. Small views unfold it beside the pill.
 - Every container reserves a band at its top while editing, so its pill never covers its children. The dashboard itself has no pill: nothing selected means "dashboard settings".
 - Drag a pill: a blue insertion line shows where it lands in the hovered container (empty containers accept drops too, a container never goes into itself or its descendants). `Esc` cancels.
@@ -16,14 +17,14 @@ Target design: `doc/dashboard-edit-prototype.html` (interactive mockup, open it 
 
 | Selection | Panel |
 |---|---|
-| nothing | name (not for the automatic dashboard), time window (reset zoom), theme, views appearance (cards / flat) and top color (on / off) for the whole dashboard, structure counts |
-| container | direction (row / column / stack), align, gap, appearance (inherit / cards / flat) and top color (inherit / on / off) for everything inside, children list |
+| nothing | name (not for the automatic dashboard), time window (reset zoom), theme, layout of the dashboard (grid / row / column, column width of a grid), views appearance (cards / flat) and top color (on / off) for the whole dashboard, structure counts |
+| container | direction (row / column / grid / stack), column width of a grid, align, gap, appearance (inherit / cards / flat) and top color (inherit / on / off) for everything inside, children list |
 | view | header (duplicate, delete), breadcrumb (clickable ancestors), tab **Data** (title, telemetries with remove + add) and tab **Display** (the view's options, from `getOptionsSchema()`) |
 
 ## Adding views
 
-- **"+" slots.** In edit mode a small "+" sits at every seam between two views, at both ends of every container and inside empty containers (a row that wraps gets them at the end of each line). Click one: a menu offers *Chart*, *Values*, *Log* and the containers *Row*, *Column*, *Stack*; the new element is created right there and selected. With the keyboard: focus a slot, `Enter`, arrows, `Enter` (`Esc` closes).
-- **Dragging a telemetry** from the Telemetries panel (a single tile, or a group header) shows the same slots, larger, even **outside** edit mode: they only exist while the drag lasts. Dropping on a slot creates the view(s) at that place, dropping on a view still adds the telemetry to it as a series. Numbers go together in one chart, anything else together in one values view (`TELEPLOT.view.suggestViewType` / `createView`, also used by the automatic dashboard). Undo is the delete button of the panel.
+- **"+" slots.** In edit mode a small "+" sits at every seam between two views, at both ends of every container and inside empty containers (a row that wraps gets them at the end of each line). Click one: a menu offers *Chart*, *Values*, *Log* and the containers *Row*, *Column*, *Grid*, *Stack*; the new element is created right there and selected. With the keyboard: focus a slot, `Enter`, arrows, `Enter` (`Esc` closes).
+- **Dragging a telemetry** from the Telemetries panel (a single tile, or a group header) shows the same slots, larger, even **outside** edit mode: they only exist while the drag lasts. Dropping on a slot creates the view(s) at that place, dropping on a view still adds the telemetry to it as a series, and dropping anywhere else on the dashboard (free room of a container, around or under the views) adds the view(s) at the end of the container under the pointer, so there is no need to aim. Numbers go together in one chart, anything else together in one values view (`TELEPLOT.view.suggestViewType` / `createView`, also used by the automatic dashboard). Undo is the delete button of the panel.
 - Code: `E.addView`, `E.dropTelemetries`, `E.slotLayout` (geometry, unit tested) and the slots layer in `components/dashboard-editor.js`; the style is in `css/editor.css` (`.tp-slot`, `.tp-menu`).
 
 ## Look of the views (library feature, edited here)
@@ -48,7 +49,7 @@ What an application needs from the library to edit dashboards is generic and liv
 
 - `view.clone()` (layouts and stacks copy their children), `view.dispose()` (unmounts: the view mounts again by itself when it gets a new element, which is what happens when it moves to another parent or another stack tab), `TELEPLOT.view.removeView(view)` / `disposeView(view)`.
 - `ViewTelemetries.addTelemetry()`, `removeTelemetry()`, a reactive `telemetryIdOrNameList`, the `title` option (written in a corner of the view, in every mode) and `getOptionsSchema()` (`[{key, label, type: "bool" | "int", min, max, step}]`) to build option forms.
-- `TELEPLOT.dashboards.renameDashboard(old, new)`.
+- `TELEPLOT.dashboards.renameDashboard(old, new)`, `TELEPLOT.dashboards.removeDashboard(name)` (also forgets its views; the auto dashboard is kept).
 - Containers have a minimum height (`layout.height`, default 0) like views; `setSize(width, height)` ignores `undefined`.
 
 ## Known limits

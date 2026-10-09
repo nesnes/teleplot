@@ -10,15 +10,17 @@
  *   removeView, setContainerType, addView, dropTelemetries.
  * - Edit chrome (DOM, drawn over each view and container while edit mode is on):
  *     - a "pill" per element (blue: view, orange: container, purple: nested container) labelled with the element type
- *       (Chart, Values, Log, Row, Column, Stack - never the content title). Click selects, drag moves.
- *     - the selected pill unfolds a second, connected line "w - n +" / "h - n +" (width weight, height step).
+ *       (Chart, Values, Log, Row, Column, Grid, Stack - never the content title). Click selects, drag moves.
+ *     - the selected pill unfolds a second, connected line "w - n +" / "h - n +" (width weight, or columns in a grid; height step).
  *     - views are inert (a shield covers them: no cursor, zoom or hover) but keep updating, and still accept telemetry drops.
  *     - every container reserves a band at its top so its pill never covers its children.
  *     - dragging a pill shows a blue insertion line in the hovered container (empty containers accept drops too).
  *     - "+" slots at every seam between views and at the end of every container (and in empty ones): click opens a menu
- *       (Chart, Values, Log, Row, Column, Stack) that creates the element there. They are always visible in edit mode.
+ *       (Chart, Values, Log, Row, Column, Grid, Stack) that creates the element there. They are always visible in edit mode.
  *   Outside edit mode the same slots appear only while a telemetry is being dragged from the Telemetries panel: dropping on a
- *   slot creates the view(s) suited to the telemetry (see TELEPLOT.view.suggestViewType), dropping on a view still adds it as a series.
+ *   slot creates the view(s) suited to the telemetry (see TELEPLOT.view.suggestViewType), dropping on a view still adds it as a series,
+ *   and dropping anywhere else on the dashboard (free room of a container, around or under the views) adds the view(s) at the end of
+ *   the container under the pointer: no need to aim.
  *   Keyboard (an element selected): arrows resize (left/right width, up/down height), Alt+arrows move inside the parent,
  *   Escape cancels a drag, then deselects.
  *
@@ -28,7 +30,7 @@
 function initDashboardEditor(TP) {
     const E = {};
 
-    E.WIDTH_MIN = 1;  E.WIDTH_MAX = 12; // Width weight (flex-grow among siblings)
+    E.WIDTH_MIN = 1;  E.WIDTH_MAX = 12; // Width: weight among siblings (flex-grow) in a row, number of columns in a grid
     E.NEW_VIEW_HEIGHT = 6;
     E.HEIGHT_MIN = 0; E.HEIGHT_MAX = 12; // Height step: minimum height of 4*h em
     E.DRAG_THRESHOLD = 6;               // px before a pill press becomes a drag
@@ -56,7 +58,7 @@ function initDashboardEditor(TP) {
     // Name of the element type, as written on its pill
     E.typeLabel = function(view) {
         if (!view) return "";
-        if (E.isContainer(view)) return view.layout.type === "column" ? "Column" : (view.layout.type === "stack" ? "Stack" : "Row");
+        if (E.isContainer(view)) return { column: "Column", stack: "Stack", grid: "Grid" }[view.layout.type] || "Row";
         switch (view.type) {
             case "teleplot-chart": return "Chart";
             case "teleplot-current-value": return "Values";
@@ -154,10 +156,16 @@ function initDashboardEditor(TP) {
         return E.setSize(viewId, dimension, view.layout[dimension] + delta);
     };
 
-    // Share of the parent's width taken by a view, in percent (weights of its siblings; a stack displays one view at a time)
+    E.isGrid = (view) => !!view && view.layout !== undefined && view.layout.type === "grid";
+
+    // Share of the parent's width taken by a view, in percent (weights of its siblings, columns of a grid; a stack displays one view at a time)
     E.getShare = function(view) {
         let parent = E.getParent(view);
         if (!parent || E.isStack(parent)) return 100;
+        if (E.isGrid(parent)) {
+            let columns = Math.max(1, parent.grid.columns);
+            return Math.round(100 * E.clamp(view.layout.width, 1, columns) / columns);
+        }
         let total = parent.views.reduce((sum, v) => sum + v.layout.width, 0);
         return total > 0 ? Math.round(100 * view.layout.width / total) : 100;
     };
@@ -221,11 +229,11 @@ function initDashboardEditor(TP) {
         return true;
     };
 
-    // Change what a container is: "row", "column" or "stack". A stack is another kind of view: the container is replaced by a new one
-    // holding the same children (the root of the dashboard can only switch between row and column).
+    // Change what a container is: "row", "column", "grid" or "stack". A stack is another kind of view: the container is replaced by a new one
+    // holding the same children (the root of the dashboard can only switch between row, column and grid).
     E.setContainerType = function(viewId, type) {
         let view = TP.view.getView(viewId);
-        if (!E.isContainer(view) || !["row", "column", "stack"].includes(type)) return view;
+        if (!E.isContainer(view) || !["row", "column", "grid", "stack"].includes(type)) return view;
         if (view.layout.type === type) return view;
         let wasStack = E.isStack(view);
         if (!wasStack && type !== "stack") { view.layout.type = type; E.__changed(); return view; }
@@ -252,17 +260,21 @@ function initDashboardEditor(TP) {
 
     // ------------------------------------------------------------------ Adding views
 
-    E.ADD_TYPES = ["chart", "values", "log", "row", "column", "stack"]; // What the "+" menu offers
-    E.ADD_LABELS = { chart: "Chart", values: "Values", log: "Log", row: "Row", column: "Column", stack: "Stack" };
+    E.ADD_TYPES = ["chart", "values", "log", "row", "column", "grid", "stack"]; // What the "+" menu offers
+    E.ADD_LABELS = { chart: "Chart", values: "Values", log: "Log", row: "Row", column: "Column", grid: "Grid", stack: "Stack" };
 
     // New element in a container at an index (default: the end): a view ("chart", "values", "log", optionally showing telemetries)
-    // or an empty container ("row", "column", "stack"). Selected while editing. Returns it (undefined for an unknown type or container).
+    // or an empty container ("row", "column", "grid", "stack"). Selected while editing. Returns it (undefined for an unknown type or container).
     E.addView = function(type, containerId, index = -1, telemetries = []) {
         let target = TP.view.getView(containerId);
         if (!target || !E.isContainer(target)) return undefined;
         let view;
         if (type === "stack") view = new TP.view.ViewStack("", target.group);
-        else if (type === "row" || type === "column") { view = new TP.view.ViewLayout("", target.group); view.layout.type = type; }
+        else if (type === "row" || type === "column" || type === "grid") {
+            view = new TP.view.ViewLayout("", target.group);
+            view.layout.type = type;
+            if (type === "grid") view.layout.align = "stretch"; // Views of a line share its height
+        }
         else view = TP.view.createView(type, telemetries, target.group);
         if (!view) return undefined;
         if (!E.isContainer(view)) view.layout.height = E.NEW_VIEW_HEIGHT; // A bit taller than the library default: new views start comfortable
@@ -424,7 +436,8 @@ function initDashboardEditor(TP) {
             + `<span class="tp-sg"><span class="tp-k">h</span><button data-tp-act="height-" ${h <= E.HEIGHT_MIN ? "disabled" : ""} title="Shorter (Down)">&minus;</button><b>${h}</b><button data-tp-act="height+" ${h >= E.HEIGHT_MAX ? "disabled" : ""} title="Taller (Up)">+</button></span>`
             + `</div>` : "";
         let del = selected ? `<button class="tp-del" data-tp-act="delete" title="Delete" aria-label="Delete"><i class="icofont-trash"></i></button>` : "";
-        let tip = `${E.getShare(view)}% of the width · min height ${E.getMinHeightEm(view)} em`;
+        let columns = E.isGrid(E.getParent(view)) ? `${w} column${w == 1 ? "" : "s"} · ` : "";
+        let tip = `${columns}${E.getShare(view)}% of the width · min height ${E.getMinHeightEm(view)} em`;
         return `<div class="tp-pc${selected ? " tp-on" : ""}${flat ? " tp-flat" : ""}">`
             + `<div class="tp-pill" data-tp-pill="${view.id}" title="${esc(tip)}"><span class="tp-grip">&#8942;&#8942;</span>${esc(E.typeLabel(view))}${del}</div>${size}</div>`;
     }
@@ -578,6 +591,33 @@ function initDashboardEditor(TP) {
         return b;
     }
 
+    // A telemetry dragged over the dashboard but on no view and no slot: which container would take it ? The innermost one under the
+    // pointer; the root for the room around and under the dashboard. Undefined on a view (it takes the telemetry as a series) or elsewhere.
+    function looseDropTarget(event) {
+        let root = E.getRoot();
+        let rootEl = root && document.getElementById(root.divId);
+        let t = event.target;
+        if (!rootEl || !t || !t.closest || t.closest(".tp-slot")) return undefined;
+        let viewEl = t.closest(".teleplot-js-view");
+        if (viewEl && rootEl.contains(viewEl)) {
+            let view = TP.view.views.find((v) => v.divId === viewEl.id);
+            return E.isContainer(view) ? { view, el: viewEl } : undefined;
+        }
+        let host = rootEl.parentElement;
+        return !viewEl && host && host.contains(t) ? { view: root, el: rootEl } : undefined;
+    }
+    let looseEl = undefined; // Container highlighted as the target of such a drop
+    function markLooseTarget(target) {
+        let el = target ? target.el : undefined;
+        if (looseEl && looseEl !== el) looseEl.classList.remove("tp-droptarget");
+        looseEl = el;
+        let root = E.getRoot();
+        let onRoot = !!target && same(target.view, root);
+        if (el && !onRoot) el.classList.add("tp-droptarget"); // The root shows it on its "add at the end" zone instead
+        let append = slotEls.get("append");
+        if (append) append.classList.toggle("tp-hot", onRoot);
+    }
+
     // While a telemetry is dragged, only the slots close to the pointer stand out (the others stay faint: less noise on the dashboard)
     const NEAR = 150;
     function markNearSlots(x, y) {
@@ -644,7 +684,7 @@ function initDashboardEditor(TP) {
         menu = document.createElement("div");
         menu.className = "tp-menu";
         menu.setAttribute("role", "menu");
-        menu.innerHTML = '<div class="tp-menu-title">Add</div>' + ["chart", "values", "log"].map(item).join("") + '<hr><div class="tp-menu-title">Container</div>' + ["row", "column", "stack"].map(item).join("");
+        menu.innerHTML = '<div class="tp-menu-title">Add</div>' + ["chart", "values", "log"].map(item).join("") + '<hr><div class="tp-menu-title">Container</div>' + ["row", "column", "grid", "stack"].map(item).join("");
         menu.__slot = slotEl;
         let spec = slotEl.__slot;
         menu.addEventListener("click", (e) => {
@@ -763,8 +803,26 @@ function initDashboardEditor(TP) {
         // Telemetries dragged from the side panel: the "+" slots show up (even outside edit mode) until the drag ends
         document.addEventListener("dragenter", (e) => { if (isTelemetryDrag(e)) setTelemetryDrag(true); }, true);
         document.addEventListener("dragover", (e) => { if (isTelemetryDrag(e)) { setTelemetryDrag(true); markNearSlots(e.clientX, e.clientY); } }, true);
-        document.addEventListener("dragend", () => setTelemetryDrag(false), true);
+        document.addEventListener("dragend", () => { markLooseTarget(undefined); setTelemetryDrag(false); }, true);
         document.addEventListener("drop", () => setTimeout(() => setTelemetryDrag(false), 0), true);
+        // Telemetries dropped on the dashboard but on no view and no slot go at the end of the container under the pointer
+        document.addEventListener("dragover", (e) => {
+            if (!isTelemetryDrag(e)) return;
+            let target = looseDropTarget(e);
+            if (e.target.closest && e.target.closest(".tp-slot")) { if (looseEl) markLooseTarget(undefined); return; } // the slot shows itself
+            markLooseTarget(target);
+            if (target) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }
+        });
+        document.addEventListener("drop", (e) => {
+            if (!isTelemetryDrag(e)) return;
+            let target = looseDropTarget(e);
+            markLooseTarget(undefined);
+            if (!target) return;
+            e.preventDefault();
+            E.dropTelemetries(dragIds(e), target.view.id, -1);
+            setTelemetryDrag(false);
+            E.refresh();
+        });
         document.addEventListener("mousemove", () => { if (E.state.telemetryDrag) setTelemetryDrag(false); }, true); // mouse events do not fire during a drag: the drag is over
         document.addEventListener("pointerdown", (e) => { if (menu && !menu.contains(e.target) && !(e.target.closest && e.target.closest(".tp-slot"))) closeMenu(); }, true);
     }

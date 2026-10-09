@@ -8,7 +8,7 @@ The top menu is a GUI feature (`packages/webapp/components/top-menu.js`): a floa
 
 ## Controls
 
-- **Dashboard**: the dashboard list (the auto "Live" dashboard first, then the others, "New dashboard" at the bottom, a pencil to edit one). While editing, the name is prefixed with "Editing".
+- **Dashboard**: the dashboard list (the auto "Live" dashboard first, then the others, "New dashboard" at the bottom, a pencil to edit one, a bin to delete one). Deleting is confirmed in place: the row turns into `Delete "name"? [Cancel] [Delete]`, the list stays open, and a deleted dashboard that was displayed gives its place to the first of the list. The auto dashboard cannot be deleted. While editing, the name is prefixed with "Editing".
 - **Pause / resume**: toggles `TP.state.isPaused`. While paused the library ignores incoming data, so every view freezes and nothing is recorded. The control turns amber and shows "paused".
 - **Rate**: samples received per second, all telemetries together (estimated from the latest timestamps, see `components/telemetry-rate.js`, shared with the Telemetries panel). "idle" when the data stopped coming, "no data" before anything arrived. The caret opens a popup for display options (empty for now).
 - **Panels**: Telemetries, Sources, Export (not available yet, shown disabled), Help. They are exclusive (`ctx.sidePanel`), so they are one segmented control, icon only, with a hint of the content next to the icon: number of telemetries, number of sources plus a dot (green all connected, amber some lost, red all lost). A tooltip (hover and keyboard focus) gives the name, the shortcut and a summary (the list of sources and their state for Sources).
@@ -21,6 +21,10 @@ Not active while typing in a field. `Space` pause/resume (a focused button keeps
 ## State
 
 `ctx.topPanel` is the open popup (`"dashboard"` or `"rate"`), `ctx.sidePanel` the open side panel. A click anywhere else closes the popup.
+
+## Look
+
+While the island is clear of the data (the band above the dashboard is scrolled into view, or no dashboard is displayed) it is solid, held together by its outline alone. Over the dashboard, which is where it starts, it turns to glass (half transparent, blurring what is behind) and casts a shadow. Popups always stay solid: a list of choices needs full contrast. Shadows use `--color-shadow`, which is dark in the dark theme (a shadow lighter than the page reads as a glow).
 
 ## Auto-hide
 

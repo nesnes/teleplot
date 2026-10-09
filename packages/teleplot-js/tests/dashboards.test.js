@@ -32,6 +32,36 @@ test('renaming keeps names unique and leaves the auto dashboard alone', () => {
     assert.equal(T.dashboards.renameDashboard('C 2', 'Z'), 'C 2');
 });
 
+test('new dashboards and the auto dashboard are grids whose lines share their height', () => {
+    const T = loadTeleplot();
+    const created = T.dashboards.createDashboard().getView();
+    assert.deepEqual([created.layout.type, created.layout.align], ['grid', 'stretch']);
+    T.dashboards.enableAutoDashboard('Live');
+    T.datastore.getOrCreateTelemetry('n').addData(T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [Date.now() / 1000], [[1]]);
+    T.__timers.run(); // hooks are delayed to let attributes and data arrive
+    const live = T.dashboards.getDashboard('Live').getView();
+    assert.deepEqual([live.layout.type, live.layout.align], ['grid', 'stretch']);
+    assert.equal(live.views[0].layout.width, 2, 'a chart takes two columns');
+});
+
+test('removeDashboard forgets the dashboard and its views, and leaves the auto dashboard alone', () => {
+    const T = loadTeleplot();
+    const a = T.dashboards.createDashboard('A'), b = T.dashboards.createDashboard('B');
+    const layout = a.getView();
+    const chart = new T.view.ViewChart('', ['x'], a.getGroupName());
+    layout.addView(chart);
+    assert.equal(T.dashboards.removeDashboard('A'), true);
+    assert.equal(T.dashboards.getDashboard('A'), undefined);
+    assert.equal(a.getView(), undefined);
+    assert.equal(T.view.views.some(v => v.id === layout.id || v.id === chart.id), false, 'views are not updated anymore');
+    assert.ok(T.view.views.some(v => v.id === b.getView().id), 'other dashboards keep their views');
+    assert.equal(T.dashboards.removeDashboard('A'), false, 'unknown name');
+    b.isAuto = true;
+    assert.equal(T.dashboards.removeDashboard('B'), false);
+    assert.equal(T.dashboards.getDashboard('B'), b);
+    assert.equal(T.dashboards.createDashboard('A').name, 'A', 'the name is free again');
+});
+
 test('suggestViewType: numbers are plotted, everything else is shown as values, unknown or empty telemetries default to a chart', () => {
     const T = loadTeleplot();
     const now = Date.now() / 1000;

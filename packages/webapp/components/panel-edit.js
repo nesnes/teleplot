@@ -28,6 +28,12 @@ function initComponent_panel_edit(vue) {
                 <div class="edit-field">Theme
                   <span class="edit-seg"><button :class="{on: theme != 'dark'}" @click="setTheme('light')">Light</button><button :class="{on: theme == 'dark'}" @click="setTheme('dark')">Dark</button></span>
                 </div>
+                <div class="edit-field">Layout
+                  <span class="edit-seg"><button v-for="o in [['grid', 'Grid'], ['row', 'Row'], ['column', 'Column']]" :key="o[0]" :class="{on: dashboard.view.layout.type == o[0]}" @click="editor.setContainerType(dashboard.view.id, o[0])">{{ o[1] }}</button></span>
+                </div>
+                <div v-if="dashboard.view.layout.type == 'grid'" class="edit-field" title="Minimum width of a column, in em: the grid has as many columns as fit">Column width
+                  <span class="edit-step"><button :disabled="dashboard.view.layout.columnWidth <= 8" @click="dashboard.view.layout.columnWidth = Math.max(8, dashboard.view.layout.columnWidth - 2)">−</button><span>{{ dashboard.view.layout.columnWidth }}</span><button :disabled="dashboard.view.layout.columnWidth >= 40" @click="dashboard.view.layout.columnWidth = Math.min(40, dashboard.view.layout.columnWidth + 2)">+</button></span>
+                </div>
                 <div class="edit-field">Views appearance
                   <span class="edit-seg"><button :class="{on: dashboard.view.layout.appearance != 'flat'}" @click="dashboard.view.layout.appearance = 'card'">Cards</button><button :class="{on: dashboard.view.layout.appearance == 'flat'}" @click="dashboard.view.layout.appearance = 'flat'">Flat</button></span>
                 </div>
@@ -58,10 +64,14 @@ function initComponent_panel_edit(vue) {
                   <span class="edit-seg">
                     <button :class="{on: selected.layout.type == 'row'}" @click="editor.setContainerType(selected.id, 'row')">Row</button>
                     <button :class="{on: selected.layout.type == 'column'}" @click="editor.setContainerType(selected.id, 'column')">Column</button>
+                    <button :class="{on: selected.layout.type == 'grid'}" @click="editor.setContainerType(selected.id, 'grid')">Grid</button>
                     <button :class="{on: selected.layout.type == 'stack'}" @click="editor.setContainerType(selected.id, 'stack')">Stack</button>
                   </span>
                 </div>
                 <template v-if="selected.layout.type != 'stack'">
+                  <div v-if="selected.layout.type == 'grid'" class="edit-field" title="Minimum width of a column, in em: the grid has as many columns as fit">Column width
+                    <span class="edit-step"><button :disabled="selected.layout.columnWidth <= 8" @click="selected.layout.columnWidth = Math.max(8, selected.layout.columnWidth - 2)">−</button><span>{{ selected.layout.columnWidth }}</span><button :disabled="selected.layout.columnWidth >= 40" @click="selected.layout.columnWidth = Math.min(40, selected.layout.columnWidth + 2)">+</button></span>
+                  </div>
                   <div class="edit-field">Align
                     <span class="edit-seg"><button v-for="a in ['start', 'center', 'stretch']" :key="a" :class="{on: selected.layout.align == a}" @click="selected.layout.align = a">{{ a }}</button></span>
                   </div>

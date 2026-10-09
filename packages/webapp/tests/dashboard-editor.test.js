@@ -166,11 +166,32 @@ test('container type: row/column switch in place, stack replaces the container a
     assert.equal(editor.typeLabel(back), 'Row');
     assert.deepEqual(ids(back), [a.id, b.id]);
 
-    // the root of the dashboard only switches between row and column
+    // the root of the dashboard only switches between row, column and grid
     assert.equal(editor.setContainerType(root.id, 'stack'), root);
     assert.equal(root.layout.type, 'column');
     assert.equal(editor.setContainerType(root.id, 'row'), root);
     assert.equal(root.layout.type, 'row');
+    assert.equal(editor.setContainerType(root.id, 'grid'), root);
+    assert.equal(root.layout.type, 'grid');
+});
+
+test('grid containers: switched in place, added from the menu, a view takes columns of the grid', () => {
+    const { editor, root, row, a, b } = setup();
+    assert.equal(editor.setContainerType(row.id, 'grid'), row);
+    assert.equal(editor.typeLabel(row), 'Grid');
+    assert.equal(editor.isGrid(row), true);
+    row.grid.columns = 4;
+    a.setSize(2); b.setSize(8);
+    assert.equal(editor.getShare(a), 50);
+    assert.equal(editor.getShare(b), 100, 'never wider than the grid');
+    const grid = editor.addView('grid', root.id);
+    assert.deepEqual([grid.layout.type, grid.layout.align, editor.typeLabel(grid)], ['grid', 'stretch', 'Grid']);
+    assert.ok(editor.ADD_TYPES.includes('grid'));
+    const dropped = editor.dropTelemetries([], grid.id);
+    assert.deepEqual(dropped, []);
+    assert.equal(editor.addView('chart', grid.id).layout.width, 2, 'a chart takes two columns');
+    assert.equal(editor.addView('values', grid.id).layout.width, 1);
+    assert.equal(editor.addView('log', grid.id).layout.width, 2);
 });
 
 test('disabling edit mode clears the selection; changing the root resets it', () => {

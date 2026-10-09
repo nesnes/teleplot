@@ -324,6 +324,21 @@
       console.log("View types:", Teleplot.view.VIEW_TYPES);
     }
 
+    // Grid layout: columns of equal width, as many as fit (resize the window); a view's width is the number of columns it takes
+    divId = createTestElement("Grid layout: charts 2 columns wide, values 1, a log 4 (never more than the columns there are); columnWidth 12em", "90%", "auto")
+    {
+      const grid = new Teleplot.view.ViewLayout(divId, "default");
+      grid.layout.type = "grid"; grid.layout.align = "stretch"; grid.layout.columnWidth = 12;
+      Teleplot.view.addView(grid);
+      grid.addView(Teleplot.view.createView("chart", ["numberTelemetry"], "default"));
+      grid.addView(Teleplot.view.createView("values", ["number.cos"], "default"));
+      grid.addView(Teleplot.view.createView("values", ["text.Telemetry"], "default"));
+      grid.addView(Teleplot.view.createView("chart", ["number.cos"], "default"));
+      const log = Teleplot.view.createView("log", ["log.main"], "default"); log.setSize(4, 2);
+      grid.addView(log);
+      console.log("Grid columns for 100em, columns of 12em, gap 1em:", Teleplot.view.ViewLayout.gridColumns(100, 12, 1));
+    }
+
     // Auto dashboard: telemetries created after this call are displayed without any setup
     const autoDivId = createTestElement("Auto dashboard (enableAutoDashboard)", "600px", "300px")
     Teleplot.dashboards.enableAutoDashboard("Auto demo", (dashboard) => {

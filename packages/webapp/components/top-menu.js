@@ -7,7 +7,11 @@
  * - The island floats over the dashboard and fades out when the mouse rests (IDLE_MS), to leave the whole stage to the data. It stays while a popup
  *   is open, while the band above the dashboard is scrolled into view (ctx.bandVisible), while editing, while there is no dashboard, and while the pointer
  *   or the keyboard focus is on it. Paused: a small amber chip remains.
+ * - Look: an outlined, solid island while it is clear of the data (band scrolled into view, or no dashboard). Over the dashboard ("over") it turns
+ *   to glass (translucent, blurs what is behind) and casts a shadow. Popups stay solid.
  * - ctx.topPanel is the open popup: "dashboard" (dashboard list) or "rate" (data flow options).
+ * - Deleting a dashboard is confirmed in place: its row of the list turns into "Delete "name"? [Cancel] [Delete]" (confirmDelete). The auto dashboard
+ *   cannot be deleted.
  */
 const IDLE_MS = 3000; // Without mouse or keyboard activity for this long, the island fades out
 const ACTIVITY_EVENTS = ["pointermove", "pointerdown", "keydown", "touchstart"];
@@ -16,7 +20,7 @@ function initComponent_top_menu(vue) {
     let name = "top-menu";
 
     const vueHTML = `
-        <div class="tm" :class="{away: away}" role="toolbar" aria-label="Teleplot">
+        <div class="tm" :class="{away: away, over: over}" role="toolbar" aria-label="Teleplot">
             <button v-if="away && paused" class="tm-chip" title="Resume (Space)" @click="togglePause($event);">
                 <svg class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/></svg>
                 Paused
@@ -33,7 +37,12 @@ function initComponent_top_menu(vue) {
                     <template v-if="ctx.topPanel=='dashboard'">
                         <div class="tm-popup tm-dashboards" role="menu">
                             <template v-for="dashboard in dashboardList()" :key="dashboard.name">
-                                <div class="tm-row" :class="{current: dashboard === ctx.activeDashboard}">
+                                <div v-if="confirmDelete == dashboard.name" class="tm-row tm-row-confirm" role="alertdialog" :aria-label="'Delete ' + dashboard.name + '?'" @keydown.esc.stop="confirmDelete = ''">
+                                    <span class="tm-row-question">Delete "{{dashboard.name}}"?</span>
+                                    <button class="tm-row-cancel" @click="confirmDelete = ''">Cancel</button>
+                                    <button class="tm-row-confirm-delete" @click="deleteDashboard(dashboard);">Delete</button>
+                                </div>
+                                <div v-else class="tm-row" :class="{current: dashboard === ctx.activeDashboard}">
                                     <button class="tm-row-main" role="menuitem" @click="selectDashboard(dashboard);">
                                         <span class="tm-row-name">
                                             <span><span v-if="dashboard.isAuto" class="tm-live"></span>{{dashboard.name}}</span>
@@ -43,6 +52,9 @@ function initComponent_top_menu(vue) {
                                     </button>
                                     <button class="tm-row-edit" title="Edit dashboard" aria-label="Edit dashboard" @click="editDashboard(dashboard);">
                                         <i class="icofont-duotone icofont-pencil"></i>
+                                    </button>
+                                    <button v-if="!dashboard.isAuto" class="tm-row-edit tm-row-delete" title="Delete dashboard" aria-label="Delete dashboard" @click="askDelete(dashboard, $event);">
+                                        <i class="icofont-trash"></i>
                                     </button>
                                 </div>
                                 <div v-if="dashboard.isAuto" class="tm-sep-h"></div>
@@ -130,10 +142,17 @@ function initComponent_top_menu(vue) {
             font-size: 1.05rem;
             color: var(--color-text);
             background: var(--color-bg-light);
-            border: 1px solid var(--color-bg-dark);
+            border: 1px solid color-mix(in srgb, var(--color-bg-dark), var(--color-text) 10%); /* The outline alone holds the island together while it is clear of the data */
             border-radius: 1.25rem;
-            box-shadow: 0 8px 24px var(--color-shadow);
-            transition: opacity var(--motion-fast) ease-out, transform var(--motion-fast) var(--ease-out), visibility 0s;
+            box-shadow: 0 0 0 transparent;
+            transition: opacity var(--motion-fast) ease-out, transform var(--motion-fast) var(--ease-out), visibility 0s, background-color 0.2s ease-out, box-shadow 0.2s ease-out;
+        }
+        /* Over the dashboard: glass and a shadow */
+        .tm.over .tm-island {
+            background: color-mix(in srgb, var(--color-bg-light) 50%, transparent);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 26px var(--color-shadow);
         }
         /* Resting mouse: the island slips away (a little slower than it comes back), out of reach and out of the tab order */
         .tm.away .tm-island {
@@ -300,9 +319,18 @@ function initComponent_top_menu(vue) {
         .tm-row-sub { color: var(--color-text-muted); font-size: 0.85em; font-weight: 400; }
         .tm-row-check { color: var(--color-primary); }
         .tm-live { display: inline-block; width: 0.55rem; height: 0.55rem; margin-right: 0.45rem; border-radius: 50%; background: var(--color-success); }
-        .tm-row-edit { padding: 0 0.8rem; color: var(--color-text-muted); opacity: 0; border-radius: 0.7rem; }
+        .tm-row-edit { padding: 0 0.6rem; color: var(--color-text-muted); opacity: 0; border-radius: 0.7rem; }
         .tm-row:hover .tm-row-edit, .tm-row-edit:focus-visible { opacity: 1; }
         .tm-row-edit:hover { color: var(--color-primary); }
+        .tm-row-delete:hover { color: var(--color-danger); }
+        @media (hover: none) { .tm-row-edit { opacity: 1; } }
+        /* Delete confirmation, in place of the row */
+        .tm-row-confirm, .tm-row-confirm:hover { align-items: center; gap: 0.3rem; padding: 0.35rem 0.35rem 0.35rem 0.7rem; background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
+        .tm-row-question { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+        .tm-row-confirm button { padding: 0.35rem 0.7rem; border-radius: 0.55rem; font-weight: 600; }
+        .tm-row-cancel:hover { background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+        .tm-popup .tm-row-confirm-delete { background: var(--color-danger); color: #fff; }
+        .tm-popup .tm-row-confirm-delete:hover { background: color-mix(in srgb, var(--color-danger) 85%, black); }
         .tm-sep-h { height: 1px; margin: 0.3rem 0.3rem; background: var(--color-bg-dark); }
         .tm-empty { display: block; padding: 0.5rem 0.7rem; color: var(--color-text-muted); }
         .tm-new { width: 100%; padding: 0.55rem 0.7rem; border-radius: 0.7rem; font-weight: 600; color: var(--color-primary) !important; }
@@ -352,6 +380,7 @@ function initComponent_top_menu(vue) {
                 focused: false, // The keyboard focus is in the island
                 totalRate: 0, // Hz, refreshed by a timer
                 streams: 0,   // data streams seen (a telemetry has one per data type)
+                confirmDelete: "", // Name of the dashboard whose deletion is being confirmed in the list
             }
         },
         computed: {
@@ -359,6 +388,8 @@ function initComponent_top_menu(vue) {
             // Reasons to stay on screen even when nothing moves
             pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused); },
             away() { return !(this.awake || this.pinned); },
+            // The island floats over the dashboard (not over the free band above it)
+            over() { return !!this.ctx.activeDashboard && !this.ctx.bandVisible; },
             flowing() { return this.totalRate > 0; },
             rateText() {
                 if (this.totalRate > 0) return formatPerSecond(this.totalRate);
@@ -377,6 +408,8 @@ function initComponent_top_menu(vue) {
         watch: {
             // When a reason to stay goes away, the island lingers for a moment
             pinned(value) { if (!value) this.wake(); },
+            // A pending delete confirmation does not survive the list being closed
+            "ctx.topPanel"() { this.confirmDelete = ""; },
         },
         methods: {
             // Activity: show the island, and hide it again after IDLE_MS without any
@@ -442,6 +475,19 @@ function initComponent_top_menu(vue) {
                 this.ctx.topPanel = "";
                 this.editor.setRoot(dashboard.getView());
                 this.editor.setEnabled(true);
+            },
+            // Deleting asks first, in the row itself; the focus goes to Cancel, so that a stray Enter or Space is harmless
+            askDelete(dashboard, event) {
+                const popup = event.currentTarget.closest(".tm-popup");
+                this.confirmDelete = dashboard.name;
+                this.$nextTick(() => { const cancel = popup.querySelector(".tm-row-cancel"); if (cancel) cancel.focus(); });
+            },
+            // The list stays open (to delete several); a deleted dashboard that was displayed gives its place to the first of the list
+            deleteDashboard(dashboard) {
+                this.confirmDelete = "";
+                const wasActive = dashboard === this.ctx.activeDashboard;
+                if (!this.TP.dashboards.removeDashboard(dashboard.name)) return;
+                if (wasActive) this.ctx.activeDashboard = this.dashboardList()[0] || null;
             },
             newDashboard() {
                 this.editDashboard(this.TP.dashboards.createDashboard());

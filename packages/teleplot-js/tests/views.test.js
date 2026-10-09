@@ -349,3 +349,33 @@ test('theme: dark is chosen by data-theme, light/dark helpers do not need a DOM'
     assert.ok(['light', 'dark'].includes(T.theme.key()));
     assert.equal(T.theme.color('--teleplot-text', undefined, 'fallback'), 'fallback'); // no DOM in tests
 });
+
+test('grid layout: columns come by pairs from the width, views span columns without exceeding them', () => {
+    const T = loadTeleplot();
+    const L = T.view.ViewLayout;
+    // width, column width and gap in em
+    assert.deepEqual([10, 16, 33, 34, 50, 67, 68, 135].map(w => L.gridColumns(w, 16, 1)), [1, 1, 2, 2, 2, 4, 4, 8]);
+    assert.equal(L.gridColumns(100, 10), 10);
+    assert.equal(L.gridColumns(0, 16, 1), 1);
+    assert.equal(L.gridColumns(100, 0, 1), 1);
+
+    const grid = new L('', 'g');
+    assert.equal(grid.layout.columnWidth, 16);
+    grid.layout.type = 'grid';
+    const style = L.containerStyle(grid.layout, 6);
+    assert.equal(style.display, 'grid');
+    assert.equal(style['grid-template-columns'], 'repeat(6, minmax(0, 1fr))');
+    assert.equal(style['flex-direction'], undefined);
+    assert.equal(L.childStyle(grid.layout, { width: 2 }, 6)['grid-column'], 'span 2');
+    assert.equal(L.childStyle(grid.layout, { width: 8 }, 6)['grid-column'], 'span 6', 'never wider than the grid');
+    assert.equal(L.childStyle(grid.layout, { width: 0 }, 6)['grid-column'], 'span 1');
+
+    // Rows and columns are unchanged: flex, widths are weights
+    grid.layout.type = 'column';
+    assert.equal(L.containerStyle(grid.layout, 6)['flex-direction'], 'column');
+    assert.equal(L.containerStyle(grid.layout, 6).display, undefined);
+    assert.equal(L.childStyle(grid.layout, { width: 3 }, 6).flex, '3 3 1em');
+
+    grid.layout.type = 'grid'; grid.layout.columnWidth = 20;
+    assert.deepEqual([grid.clone().layout.type, grid.clone().layout.columnWidth], ['grid', 20]);
+});

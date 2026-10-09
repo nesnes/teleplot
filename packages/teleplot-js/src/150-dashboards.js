@@ -69,6 +69,17 @@ TELEPLOT.dashboards.renameDashboard = function(oldName, newName) {
     return newName;
 }
 
+// Deletes a dashboard and forgets its views (they stop being updated and are unmounted). The auto dashboard stays: new telemetries keep going to it.
+// Returns true when a dashboard was deleted. Displaying another dashboard instead is up to the caller.
+TELEPLOT.dashboards.removeDashboard = function(name) {
+    let dashboard = TELEPLOT.dashboards.getDashboard(name);
+    if (dashboard === undefined || dashboard.isAuto) return false;
+    if (dashboard.view) TELEPLOT.view.removeView(dashboard.view);
+    dashboard.view = undefined;
+    delete TELEPLOT.dashboards.dashboards[name];
+    return true;
+}
+
 TELEPLOT.dashboards.getOrCreateDashboard = function(name) {
     let dashboard = TELEPLOT.dashboards.getDashboard(name);
     if(dashboard === undefined) {
@@ -77,7 +88,7 @@ TELEPLOT.dashboards.getOrCreateDashboard = function(name) {
     return dashboard;
 }
 
-// Creates an empty dashboard (a wrapping "row" layout) ready to receive views. An empty name gives "Dashboard 1", "Dashboard 2"...
+// Creates an empty dashboard (a "grid" layout: views spread over the page, line after line) ready to receive views. An empty name gives "Dashboard 1", "Dashboard 2"...
 TELEPLOT.dashboards.createDashboard = function(name = "") {
     if (name == "") {
         for (let n = 1; ; n++) {
@@ -87,7 +98,8 @@ TELEPLOT.dashboards.createDashboard = function(name = "") {
     }
     let dashboard = TELEPLOT.dashboards.addDashboard(name);
     let layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
-    layout.layout.type = "row";
+    layout.layout.type = "grid";
+    layout.layout.align = "stretch"; // Views of a line share its height
     dashboard.setView(layout);
     return dashboard;
 }
@@ -120,7 +132,7 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
 /*
  * Auto dashboard: new telemetries are displayed without any setup (like Teleplot V1: send data, see it).
  * Number telemetries get a chart, other types a current value view, telemetries with the autoplot
- * attribute set to false (text protocol flag "np") are left alone. Views are added to a "row" layout that wraps.
+ * attribute set to false (text protocol flag "np") are left alone. Views are added to a "grid" layout (charts two columns wide, values one).
  * The dashboard is created when the first telemetry shows up; onCreated(dashboard) lets the caller
  * display it (the library doesn't decide where a dashboard goes on the page).
  */
@@ -136,7 +148,8 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         if (isNew) {
             dashboard.isAuto = true;
             layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
-            layout.layout.type = "row";
+            layout.layout.type = "grid";
+            layout.layout.align = "stretch";
             dashboard.setView(layout);
         }
 

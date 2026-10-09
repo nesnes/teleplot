@@ -34,7 +34,7 @@ html {
     --color-bg-dark: hsl(0 0% 24%);
     --color-text: hsl(0 0% 90%);
     --color-text-muted: hsl(0 0% 60%);
-
+    --color-shadow: hsl(0 0% 0% / 70%); /* A shadow lighter than the page reads as a glow */
 }
 /*
 TODO handle teleplot-js dark theme within teleplot-js itself, not in the webapp css
