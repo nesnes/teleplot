@@ -217,6 +217,7 @@ function initComponent_panel_edit(vue) {
         },
         beforeUnmount() { clearInterval(this._timer); },
         watch: {
+            tick() { this.theme = document.documentElement.dataset["theme"] || "light"; }, // (the theme also follows the system)
             "editor.state.selectedId"() { this.tab = "data"; this.addQuery = ""; this.addOpen = false; }
         },
         methods: {

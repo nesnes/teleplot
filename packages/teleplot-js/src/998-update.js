@@ -2,6 +2,7 @@ TELEPLOT.updates = {};
 
 TELEPLOT.updates.onUpdateHooks = [
     TELEPLOT.datastore.__deleteTimedOutData,
+    () => TELEPLOT.datastore.checkMemory(), // (does its work once per second)
     TELEPLOT.view.updateViews,
 ]
 

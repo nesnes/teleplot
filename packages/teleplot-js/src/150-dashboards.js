@@ -151,6 +151,8 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
         let dataType = Object.keys(telem.data)[0];
         if (dataType === undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) === undefined) return; // No data (yet): nothing to display
+        // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed
+        if (layout !== undefined && layout.views.some((v) => v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
 
         let isNew = layout === undefined;
         let dashboard = TELEPLOT.dashboards.getOrCreateDashboard(name);

@@ -9,7 +9,7 @@ class ViewChart extends ViewTelemetries{
         this.supportedDataTypes = [""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER];
         this.supportedLabel = "number";
         this.setOption("decimation", true); // Only give the chart what it can display (see MinMaxDecimator), stored data is untouched
-        this.decimators = {};               // One MinMaxDecimator per telemetry id
+        this.decimators = TELEPLOT.Vue.markRaw({}); // One MinMaxDecimator per telemetry id. Not reactive: a proxied decimator never recognises its source (raw) and rescans all the data on every update
         this.lastDisplayRange = "";         // Time range and resolution used to build chartData, to detect a need for update
 
         // Vue data
@@ -268,6 +268,7 @@ class ViewChart extends ViewTelemetries{
             },
             legend: { show: false },
             hooks: {
+                drawClear: [ (u) => this.drawThinned(u) ], // Under the grid and the series
                 setCursor: [
                     (u) => {
                         if(this.updateRunning) return;
@@ -316,6 +317,36 @@ class ViewChart extends ViewTelemetries{
             this.chart.over.addEventListener("mouseenter", () => { this.pointerInside = true; });
             this.chart.over.addEventListener("mouseleave", () => { this.pointerInside = false; });
         }
+    }
+
+    // Up to when the data of the series was thinned out to save memory (Telemetry.thinOldest), 0 when it never was
+    getThinnedBefore() {
+        let until = 0;
+        for(let telem of this.getSeriesTelemetries()) {
+            let entry = this.getSupportedDataEntry(telem);
+            if(entry && entry.thinnedBefore > until) until = entry.thinnedBefore;
+        }
+        return until;
+    }
+
+    // The part of the chart where stored data was thinned out gets a tint and a word: what is drawn there is less than what was received
+    drawThinned(u) {
+        let until = this.getThinnedBefore();
+        if(!(until > 0) || !u.ctx || !u.bbox || !u.scales || !u.scales.x || u.scales.x.min == null || until <= u.scales.x.min) return;
+        let ratio = (typeof devicePixelRatio === "number" && devicePixelRatio) || 1;
+        let element = document.getElementById(this.chartDivId);
+        let left = u.bbox.left, right = Math.min(u.bbox.left + u.bbox.width, u.valToPos(until, "x", true));
+        if(!(right > left)) return;
+        u.ctx.save();
+        u.ctx.fillStyle = TELEPLOT.theme.color("--teleplot-grid", element, "rgba(128,128,128,0.1)");
+        u.ctx.fillRect(left, u.bbox.top, right - left, u.bbox.height);
+        if(right - left > 60 * ratio) {
+            u.ctx.fillStyle = TELEPLOT.theme.color("--teleplot-muted", element, "gray");
+            u.ctx.font = `${11 * ratio}px sans-serif`;
+            u.ctx.textBaseline = "top";
+            u.ctx.fillText("thinned", left + 4 * ratio, u.bbox.top + 3 * ratio);
+        }
+        u.ctx.restore();
     }
 
     // Shows the cursor of the group (the timestamp hovered on any view) as a vertical line on a chart the pointer is not on,
@@ -650,4 +681,4 @@ class ViewChart extends ViewTelemetries{
     document.head.appendChild(elem);
 }
 
-TELEPLOT.view.ViewChart = ViewChart;
+TELEPLOT.view.ViewChart = ViewChart;

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data menu: window, clearing, memory</title>
+<!-- Design study for the popup of the pause / rate button of the top menu (packages/webapp/components/top-menu.js, ctx.topPanel == "rate").
+     Static mock-ups in the look of the webapp: nothing here is wired to the library. -->
+<style>
+/* ---- The webapp's own tokens (packages/webapp/css/style.css) ---- */
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%); --color-success: hsl(145, 63%, 42%); --color-danger: hsl(6, 78%, 57%); --color-warning: hsl(41, 100%, 47%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.45; }
+
+/* ---- This page ---- */
+header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); }
+header h1 { margin: 0 auto 0 0; font-size: 1.5rem; font-weight: 500; }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 110rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.5rem; font-weight: 500; margin: 2.2rem 0 0.3rem; }
+.lead { color: var(--color-text-muted); max-width: 80rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 0.8rem; padding: 0; margin: 0; list-style: none; }
+.needs li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.6rem 0.8rem; border-bottom: 2px solid var(--color-primary); }
+.needs b { display: block; font-size: 1.05rem; margin-bottom: 0.15rem; }
+.needs span { color: var(--color-text-muted); }
+.needs .open { border-bottom-color: var(--color-warning); }
+.proposal { display: grid; grid-template-columns: 32rem minmax(0, 1fr); gap: 2rem; align-items: start; padding: 1.6rem 0; border-top: 2px solid var(--color-bg-dark); }
+.proposal h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.proposal h3 i { font-style: normal; color: var(--color-primary); font-weight: 700; margin-right: 0.4rem; }
+.proposal p { margin: 0 0 0.7rem; max-width: 60rem; font-size: 1.05rem; }
+.proposal dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 60rem); gap: 0.35rem 0.9rem; font-size: 1.05rem; }
+.proposal dt { font-weight: 700; color: var(--color-text-muted); }
+.proposal dd { margin: 0; }
+.pick { display: inline-block; margin-left: 0.6rem; padding: 0.05rem 0.6rem; border-radius: 1rem; font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--color-primary); vertical-align: middle; }
+@media (max-width: 900px) { .proposal { grid-template-columns: 1fr; } }
+
+/* ---- Mock of a side panel: same frame, title and surfaces as the webapp's docks ---- */
+.panel { background: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-left: 0; border-top: 0; border-bottom-right-radius: 1em; padding: 0.7rem 0.8rem 0.9rem; position: relative; }
+.panel-title { margin: 0 2.5rem 0.7rem 0; }
+.panel-title h4 { margin: 0; font-weight: 500; font-size: 1.5rem; }
+.panel-title span { color: var(--color-text-muted); }
+.panel > .x { position: absolute; top: 0.6rem; right: 0.7rem; color: var(--color-text-muted); font-size: 1rem; }
+.stack { display: flex; flex-direction: column; gap: 0.5rem; }
+.card { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--sc, var(--color-bg-dark)); }
+.ok { --sc: var(--color-success); } .warn { --sc: var(--color-warning); } .bad { --sc: var(--color-danger); } .idle { --sc: var(--color-text-muted); }
+.line { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--sc, var(--color-text-muted)); }
+.ok .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 25%, transparent); }
+.name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { color: var(--color-text-muted); font-size: 0.9rem; }
+.grow { flex: 1; }
+.rate { font-family: var(--mono); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--color-text-muted); }
+.badge { flex: none; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; background: var(--bc, var(--color-primary)); border-radius: 0.2rem; padding: 0 0.3rem; line-height: 1.4; }
+.badge.grey { --bc: #7f8c8d; } .badge.teal { --bc: #16a085; } .badge.violet { --bc: #8e44ad; } .badge.red { --bc: var(--color-danger); } .badge.amber { --bc: #b87500; }
+.pill { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.85rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 1rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text-muted); white-space: nowrap; }
+.pill.on { color: var(--color-primary); border-color: var(--color-primary); }
+.btn { font: inherit; font-weight: 600; font-size: 0.9rem; padding: 0.15rem 0.6rem; border-radius: 0.5rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text); white-space: nowrap; }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: none; color: var(--color-text-muted); }
+.add { display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.45rem; border-radius: 0.4rem; border: 1px dashed var(--color-text-muted); color: var(--color-primary); font-weight: 700; }
+.section { margin: 0.7rem 0 0.3rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.4rem; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 0.8rem; margin-top: 0.35rem; font-size: 0.9rem; }
+.kv dt { color: var(--color-text-muted); } .kv dd { margin: 0; font-family: var(--mono); }
+.field { font: 0.9rem var(--mono); padding: 0.15rem 0.45rem; border-radius: 0.35rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg); color: var(--color-text); min-width: 0; }
+.indent { margin-left: 1.2rem; border-left: 2px solid var(--color-bg-dark); padding-left: 0.6rem; }
+.hint { background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-light)); border-left: 3px solid var(--color-warning); border-radius: 0.3rem; padding: 0.45rem 0.6rem; font-size: 0.95rem; }
+.hint code, .console { font-family: var(--mono); }
+.spark { flex: 1; height: 1.6rem; min-width: 3rem; color: var(--sc, var(--color-success)); }
+.console { background: var(--color-bg); border-radius: 0.3rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; margin-top: 0.35rem; }
+.console b { color: var(--color-text); font-weight: 400; } .console .err { color: var(--color-danger); }
+.hero { border-radius: 0.6rem; padding: 0.7rem 0.8rem; background: color-mix(in srgb, var(--color-success) 13%, var(--color-bg-light)); border: 1px solid color-mix(in srgb, var(--color-success) 45%, transparent); }
+.hero .big { font: 700 1.9rem var(--mono); }
+.step { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.3rem 0; }
+.step .mark { flex: none; width: 1.4rem; height: 1.4rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: #fff; background: var(--sc, var(--color-text-muted)); }
+.tabs { display: flex; gap: 0.15rem; padding: 0.25rem; border-radius: 1rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); margin-bottom: 0.6rem; }
+.tabs span { flex: 1; text-align: center; padding: 0.25rem 0.3rem; border-radius: 0.75rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+.tabs .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.tile { background: var(--color-bg-light); border-radius: 0.5rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.7rem 0.6rem; text-align: center; border-bottom: 2px solid var(--color-primary); }
+.tile b { display: block; } .tile .ico { font-size: 1.7rem; color: var(--color-primary); }
+table.dense { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table.dense th { text-align: left; font-weight: 700; color: var(--color-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.2rem 0.3rem; }
+table.dense td { padding: 0.3rem; border-top: 1px solid var(--color-bg-dark); white-space: nowrap; }
+table.dense td.num { font-family: var(--mono); text-align: right; }
+.pipe { display: flex; flex-direction: column; align-items: center; }
+.pipe .hop { width: 100%; }
+.pipe .wire { width: 0.35rem; height: 1.1rem; background: var(--sc, var(--color-success)); border-radius: 0.2rem; }
+.pipe .wire.cut { background: repeating-linear-gradient(var(--color-danger) 0 0.25rem, transparent 0.25rem 0.45rem); }
+
+/* ---- This page: the top menu island and its data popup ---- */
+.proposal { grid-template-columns: 42rem minmax(0, 1fr); }
+.stagebg { background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.8rem; padding: 0.8rem 0.8rem 1rem; }
+.island { white-space: nowrap; max-width: 100%; display: inline-flex; align-items: center; gap: 0.3rem; height: 3.4rem; padding: 0.35rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-radius: 1.25rem; font-size: 1.05rem; }
+.split-btn { display: flex; align-items: center; height: 2.7rem; border-radius: 0.85rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.split-btn .play { width: 2.7rem; text-align: center; font-weight: 700; }
+.split-btn .rt { white-space: nowrap; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.7rem 0 0.6rem; border-left: 1px solid var(--color-bg-dark); font-weight: 600; height: 1.8rem; color: var(--color-primary); }
+.split-btn.amber { background: var(--color-warning); color: #2b2100; } .split-btn.amber .rt { color: #2b2100; border-left-color: #0003; }
+.ghostbtn { padding: 0 0.55rem; color: var(--color-text-muted); font-weight: 500; }
+.popup { margin-top: 0.6rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-radius: 1rem; box-shadow: 0 14px 34px var(--color-shadow); padding: 0.8rem 0.9rem 0.9rem; }
+.popup h5 { margin: 0.9rem 0 0.35rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+.popup h5:first-child { margin-top: 0; }
+.seg { display: flex; gap: 0.15rem; padding: 0.2rem; border-radius: 0.9rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.seg span { flex: 1; text-align: center; padding: 0.25rem 0.2rem; border-radius: 0.7rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+.seg .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.meter { height: 0.7rem; border-radius: 0.4rem; background: var(--color-bg-dark); overflow: hidden; display: flex; }
+.meter i { display: block; height: 100%; }
+.radio { display: flex; gap: 0.55rem; align-items: flex-start; padding: 0.3rem 0.4rem; border-radius: 0.5rem; }
+.radio.on { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+.radio .knob { flex: none; width: 1rem; height: 1rem; margin-top: 0.15rem; border-radius: 50%; border: 2px solid var(--color-text-muted); }
+.radio.on .knob { border-color: var(--color-primary); background: radial-gradient(var(--color-primary) 45%, transparent 50%); }
+.danger-btn { color: var(--color-danger) !important; }
+.band { display: flex; height: 2.2rem; border-radius: 0.5rem; overflow: hidden; font-size: 0.85rem; font-weight: 600; }
+.band div { display: grid; place-items: center; white-space: nowrap; overflow: hidden; }
+.axis { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.2rem; }
+.sol { display: grid; grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); gap: 0.8rem; padding: 0; margin: 0; list-style: none; }
+.sol li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.6rem 0.8rem; border-bottom: 2px solid var(--sc, var(--color-primary)); }
+.sol b { display: block; font-size: 1.05rem; margin-bottom: 0.2rem; }
+.sol span { color: var(--color-text-muted); display: block; }
+.sol em { display: block; margin-top: 0.3rem; font-style: normal; font-size: 0.9rem; }
+.tag { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 700; color: #fff; background: var(--sc, var(--color-primary)); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Data menu: window, clearing, memory</h1>
+  <button onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme == 'dark' ? 'light' : 'dark'">Light / Dark</button>
+</header>
+<main>
+
+<h2>Where things stand</h2>
+<p class="lead">The popup of the pause / rate button is empty today. The library keeps <b>15 seconds</b> of data per telemetry (<code>TP.state.dataTimeout</code>; a telemetry can ask for its own duration), counted back from its own latest sample, and nothing in the interface changes it. Nothing watches memory: with a long window, images or fast telemetries, the page grows until the browser kills it.</p>
+
+<h2>Protecting the page: six ways, and how they fit the rule "display telemetry, never invent any"</h2>
+<p class="lead">Every option below only ever <b>removes</b> stored samples. None of them creates, averages or interpolates one. They differ in what they remove and in how visible that is.</p>
+<ul class="sol">
+  <li><b>A. A time window</b><span>Presets and a free value for how long data is kept. What exists today, made reachable.</span><em><span class="tag" style="--sc:var(--color-success)">no reduction of detail</span> Does not bound memory by itself: one minute of images can be more than an hour of numbers.</em></li>
+  <li><b>B. A memory limit that forgets the oldest data</b><span>The data is measured; over the limit, the oldest samples of the heaviest telemetries go first (their window gets shorter).</span><em><span class="tag" style="--sc:var(--color-success)">no reduction of detail</span> What is left is exactly what was received. History gets shorter than asked, and the menu must say so.</em></li>
+  <li><b>C. Thinning the oldest data</b><span>Beyond the recent part, keep only the lowest and highest sample of each time slice (the charts already draw this way). Text and images: keep one per slice.</span><em><span class="tag" style="--sc:var(--color-warning)">stored data is reduced</span> Every sample kept is a real one, but samples are deleted for good: today's rule "stored data is never reduced" would change. Charts must mark the thinned part.</em></li>
+  <li><b>D. Limits per kind of data</b><span>Keep the last N images, the last N lines of text, whatever the window.</span><em><span class="tag" style="--sc:var(--color-success)">no reduction of detail</span> Images are the usual cause of a full memory: cheap and effective, but one more rule to explain.</em></li>
+  <li><b>E. Pause at the limit</b><span>Stop taking new data and say so, like the pause button.</span><em><span class="tag" style="--sc:var(--color-success)">nothing removed</span> The safest for what is stored, the worst for a live display: it freezes.</em></li>
+  <li><b>F. Store the data more compactly</b><span>Typed arrays for numbers (half the memory or less), images as binary instead of base64.</span><em><span class="tag">not a setting</span> Pushes every limit further without any trade-off; a refactoring of the datastore, independent of the menu.</em></li>
+</ul>
+<p class="lead" style="margin-top:1rem"><b>Measuring memory.</b> Browsers do not give a reliable number (the one Chrome has is not in Firefox or Safari). Teleplot can count its own data instead: samples × their size, the length of texts and images. It is an estimate, but it works everywhere and it tells <b>which telemetry</b> is heavy, which the browser's number cannot.</p>
+
+<h2>Clearing</h2>
+<ul class="needs">
+  <li><b>Clear all data</b><span>Empties every telemetry. Telemetries, dashboards and views stay and fill again.</span></li>
+  <li><b>Clear what is off screen</b><span>Only the telemetries that no view of the current dashboard displays.</span></li>
+  <li><b>Forget everything</b><span>Data and telemetries: a fresh session, dashboards kept. Destructive: confirmed in place.</span></li>
+  <li class="open"><b>To decide</b><span>Whether clearing while paused should be allowed (it empties a frozen display), and whether "Clear" deserves a keyboard shortcut.</span></li>
+</ul>
+
+<h2>Four mock-ups of the menu</h2>
+<p class="lead">The popup opens under the pause / rate button of the top menu. Same situation in the first three; the fourth shows the menu when memory is nearly full.</p>
+
+<section class="proposal">
+  <div class="stagebg"><div class="island"><span class="ghostbtn">Live ▾</span>
+      <div class="split-btn"><span class="play">❚❚</span><span class="rt"><i class="dot" style="--sc:var(--color-success)"></i>373/s ▾</span></div>
+      <span class="ghostbtn">Telemetries 36</span><span class="ghostbtn">Sources 2</span></div>
+    <div class="popup">
+      <h5>Keep the last</h5>
+      <div class="seg"><span>15 s</span><span class="on">1 min</span><span>5 min</span><span>1 h</span><span>All</span></div>
+      <div class="note">Older data is forgotten. A telemetry that asks for its own duration keeps it.</div>
+      <h5>Memory used by the data</h5>
+      <div class="meter"><i style="width:22%;background:var(--color-primary)"></i></div><div class="axis"><span>110 MB · 1.2 M samples</span><span>limit 500 MB</span></div>
+      <h5>Clear</h5>
+      <div class="line"><span class="btn">Clear all data</span><span class="grow"></span><span class="sub">Telemetries and dashboards stay</span></div>
+    </div></div>
+  <div><h3><i>1</i>Essentials only</h3><p>The three things asked for, nothing else: how long data is kept as presets, how much memory the data takes, one button to clear. What happens when memory runs out is not a choice here: the oldest data of the heaviest telemetries is forgotten first, and the menu says so when it happens.</p>
+    <dl><dt>Good for</dt><dd>Newcomers. Nothing to understand before using it.</dd>
+    <dt>Watch out</dt><dd>No custom duration, one way to clear, no say on what happens at the limit.</dd>
+    <dt>Effort</dt><dd>Low.</dd></dl></div>
+</section>
+<section class="proposal">
+  <div class="stagebg"><div class="island"><span class="ghostbtn">Live ▾</span>
+      <div class="split-btn"><span class="play">❚❚</span><span class="rt"><i class="dot" style="--sc:var(--color-success)"></i>373/s ▾</span></div>
+      <span class="ghostbtn">Telemetries 36</span><span class="ghostbtn">Sources 2</span></div>
+    <div class="popup">
+      <h5>Data window</h5>
+      <div class="line"><div class="seg grow"><span>15 s</span><span class="on">1 min</span><span>5 min</span><span>1 h</span><span>All</span></div><span class="field" style="width:5.5rem">60 s</span></div>
+      <h5>Memory</h5>
+      <div class="meter"><i style="width:22%;background:var(--color-primary)"></i></div><div class="axis"><span>110 MB · 1.2 M samples</span><span>limit 500 MB</span></div>
+      <div class="sub" style="margin:0.5rem 0 0.2rem">When the limit is reached</div>
+      <div class="radio on"><span class="knob"></span><div><b>Forget the oldest data</b><div class="sub">The window gets shorter for the telemetries that take the most room.</div></div></div>
+      <div class="radio"><span class="knob"></span><div><b>Thin out the oldest data</b><div class="sub">Keep the lowest and highest samples of each moment: the shape of the history stays, with less detail.</div></div></div>
+      <div class="radio"><span class="knob"></span><div><b>Pause</b><div class="sub">Stop taking new data and tell me.</div></div></div>
+      <h5>Clear</h5>
+      <div class="line"><span class="btn">Clear all data</span><span class="btn">Clear what is off screen</span><span class="grow"></span><span class="btn ghost danger-btn">Forget everything</span></div>
+    </div></div>
+  <div><h3><i>2</i>Three sections: window, memory, clear <span class="pick">recommended</span></h3><p>One section per question. The window has presets and a free value. Memory shows the use against the limit and lets you choose, in plain words, what Teleplot does when the limit is reached. Clear offers three scopes: the data, the data no dashboard shows, or everything including the telemetries.</p>
+    <dl><dt>Good for</dt><dd>Everything asked for, visible at once, each choice explained where it is made.</dd>
+    <dt>Watch out</dt><dd>A tall popup (it must scroll on small screens). "Forget everything" is destructive: it needs a confirmation in place, like deleting a dashboard.</dd>
+    <dt>Effort</dt><dd>Medium.</dd></dl></div>
+</section>
+<section class="proposal">
+  <div class="stagebg"><div class="island"><span class="ghostbtn">Live ▾</span>
+      <div class="split-btn"><span class="play">❚❚</span><span class="rt"><i class="dot" style="--sc:var(--color-success)"></i>373/s ▾</span></div>
+      <span class="ghostbtn">Telemetries 36</span><span class="ghostbtn">Sources 2</span></div>
+    <div class="popup">
+      <h5>What is kept</h5>
+      <div class="band"><div style="width:18%;background:var(--color-bg-dark);color:var(--color-text-muted)">forgotten</div><div style="width:47%;background:color-mix(in srgb, var(--color-primary) 30%, var(--color-bg-light))">thinned</div><div style="width:35%;background:var(--color-primary);color:#fff">every sample</div></div>
+      <div class="axis"><span>← older</span><span>1 h ago</span><span>5 min ago</span><span>now</span></div>
+      <div class="line" style="margin-top:0.6rem"><span class="sub">Every sample for</span><span class="field">5 min</span><span class="sub">then thinned for</span><span class="field">1 h</span></div>
+      <h5>Memory used by the data</h5>
+      <div class="meter"><i style="width:46%;background:var(--color-primary)"></i></div><div class="axis"><span>230 MB · 2.9 M samples</span><span>limit 500 MB</span></div>
+      <div class="note">Thinned: only the lowest and highest sample of each second are kept. Nothing is averaged.</div>
+      <h5>Clear</h5>
+      <div class="line"><span class="btn">Clear all data</span><span class="btn">Clear the thinned part</span></div>
+    </div></div>
+  <div><h3><i>3</i>The history as a band</h3><p>The history drawn as it is stored: every sample for the recent part, a thinned part behind it, nothing beyond. Two durations set the two edges; the memory bar reacts as they change.</p>
+    <dl><dt>Good for</dt><dd>Long sessions: an hour of context for the cost of a few minutes, and a picture that explains thinning better than words.</dd>
+    <dt>Watch out</dt><dd>Thinning is always on in this design: it has to be accepted as the normal behaviour, and charts must show where it starts.</dd>
+    <dt>Effort</dt><dd>High (tiered storage in the datastore, a mark in the charts).</dd></dl></div>
+</section>
+<section class="proposal">
+  <div class="stagebg"><div class="island"><span class="ghostbtn">Live ▾</span>
+      <div class="split-btn amber"><span class="play">❚❚</span><span class="rt"><i class="dot" style="--sc:#2b2100"></i>373/s · memory 92% ▾</span></div>
+      <span class="ghostbtn">Telemetries 36</span><span class="ghostbtn">Sources 2</span></div>
+    <div class="popup">
+      <div class="hint" style="margin-bottom:0.7rem"><b>Memory is almost full (460 of 500 MB).</b><br>The oldest data of <b>robot.camera</b> and 3 others is being forgotten to stay under the limit.<div class="line" style="margin-top:0.4rem"><span class="btn primary">Shorten the window to 1 min</span><span class="btn">Clear all data</span></div></div>
+      <h5>Keep the last</h5>
+      <div class="seg"><span>15 s</span><span>1 min</span><span class="on">5 min</span><span>1 h</span><span>All</span></div>
+      <h5>Heaviest telemetries</h5>
+      <dl class="kv"><dt>robot.camera</dt><dd>310 MB · 1 500 images</dd><dt>lidar.points</dt><dd>84 MB</dd><dt>robot.motor.log</dt><dd>21 MB</dd></dl>
+      <div class="line" style="margin-top:0.7rem"><span class="btn">Clear all data</span><span class="grow"></span><span class="btn ghost">Memory settings ▸</span></div>
+    </div></div>
+  <div><h3><i>4</i>Short menu, details on demand, and the warning state <span class="pick">recommended warning</span></h3><p>Day to day the menu is as short as design 1. When memory gets close to the limit the button itself turns amber and says so, and the menu opens on what is happening, which telemetries are responsible, and the two actions that fix it. The limit and the policy sit behind "Memory settings".</p>
+    <dl><dt>Good for</dt><dd>Telling the user before the page is in trouble, and naming the cause: it is almost always images or a very fast telemetry.</dd>
+    <dt>Watch out</dt><dd>Settings in a second level are less discoverable. The per-telemetry sizes are estimates.</dd>
+    <dt>Effort</dt><dd>Medium. Works well combined with design 2 (same sections, plus this warning state).</dd></dl></div>
+</section>
+
+<h2>Recommendation</h2>
+<p class="lead">Menu <b>2</b>, with the warning state of <b>4</b>. Behind it: the window (A) and a memory limit that forgets the oldest data first (B) as the default, because it never touches the detail of what is kept; limits for images (D) since they are the usual cause; thinning (C) as an explicit choice, off by default, because it changes the rule that stored data is never reduced. Compact storage (F) is worth doing on its own. Defaults to settle: the window (15 s today, 1 min suggested) and the limit (500 MB suggested).</p>
+
+</main>
+</body>
+</html>

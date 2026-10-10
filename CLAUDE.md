@@ -3,7 +3,7 @@
 Rework of Teleplot for better performance and UI.
 
 ## Guidelines
-- Teleplot displays telemetry, it never invents any: no interpolation between samples (use the last sample at or before the time shown), and incoming data is never modified (ex: images are not undistorted; adapt what is drawn instead).
+- Teleplot displays telemetry, it never invents any: no interpolation between samples (use the last sample at or before the time shown), and incoming data is never modified (ex: images are not undistorted; adapt what is drawn instead). Removing old samples to bound memory is allowed (data window, memory limit); creating or averaging samples is not.
 - Minimize dependencies; always tell the user when wanting to add one.
 - Goals: performance of data ingestion and display; UI intuitive for newcomers yet powerful for experts; retro-compatible with the V1 text-based protocol.
 - For each new feature, decide whether it belongs in the lib (`packages/teleplot-js`) or in the GUI (`packages/webapp`).
@@ -37,7 +37,7 @@ Rework of Teleplot for better performance and UI.
 - Webapp: Vue 3 (`main.js`, `index.html`, `components/` panel-help/sources/telemetries/edit + dashboard.js + dashboard-editor.js, `css/style.css` + `css/editor.css`, icofont). Default connection 127.0.0.1:8080.
 
 ## Performance
-- Charts decimate data before giving it to uPlot (avoids `uPlot.join` on all stored points): see `doc/performance.md`. Stored data is never reduced. Chart option `decimation` (default true).
+- Charts decimate data before giving it to uPlot (avoids `uPlot.join` on all stored points): see `doc/performance.md`. Stored data is not reduced by the display; it is only reduced when the memory limit is reached (`TP.state.memoryLimit` / `memoryPolicy`, default "thin": `telemetry.thinOldest()` keeps real samples, fewer of them, and charts mark the thinned part), see `doc/performance.md` "Memory". Chart option `decimation` (default true).
 - `packages/teleplot-js/test-performance.html` = stress/perf page (text or binary protocol, configurable through URL, reports fps/ingestion/heap/update time). Keep it working when touching ingestion or views. `test.html` links to it.
 - Files are CRLF (Windows checkout): keep CRLF when editing/creating files.
 
@@ -58,8 +58,9 @@ Rework of Teleplot for better performance and UI.
 
 ## Webapp notes
 
-- Never let a UI framework proxy sample storage: `Telemetry.data` is `markRaw` (see doc/performance.md). Regression test in `tests/datastore.test.js`.
+- Never let a UI framework proxy sample storage: `Telemetry.data` is `markRaw` (see doc/performance.md). Regression test in `tests/datastore.test.js`. Same for the caches built from it: `ViewChart.decimators` is `markRaw` (a proxied decimator compares its raw source with a proxy, never matches, and rescans all the data on every update: found on 2026-10-10 by a long session in the webapp, the lib test pages are not reactive and do not show it). When measuring performance, measure in the webapp too.
 - `TP.dashboards.enableAutoDashboard(name, onCreated)` (lib, `150-dashboards.js`) charts new telemetries automatically (number -> chart, others -> current value, `autoplot=false` skipped); the webapp enables it as "Live" and activates it on creation.
+- Data menu (popup of the pause / rate control, in `top-menu.js`): data window (default 300 s) with a timeline of how much of it is filled (`TP.datastore.getTimeSpan()`: the telemetry that goes the furthest back), memory ring and stacked bar, policy at the limit, heaviest telemetries, clearing. The lib does the work (`TP.state.dataTimeout`, `memoryLimit`, `memoryPolicy`, `TP.datastore.getMemoryUsage/getTimeSpan/checkMemory/clearData/forgetTelemetries`).
 - Top menu: `webapp/components/top-menu.js` (floating island: dashboard switcher, pause/resume + rate, side panels as one segmented control with counts, Edit; shortcuts Space/T/S/H/E, fades out when the mouse rests), see `doc/top-menu.md`. Layout: docks that slide their width, welcome screen, help panel: see `doc/webapp-layout.md` (help examples are tested against the parser). Pause is the lib's `TP.state.isPaused` (data is ignored while paused). `components/telemetry-rate.js` estimates rates (also used by the Telemetries panel). In `index.html` custom elements that have siblings after them must be closed explicitly (`<top-menu></top-menu>`): `<x/>` is not self-closing in in-DOM templates.
 - The old tree panel (`panel-dashboard.js`) was replaced by the edit mode. DOM behaviour (pills, drag and drop) has no automated test: check it in a browser (serve `packages/webapp`, `app._container._vnode.component.proxy` gives the root component, `.editor` the editor; click the sample start button of the Help panel, then Edit).
 - Sources panel: `webapp/components/panel-sources.js` (summary, a card per source, serial console, add a source, data controls), see `doc/sources.md`. Serial is Web Serial only (Chromium); to test without a device, give `TP.connection.addConnectionSerial` a fake port (an object with `open`, `close`, `getInfo`, and `readable` / `writable` streams, as in `tests/connectionSerial.test.js`). Telemetries know their source (`telemetry.sourceId`).

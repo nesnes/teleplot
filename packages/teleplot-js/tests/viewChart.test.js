@@ -233,3 +233,25 @@ test('views display telemetries in the order of their list, and drop the ones re
         assert.equal(view.telemetries[c.id], undefined);
     }
 });
+
+test('a chart knows up to when its series were thinned out (to mark that part)', () => {
+    const T = loadTeleplot();
+    const ts = Array.from({ length: 200 }, (_, i) => i);
+    T.datastore.addTelemetry('a').addData(20, ts, [ts.slice()]);
+    T.datastore.addTelemetry('b').addData(20, ts, [ts.slice()]);
+    const chart = new T.view.ViewChart('', ['a', 'b', 'missing']);
+    assert.equal(chart.getThinnedBefore(), 0);
+    T.datastore.getTelemetry('b').thinOldest(0.5);
+    assert.equal(chart.getThinnedBefore(), 99);
+    T.datastore.getTelemetry('a').thinOldest(0.25);
+    assert.equal(chart.getThinnedBefore(), 99, 'the series thinned the furthest');
+    // nothing is drawn when the thinned part is before what the chart shows (and a chart without canvas does not fail)
+    chart.drawThinned({ ctx: null });
+    chart.drawThinned({ ctx: {}, bbox: {}, scales: { x: { min: 150, max: 199 } } });
+});
+
+test('decimators are never proxied by a reactive UI framework (webapp: a proxied one rescans all the data on every update)', () => {
+    const T = loadTeleplot();
+    const chart = new T.view.ViewChart('chart-raw', []);
+    assert.equal(chart.decimators.__v_skip, true); // Vue's "do not proxy" flag
+});

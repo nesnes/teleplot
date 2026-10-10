@@ -108,6 +108,138 @@ class Telemetry {
     clearData() {
         Object.keys(this.data).forEach(key => delete this.data[key]);
     };
+
+    // Room taken by the stored data, estimated: {bytes, samples}. 8 bytes per number (timestamps included); texts and images are
+    // measured on a few of them (their length), not on all: this is called often.
+    getMemoryUsage() {
+        let bytes = 0, samples = 0;
+        for (let dataType in this.data) {
+            let entry = this.data[dataType];
+            let count = entry.timestamps.length;
+            samples += count;
+            bytes += count * 8;
+            for (let channel of entry.data) bytes += count * Telemetry.valueSize(channel);
+        }
+        return { bytes, samples };
+    };
+
+    // Average size in bytes of the values of a channel
+    static valueSize(channel) {
+        let count = channel.length;
+        if (count == 0) return 0;
+        if (typeof channel[0] === "number" && typeof channel[count - 1] === "number") return 8;
+        let picked = Math.min(count, 32), total = 0;
+        for (let i = 0; i < picked; i++) {
+            let value = channel[Math.floor(i * count / picked)];
+            total += typeof value === "string" ? 16 + value.length * 2 : (typeof value === "number" ? 8 : 16); // (strings: 2 bytes per character at worst)
+        }
+        return total / picked;
+    };
+
+    // The time covered by the stored data: {oldest, newest, duration, intact}, or undefined without data. Data types are measured one
+    // by one (each is pruned on its own: a shape whose color was sent once keeps it for ever) and the one that covers the longest time
+    // gives oldest, newest and duration. "intact" is how far back from its newest sample no data type has been thinned out (equal to
+    // duration when nothing was thinned).
+    getTimeSpan() {
+        let longest = undefined, intact = Infinity;
+        for (let dataType in this.data) {
+            let entry = this.data[dataType];
+            if (!entry.timestamps.length) continue;
+            let oldest = entry.timestamps[0], newest = entry.timestamps[entry.timestamps.length - 1];
+            if (!longest || newest - oldest > longest.duration) longest = { oldest, newest, duration: newest - oldest };
+            if (entry.thinnedBefore >= oldest) intact = Math.min(intact, newest - entry.thinnedBefore); // (else the thinned part is gone)
+        }
+        if (!longest) return undefined;
+        longest.intact = Math.max(0, Math.min(intact, longest.duration));
+        return longest;
+    };
+
+    // Makes room by thinning out the oldest part of the data. Kept samples are untouched; nothing is averaged or made up.
+    // The data type that takes the most room is thinned first: the first "fraction" of its samples are taken 4 by 4 and only some of
+    // each group are kept:
+    //   - numbers: the lowest and the highest of the group (in the order they came), so that peaks stay
+    //   - several numbers per sample (2D, 3D, shapes...): the first and the last of the group
+    //   - text, images: the last of the group
+    // The other data types of the telemetry (the pose of a camera next to its images, the rotation of a shape next to its position...)
+    // follow it: over the same period they keep the samples that were current at the times that are kept, so that what is displayed
+    // at those times is what was displayed before (an image keeps the pose it was taken from).
+    // "thinnedBefore" of a data type tells up to when its data has been thinned. Returns the number of samples removed.
+    thinOldest(fraction=0.5) {
+        const GROUP = 4;
+        let primary = undefined, heaviest = -1;
+        for (let dataType in this.data) {
+            let entry = this.data[dataType];
+            let count = entry.timestamps.length;
+            let bytes = count * 8;
+            for (let channel of entry.data) bytes += count * Telemetry.valueSize(channel);
+            if (count > 0 && bytes > heaviest) { heaviest = bytes; primary = entry; }
+        }
+        if (!primary) return 0;
+        let count = primary.timestamps.length;
+        let end = Math.floor(count * fraction / GROUP) * GROUP; // Samples [0, end) are thinned
+        if (end < GROUP) return 0; // Nothing to thin (a few big samples, images for example, are worth thinning too)
+        let numbers = primary.data.every((channel) => typeof channel[0] === "number"); // (an image is a type and a picture: not numbers)
+        let single = primary.data.length == 1 ? primary.data[0] : undefined;
+        let kept = [];
+        for (let start = 0; start < end; start += GROUP) {
+            if (!numbers) { kept.push(start + GROUP - 1); continue; }
+            let low = start, high = start;
+            if (single) {
+                for (let i = start + 1; i < start + GROUP; i++) {
+                    if (single[i] < single[low]) low = i;
+                    if (single[i] > single[high]) high = i;
+                }
+            }
+            if (low == high) { low = start; high = start + GROUP - 1; } // All the same, or several numbers per sample: first and last
+            kept.push(Math.min(low, high), Math.max(low, high));
+        }
+        let boundary = primary.timestamps[end - 1];
+        let removed = Telemetry.__keepOldest(primary, kept, end, boundary);
+
+        // The other data types: up to the same time, keep what was current at each time kept (and at the first one that follows)
+        let times = primary.timestamps;
+        for (let dataType in this.data) {
+            let entry = this.data[dataType];
+            if (entry === primary || !entry.timestamps.length) continue;
+            let stamps = entry.timestamps, limit = 0, index = -1, keptHere = [];
+            while (limit < stamps.length && stamps[limit] <= boundary) limit++; // Samples [0, limit) are concerned
+            if (limit < 2) continue;
+            for (let i = 0; i < times.length; i++) {
+                while (index + 1 < limit && stamps[index + 1] <= times[i]) index++;
+                if (index >= 0 && keptHere[keptHere.length - 1] !== index) keptHere.push(index);
+                if (times[i] > boundary) break;
+            }
+            if (keptHere[keptHere.length - 1] !== limit - 1) keptHere.push(limit - 1); // (what is current when the thinned part ends)
+            if (keptHere.length < limit) removed += Telemetry.__keepOldest(entry, keptHere, limit, boundary);
+        }
+        return removed;
+    };
+
+    // Keeps only the samples "kept" (indexes, in order) among the first "end" samples of a data type. Returns the number of samples removed.
+    static __keepOldest(entry, kept, end, boundary) {
+        entry.timestamps = kept.map((i) => entry.timestamps[i]).concat(entry.timestamps.slice(end));
+        for (let c = 0; c < entry.data.length; c++) {
+            let channel = entry.data[c];
+            entry.data[c] = kept.map((i) => channel[i]).concat(channel.slice(end));
+        }
+        entry.thinnedBefore = Math.max(entry.thinnedBefore || 0, boundary);
+        entry.lateInsertions++; // What was cached from this data (decimation...) is outdated
+        return end - kept.length;
+    };
+
+    // Makes room by forgetting the oldest part of the data (the first "fraction" of the samples of each data type). Returns the number of samples removed.
+    forgetOldest(fraction=0.25) {
+        let removed = 0;
+        for (let dataType in this.data) {
+            let entry = this.data[dataType];
+            let count = Math.floor(entry.timestamps.length * fraction);
+            if (count < 1) continue;
+            entry.timestamps.splice(0, count);
+            for (let channel of entry.data) channel.splice(0, count);
+            removed += count;
+        }
+        return removed;
+    };
     __getTimeout() {
         let thisTimeout = this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_DATA_TIMEOUT);
         if (thisTimeout !== undefined) return thisTimeout;
@@ -124,6 +256,9 @@ class Telemetry {
             if (closestDataPoint.index === undefined) continue;
             let removeUpToIdx = closestDataPoint.index; // index NOT included in delete
             if (closestDataPoint.timestamp < oldestTimestampAllowed) removeUpToIdx = closestDataPoint.index + 1; // index included in delete
+            // Removing from the front of a long array moves all of it: with a lot of data, wait until 1% of it is too old
+            let stored = this.data[dataType].timestamps.length;
+            if (removeUpToIdx < 1 || (stored >= 4096 && removeUpToIdx < stored * 0.01)) continue;
             // Delete
             this.data[dataType].timestamps.splice(0, removeUpToIdx);
             for (let dataChannel in this.data[dataType].data) {
@@ -149,9 +284,100 @@ TELEPLOT.datastore.withSource = function(sourceId, fn) {
     finally { _datastore_currentSourceId = previous; }
 }
 
-// Forgets the data of every telemetry (the telemetries stay, with their attributes: views keep what they display)
-TELEPLOT.datastore.clearData = function() {
-    for(let id in TELEPLOT.datastore.telemetries) TELEPLOT.datastore.telemetries[id].clearData();
+// Forgets the data of every telemetry (the telemetries stay, with their attributes: views keep what they display).
+// keep(telemetry): optional, telemetries for which it returns true keep their data.
+TELEPLOT.datastore.clearData = function(keep) {
+    for(let id in TELEPLOT.datastore.telemetries) {
+        let telem = TELEPLOT.datastore.telemetries[id];
+        if(typeof keep === "function" && keep(telem)) continue;
+        telem.clearData();
+    }
+}
+
+/*
+ * Memory. Browsers do not tell how much memory a page uses in a way that works everywhere, so the library counts its own data:
+ * an estimate, but the same in every browser, and known per telemetry.
+ * TELEPLOT.state.memoryLimit is how much the stored data may take. When it is reached, TELEPLOT.state.memoryPolicy decides:
+ *   "thin"    the oldest data of the heaviest telemetries is thinned out (Telemetry.thinOldest: real samples are kept, fewer of them)
+ *   "forget"  the oldest data of the heaviest telemetries is dropped
+ *   "pause"   incoming data is not taken anymore (TELEPLOT.state.isPaused), until the user resumes
+ */
+
+// {bytes, samples, telemetries: [{id, name, bytes, samples}]}, heaviest telemetries first
+TELEPLOT.datastore.getMemoryUsage = function() {
+    let usage = { bytes: 0, samples: 0, telemetries: [] };
+    for(let id in TELEPLOT.datastore.telemetries) {
+        let telem = TELEPLOT.datastore.telemetries[id];
+        let own = telem.getMemoryUsage();
+        usage.bytes += own.bytes;
+        usage.samples += own.samples;
+        usage.telemetries.push({ id: telem.id, name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), bytes: own.bytes, samples: own.samples });
+    }
+    usage.telemetries.sort((a, b) => b.bytes - a.bytes);
+    return usage;
+}
+
+// How far back the data goes: the time span (see Telemetry.getTimeSpan, plus id and name) of the telemetry that covers the longest
+// time, or undefined without data. Each telemetry is measured on its own timestamps: they do not all use the same clock.
+// "intact" is here how far back no telemetry at all has been thinned out, and "thinned" the names of the telemetries that were.
+TELEPLOT.datastore.getTimeSpan = function() {
+    let longest = undefined, intact = Infinity, thinned = [];
+    for(let id in TELEPLOT.datastore.telemetries) {
+        let telem = TELEPLOT.datastore.telemetries[id];
+        let span = telem.getTimeSpan();
+        if(!span) continue;
+        let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id);
+        if(span.intact < span.duration) { thinned.push(name); intact = Math.min(intact, span.intact); }
+        if(!longest || span.duration > longest.duration) longest = Object.assign(span, { id: telem.id, name });
+    }
+    if(!longest) return undefined;
+    longest.intact = Math.min(intact, longest.duration);
+    longest.thinned = thinned;
+    return longest;
+}
+
+// The last measure, and what was last done about it. Raw (not reactive): refreshed once per second by the update loop.
+//   usage: see getMemoryUsage; span: see getTimeSpan; action: "" | "thin" | "forget" | "pause"; actedAt: when (ms); actedOn: names of the telemetries concerned
+TELEPLOT.datastore.memory = TELEPLOT.Vue.markRaw({ usage: { bytes: 0, samples: 0, telemetries: [] }, span: undefined, checkedAt: 0, action: "", actedAt: 0, actedOn: [] });
+
+// Measures the data (at most once per second, unless forced) and applies the policy when it is over the limit. Returns the usage.
+TELEPLOT.datastore.checkMemory = function(force=false) {
+    let memory = TELEPLOT.datastore.memory;
+    let now = Date.now();
+    if(!force && now - memory.checkedAt < 1000) return memory.usage;
+    memory.checkedAt = now;
+    let usage = TELEPLOT.datastore.getMemoryUsage();
+    let limit = TELEPLOT.state.memoryLimit;
+    if(limit > 0 && usage.bytes > limit) {
+        let policy = TELEPLOT.state.memoryPolicy;
+        if(policy === "pause") {
+            if(!TELEPLOT.state.isPaused) {
+                TELEPLOT.state.isPaused = true;
+                Object.assign(memory, { action: "pause", actedAt: now, actedOn: [] });
+            }
+        }
+        else {
+            // Back under the limit with some margin (not to do this on every check), starting with what takes the most room
+            let target = limit * 0.9, actedOn = [];
+            for(let round = 0; round < 4 && usage.bytes > target; round++) {
+                let freed = 0;
+                for(let item of usage.telemetries) {
+                    if(usage.bytes - freed <= target) break;
+                    let telem = TELEPLOT.datastore.telemetries[item.id];
+                    let removed = policy === "forget" ? telem.forgetOldest(0.25) : telem.thinOldest(0.5);
+                    if(removed < 1) continue;
+                    freed += item.bytes - telem.getMemoryUsage().bytes;
+                    if(!actedOn.includes(item.name)) actedOn.push(item.name);
+                }
+                if(freed <= 0) break; // Nothing left to remove
+                usage = TELEPLOT.datastore.getMemoryUsage();
+            }
+            if(actedOn.length) Object.assign(memory, { action: policy === "forget" ? "forget" : "thin", actedAt: now, actedOn });
+        }
+    }
+    memory.usage = usage;
+    memory.span = TELEPLOT.datastore.getTimeSpan();
+    return usage;
 }
 
 TELEPLOT.datastore.onNewTelemetryHooks = [
@@ -168,10 +394,13 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
     if (typeof idOrName === "number") { id = idOrName; }
     else { // Generate an id
         name = idOrName;
-        while(TELEPLOT.datastore.hasTelemetry(id)) {
-            id = -1 * Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+        if (name in TELEPLOT.datastore.telemetriesNameMap) id = TELEPLOT.datastore.telemetriesNameMap[name]; // A name that was forgotten (forgetTelemetries) gets its id back
+        else {
+            while(TELEPLOT.datastore.hasTelemetry(id)) {
+                id = -1 * Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+            }
+            TELEPLOT.datastore.telemetriesNameMap[idOrName] = id;
         }
-        TELEPLOT.datastore.telemetriesNameMap[idOrName] = id;
     }
 
     // Create telemetry
@@ -196,6 +425,12 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
 TELEPLOT.datastore.getTelemetry = function(idOrName) {
     let id = (typeof idOrName === "number") ? idOrName : TELEPLOT.datastore.telemetriesNameMap[idOrName];
     return TELEPLOT.datastore.telemetries[id];
+}
+
+// Forgets every telemetry (data and attributes). Names keep their ids, so that views that display a telemetry find it again when it
+// comes back.
+TELEPLOT.datastore.forgetTelemetries = function() {
+    for(let id of Object.keys(TELEPLOT.datastore.telemetries)) delete TELEPLOT.datastore.telemetries[id];
 }
 
 TELEPLOT.datastore.hasTelemetry = function(idOrName) {

@@ -142,6 +142,22 @@
       }, 10);
     });
 
+    demo("Memory: what the data takes, and making room", "The library estimates the room its data takes, per telemetry. When TELEPLOT.state.memoryLimit is reached it thins out the oldest data by itself (or forgets it, or pauses: memoryPolicy); the buttons do it by hand on numberTelemetry. Thinning keeps real samples (the lowest and highest of each group of 4), fewer of them: watch the chart on the right get a tinted \"thinned\" part.", [760, 220], (id) => {
+      const box = document.getElementById(id);
+      box.style.cssText += "display: grid; grid-template-columns: 320px 1fr; gap: 12px;";
+      box.innerHTML = '<div><button>Thin out the oldest half</button> <button>Forget the oldest quarter</button> <button>Clear</button><pre style="margin-top: 8px; height: 150px"></pre></div><div id="' + id + '-chart"></div>';
+      const [thin, forget, clear] = box.querySelectorAll("button"), out = box.querySelector("pre");
+      const telem = Teleplot.datastore.getTelemetry("numberTelemetry");
+      thin.onclick = () => telem.thinOldest(0.5);
+      forget.onclick = () => telem.forgetOldest(0.25);
+      clear.onclick = () => telem.clearData();
+      Teleplot.view.addView(new Teleplot.view.ViewChart(id + "-chart", ["numberTelemetry"]));
+      setInterval(() => {
+        const usage = Teleplot.datastore.getMemoryUsage(), own = telem.getMemoryUsage(), span = Teleplot.datastore.getTimeSpan(); // (checkMemory() also runs once per second, in the update loop)
+        out.textContent = `all the data: ${Math.round(usage.bytes / 1000)} kB, ${usage.samples} samples\nlimit: ${Teleplot.state.memoryLimit / 1e6} MB, policy: ${Teleplot.state.memoryPolicy}\nheaviest: ${usage.telemetries.slice(0, 3).map((t) => t.name).join(", ")}\ngoes back ${span ? Math.round(span.duration) : 0} s of the ${Teleplot.state.dataTimeout} s kept (${span ? span.name : "no data"})${span && span.thinned.length ? ", intact for the last " + Math.round(span.intact) + " s (thinned: " + span.thinned.join(", ") + ")" : ""}\n\nnumberTelemetry: ${Math.round(own.bytes / 1000)} kB, ${own.samples} samples`;
+      }, 500);
+    });
+
     // ====================================================================================================================== Values
     section("Values", "ViewCurrentValue: the latest value of each telemetry (or its value under the cursor of the group: hover a chart). Nothing should ever be clipped: text wraps, names are shortened with a tooltip, small views scroll.");
 

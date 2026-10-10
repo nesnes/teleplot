@@ -10,7 +10,7 @@ The top menu is a GUI feature (`packages/webapp/components/top-menu.js`): a floa
 
 - **Dashboard**: the dashboard list (the auto "Live" dashboard first, then the others, "New dashboard" at the bottom, a pencil to edit one, a bin to delete one). Deleting is confirmed in place: the row turns into `Delete "name"? [Cancel] [Delete]`, the list stays open, and a deleted dashboard that was displayed gives its place to the first of the list. The auto dashboard cannot be deleted. While editing, the name is prefixed with "Editing".
 - **Pause / resume**: toggles `TP.state.isPaused`. While paused the library ignores incoming data, so every view freezes and nothing is recorded. The control turns amber and shows "paused".
-- **Rate**: samples received per second, all telemetries together (estimated from the latest timestamps, see `components/telemetry-rate.js`, shared with the Telemetries panel). "idle" when the data stopped coming, "no data" before anything arrived. The caret opens a popup for display options (empty for now).
+- **Rate**: samples received per second, all telemetries together (estimated from the latest timestamps, see `components/telemetry-rate.js`, shared with the Telemetries panel). "idle" when the data stopped coming, "no data" before anything arrived. The caret opens the data menu (see below).
 - **Panels**: Telemetries, Sources, Export (not available yet, shown disabled), Help. They are exclusive (`ctx.sidePanel`), so they are one segmented control, icon only, with a hint of the content next to the icon: number of telemetries, number of sources plus a dot (green all connected, amber some lost, red all lost). A tooltip (hover and keyboard focus) gives the name, the shortcut and a summary (the list of sources and their state for Sources).
 - **Edit** (turns into **Done** while editing): see `doc/dashboard-editing.md`. Disabled until a dashboard is displayed.
 
@@ -19,6 +19,17 @@ The top menu is a GUI feature (`packages/webapp/components/top-menu.js`): a floa
 Not active while typing in a field. `Space` pause/resume (a focused button keeps its own use of Space), `T` Telemetries, `S` Sources, `H` or `?` Help, `E` Edit, `Esc` closes the popup, then the open panel, then Edit mode (`main.js`).
 
 ## State
+
+## Data menu (the popup of the rate)
+
+Next to the rate, a **ring** shows how much of the memory allowed for the data is used: it fills clockwise, green, amber from 70 %, red from 90 %. While data flows a mark turns around it (a still halo when the system asks for reduced motion). The popup (design study: `doc/data-menu-mockups.html`, `doc/data-menu-mockups-2.html`) has:
+
+- **Data window**: how long data is kept per telemetry (`TP.state.dataTimeout`): 15 s, 1 min, 5 min (the default), 1 h, All, or a number of seconds. A telemetry that asked for its own duration keeps it. Under the choices, a **timeline** shows how much of that window is filled (design study: `doc/data-menu-mockups-3.html`): its width is the window, its right edge is now, and the filled part is the time covered by the telemetry that goes the furthest back (`TP.datastore.getTimeSpan()`, measured on the timestamps of the stored data, not on the computer's clock). The part where at least one telemetry was thinned out to save memory is hatched in amber, whichever telemetry it is (the tooltip names them), and for as long as there is one the word **thinned** shows under the rate of the button, in the same amber (design studies: `doc/data-menu-mockups-4.html`, `doc/data-menu-mockups-5.html`); while paused, the time that passes without data opens a gap at the right, in the color of the pause. With "All", the bar is the data itself and its left label says how far back it starts.
+- **Memory**: what the data takes against the limit (`TP.state.memoryLimit`, 1 GB by default, editable, 0 for none), as one bar split between the heaviest telemetries (the rest of the bar is the room left), and **what is done when the limit is reached** (`TP.state.memoryPolicy`): thin out the oldest data (the default), forget the oldest data, or pause. The library does it (see `doc/performance.md`, "Memory"); the menu says so for a few seconds when it happens.
+- **Heaviest telemetries**: the four that take the most room, in the colors of the bar, with a cross to clear just that one.
+- **Clear**: all the data; what the displayed dashboard does not show; or "Forget everything" (data and telemetries, confirmed in place). Dashboards and views always stay.
+
+The memory figure is an estimate counted by the library from its own data: browsers do not give one that works everywhere.
 
 `ctx.topPanel` is the open popup (`"dashboard"` or `"rate"`), `ctx.sidePanel` the open side panel. A click anywhere else closes the popup.
 

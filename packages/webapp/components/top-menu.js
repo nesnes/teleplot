@@ -9,7 +9,10 @@
  *   or the keyboard focus is on it. Paused: a small amber chip remains.
  * - Look: an outlined, solid island while it is clear of the data (band scrolled into view, or no dashboard). Over the dashboard ("over") it turns
  *   to glass (translucent, blurs what is behind) and casts a shadow. Popups stay solid.
- * - ctx.topPanel is the open popup: "dashboard" (dashboard list) or "rate" (data flow options).
+ * - ctx.topPanel is the open popup: "dashboard" (dashboard list) or "rate" (the data menu).
+ * - Next to the rate, a ring shows how much of the memory allowed for the data is used (green, amber from 70 %, red from 90 %); a mark
+ *   turns around it while data is flowing. The data menu (see doc/top-menu.md) sets how long data is kept, shows what takes the
+ *   memory and what is done when it is full (the library does it: TP.state.memoryLimit / memoryPolicy), and clears data.
  * - Deleting a dashboard is confirmed in place: its row of the list turns into "Delete "name"? [Cancel] [Delete]" (confirmDelete). The auto dashboard
  *   cannot be deleted.
  */
@@ -78,14 +81,64 @@ function initComponent_top_menu(vue) {
                             <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{paused ? 'Resume' : 'Pause'}}</b><kbd>Space</kbd></span></span>
                         </button>
                         <button class="tm-rate" :class="{on: ctx.topPanel=='rate'}" aria-haspopup="dialog" :aria-expanded="ctx.topPanel=='rate'" aria-label="Data flow" @click="setTopPanel('rate', $event);">
-                            <i v-if="!paused" class="tm-dot" :class="{flowing: flowing}"></i>
-                            <span class="tm-rate-text">{{paused ? 'paused' : rateText}}</span>
+                            <span class="tm-gauge" :class="['tm-gauge-' + memory.level, {flowing: flowing && !paused}]" :style="{'--p': memory.percent}" :title="memory.title"><i></i></span>
+                            <span class="tm-rate-text"><span>{{paused ? 'paused' : rateText}}</span><span v-if="span.isThinned" class="tm-rate-thinned" :title="span.thinnedTitle">thinned</span></span>
                             <i class="icofont-simple-down tm-caret"></i>
                         </button>
                     </div>
                     <template v-if="ctx.topPanel=='rate'">
-                        <div class="tm-popup tm-flow" role="dialog" aria-label="Data flow">
-                            <span class="tm-empty">Display options will come here.</span>
+                        <div class="tm-popup tm-flow" role="dialog" aria-label="Data: window, memory, clearing">
+                            <div v-if="memory.notice" class="tm-notice">{{memory.notice}}</div>
+
+                            <h5>Data window</h5>
+                            <div class="tm-line">
+                                <div class="tm-choice tm-grow" role="group" aria-label="How long data is kept">
+                                    <button v-for="w in windows" :key="w[0]" :class="{on: TP.state.dataTimeout == w[0]}" :aria-pressed="TP.state.dataTimeout == w[0]" @click="setWindow(w[0])">{{w[1]}}</button>
+                                </div>
+                                <label class="tm-field-label" title="Seconds of data kept per telemetry (0: everything)"><input class="tm-field" type="number" min="0" step="10" :value="windowDraft ?? TP.state.dataTimeout" @input="windowDraft = $event.target.value" @change="setWindow($event.target.value); windowDraft = null" @blur="windowDraft = null"> s</label>
+                            </div>
+                            <div class="tm-time" :title="span.title">
+                                <i v-if="span.thinned" class="tm-time-thinned" :style="{width: span.thinned + '%'}"></i>
+                                <i v-if="span.plain" class="tm-time-kept" :style="{width: span.plain + '%'}"></i>
+                                <i v-if="span.gap" class="tm-time-gap" :style="{width: span.gap + '%'}"></i>
+                            </div>
+                            <div class="tm-time-ticks"><span>{{span.fromText}}</span><span class="tm-time-text">{{span.text}}<span v-if="span.thinnedText" class="tm-time-note"> · {{span.thinnedText}}</span></span><span>now</span></div>
+
+                            <h5>Memory <span class="tm-h5-value">{{memory.usedText}} of</span>
+                                <label class="tm-field-label" title="How much the stored data may take, in MB (0: no limit)"><input class="tm-field" type="number" min="0" step="50" :value="limitDraft ?? Math.round(TP.state.memoryLimit / 1e6)" @input="limitDraft = $event.target.value" @change="setLimit($event.target.value); limitDraft = null" @blur="limitDraft = null"> MB</label>
+                            </h5>
+                            <div class="tm-stack" :title="memory.title">
+                                <i v-for="seg in memory.segments" :key="seg.key" :style="{width: seg.width + '%', background: seg.color}" :title="seg.title"></i>
+                            </div>
+                            <div class="tm-sub">{{memory.samplesText}}</div>
+                            <div class="tm-sub tm-policy-title">When the limit is reached</div>
+                            <button v-for="p in policies" :key="p.value" class="tm-radio" :class="{on: TP.state.memoryPolicy == p.value}" role="radio" :aria-checked="TP.state.memoryPolicy == p.value" @click="TP.state.memoryPolicy = p.value">
+                                <span class="tm-knob"></span>
+                                <span><b>{{p.label}}</b><span class="tm-sub">{{p.note}}</span></span>
+                            </button>
+
+                            <h5>Heaviest telemetries</h5>
+                            <div v-if="!memory.heaviest.length" class="tm-sub">No data yet.</div>
+                            <div v-for="t in memory.heaviest" :key="t.id" class="tm-heavy" :title="t.name">
+                                <i class="tm-chip-color" :style="{background: t.color}"></i>
+                                <span class="tm-heavy-name"><b>{{t.name}}</b> <span class="tm-sub">{{t.detail}}</span></span>
+                                <span v-if="t.thinned" class="tm-heavy-thinned" title="Its oldest data was thinned out to fit in memory: real samples, fewer of them">thinned</span>
+                                <span class="tm-heavy-size">{{t.sizeText}}</span>
+                                <button class="tm-x" :title="'Clear the data of ' + t.name" :aria-label="'Clear the data of ' + t.name" @click="clearTelemetry(t.id)"><i class="icofont-close"></i></button>
+                            </div>
+
+                            <h5>Clear</h5>
+                            <div v-if="confirmForget" class="tm-line tm-row-confirm" role="alertdialog" aria-label="Forget every telemetry ?" @keydown.esc.stop="confirmForget = false">
+                                <span class="tm-row-question">Forget every telemetry and its data?</span>
+                                <button class="tm-row-cancel" ref="forgetCancel" @click="confirmForget = false">Cancel</button>
+                                <button class="tm-row-confirm-delete" @click="forgetEverything()">Forget</button>
+                            </div>
+                            <div v-else class="tm-line tm-clear">
+                                <button class="tm-action" title="Empties every telemetry. Telemetries, dashboards and views stay." @click="clearAll()">Clear all data</button>
+                                <button class="tm-action" :disabled="!ctx.activeDashboard" title="Empties the telemetries that the displayed dashboard does not show" @click="clearOffScreen()">Clear what is off screen</button>
+                                <span class="tm-grow"></span>
+                                <button class="tm-action tm-danger" title="Data and telemetries: a fresh start. Dashboards are kept." @click="askForget()">Forget everything</button>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -242,10 +295,28 @@ function initComponent_top_menu(vue) {
         .tm-split .tm-btn { border-radius: 0.85rem; }
         .tm-play { width: 3rem; padding: 0; }
         .tm-rate { display: flex; align-items: center; gap: 0.4rem; height: 1.8rem; padding: 0 0.7rem 0 0.5rem; margin: 0; border-left: 1px solid var(--color-bg-dark) !important; border-radius: 0 !important; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
-        .tm-rate-text { min-width: 4.8rem; text-align: left; }
+        .tm-rate-text { display: flex; flex-direction: column; justify-content: center; gap: 0.12rem; line-height: 1; min-width: 4.8rem; text-align: left; }
+        /* Some stored data was thinned out: said under the rate, in the color of the thinned part of the timeline of the data menu */
+        :root { --tm-thinned: var(--color-warning); --tm-thinned-text: hsl(39, 100%, 27%); }
+        :root[data-theme="dark"] { --tm-thinned-text: var(--color-warning); }
+        .tm-rate-thinned { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; color: var(--tm-thinned-text); }
+        .tm-split.paused .tm-rate-thinned { color: #2b2100; }
         .tm-rate.on { color: var(--color-primary); }
-        .tm-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--color-text-muted); flex: none; }
-        .tm-dot.flowing { background: var(--color-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 25%, transparent); }
+        /* Memory ring: fills clockwise with the share of the limit in use. While data flows, a mark turns around it. */
+        .tm-gauge { position: relative; flex: none; width: 1.2rem; height: 1.2rem; margin: 0 0.2rem; --gc: var(--color-success); }
+        .tm-gauge-warn { --gc: var(--color-warning); } .tm-gauge-bad { --gc: var(--color-danger); }
+        .tm-gauge i { position: absolute; inset: 0; border-radius: 50%;
+            background: conic-gradient(var(--gc) calc(var(--p) * 1%), color-mix(in srgb, currentColor 22%, transparent) 0);
+            -webkit-mask: radial-gradient(farthest-side, transparent 50%, #000 54%); mask: radial-gradient(farthest-side, transparent 50%, #000 54%); }
+        .tm-gauge.flowing::after { content: ""; position: absolute; inset: -0.3rem; border-radius: 50%;
+            background: conic-gradient(from 0deg, transparent 0 62%, var(--color-success));
+            -webkit-mask: radial-gradient(farthest-side, transparent 80%, #000 84%); mask: radial-gradient(farthest-side, transparent 80%, #000 84%);
+            animation: tm-flow-turn 1.4s linear infinite; }
+        @keyframes tm-flow-turn { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { /* No motion: a still halo says "flowing" */
+            .tm-gauge.flowing::after { animation: none; background: color-mix(in srgb, var(--color-success) 55%, transparent); }
+        }
+        .tm-split.paused .tm-gauge { --gc: #2b2100; }
         .tm-split.paused { background: var(--color-warning); color: #2b2100; }
         .tm-split.paused .tm-btn:hover { background: rgba(0, 0, 0, 0.1); }
         .tm-split.paused .tm-rate { border-left-color: rgba(0, 0, 0, 0.2) !important; }
@@ -309,7 +380,52 @@ function initComponent_top_menu(vue) {
             transition: opacity var(--motion-fast) ease-out, transform var(--motion-fast) var(--ease-out);
             @starting-style { transform: translate(0, -0.5rem); opacity: 0; }
         }
-        .tm-flow { min-width: 14rem; }
+        /* Data menu */
+        .tm-flow { width: 31rem; padding: 0.8rem 0.9rem 0.9rem; font-size: 1rem; }
+        .tm-flow h5 { display: flex; align-items: center; gap: 0.4rem; margin: 0.9rem 0 0.35rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+        .tm-flow h5:first-of-type { margin-top: 0; }
+        .tm-h5-value { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--color-text); }
+        .tm-line { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+        .tm-grow { flex: 1 1 0; min-width: 0; }
+        .tm-sub { display: block; color: var(--color-text-muted); font-size: 0.9rem; font-weight: 400; }
+        .tm-choice { display: flex; gap: 0.15rem; padding: 0.2rem; border-radius: 0.9rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+        .tm-popup .tm-choice button { flex: 1; text-align: center; padding: 0.25rem 0.2rem; border-radius: 0.7rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+        .tm-popup .tm-choice button.on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+        .tm-field-label { display: inline-flex; align-items: center; gap: 0.25rem; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 0.9rem; color: var(--color-text-muted); white-space: nowrap; }
+        .tm-field { width: 5rem; font: 0.9rem ui-monospace, Consolas, monospace; padding: 0.15rem 0.35rem; border-radius: 0.35rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg); color: var(--color-text); }
+        .tm-field:focus { outline: none; border-color: var(--color-primary); }
+        /* How much of the window the data fills: a timeline ending at "now" (thinned part hatched, time spent paused in the pause color) */
+        .tm-time { display: flex; justify-content: flex-end; height: 0.9rem; margin-top: 0.55rem; border-radius: 0.45rem; overflow: hidden; background: var(--color-bg-dark); }
+        .tm-time i { display: block; flex: none; height: 100%; transition: width 0.4s linear; }
+        .tm-time-kept { background: var(--color-primary); }
+        .tm-time-thinned { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--tm-thinned) 75%, var(--color-bg-light)) 0 4px, color-mix(in srgb, var(--tm-thinned) 35%, var(--color-bg-light)) 4px 8px); }
+        .tm-time-gap { background: var(--color-warning); }
+        .tm-time-ticks { display: flex; justify-content: space-between; gap: 0.6rem; margin-top: 0.2rem; font-size: 0.9rem; color: var(--color-text-muted); white-space: nowrap; }
+        .tm-time-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--color-text); }
+        .tm-time-note { color: var(--tm-thinned-text); font-weight: 600; }
+        @media (prefers-reduced-motion: reduce) { .tm-time i { transition: none; } }
+        .tm-stack { display: flex; height: 0.9rem; border-radius: 0.45rem; overflow: hidden; background: var(--color-bg-dark); }
+        .tm-stack i { display: block; height: 100%; min-width: 1px; }
+        .tm-policy-title { margin: 0.5rem 0 0.15rem; }
+        .tm-popup .tm-radio { display: flex; gap: 0.55rem; align-items: flex-start; width: 100%; padding: 0.3rem 0.4rem; border-radius: 0.5rem; }
+        .tm-popup .tm-radio:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+        .tm-popup .tm-radio.on { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+        .tm-knob { flex: none; width: 1rem; height: 1rem; margin-top: 0.15rem; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--color-text-muted); }
+        .tm-radio.on .tm-knob { border-color: var(--color-primary); background: radial-gradient(var(--color-primary) 45%, transparent 50%); }
+        .tm-heavy { display: flex; align-items: center; gap: 0.45rem; padding: 0.15rem 0; min-width: 0; }
+        .tm-chip-color { flex: none; width: 0.7rem; height: 0.7rem; border-radius: 0.2rem; }
+        .tm-heavy-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tm-heavy-name .tm-sub { display: inline; }
+        .tm-heavy-thinned { flex: none; padding: 0.05rem 0.45rem; border-radius: 0.6rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em; color: var(--tm-thinned-text); background: color-mix(in srgb, var(--tm-thinned) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tm-thinned) 60%, transparent); }
+        .tm-heavy-size { flex: none; font: 0.9rem ui-monospace, Consolas, monospace; color: var(--color-text-muted); }
+        .tm-popup .tm-x { flex: none; padding: 0.1rem 0.35rem; border-radius: 0.4rem; color: var(--color-text-muted); }
+        .tm-popup .tm-x:hover { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
+        .tm-clear { flex-wrap: wrap; row-gap: 0.35rem; }
+        .tm-popup .tm-action { padding: 0.2rem 0.65rem; border-radius: 0.5rem; border: 1px solid var(--color-bg-dark); font-weight: 600; font-size: 0.92rem; white-space: nowrap; }
+        .tm-popup .tm-action:hover { border-color: var(--color-primary); }
+        .tm-popup .tm-action:disabled { opacity: 0.5; cursor: default; border-color: var(--color-bg-dark); }
+        .tm-popup .tm-action.tm-danger { border-color: transparent; color: var(--color-danger); }
+        .tm-notice { margin-bottom: 0.7rem; padding: 0.45rem 0.6rem; border-radius: 0.3rem; border-left: 3px solid var(--color-warning); background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-light)); font-size: 0.95rem; }
         .tm-row { display: flex; align-items: stretch; border-radius: 0.7rem; }
         .tm-row:hover, .tm-row:focus-within { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
         .tm-row.current { background: color-mix(in srgb, var(--color-primary) 14%, transparent); }
@@ -381,6 +497,18 @@ function initComponent_top_menu(vue) {
                 totalRate: 0, // Hz, refreshed by a timer
                 streams: 0,   // data streams seen (a telemetry has one per data type)
                 confirmDelete: "", // Name of the dashboard whose deletion is being confirmed in the list
+                confirmForget: false, // "Forget everything" is being confirmed in the data menu
+                usage: { bytes: 0, samples: 0, telemetries: [] }, // Memory taken by the data (TP.datastore.memory, refreshed by the timer)
+                memoryEvent: { action: "", actedAt: 0, actedOn: [] }, // What the library last did about a full memory
+                windowDraft: null, limitDraft: null, // What is being typed in the fields of the data menu (the menu redraws while data flows: it must not be overwritten)
+                timeSpan: null, // How far back the data goes (TP.datastore.memory.span: the telemetry that covers the longest time)
+                pausedAt: 0, pausedFor: 0, // When the pause started (ms), and for how long it has lasted (seconds, refreshed by the timer)
+                windows: [[15, "15 s"], [60, "1 min"], [300, "5 min"], [3600, "1 h"], [0, "All"]], // Seconds of data kept
+                policies: [
+                    { value: "thin", label: "Thin out the oldest data", note: "Keep the lowest and highest samples of each moment: the shape of the history stays, with less detail." },
+                    { value: "forget", label: "Forget the oldest data", note: "The window gets shorter for the telemetries that take the most room." },
+                    { value: "pause", label: "Pause", note: "Stop taking new data and tell me." },
+                ],
             }
         },
         computed: {
@@ -395,6 +523,63 @@ function initComponent_top_menu(vue) {
                 if (this.totalRate > 0) return formatPerSecond(this.totalRate);
                 return this.streams ? "idle" : "no data";
             },
+            // Memory used by the data against its limit, ready to display: the ring of the button and the data menu
+            memory() {
+                const COLORS = ["#c0392b", "#16a085", "#d68910", "#2980b9", "#8e44ad"];
+                const limit = this.TP.state.memoryLimit, usage = this.usage;
+                const share = limit > 0 ? usage.bytes / limit : 0;
+                const percent = Math.max(0, Math.min(100, share * 100));
+                const size = (bytes) => bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : (bytes >= 1e6 ? Math.round(bytes / 1e6) + " MB" : (bytes >= 1000 ? Math.round(bytes / 1000) + " kB" : Math.round(bytes) + " B"));
+                const count = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + " M" : (n >= 10000 ? Math.round(n / 1000) + " k" : String(n));
+                // The heaviest telemetries: rows of the list and segments of the bar, in the same colors; the rest is one grey segment
+                const top = usage.telemetries.filter(t => t.bytes > 0).slice(0, COLORS.length);
+                const full = Math.max(limit > 0 ? limit : usage.bytes, usage.bytes, 1); // What the whole bar stands for
+                const segments = top.map((t, i) => ({ key: t.id, color: COLORS[i], width: 100 * t.bytes / full, title: t.name + ": " + size(t.bytes) }));
+                const others = usage.bytes - top.reduce((sum, t) => sum + t.bytes, 0);
+                if (others > 0) segments.push({ key: "others", color: "#7f8c8d", width: 100 * others / full, title: (usage.telemetries.length - top.length) + " other telemetries: " + size(others) });
+                const heaviest = top.slice(0, 4).map((t, i) => ({ id: t.id, name: t.name, color: COLORS[i], sizeText: size(t.bytes), detail: count(t.samples) + " samples", thinned: t.thinned }));
+                // What the library did about a full memory, said for a moment (and for as long as it is paused for that reason)
+                let notice = "";
+                const event = this.memoryEvent, recent = Date.now() - event.actedAt < 15000;
+                const names = event.actedOn.slice(0, 2).join(", ") + (event.actedOn.length > 2 ? " and " + (event.actedOn.length - 2) + " more" : "");
+                if (event.action == "pause" && this.paused) notice = "Paused: the memory allowed for the data is full. Clear some data or shorten the window, then resume.";
+                else if (event.action == "thin" && recent) notice = "Memory is full: the oldest data of " + names + " is being thinned out.";
+                else if (event.action == "forget" && recent) notice = "Memory is full: the oldest data of " + names + " is being forgotten.";
+                return {
+                    percent, level: share >= 0.9 ? "bad" : (share >= 0.7 ? "warn" : "ok"), segments, heaviest, notice,
+                    usedText: size(usage.bytes), samplesText: count(usage.samples) + " samples in " + usage.telemetries.length + (usage.telemetries.length == 1 ? " telemetry" : " telemetries"),
+                    title: limit > 0 ? `Memory used by the data: ${size(usage.bytes)} of ${size(limit)} (${Math.round(share * 100)} %)` : `Memory used by the data: ${size(usage.bytes)} (no limit)`,
+                };
+            },
+            // How much of the data window is filled, ready to display: a timeline whose right edge is now and whose width is the window
+            span() {
+                const window = this.TP.state.dataTimeout, span = this.timeSpan;
+                const time = (seconds) => {
+                    seconds = Math.round(seconds);
+                    if (seconds < 60) return seconds + " s";
+                    if (seconds < 3600) return Math.floor(seconds / 60) + " min" + (seconds % 60 ? " " + (seconds % 60) + " s" : "");
+                    const minutes = Math.round(seconds / 60);
+                    return Math.floor(minutes / 60) + " h" + (minutes % 60 ? " " + String(minutes % 60).padStart(2, "0") + " min" : "");
+                };
+                let kept = span ? span.duration : 0;
+                if (window > 0 && kept > window && kept <= window * 1.02) kept = window; // (pruning lets a little more than the window build up)
+                const gap = this.paused && span ? this.pausedFor : 0; // Time goes on while paused, data does not
+                const full = window > 0 ? window : Math.max(kept + gap, 1e-9); // What the whole bar stands for (no window: the data itself)
+                const share = (seconds) => Math.max(0, Math.min(100, 100 * seconds / full));
+                const thinnedFor = span ? Math.max(0, kept - span.intact) : 0; // Before that, at least one telemetry was thinned out
+                const names = span ? span.thinned.slice(0, 3).join(", ") + (span.thinned.length > 3 ? " and " + (span.thinned.length - 3) + " more" : "") : "";
+                let text = span ? time(kept) + " kept" : "No data yet";
+                if (span && !(window > 0)) text += ", no limit";
+                if (gap >= 1) text += " · paused for " + time(gap);
+                else if (span && window > 0 && kept < window * 0.9 && this.memoryEvent.action == "forget" && this.TP.state.memoryPolicy == "forget" && this.usage.bytes > this.TP.state.memoryLimit * 0.6) text += " · shortened by the memory limit";
+                return {
+                    isThinned: thinnedFor > 0, thinnedTitle: `Old data of ${names} was thinned out to fit in memory: real samples, fewer of them (see the data menu)`,
+                    thinned: share(thinnedFor), plain: share(kept - thinnedFor), gap: share(gap), text,
+                    thinnedText: thinnedFor > 0 ? (thinnedFor >= kept ? "all thinned" : "thinned before " + time(kept - thinnedFor + gap)) : "",
+                    fromText: time(window > 0 ? window : kept + gap) + " ago",
+                    title: span ? `"${span.name}" goes the furthest back: ${time(kept)}` + (window > 0 ? ` of the ${time(window)} kept` : "") + (thinnedFor > 0 ? `. Hatched: ${names} thinned out to save memory (real samples, fewer of them)` : "") : "How much of the data window is filled",
+                };
+            },
             telemetryCount() { return Object.keys(this.TP.datastore.telemetries).length; },
             sourceCount() { return this.TP.connection.connections.length; },
             // Every source receiving: ok, some lost: warn, all lost: bad, none configured: no dot
@@ -406,10 +591,11 @@ function initComponent_top_menu(vue) {
             },
         },
         watch: {
+            paused(paused) { this.pausedAt = paused ? Date.now() : 0; this.pausedFor = 0; },
             // When a reason to stay goes away, the island lingers for a moment
             pinned(value) { if (!value) this.wake(); },
             // A pending delete confirmation does not survive the list being closed
-            "ctx.topPanel"() { this.confirmDelete = ""; },
+            "ctx.topPanel"() { this.confirmDelete = ""; this.confirmForget = false; },
         },
         methods: {
             // Activity: show the island, and hide it again after IDLE_MS without any
@@ -510,6 +696,66 @@ function initComponent_top_menu(vue) {
                 }
                 this.totalRate = total;
                 this.streams = streams;
+                this.refreshMemory();
+            },
+            // The library measures its data once per second (TP.datastore.memory, not reactive): copy what is displayed
+            refreshMemory() {
+                const memory = this.TP.datastore.memory;
+                if (this.pausedAt) this.pausedFor = (Date.now() - this.pausedAt) / 1000;
+                if (memory.checkedAt === this._memoryCheckedAt && memory.actedAt === this.memoryEvent.actedAt) return;
+                this._memoryCheckedAt = memory.checkedAt;
+                const P = this.TP.protocol;
+                this.usage = {
+                    bytes: memory.usage.bytes, samples: memory.usage.samples,
+                    telemetries: memory.usage.telemetries.map((t) => {
+                        const telem = this.TP.datastore.telemetries[t.id];
+                        return { id: t.id, name: t.name, bytes: t.bytes, samples: t.samples, thinned: !!telem && Object.values(telem.data).some(e => e.thinnedBefore > 0) };
+                    }),
+                };
+                this.timeSpan = memory.span ? Object.assign({}, memory.span, { thinned: memory.span.thinned.slice() }) : null;
+                this.memoryEvent = { action: memory.action, actedAt: memory.actedAt, actedOn: memory.actedOn.slice() };
+            },
+            // Data menu: how long data is kept (seconds, 0: everything) and how much it may take (MB, 0: no limit)
+            setWindow(seconds) {
+                seconds = Number(seconds);
+                if (seconds >= 0) this.TP.state.dataTimeout = seconds;
+            },
+            setLimit(megabytes) {
+                megabytes = Number(megabytes);
+                if (megabytes >= 0) { this.TP.state.memoryLimit = megabytes * 1e6; this.measureNow(); }
+            },
+            measureNow() { this.TP.datastore.checkMemory(true); this.refreshMemory(); },
+            // Clearing. Telemetries, dashboards and views stay (but for "Forget everything", which also forgets the telemetries).
+            clearAll() { this.TP.datastore.clearData(); this.measureNow(); },
+            clearTelemetry(id) {
+                const telem = this.TP.datastore.telemetries[id];
+                if (telem) telem.clearData();
+                this.measureNow();
+            },
+            // Only the telemetries that the displayed dashboard does not show
+            clearOffScreen() {
+                if (!this.ctx.activeDashboard) return;
+                const shown = new Set();
+                const visit = (view) => {
+                    if (!view) return;
+                    if (Array.isArray(view.views)) { view.views.forEach(visit); return; }
+                    for (const entry of (view.telemetryIdOrNameList || [])) {
+                        const telem = this.TP.datastore.getTelemetry(entry);
+                        if (telem) shown.add(telem.id);
+                    }
+                };
+                visit(this.ctx.activeDashboard.getView());
+                this.TP.datastore.clearData((telem) => shown.has(telem.id));
+                this.measureNow();
+            },
+            askForget() {
+                this.confirmForget = true;
+                this.$nextTick(() => { if (this.$refs.forgetCancel) this.$refs.forgetCancel.focus(); }); // A stray Enter or Space is harmless
+            },
+            forgetEverything() {
+                this.confirmForget = false;
+                this.TP.datastore.forgetTelemetries();
+                this.measureNow();
             },
             // A click anywhere else closes the open popup (the buttons of the menu toggle it themselves)
             onPointerDown(event) {

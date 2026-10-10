@@ -1,6 +1,8 @@
-// Handle default theme
-if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-    document.documentElement.dataset["theme"] = "dark"
+// Handle default theme: the one of the system, also when it changes during the session (the last choice made wins: system or Edit panel)
+{
+    const darkQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (darkQuery?.matches) document.documentElement.dataset["theme"] = "dark";
+    darkQuery?.addEventListener?.("change", (event) => { document.documentElement.dataset["theme"] = event.matches ? "dark" : "light"; });
 }
 
 var app = Vue.createApp({

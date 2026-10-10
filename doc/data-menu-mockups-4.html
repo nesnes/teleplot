@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data menu: a sign that data was thinned out</title>
+<!-- Fourth round of the design study of the data menu: a sign on the pause / rate control when stored data has been thinned out
+     (second generation: a first one, marks of a few pixels inside the ring, was not kept). Static mock-ups, not wired to the library. -->
+<style>
+/* ---- The webapp's own tokens (packages/webapp/css/style.css) ---- */
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%); --color-success: hsl(145, 63%, 42%); --color-danger: hsl(6, 78%, 57%); --color-warning: hsl(41, 100%, 47%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.45; }
+
+/* ---- This page ---- */
+header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); }
+header h1 { margin: 0 auto 0 0; font-size: 1.5rem; font-weight: 500; }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 110rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.5rem; font-weight: 500; margin: 2.2rem 0 0.3rem; }
+.lead { color: var(--color-text-muted); max-width: 80rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 0.8rem; padding: 0; margin: 0; list-style: none; }
+.needs li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.6rem 0.8rem; border-bottom: 2px solid var(--color-primary); }
+.needs b { display: block; font-size: 1.05rem; margin-bottom: 0.15rem; }
+.needs span { color: var(--color-text-muted); }
+.needs .open { border-bottom-color: var(--color-warning); }
+.proposal { display: grid; grid-template-columns: 32rem minmax(0, 1fr); gap: 2rem; align-items: start; padding: 1.6rem 0; border-top: 2px solid var(--color-bg-dark); }
+.proposal h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.proposal h3 i { font-style: normal; color: var(--color-primary); font-weight: 700; margin-right: 0.4rem; }
+.proposal p { margin: 0 0 0.7rem; max-width: 60rem; font-size: 1.05rem; }
+.proposal dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 60rem); gap: 0.35rem 0.9rem; font-size: 1.05rem; }
+.proposal dt { font-weight: 700; color: var(--color-text-muted); }
+.proposal dd { margin: 0; }
+.pick { display: inline-block; margin-left: 0.6rem; padding: 0.05rem 0.6rem; border-radius: 1rem; font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--color-primary); vertical-align: middle; }
+@media (max-width: 900px) { .proposal { grid-template-columns: 1fr; } }
+
+/* ---- Mock of a side panel: same frame, title and surfaces as the webapp's docks ---- */
+.panel { background: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-left: 0; border-top: 0; border-bottom-right-radius: 1em; padding: 0.7rem 0.8rem 0.9rem; position: relative; }
+.panel-title { margin: 0 2.5rem 0.7rem 0; }
+.panel-title h4 { margin: 0; font-weight: 500; font-size: 1.5rem; }
+.panel-title span { color: var(--color-text-muted); }
+.panel > .x { position: absolute; top: 0.6rem; right: 0.7rem; color: var(--color-text-muted); font-size: 1rem; }
+.stack { display: flex; flex-direction: column; gap: 0.5rem; }
+.card { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--sc, var(--color-bg-dark)); }
+.ok { --sc: var(--color-success); } .warn { --sc: var(--color-warning); } .bad { --sc: var(--color-danger); } .idle { --sc: var(--color-text-muted); }
+.line { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--sc, var(--color-text-muted)); }
+.ok .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 25%, transparent); }
+.name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { color: var(--color-text-muted); font-size: 0.9rem; }
+.grow { flex: 1; }
+.rate { font-family: var(--mono); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--color-text-muted); }
+.badge { flex: none; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; background: var(--bc, var(--color-primary)); border-radius: 0.2rem; padding: 0 0.3rem; line-height: 1.4; }
+.badge.grey { --bc: #7f8c8d; } .badge.teal { --bc: #16a085; } .badge.violet { --bc: #8e44ad; } .badge.red { --bc: var(--color-danger); } .badge.amber { --bc: #b87500; }
+.pill { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.85rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 1rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text-muted); white-space: nowrap; }
+.pill.on { color: var(--color-primary); border-color: var(--color-primary); }
+.btn { font: inherit; font-weight: 600; font-size: 0.9rem; padding: 0.15rem 0.6rem; border-radius: 0.5rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text); white-space: nowrap; }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: none; color: var(--color-text-muted); }
+.add { display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.45rem; border-radius: 0.4rem; border: 1px dashed var(--color-text-muted); color: var(--color-primary); font-weight: 700; }
+.section { margin: 0.7rem 0 0.3rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.4rem; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 0.8rem; margin-top: 0.35rem; font-size: 0.9rem; }
+.kv dt { color: var(--color-text-muted); } .kv dd { margin: 0; font-family: var(--mono); }
+.field { font: 0.9rem var(--mono); padding: 0.15rem 0.45rem; border-radius: 0.35rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg); color: var(--color-text); min-width: 0; }
+.indent { margin-left: 1.2rem; border-left: 2px solid var(--color-bg-dark); padding-left: 0.6rem; }
+.hint { background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-light)); border-left: 3px solid var(--color-warning); border-radius: 0.3rem; padding: 0.45rem 0.6rem; font-size: 0.95rem; }
+.hint code, .console { font-family: var(--mono); }
+.spark { flex: 1; height: 1.6rem; min-width: 3rem; color: var(--sc, var(--color-success)); }
+.console { background: var(--color-bg); border-radius: 0.3rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; margin-top: 0.35rem; }
+.console b { color: var(--color-text); font-weight: 400; } .console .err { color: var(--color-danger); }
+.hero { border-radius: 0.6rem; padding: 0.7rem 0.8rem; background: color-mix(in srgb, var(--color-success) 13%, var(--color-bg-light)); border: 1px solid color-mix(in srgb, var(--color-success) 45%, transparent); }
+.hero .big { font: 700 1.9rem var(--mono); }
+.step { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.3rem 0; }
+.step .mark { flex: none; width: 1.4rem; height: 1.4rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: #fff; background: var(--sc, var(--color-text-muted)); }
+.tabs { display: flex; gap: 0.15rem; padding: 0.25rem; border-radius: 1rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); margin-bottom: 0.6rem; }
+.tabs span { flex: 1; text-align: center; padding: 0.25rem 0.3rem; border-radius: 0.75rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+.tabs .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.tile { background: var(--color-bg-light); border-radius: 0.5rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.7rem 0.6rem; text-align: center; border-bottom: 2px solid var(--color-primary); }
+.tile b { display: block; } .tile .ico { font-size: 1.7rem; color: var(--color-primary); }
+table.dense { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table.dense th { text-align: left; font-weight: 700; color: var(--color-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.2rem 0.3rem; }
+table.dense td { padding: 0.3rem; border-top: 1px solid var(--color-bg-dark); white-space: nowrap; }
+table.dense td.num { font-family: var(--mono); text-align: right; }
+.pipe { display: flex; flex-direction: column; align-items: center; }
+.pipe .hop { width: 100%; }
+.pipe .wire { width: 0.35rem; height: 1.1rem; background: var(--sc, var(--color-success)); border-radius: 0.2rem; }
+.pipe .wire.cut { background: repeating-linear-gradient(var(--color-danger) 0 0.25rem, transparent 0.25rem 0.45rem); }
+
+/* ---- This page: the top menu island and its data popup ---- */
+.proposal { grid-template-columns: 42rem minmax(0, 1fr); }
+.stagebg { background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.8rem; padding: 0.8rem 0.8rem 1rem; }
+.island { white-space: nowrap; max-width: 100%; display: inline-flex; align-items: center; gap: 0.3rem; height: 3.4rem; padding: 0.35rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-radius: 1.25rem; font-size: 1.05rem; }
+.split-btn { display: flex; align-items: center; height: 2.7rem; border-radius: 0.85rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.split-btn .play { width: 2.7rem; text-align: center; font-weight: 700; }
+.split-btn .rt { white-space: nowrap; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.7rem 0 0.6rem; border-left: 1px solid var(--color-bg-dark); font-weight: 600; height: 1.8rem; color: var(--color-primary); }
+.split-btn.amber { background: var(--color-warning); color: #2b2100; } .split-btn.amber .rt { color: #2b2100; border-left-color: #0003; }
+.ghostbtn { padding: 0 0.55rem; color: var(--color-text-muted); font-weight: 500; }
+.popup { margin-top: 0.6rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); border-radius: 1rem; box-shadow: 0 14px 34px var(--color-shadow); padding: 0.8rem 0.9rem 0.9rem; }
+.popup h5 { margin: 0.9rem 0 0.35rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+.popup h5:first-child { margin-top: 0; }
+.seg { display: flex; gap: 0.15rem; padding: 0.2rem; border-radius: 0.9rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.seg span { flex: 1; text-align: center; padding: 0.25rem 0.2rem; border-radius: 0.7rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+.seg .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.meter { height: 0.7rem; border-radius: 0.4rem; background: var(--color-bg-dark); overflow: hidden; display: flex; }
+.meter i { display: block; height: 100%; }
+.radio { display: flex; gap: 0.55rem; align-items: flex-start; padding: 0.3rem 0.4rem; border-radius: 0.5rem; }
+.radio.on { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+.radio .knob { flex: none; width: 1rem; height: 1rem; margin-top: 0.15rem; border-radius: 50%; border: 2px solid var(--color-text-muted); }
+.radio.on .knob { border-color: var(--color-primary); background: radial-gradient(var(--color-primary) 45%, transparent 50%); }
+.danger-btn { color: var(--color-danger) !important; }
+.band { display: flex; height: 2.2rem; border-radius: 0.5rem; overflow: hidden; font-size: 0.85rem; font-weight: 600; }
+.band div { display: grid; place-items: center; white-space: nowrap; overflow: hidden; }
+.axis { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.2rem; }
+.sol { display: grid; grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); gap: 0.8rem; padding: 0; margin: 0; list-style: none; }
+.sol li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.6rem 0.8rem; border-bottom: 2px solid var(--sc, var(--color-primary)); }
+.sol b { display: block; font-size: 1.05rem; margin-bottom: 0.2rem; }
+.sol span { color: var(--color-text-muted); display: block; }
+.sol em { display: block; margin-top: 0.3rem; font-style: normal; font-size: 0.9rem; }
+.tag { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 700; color: #fff; background: var(--sc, var(--color-primary)); }
+
+/* ---- Round 2: the memory gauge and the heaviest telemetries ---- */
+.ring { flex: none; width: var(--rs, 1.45rem); height: var(--rs, 1.45rem); border-radius: 50%; background: conic-gradient(var(--gc, var(--color-success)) calc(var(--p) * 1%), color-mix(in srgb, var(--color-text) 16%, transparent) 0);
+        -webkit-mask: radial-gradient(farthest-side, transparent 56%, #000 59%); mask: radial-gradient(farthest-side, transparent 56%, #000 59%); }
+.ringbox { position: relative; flex: none; display: grid; place-items: center; }
+.ringbox b { position: absolute; font: 700 1.5rem var(--mono); }
+.ringbox small { position: absolute; margin-top: 2.6rem; font-size: 0.8rem; color: var(--color-text-muted); }
+.g-ok { --gc: var(--color-success); } .g-warn { --gc: var(--color-warning); } .g-bad { --gc: var(--color-danger); }
+.heavy { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; gap: 0.3rem 0.6rem; align-items: center; font-size: 0.92rem; }
+.heavy .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heavy .sz { font-family: var(--mono); text-align: right; color: var(--color-text-muted); }
+.heavy .bar2 { grid-column: 1 / -1; height: 0.3rem; border-radius: 0.2rem; background: var(--color-bg-dark); margin-top: -0.15rem; overflow: hidden; }
+.heavy .bar2 i { display: block; height: 100%; background: var(--hc, var(--color-primary)); }
+.x { color: var(--color-text-muted); font-weight: 700; padding: 0 0.3rem; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.1rem; }
+.stack2 { display: flex; height: 0.9rem; border-radius: 0.45rem; overflow: hidden; background: var(--color-bg-dark); }
+.stack2 i { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; font-size: 0.9rem; color: var(--color-text-muted); margin-top: 0.35rem; }
+.legend i { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; margin-right: 0.3rem; }
+.variants { display: flex; flex-wrap: wrap; gap: 1rem 1.6rem; align-items: center; }
+.variants figure { margin: 0; display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start; }
+.variants figcaption { font-size: 0.9rem; color: var(--color-text-muted); max-width: 22rem; }
+.proposal.wide2 { grid-template-columns: 1fr; }
+.proposal.wide2 .stagebg { max-width: 62rem; }
+
+/* ---- Round 4: a sign on the pause / rate control when stored data has been thinned out ---- */
+.proposal { grid-template-columns: 40rem minmax(0, 1fr); }
+.trio { display: grid; grid-template-columns: max-content max-content; gap: 0.9rem 1rem; align-items: center; zoom: 1.2; }
+.trio small { color: var(--color-text-muted); font-size: 0.8rem; }
+.cell { display: flex; flex-direction: column; align-items: flex-start; }
+.rw { position: relative; flex: none; display: grid; place-items: center; } /* (the ring is masked: marks sit next to it, not inside) */
+.split-btn { position: relative; --wc: var(--color-warning); }
+.split-btn.amber { --wc: #2b2100; }
+.tri { flex: none; width: 1.05rem; height: 1.05rem; color: var(--wc); }
+.tri.sm { position: absolute; right: -0.45rem; bottom: -0.4rem; width: 0.85rem; height: 0.85rem; filter: drop-shadow(0 0 1px var(--color-bg-light)) drop-shadow(0 0 1px var(--color-bg-light)); }
+.seg3 { display: flex; align-items: center; height: 1.8rem; padding: 0 0.6rem; border-left: 1px solid var(--color-bg-dark); }
+.amber .seg3 { border-left-color: #0003; }
+.bang { position: absolute; inset: 0; display: grid; place-items: center; font: 800 0.72rem/1 Verdana, sans-serif; color: var(--wc); }
+.tab { margin: -0.45rem 0 0 4.1rem; padding: 0.1rem 0.5rem 0.12rem; border-radius: 0 0 0.5rem 0.5rem; font-size: 0.72rem; font-weight: 700; color: #2b2100; background: var(--color-warning); position: relative; z-index: 1; }
+.dots { display: inline-flex; align-items: center; height: 1rem; }
+.dots i { width: 0.24rem; height: 0.24rem; border-radius: 50%; background: var(--wc); }
+.outline { box-shadow: inset 0 0 0 2px var(--color-warning); }
+.outline.amber { box-shadow: inset 0 0 0 2px #2b2100; }
+.stripe::before { content: ""; position: absolute; left: 0.35rem; right: 0.35rem; bottom: 0.2rem; height: 0.2rem; border-radius: 0.1rem; background: var(--wc); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Data menu: a sign that data was thinned out</h1>
+  <button onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme == 'dark' ? 'light' : 'dark'">Light / Dark</button>
+</header>
+<main>
+<h2>A different direction</h2>
+<p class="lead">The first generation tried to stay discreet: marks of a few pixels inside the ring. This one takes the word "warning" at face value: signs that are objects of their own, in the warning color, large enough to be seen. Each is shown without thinning, with thinned data, with the memory nearly full, and while paused (where the button is already amber: the sign turns dark).</p>
+<section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:62"></i><svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#2b2100" stroke-width="2.4" stroke-linecap="round"/></svg>481/s ▾</span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-bad" style="--p:92"></i><svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#2b2100" stroke-width="2.4" stroke-linecap="round"/></svg>481/s ▾</span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber "><span class="play">▶</span><span class="rt"><i class="ring g-ok" style="--p:62"></i><svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#f0a800" stroke-width="2.4" stroke-linecap="round"/></svg>paused ▾</span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>A</i>A warning triangle before the rate <span class="pick">recommended</span></h3><p>The universal sign, small, between the ring and the rate. Hovering it says "Old data of robot.camera was thinned out to fit in memory".</p><dl><dt>Good for</dt><dd>Nobody has to learn it. It is a separate object: it never muddles the ring.</dd><dt>Watch out</dt><dd>Adds about 20 px to the button. A triangle is a strong word for a policy that works as intended.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><span class="rw"><i class="ring g-ok" style="--p:62"></i><svg class="tri sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#2b2100" stroke-width="2.4" stroke-linecap="round"/></svg></span>481/s ▾</span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><span class="rw"><i class="ring g-bad" style="--p:92"></i><svg class="tri sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#2b2100" stroke-width="2.4" stroke-linecap="round"/></svg></span>481/s ▾</span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber "><span class="play">▶</span><span class="rt"><span class="rw"><i class="ring g-ok" style="--p:62"></i><svg class="tri sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#f0a800" stroke-width="2.4" stroke-linecap="round"/></svg></span>paused ▾</span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>B</i>A triangle pinned on the ring</h3><p>The same triangle, smaller, overlapping the bottom corner of the ring, the way an operating system marks an icon.</p><dl><dt>Good for</dt><dd>No extra width; reads as "about the memory", which is right.</dd><dt>Watch out</dt><dd>Hides a corner of the ring, and at this size the "!" is barely drawn.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>481/s ▾</span><span class="seg3"><svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#2b2100" stroke-width="2.4" stroke-linecap="round"/></svg></span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-bad" style="--p:92"></i>481/s ▾</span><span class="seg3"><svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#2b2100" stroke-width="2.4" stroke-linecap="round"/></svg></span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber "><span class="play">▶</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>paused ▾</span><span class="seg3"><svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 23 21.5H1z" fill="currentColor"/><path d="M12 9v6M12 17.6v.4" stroke="#f0a800" stroke-width="2.4" stroke-linecap="round"/></svg></span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>C</i>Its own segment</h3><p>The control gets a third part when data is thinned: pause, rate, warning. Clicking it opens the menu.</p><dl><dt>Good for</dt><dd>A real target for the mouse and the keyboard, with room for a tooltip; it can later carry other data warnings.</dd><dt>Watch out</dt><dd>The widest of all; the island changes shape when it appears.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><span class="rw"><i class="ring g-ok" style="--p:62"></i><b class="bang">!</b></span>481/s ▾</span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><span class="rw"><i class="ring g-bad" style="--p:92"></i><b class="bang">!</b></span>481/s ▾</span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber "><span class="play">▶</span><span class="rt"><span class="rw"><i class="ring g-ok" style="--p:62"></i><b class="bang">!</b></span>paused ▾</span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>D</i>An exclamation mark in the ring</h3><p>The empty centre of the ring takes a "!".</p><dl><dt>Good for</dt><dd>Nothing added around: the ring itself says "look at me".</dd><dt>Watch out</dt><dd>Small (7 px glyph), and it could be read as "memory problem" while the memory is in fact under control.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>481/s ▾</span></div></div><span class="tab">thinned</span></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-bad" style="--p:92"></i>481/s ▾</span></div></div><span class="tab">thinned</span></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber "><span class="play">▶</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>paused ▾</span></div></div><span class="tab">thinned</span></div><small>Thinned, paused</small></div></div><div><h3><i>E</i>A tab hanging under the button</h3><p>A small amber tab hangs under the control, with the word. It belongs to the island but sits outside it.</p><dl><dt>Good for</dt><dd>Says it in a word, without changing the width of anything.</dd><dt>Watch out</dt><dd>Breaks the clean outline of the floating island and covers a little of the dashboard under it.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>481/s <span class="dots"><i style="margin-left:0rem"></i><i style="margin-left:0.08rem"></i><i style="margin-left:0.08rem"></i><i style="margin-left:0.22rem"></i><i style="margin-left:0.34rem"></i></span> ▾</span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-bad" style="--p:92"></i>481/s <span class="dots"><i style="margin-left:0rem"></i><i style="margin-left:0.08rem"></i><i style="margin-left:0.08rem"></i><i style="margin-left:0.22rem"></i><i style="margin-left:0.34rem"></i></span> ▾</span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber "><span class="play">▶</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>paused <span class="dots"><i style="margin-left:0rem"></i><i style="margin-left:0.08rem"></i><i style="margin-left:0.08rem"></i><i style="margin-left:0.22rem"></i><i style="margin-left:0.34rem"></i></span> ▾</span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>F</i>Dots that get sparse</h3><p>A tiny pictogram after the rate: samples close together, then further and further apart. It draws what thinning is.</p><dl><dt>Good for</dt><dd>Descriptive rather than alarming: it explains itself after one look at the tooltip.</dd><dt>Watch out</dt><dd>A pictogram to learn; it could be mistaken for a "more" menu.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn outline"><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>481/s ▾</span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn outline"><span class="play">❚❚</span><span class="rt"><i class="ring g-bad" style="--p:92"></i>481/s ▾</span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber outline"><span class="play">▶</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>paused ▾</span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>G</i>An amber outline</h3><p>The whole pause / rate control gets an amber outline.</p><dl><dt>Good for</dt><dd>Visible from far, no room taken, no small detail to draw.</dd><dt>Watch out</dt><dd>Close to the look of the paused state (amber background): the two can be confused at a glance.</dd></dl></div></section><section class="proposal"><div class="stagebg"><div class="trio"><div class="cell"><div class="island"><div class="split-btn "><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:34"></i>481/s ▾</span></div></div></div><small>No thinning</small><div class="cell"><div class="island"><div class="split-btn stripe"><span class="play">❚❚</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>481/s ▾</span></div></div></div><small>Old data thinned</small><div class="cell"><div class="island"><div class="split-btn stripe"><span class="play">❚❚</span><span class="rt"><i class="ring g-bad" style="--p:92"></i>481/s ▾</span></div></div></div><small>Thinned, memory at 92 %</small><div class="cell"><div class="island"><div class="split-btn amber stripe"><span class="play">▶</span><span class="rt"><i class="ring g-ok" style="--p:62"></i>paused ▾</span></div></div></div><small>Thinned, paused</small></div></div><div><h3><i>H</i>An amber line at the foot of the control</h3><p>A short amber bar along the bottom edge of the control, like the mark under an open tab.</p><dl><dt>Good for</dt><dd>Quiet and tidy, readable in both themes.</dd><dt>Watch out</dt><dd>Abstract: it says "state", not "warning", until the tooltip is read.</dd></dl></div></section>
+<h2>Recommendation</h2>
+<p class="lead"><b>A</b>: the plain triangle between ring and rate. It is understood at once, stays readable in every state, and costs 20 px. <b>C</b> is the same idea made clickable, worth it if other data warnings are to come. <b>E</b> is the one to pick if you want the word rather than a symbol.</p>
+</main>
+</body>
+</html>
