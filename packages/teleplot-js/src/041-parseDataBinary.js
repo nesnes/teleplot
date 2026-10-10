@@ -1,13 +1,14 @@
 // All multi-byte values of the binary protocol are little-endian (see doc/binaryProtocol.md), pass this to every DataView read
 const _parseDataBinary_LITTLE_ENDIAN = true;
 
+// Returns false when the packet could not be read (true otherwise, also while paused: nothing is wrong then)
 TELEPLOT.parseDataBinary = function(msgIn) {
-    if(TELEPLOT.state.isPaused) return;
+    if(TELEPLOT.state.isPaused) return true;
 
     // Get input buffer
     if(!(msgIn instanceof ArrayBuffer || msgIn instanceof Uint8Array)) {
         console.error("parseDataBinary: expected ArrayBuffer or Uint8Array");
-        return;
+        return false;
     }
     try {
         let view = msgIn instanceof ArrayBuffer ? new DataView(msgIn) : new DataView(msgIn.buffer, msgIn.byteOffset, msgIn.byteLength);
@@ -40,9 +41,11 @@ TELEPLOT.parseDataBinary = function(msgIn) {
 
         let offset = 4; // skip BINARY_MARKER, PROTOCOL_VERSION and CLIENT_ID
         _parseDataBinary_processSections(view, offset, dataLen + offset, clientId);
+        return true;
     }
     catch(e) {
         console.log("parseDataBinary error:", e);
+        return false;
     }
 }
 

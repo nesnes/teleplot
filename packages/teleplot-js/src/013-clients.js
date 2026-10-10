@@ -23,6 +23,7 @@ TELEPLOT.clients.addClient = function(id) {
         return;
     }
     let client = new Client(id);
+    client.sourceId = _datastore_currentSourceId; // Connection it was first seen on
     TELEPLOT.clients.clients[id] = client;
     return client;
 }

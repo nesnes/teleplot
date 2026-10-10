@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sources panel: design proposals</title>
+<!-- Design study for the Sources side panel of the webapp (packages/webapp/components/panel-sources.js).
+     Static mock-ups: nothing here is wired to the library. Colors, fonts and shapes are the ones of the webapp (css/style.css). -->
+<style>
+/* ---- The webapp's own tokens (packages/webapp/css/style.css) ---- */
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%); --color-success: hsl(145, 63%, 42%); --color-danger: hsl(6, 78%, 57%); --color-warning: hsl(41, 100%, 47%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.45; }
+
+/* ---- This page ---- */
+header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); }
+header h1 { margin: 0 auto 0 0; font-size: 1.5rem; font-weight: 500; }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 110rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.5rem; font-weight: 500; margin: 2.2rem 0 0.3rem; }
+.lead { color: var(--color-text-muted); max-width: 80rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 0.8rem; padding: 0; margin: 0; list-style: none; }
+.needs li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.6rem 0.8rem; border-bottom: 2px solid var(--color-primary); }
+.needs b { display: block; font-size: 1.05rem; margin-bottom: 0.15rem; }
+.needs span { color: var(--color-text-muted); }
+.needs .open { border-bottom-color: var(--color-warning); }
+.proposal { display: grid; grid-template-columns: 32rem minmax(0, 1fr); gap: 2rem; align-items: start; padding: 1.6rem 0; border-top: 2px solid var(--color-bg-dark); }
+.proposal h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.proposal h3 i { font-style: normal; color: var(--color-primary); font-weight: 700; margin-right: 0.4rem; }
+.proposal p { margin: 0 0 0.7rem; max-width: 60rem; font-size: 1.05rem; }
+.proposal dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 60rem); gap: 0.35rem 0.9rem; font-size: 1.05rem; }
+.proposal dt { font-weight: 700; color: var(--color-text-muted); }
+.proposal dd { margin: 0; }
+.pick { display: inline-block; margin-left: 0.6rem; padding: 0.05rem 0.6rem; border-radius: 1rem; font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--color-primary); vertical-align: middle; }
+@media (max-width: 900px) { .proposal { grid-template-columns: 1fr; } }
+
+/* ---- Mock of a side panel: same frame, title and surfaces as the webapp's docks ---- */
+.panel { background: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-left: 0; border-top: 0; border-bottom-right-radius: 1em; padding: 0.7rem 0.8rem 0.9rem; position: relative; }
+.panel-title { margin: 0 2.5rem 0.7rem 0; }
+.panel-title h4 { margin: 0; font-weight: 500; font-size: 1.5rem; }
+.panel-title span { color: var(--color-text-muted); }
+.panel > .x { position: absolute; top: 0.6rem; right: 0.7rem; color: var(--color-text-muted); font-size: 1rem; }
+.stack { display: flex; flex-direction: column; gap: 0.5rem; }
+.card { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--sc, var(--color-bg-dark)); }
+.ok { --sc: var(--color-success); } .warn { --sc: var(--color-warning); } .bad { --sc: var(--color-danger); } .idle { --sc: var(--color-text-muted); }
+.line { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--sc, var(--color-text-muted)); }
+.ok .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 25%, transparent); }
+.name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { color: var(--color-text-muted); font-size: 0.9rem; }
+.grow { flex: 1; }
+.rate { font-family: var(--mono); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--color-text-muted); }
+.badge { flex: none; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; color: #fff; background: var(--bc, var(--color-primary)); border-radius: 0.2rem; padding: 0 0.3rem; line-height: 1.4; }
+.badge.grey { --bc: #7f8c8d; } .badge.teal { --bc: #16a085; } .badge.violet { --bc: #8e44ad; } .badge.red { --bc: var(--color-danger); } .badge.amber { --bc: #b87500; }
+.pill { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.85rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 1rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text-muted); white-space: nowrap; }
+.pill.on { color: var(--color-primary); border-color: var(--color-primary); }
+.btn { font: inherit; font-weight: 600; font-size: 0.9rem; padding: 0.15rem 0.6rem; border-radius: 0.5rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text); white-space: nowrap; }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: none; color: var(--color-text-muted); }
+.add { display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.45rem; border-radius: 0.4rem; border: 1px dashed var(--color-text-muted); color: var(--color-primary); font-weight: 700; }
+.section { margin: 0.7rem 0 0.3rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.4rem; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 0.8rem; margin-top: 0.35rem; font-size: 0.9rem; }
+.kv dt { color: var(--color-text-muted); } .kv dd { margin: 0; font-family: var(--mono); }
+.field { font: 0.9rem var(--mono); padding: 0.15rem 0.45rem; border-radius: 0.35rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg); color: var(--color-text); min-width: 0; }
+.indent { margin-left: 1.2rem; border-left: 2px solid var(--color-bg-dark); padding-left: 0.6rem; }
+.hint { background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-light)); border-left: 3px solid var(--color-warning); border-radius: 0.3rem; padding: 0.45rem 0.6rem; font-size: 0.95rem; }
+.hint code, .console { font-family: var(--mono); }
+.spark { flex: 1; height: 1.6rem; min-width: 3rem; color: var(--sc, var(--color-success)); }
+.console { background: var(--color-bg); border-radius: 0.3rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; margin-top: 0.35rem; }
+.console b { color: var(--color-text); font-weight: 400; } .console .err { color: var(--color-danger); }
+.hero { border-radius: 0.6rem; padding: 0.7rem 0.8rem; background: color-mix(in srgb, var(--color-success) 13%, var(--color-bg-light)); border: 1px solid color-mix(in srgb, var(--color-success) 45%, transparent); }
+.hero .big { font: 700 1.9rem var(--mono); }
+.step { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.3rem 0; }
+.step .mark { flex: none; width: 1.4rem; height: 1.4rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: #fff; background: var(--sc, var(--color-text-muted)); }
+.tabs { display: flex; gap: 0.15rem; padding: 0.25rem; border-radius: 1rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); margin-bottom: 0.6rem; }
+.tabs span { flex: 1; text-align: center; padding: 0.25rem 0.3rem; border-radius: 0.75rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+.tabs .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.tile { background: var(--color-bg-light); border-radius: 0.5rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.7rem 0.6rem; text-align: center; border-bottom: 2px solid var(--color-primary); }
+.tile b { display: block; } .tile .ico { font-size: 1.7rem; color: var(--color-primary); }
+table.dense { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table.dense th { text-align: left; font-weight: 700; color: var(--color-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.2rem 0.3rem; }
+table.dense td { padding: 0.3rem; border-top: 1px solid var(--color-bg-dark); white-space: nowrap; }
+table.dense td.num { font-family: var(--mono); text-align: right; }
+.pipe { display: flex; flex-direction: column; align-items: center; }
+.pipe .hop { width: 100%; }
+.pipe .wire { width: 0.35rem; height: 1.1rem; background: var(--sc, var(--color-success)); border-radius: 0.2rem; }
+.pipe .wire.cut { background: repeating-linear-gradient(var(--color-danger) 0 0.25rem, transparent 0.25rem 0.45rem); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sources panel: design proposals</h1>
+  <button onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme == 'dark' ? 'light' : 'dark'">Light / Dark</button>
+</header>
+<main>
+
+<h2>What the panel is for</h2>
+<p class="lead">One question: <b>is my data arriving, and if not, where does it stop?</b> Today the panel lists each connection's type and address, with a red cross when it is down. Every mock-up below shows the same situation, so they can be compared: a local server that works (UDP and one serial port, two binary clients), and a second server that cannot be reached.</p>
+<ul class="needs">
+  <li><b>1. Connection state</b><span>Each Teleplot server: address, connected / reconnecting / never reached, retry now. Add, edit, remove.</span></li>
+  <li><b>2. Inputs</b><span>UDP (port, protocols seen, age of the last packet) and serial ports (port, baud rate, connect, send).</span></li>
+  <li><b>3. Flow per source</b><span>Samples per second and time since the last data: "connected but silent" must be visible.</span></li>
+  <li><b>4. Clients</b><span>Binary-protocol clients: name, id, number of telemetries, last seen.</span></li>
+  <li><b>5. Problems</b><span>Invalid packets and lines that could not be read, counted per source (today: only in the browser console).</span></li>
+  <li><b>6. Guidance</b><span>When nothing arrives: which step fails and what to try, with a link to the Help examples.</span></li>
+  <li><b>7. Data controls</b><span>How long data is kept, clear all data, the paused state.</span></li>
+  <li><b>8. Sample data</b><span>The robot sample as a source with start / stop (today in the Help panel).</span></li>
+  <li class="open"><b>To decide: serial</b><span>The library has a serial input but the V2 server does not implement it. Server work, or the browser's Web Serial API (no server, Chromium only).</span></li>
+  <li class="open"><b>To decide: remote commands</b><span>The V1 "telecmd" calls: under each source here, or in a panel of their own.</span></li>
+</ul>
+
+<h2>Ten designs</h2>
+<p class="lead">Each one is drawn at the real width of the left dock, with the webapp's surfaces, colors and type. They are static pictures.</p>
+
+<!-- 1 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Where the data comes from.</span></div>
+    <div class="stack">
+      <div class="card ok">
+        <div class="line"><i class="dot"></i><span class="name">127.0.0.1:8080</span><span class="badge grey">SERVER</span><span class="grow"></span><span class="rate">373/s</span></div>
+        <div class="sub">Connected · last data 0.02 s ago · 2 inputs · 2 clients</div>
+        <dl class="kv"><dt>UDP :47269</dt><dd>323/s · text, binary</dd><dt>Serial ttyUSB0</dt><dd>50/s · 115200 baud</dd><dt>Clients</dt><dd>robot-main (24), arm-controller (6)</dd><dt>Problems</dt><dd style="color:var(--color-danger)">3 invalid packets</dd></dl>
+        <div class="line" style="margin-top:0.45rem"><span class="btn">Add serial port</span><span class="btn">Edit</span><span class="grow"></span><span class="btn ghost">Remove</span></div>
+      </div>
+      <div class="card bad">
+        <div class="line"><i class="dot"></i><span class="name">192.168.1.42:8080</span><span class="badge grey">SERVER</span><span class="grow"></span><span class="btn">Retry now</span></div>
+        <div class="sub">Cannot be reached · next try in 2 s</div>
+      </div>
+      <div class="card idle">
+        <div class="line"><i class="dot"></i><span class="name">Robot sample</span><span class="badge teal">SAMPLE</span><span class="grow"></span><span class="btn">Start</span></div>
+        <div class="sub">Simulated robot, to try Teleplot without hardware</div>
+      </div>
+      <div class="add">+ Add a source</div>
+    </div>
+  </div>
+  <div>
+    <h3><i>1</i>Status cards <span class="pick">recommended base</span></h3>
+    <p>One card per source, colored by its state like the telemetry tiles. The collapsed card says the three things that matter (state, rate, age of the last data); expanded, it lists its inputs, clients and problems, and holds its actions.</p>
+    <dl><dt>Good for</dt><dd>Everyone: readable at a glance, same visual language as the Telemetries panel, room to grow (a new kind of source is a new card).</dd>
+    <dt>Watch out</dt><dd>Inputs and clients are a list inside a card: with many of them the card gets long.</dd>
+    <dt>Effort</dt><dd>Low. Needs per-source rate and error counters in the library.</dd></dl>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Servers, their inputs, and who sends on them.</span></div>
+    <div class="stack">
+      <div class="card ok"><div class="line"><span class="muted">▾</span><i class="dot"></i><span class="name">127.0.0.1:8080</span><span class="badge grey">SERVER</span><span class="grow"></span><span class="rate">373/s</span></div></div>
+      <div class="indent stack">
+        <div class="card ok"><div class="line"><span class="muted">▾</span><i class="dot"></i><span class="name">UDP :47269</span><span class="badge">UDP</span><span class="grow"></span><span class="rate">323/s</span></div></div>
+        <div class="indent stack">
+          <div class="card ok"><div class="line"><i class="dot"></i><span class="name">robot-main</span><span class="badge violet">CLIENT 1</span><span class="grow"></span><span class="sub">24 telemetries</span></div></div>
+          <div class="card warn"><div class="line"><i class="dot"></i><span class="name">arm-controller</span><span class="badge violet">CLIENT 7</span><span class="grow"></span><span class="sub">silent for 8 s</span></div></div>
+          <div class="card idle"><div class="line"><i class="dot"></i><span class="name">Text protocol</span><span class="grow"></span><span class="sub">12 telemetries</span></div></div>
+        </div>
+        <div class="card ok"><div class="line"><i class="dot"></i><span class="name">/dev/ttyUSB0</span><span class="badge amber">SERIAL</span><span class="grow"></span><span class="rate">50/s</span></div></div>
+        <div class="add">+ Serial port</div>
+      </div>
+      <div class="card bad"><div class="line"><span class="muted">▸</span><i class="dot"></i><span class="name">192.168.1.42:8080</span><span class="badge grey">SERVER</span><span class="grow"></span><span class="btn">Retry</span></div></div>
+      <div class="add">+ Add a server</div>
+    </div>
+  </div>
+  <div>
+    <h3><i>2</i>Tree of the data path</h3>
+    <p>Server, then its inputs, then the clients seen on each input, folded like the groups of the Telemetries panel. A problem low in the tree colors its parents.</p>
+    <dl><dt>Good for</dt><dd>Setups with several devices: it shows exactly which client on which input went silent.</dd>
+    <dt>Watch out</dt><dd>Three levels of indentation in a narrow panel; a newcomer with one source sees structure they do not need.</dd>
+    <dt>Effort</dt><dd>Medium. The library must remember which input each client and telemetry came from.</dd></dl>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>The path of the data, hop by hop.</span></div>
+    <div class="tabs"><span class="on">127.0.0.1:8080</span><span>192.168.1.42:8080</span></div>
+    <div class="pipe">
+      <div class="hop card ok"><div class="line"><i class="dot"></i><span class="name">Your devices</span><span class="grow"></span><span class="sub">2 clients · text</span></div><div class="sub">robot-main, arm-controller</div></div>
+      <div class="wire"></div>
+      <div class="hop card ok"><div class="line"><i class="dot"></i><span class="name">UDP :47269</span><span class="grow"></span><span class="rate">323/s</span></div><div class="sub">Packets received by the server</div></div>
+      <div class="wire"></div>
+      <div class="hop card ok"><div class="line"><i class="dot"></i><span class="name">Teleplot server</span><span class="grow"></span><span class="sub">127.0.0.1:8080</span></div><div class="sub">Relays to this page (WebSocket)</div></div>
+      <div class="wire" style="--sc:var(--color-warning)"></div>
+      <div class="hop card warn"><div class="line"><i class="dot"></i><span class="name">This page</span><span class="grow"></span><span class="rate">320/s</span></div><div class="sub" style="color:var(--color-danger)">3 packets could not be read</div></div>
+    </div>
+  </div>
+  <div>
+    <h3><i>3</i>Pipeline diagram</h3>
+    <p>The chain from the device to the page, drawn as it is, with a state at each hop and on each link. When data stops, the broken link is the dashed red one.</p>
+    <dl><dt>Good for</dt><dd>Understanding and troubleshooting: it teaches how Teleplot works while showing where it fails.</dd>
+    <dt>Watch out</dt><dd>One chain per source: with several sources it needs tabs or a lot of height. The first hop is partly a guess (the page cannot see a device that sends nothing).</dd>
+    <dt>Effort</dt><dd>Medium.</dd></dl>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Where the data comes from.</span></div>
+    <div class="hero">
+      <div class="line"><span class="big">373/s</span><span class="grow"></span><span class="pill on">Receiving</span></div>
+      <svg class="spark" viewBox="0 0 200 30" preserveAspectRatio="none" style="width:100%;height:2.6rem"><polyline points="0,20 15,18 30,19 45,12 60,14 75,9 90,13 105,8 120,11 135,7 150,10 165,6 180,9 200,8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      <div class="sub">36 telemetries · 2 clients · last data 0.02 s ago · <span style="color:var(--color-danger)">1 source down, 3 invalid packets</span></div>
+    </div>
+    <div class="section">Sources</div>
+    <div class="stack">
+      <div class="card ok"><div class="line"><i class="dot"></i><span class="name">127.0.0.1:8080</span><span class="grow"></span><span class="rate">373/s</span></div><div class="sub">UDP 323/s · ttyUSB0 50/s</div></div>
+      <div class="card bad"><div class="line"><i class="dot"></i><span class="name">192.168.1.42:8080</span><span class="grow"></span><span class="btn">Retry now</span></div><div class="sub">Cannot be reached</div></div>
+    </div>
+    <div class="section">Data</div>
+    <div class="line"><span class="sub">Keep</span><span class="field">60 s</span><span class="grow"></span><span class="btn">Clear all data</span></div>
+  </div>
+  <div>
+    <h3><i>4</i>Health summary first <span class="pick">recommended top</span></h3>
+    <p>The answer before the details: one block that says whether data is flowing, how much, since when, and whether anything is wrong. The sources and the data controls come under it.</p>
+    <dl><dt>Good for</dt><dd>The moment you open the panel because something looks off. It also gives the data controls (retention, clear) a natural home.</dd>
+    <dt>Watch out</dt><dd>The summary repeats the rate of the top menu; it must add something (the history, the problems) to earn its place.</dd>
+    <dt>Effort</dt><dd>Low to medium (a short history of the rate).</dd></dl>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>192.168.1.42:8080 sends nothing. Let's find why.</span></div>
+    <div class="step ok"><span class="mark">✓</span><div><b>This page is not paused</b><div class="sub">Incoming data is displayed.</div></div></div>
+    <div class="step bad"><span class="mark">!</span><div style="min-width:0"><b>The Teleplot server cannot be reached</b><div class="sub">ws://192.168.1.42:8080 · 14 tries · next in 2 s</div>
+      <div class="hint" style="margin-top:0.35rem">Is the server running on that machine? Start it with <code>node main.js</code> in <code>packages/server</code>, and check that port 8080 is open in its firewall.<div class="line" style="margin-top:0.4rem"><span class="btn primary">Retry now</span><span class="btn">Change address</span></div></div></div></div>
+    <div class="step idle"><span class="mark">3</span><div><b class="muted">The server receives packets</b><div class="sub">Checked once the server answers.</div></div></div>
+    <div class="step idle"><span class="mark">4</span><div><b class="muted">The packets can be read</b><div class="sub">Text lines or binary packets, see the Help panel.</div></div></div>
+    <div class="section">Working</div>
+    <div class="card ok"><div class="line"><i class="dot"></i><span class="name">127.0.0.1:8080</span><span class="grow"></span><span class="rate">373/s</span></div></div>
+  </div>
+  <div>
+    <h3><i>5</i>Troubleshooting checklist <span class="pick">recommended when it fails</span></h3>
+    <p>For a source that sends nothing, the panel runs the checks in the order of the data path and stops at the first one that fails, with what to try. Sources that work stay as one-line cards.</p>
+    <dl><dt>Good for</dt><dd>Newcomers, and the first minutes with a new device: "nothing shows up" is the most common question, and this answers it without the documentation.</dd>
+    <dt>Watch out</dt><dd>Advice the page cannot verify (firewalls, the device's own code) must be phrased as things to check, not as facts.</dd>
+    <dt>Effort</dt><dd>Medium: the checks are simple, writing good hints takes care.</dd></dl>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Where the data comes from.</span></div>
+    <div class="tabs"><span class="on">Network <b>2</b></span><span>Serial <b>1</b></span><span>Clients <b>2</b></span><span>Sample</span></div>
+    <div class="stack">
+      <div class="card ok"><div class="line"><i class="dot"></i><span class="name">127.0.0.1:8080</span><span class="grow"></span><span class="rate">323/s</span></div><div class="sub">UDP :47269 · text, binary · last data 0.02 s ago</div></div>
+      <div class="card bad"><div class="line"><i class="dot"></i><span class="name">192.168.1.42:8080</span><span class="grow"></span><span class="btn">Retry now</span></div><div class="sub">Cannot be reached · next try in 2 s</div></div>
+      <div class="line"><span class="field grow">address</span><span class="field" style="width:5rem">8080</span><span class="btn primary">Connect</span></div>
+    </div>
+  </div>
+  <div>
+    <h3><i>6</i>Tabs by kind</h3>
+    <p>Network, Serial, Clients and Sample each get a tab with exactly the controls of that kind (a form to connect, a port list, a client list).</p>
+    <dl><dt>Good for</dt><dd>Keeping each screen simple when the panel has a lot to offer, serial settings in particular.</dd>
+    <dt>Watch out</dt><dd>The overall state is spread over tabs: a failing serial port is invisible from the Network tab unless the tabs carry status marks.</dd>
+    <dt>Effort</dt><dd>Low.</dd></dl>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Add where your data comes from.</span></div>
+    <div class="tiles">
+      <div class="tile"><div class="ico">⇄</div><b>Network</b><span class="sub">UDP, through a Teleplot server</span></div>
+      <div class="tile"><div class="ico">⌁</div><b>Serial port</b><span class="sub">Arduino, ESP32, USB devices</span></div>
+      <div class="tile"><div class="ico">▶</div><b>Sample</b><span class="sub">A simulated robot</span></div>
+      <div class="tile" style="opacity:0.55"><div class="ico">⤓</div><b>File</b><span class="sub">Replay a recording (later)</span></div>
+    </div>
+    <div class="section">Connected <span class="grow"></span></div>
+    <div class="line" style="flex-wrap:wrap"><span class="pill on"><i class="dot" style="--sc:var(--color-success)"></i>127.0.0.1:8080 · 373/s</span><span class="pill"><i class="dot" style="--sc:var(--color-danger)"></i>192.168.1.42:8080</span></div>
+  </div>
+  <div>
+    <h3><i>7</i>Add a source first</h3>
+    <p>Large tiles for what can be added, each opening a short form; the sources that exist are compact chips under them.</p>
+    <dl><dt>Good for</dt><dd>The first run, and discovering that serial or the sample exist at all.</dd>
+    <dt>Watch out</dt><dd>After the first minute the tiles take the best place for something rarely used, and the chips are too small to say much about a source in trouble.</dd>
+    <dt>Effort</dt><dd>Low. Works well as the empty state of another design.</dd></dl>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Everything that sends, in one table.</span></div>
+    <table class="dense">
+      <tr><th></th><th>Source</th><th>Kind</th><th style="text-align:right">Rate</th><th style="text-align:right">Last</th><th style="text-align:right">Err</th></tr>
+      <tr><td><i class="dot" style="--sc:var(--color-success);display:block"></i></td><td><b>127.0.0.1:8080</b></td><td>server</td><td class="num">373/s</td><td class="num">0.02 s</td><td class="num" style="color:var(--color-danger)">3</td></tr>
+      <tr><td></td><td>&nbsp;&nbsp;UDP :47269</td><td>udp</td><td class="num">323/s</td><td class="num">0.02 s</td><td class="num" style="color:var(--color-danger)">3</td></tr>
+      <tr><td></td><td>&nbsp;&nbsp;&nbsp;&nbsp;robot-main</td><td>client 1</td><td class="num">290/s</td><td class="num">0.02 s</td><td class="num">0</td></tr>
+      <tr><td><i class="dot" style="--sc:var(--color-warning);display:block"></i></td><td>&nbsp;&nbsp;&nbsp;&nbsp;arm-controller</td><td>client 7</td><td class="num">0/s</td><td class="num">8 s</td><td class="num">0</td></tr>
+      <tr><td></td><td>&nbsp;&nbsp;/dev/ttyUSB0</td><td>serial</td><td class="num">50/s</td><td class="num">0.1 s</td><td class="num">0</td></tr>
+      <tr><td><i class="dot" style="--sc:var(--color-danger);display:block"></i></td><td><b>192.168.1.42:8080</b></td><td>server</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    </table>
+    <div class="line" style="margin-top:0.6rem"><span class="btn">+ Server</span><span class="btn">+ Serial port</span><span class="grow"></span><span class="btn ghost">Clear all data</span></div>
+  </div>
+  <div>
+    <h3><i>8</i>Dense table</h3>
+    <p>One row per server, input and client, with the same columns for all: state, rate, age of the last data, errors. Rows open for their settings.</p>
+    <dl><dt>Good for</dt><dd>Experts with many devices: the most information per line, easy to scan down a column.</dd>
+    <dt>Watch out</dt><dd>It already fills the width of the dock with six columns, and gives a newcomer numbers without telling what to do about them.</dd>
+    <dt>Effort</dt><dd>Low to medium.</dd></dl>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>See what each source really sends.</span></div>
+    <div class="stack">
+      <div class="card ok">
+        <div class="line"><i class="dot"></i><span class="name">UDP :47269</span><span class="sub">127.0.0.1:8080</span><span class="grow"></span><span class="rate">323/s</span></div>
+        <div class="console"><b>robot.wheel.left:0.404</b><br><b>robot.wheel.right:0.399</b><br>&lt;binary, 64 bytes, client 1: 3 sections&gt;<br><span class="err">robot.state forward &nbsp;← no ":" found</span><br><b>3D|robot.3d.body:P:2.77:1.97:0.09</b></div>
+        <div class="line" style="margin-top:0.35rem"><span class="pill on">Live</span><span class="pill">Errors only</span><span class="grow"></span><span class="btn ghost">Pause</span></div>
+      </div>
+      <div class="card ok">
+        <div class="line"><i class="dot"></i><span class="name">/dev/ttyUSB0</span><span class="sub">115200 baud</span><span class="grow"></span><span class="rate">50/s</span></div>
+        <div class="console"><b>&gt;temp:24.6</b><br>Booting sensors...<br><b>&gt;temp:24.7</b></div>
+        <div class="line" style="margin-top:0.35rem"><span class="field grow">text to send</span><span class="field">\n</span><span class="btn primary">Send</span></div>
+      </div>
+      <div class="card bad"><div class="line"><i class="dot"></i><span class="name">192.168.1.42:8080</span><span class="grow"></span><span class="btn">Retry now</span></div></div>
+    </div>
+  </div>
+  <div>
+    <h3><i>9</i>Cards with a live console <span class="pick">recommended later</span></h3>
+    <p>Each source can show the last lines and packets it received, as they came, with the ones that could not be read in red and the reason. Serial ports and command channels get a box to send text.</p>
+    <dl><dt>Good for</dt><dd>Debugging a device's output: "my line is ignored" becomes visible, with why. It is also where a serial terminal naturally lives.</dd>
+    <dt>Watch out</dt><dd>At high rates it must sample what it shows, or it costs more than the charts. It shows received data as it is: no reformatting.</dd>
+    <dt>Effort</dt><dd>High. The library has to keep the last raw messages per input, and the parsers to report why a line was refused.</dd></dl>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="proposal">
+  <div class="panel"><span class="x">✕</span>
+    <div class="panel-title"><h4>Sources</h4><span>Activity over the last minute.</span></div>
+    <div class="stack">
+      <div class="card ok"><div class="line"><i class="dot"></i><span class="name" style="width:9.5rem">UDP :47269</span>
+        <svg class="spark" viewBox="0 0 120 20" preserveAspectRatio="none"><polyline points="0,8 12,7 24,9 36,6 48,8 60,7 72,6 84,8 96,7 108,6 120,7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="rate">323/s</span></div></div>
+      <div class="card ok"><div class="line"><i class="dot"></i><span class="name" style="width:9.5rem">ttyUSB0</span>
+        <svg class="spark" viewBox="0 0 120 20" preserveAspectRatio="none"><polyline points="0,12 20,12 40,12 41,19 55,19 56,12 80,12 100,12 120,12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="rate">50/s</span></div><div class="sub">One gap of 7 s, 35 s ago</div></div>
+      <div class="card warn"><div class="line"><i class="dot"></i><span class="name" style="width:9.5rem">arm-controller</span>
+        <svg class="spark" viewBox="0 0 120 20" preserveAspectRatio="none"><polyline points="0,10 30,9 60,10 100,9 104,19 120,19" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="rate">0/s</span></div><div class="sub">Silent for 8 s</div></div>
+      <div class="card bad"><div class="line"><i class="dot"></i><span class="name" style="width:9.5rem">192.168.1.42</span>
+        <svg class="spark" viewBox="0 0 120 20" preserveAspectRatio="none"><polyline points="0,19 120,19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 3"/></svg><span class="btn">Retry</span></div><div class="sub">Never reached</div></div>
+    </div>
+    <div class="line" style="margin-top:0.5rem"><span class="sub">0</span><span class="grow"></span><span class="sub">last 60 s →</span></div>
+  </div>
+  <div>
+    <h3><i>10</i>Activity timeline</h3>
+    <p>Every source, input or client is a row with its rate over the last minute. Gaps, drop-outs and the moment something went silent are visible without watching the panel all the time.</p>
+    <dl><dt>Good for</dt><dd>Unreliable links (radio, long serial cables): "it drops every 30 seconds" shows at once.</dd>
+    <dt>Watch out</dt><dd>It shows when, not why: it needs the hints of another design next to it. The curves are measured rates, drawn as they were, not smoothed.</dd>
+    <dt>Effort</dt><dd>Medium (a per-source history of the rate).</dd></dl>
+  </div>
+</section>
+
+<h2>Recommendation</h2>
+<p class="lead">Combine three of them. <b>4</b> at the top: one block that says whether data flows, with the data controls. <b>1</b> as the body: a card per source that opens on its inputs, clients, problems and actions. <b>5</b> for any source that sends nothing: the checks, and what to try. <b>7</b>'s tiles make a good empty state when no source exists yet, and <b>9</b>'s console is the most valuable later addition for experts, inside the opened card.</p>
+
+</main>
+</body>
+</html>

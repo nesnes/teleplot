@@ -1,5 +1,8 @@
+// Returns the number of lines that could not be understood (0 when everything was): lines that made the parser fail, and lines that
+// are not empty but hold no "name:value".
 TELEPLOT.parseDataText = function(msgIn){
-    if(TELEPLOT.state.isPaused) return; // Do not buffer incoming data while paused
+    if(TELEPLOT.state.isPaused) return 0; // Do not buffer incoming data while paused
+    let problems = 0;
     let now = new Date().getTime();
 
     if(typeof msgIn == "string") msgIn = {data: msgIn, timestamp: now};// if msgIn is a string, we convert it to an object
@@ -30,11 +33,14 @@ TELEPLOT.parseDataText = function(msgIn){
             else if (msg.substring(0,4) == "JPG|" || msg.substring(0,4) == "PNG|")
                 _parseDataText_parseImage(msg, now);
             // Data
-            else
+            else {
+                if(msg.trim().length > 0 && !msg.includes(":")) problems++; // Not a "name:value" line: ignored
                 _parseDataText_parseVariablesData(msg, now);
+            }
         }
-        catch(e){console.log(e)}
+        catch(e){ problems++; console.log(e); }
     }
+    return problems;
 }
 
 /*function _parseDataText_parseCommandList(msg) // a String containing a list of commands, ex : "|sayHello|world|"

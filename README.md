@@ -339,6 +339,23 @@ while i < 1000:
 	time.sleep(0.01)
 ```
 
+## Serial port (Arduino, ESP32...)
+
+Teleplot can read a serial port directly from the browser (Chrome, Edge or Opera on a computer): in the Sources panel, "Add a source", "Serial port", choose the baud rate and the port. No server is needed.
+
+On a serial port, a line starting with `>` is telemetry, with the same format as above after the `>`. Every other line is a log line.
+
+```cpp
+void setup() { Serial.begin(115200); }
+void loop() {
+    Serial.print(">temperature:"); Serial.println(analogRead(A0) * 0.1);  // a telemetry
+    Serial.println("still alive");                                        // a log line
+    delay(50);
+}
+```
+
+The Sources panel shows what the port sends (telemetry lines are hidden there until asked for) and lets you send text back to it.
+
 ## Not listed?
 
 You just need to send a UDP packet with the proper text in it. Open your web browser, search for `my_language send UDP packet`, and copy-paste the first sample you find before editing it with the following options:

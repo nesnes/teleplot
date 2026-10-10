@@ -1,7 +1,11 @@
+// Where the data being parsed comes from (the id of a connection), for the telemetries and clients it creates: see TELEPLOT.datastore.withSource
+let _datastore_currentSourceId = undefined;
+
 class Telemetry {
     constructor(id) {
         this.id = id;
         this.clientId = -1;
+        this.sourceId = _datastore_currentSourceId; // Connection that first sent it (undefined: created by the application itself)
         this.attributes = {};
         // Raw (not reactive): a UI framework wrapping the datastore in proxies would make ingestion ~100x slower. Views read it through update().
         this.data = TELEPLOT.Vue.markRaw({});
@@ -135,6 +139,19 @@ class Telemetry {
 TELEPLOT.datastore = {
     telemetries : {},
     telemetriesNameMap : {}, // Telemetries without id (ex: sent with text protocol) need this to be mapped to an id
+}
+
+// Runs fn() (parsing a message...) telling that what it creates comes from a source (a connection id). Returns what fn returns.
+TELEPLOT.datastore.withSource = function(sourceId, fn) {
+    let previous = _datastore_currentSourceId;
+    _datastore_currentSourceId = sourceId;
+    try { return fn(); }
+    finally { _datastore_currentSourceId = previous; }
+}
+
+// Forgets the data of every telemetry (the telemetries stay, with their attributes: views keep what they display)
+TELEPLOT.datastore.clearData = function() {
+    for(let id in TELEPLOT.datastore.telemetries) TELEPLOT.datastore.telemetries[id].clearData();
 }
 
 TELEPLOT.datastore.onNewTelemetryHooks = [

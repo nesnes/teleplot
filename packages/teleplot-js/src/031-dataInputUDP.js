@@ -11,11 +11,12 @@ class DataInputUDP extends DataInput{
 
     onMessage(msg){
         if (msg instanceof ArrayBuffer) {
-            TELEPLOT.parseDataBinary(msg);
+            this.connection.receive(() => TELEPLOT.parseDataBinary(msg), msg.byteLength);
         }
         else if("data" in msg) {
             msg.input = this;
-            TELEPLOT.parseDataText(msg);
+            // The server sends the text of the packets it received (several at once): their size is the size of that text
+            this.connection.receive(() => TELEPLOT.parseDataText(msg), Connection.byteLength(String(msg.data)));
         }
         else if("cmd" in msg) {
             //nope

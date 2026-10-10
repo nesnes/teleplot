@@ -620,6 +620,41 @@
       Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["imgdemo.cube"]));
     });
 
+    // ====================================================================================================================== Sources
+    section("Sources", "Where the data comes from: connections to a Teleplot server (UDP relayed through a WebSocket) and serial ports opened by the browser itself (Web Serial). Each connection counts what it receives, and the telemetries know which one sent them. See doc/sources.md.");
+
+    demo("Serial port, read by the browser", "Needs Chrome, Edge or Opera and a device (or the simulated one). Lines starting with > are telemetry (>temp:24.5), the others are log lines of the port; every line is also kept in a console. The box below is that console and what the connection counts; the telemetries show up in the automatic dashboard at the bottom of the page.", [520, 260], (id) => {
+      const box = document.getElementById(id);
+      box.innerHTML = '<button>Choose a serial port…</button> <button>Simulated device</button> <button>Send "ping"</button><pre style="height: 200px; margin-top: 8px"></pre>';
+      const [choose, simulate, send] = box.querySelectorAll("button"), out = box.querySelector("pre");
+      let connection;
+      choose.disabled = !Teleplot.connection.serialSupported(); // Web Serial is not in every browser
+      choose.onclick = async () => { connection = await Teleplot.connection.requestSerialPort(115200) || connection; }; // the browser asks which port
+      simulate.onclick = () => { // a fake port: what the library needs from one (open, close, getInfo, two streams)
+        let feed;
+        const port = { getInfo: () => ({}), close: async () => clearInterval(feed), open: async () => {
+          port.readable = new ReadableStream({ start(c) { feed = setInterval(() => c.enqueue(new TextEncoder().encode(`>serial.demo:${Math.sin(Date.now() / 500).toFixed(3)}\nstill alive\n>broken line\n`)), 500); } });
+          port.writable = new WritableStream({ write() {} });
+        } };
+        connection = Teleplot.connection.addConnectionSerial(port, 115200);
+      };
+      send.onclick = () => connection && connection.send("ping", "\n");
+      setInterval(() => {
+        if (!connection) return;
+        const lines = connection.console.lines.slice(-9).map((l) => (l.sent ? "← " : "") + l.text + (l.problem ? "   (not understood)" : ""));
+        out.textContent = `${connection.name}: ${connection.connected ? "connected" : (connection.error || "closed")}, ${connection.stats.messages} lines, ${connection.stats.problems} not understood\n\n` + lines.join("\n");
+      }, 250);
+    });
+    demo("Connection to a Teleplot server", "Start packages/server (node main.js) to see it connect; it is tried again every 2 seconds until then. Send a line to UDP port 47269 (see the Help of the webapp) and it shows up here and in the automatic dashboard.", [520, 110], (id) => {
+      const connection = Teleplot.connection.addConnectionTeleplotServer("127.0.0.1", 8080);
+      const out = document.getElementById(id).appendChild(document.createElement("pre"));
+      setInterval(() => {
+        const state = connection.connected ? "connected" : (connection.everConnected ? "connection lost" : "cannot be reached") + ", next try in " + Math.max(0, Math.ceil((connection.nextRetryAt - Date.now()) / 1000)) + " s";
+        const mine = Object.values(Teleplot.datastore.telemetries).filter((t) => t.sourceId === connection.id).length;
+        out.textContent = `${connection.name}: ${state}\n${connection.stats.messages} messages, ${connection.stats.problems} not understood, ${mine} telemetries from it`;
+      }, 250);
+    });
+
     // ====================================================================================================================== Dashboards
     section("Dashboards", "A dashboard is a named layout. The automatic one displays new telemetries without any setup: numbers get a chart, shapes and 3D points share one 3D scene, images get an image view, the rest a values view.");
 

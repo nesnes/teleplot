@@ -92,6 +92,7 @@ var app = Vue.createApp({
 
         // Create default connection
         this.TP.connection.addConnectionTeleplotServer("127.0.0.1", 8080);
+        startSourcesMonitor(this.TP); // The Sources panel shows the last minute of the data rate, even when it is opened later
     }
 });
 

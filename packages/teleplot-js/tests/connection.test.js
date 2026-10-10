@@ -105,3 +105,55 @@ test('UDP input: binary and text; unknown messages are ignored', () => {
     assert.ok(T.datastore.getTelemetry(0x20001));
     assert.ok(T.datastore.getTelemetry('x'));
 });
+
+test('what a connection receives is counted and attributed to it (telemetries, clients, problems)', () => {
+    const { T, conn, ws } = connect();
+    assert.deepEqual([conn.stats.messages, conn.stats.problems, conn.stats.bytes, conn.stats.lastMessage], [0, 0, 0, 0]);
+    ws.onmessage({ data: JSON.stringify({ data: 'a:1\nnot a telemetry\nb:2', timestamp: 1 }) });
+    assert.equal(conn.stats.bytes, 23, 'text: the size of the lines received');
+    const packet = new PacketBuilder(3).numbers(1, 1_000_000_000n, [[0, 2.5]]).build();
+    ws.onmessage({ data: packet });
+    assert.equal(conn.stats.bytes, 23 + packet.byteLength, 'binary: the size of the packet');
+    const printed = captureConsole(() => ws.onmessage({ data: new Uint8Array([1, 2, 3, 4, 5, 6]).buffer }));
+    assert.equal(conn.stats.bytes, 23 + packet.byteLength + 6, 'a packet that cannot be read was received all the same');
+    const Conn = Object.getPrototypeOf(conn.constructor);
+    assert.deepEqual(['abc', 'é', '€', '😀', 'a°C\n'].map(Conn.byteLength), [3, 2, 3, 4, 5], 'bytes of a text in UTF-8');
+    assert.equal(printed.log.length, 1);
+    assert.deepEqual([conn.stats.messages, conn.stats.problems], [3, 2], 'a line without "name:value" and an invalid packet');
+    assert.ok(conn.stats.lastMessage > 0);
+    assert.deepEqual(['a', 'b', 0x30001].map(n => T.datastore.getTelemetry(n).sourceId), [conn.id, conn.id, conn.id]);
+    assert.equal(T.clients.getClient(3).sourceId, conn.id);
+    assert.equal(T.datastore.getOrCreateTelemetry('local').sourceId, undefined, 'created by the application: no source');
+    // parsers tell what they could not read
+    assert.equal(T.parseDataText('c:1\n\n   \nd:2'), 0, 'empty lines are not problems');
+    assert.equal(T.parseDataText('nope'), 1);
+    assert.equal(T.parseDataBinary(new PacketBuilder(3).numbers(1, 1_000_000_000n, [[0, 1]]).build()), true);
+    // clearData empties every telemetry and keeps them
+    T.datastore.clearData();
+    assert.deepEqual([T.datastore.hasTelemetry('a'), Object.keys(T.datastore.getTelemetry('a').data).length], [true, 0]);
+});
+
+test('a server that closes is tried again later; retry() does it now; disconnect() and removeConnection() stop it', () => {
+    const { T, conn, ws } = connect();
+    ws.onopen();
+    T.__timers.run();
+    assert.deepEqual([conn.connected, conn.everConnected, conn.nextRetryAt], [true, true, 0]);
+    ws.onclose();
+    assert.equal(conn.connected, false);
+    assert.ok(conn.nextRetryAt > Date.now(), 'a try is planned');
+    conn.retry();
+    assert.equal(FakeWebSocket.instances.length, 2, 'tried right away');
+    assert.equal(conn.nextRetryAt, 0);
+    T.__timers.run();
+    assert.equal(FakeWebSocket.instances.length, 2, 'the planned try was cancelled: no second socket');
+
+    const second = FakeWebSocket.instances[1];
+    conn.disconnect();
+    assert.deepEqual([second.closed, conn.closed, conn.connected], [true, true, false]);
+    second.onclose();
+    T.__timers.run();
+    assert.equal(FakeWebSocket.instances.length, 2, 'closed on purpose: no more tries');
+
+    assert.equal(T.connection.removeConnection(conn), true);
+    assert.equal(T.connection.connections.length, 0);
+});
