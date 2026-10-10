@@ -7,7 +7,7 @@ Rework of Teleplot for better performance and UI.
 - Minimize dependencies; always tell the user when wanting to add one.
 - Goals: performance of data ingestion and display; UI intuitive for newcomers yet powerful for experts; retro-compatible with the V1 text-based protocol.
 - For each new feature, decide whether it belongs in the lib (`packages/teleplot-js`) or in the GUI (`packages/webapp`).
-- `packages/teleplot-js/`: everything about telemetry and how it is displayed. Split into `src/` files aggregated by `build.sh` (libs included). Keep `test.html` updated with a demo of ALL lib features.
+- `packages/teleplot-js/`: everything about telemetry and how it is displayed. Split into `src/` files aggregated by `build.sh` (libs included). Keep `test.html` updated with a demo of ALL lib features: it is a page of sections (side index) made of cards; add a feature with `demo(title, what to look for, [width, height], (id) => {...})` in its section (the card shows the view and the code of that function), and the code that sends its telemetries with `data(title, note, () => {...})`.
 - `packages/webapp/`: GUI for end users, exposes all lib features.
 - `clients/`: source libraries per language, as simple as possible.
 - `doc/`: documentation, must be expanded and kept updated.
