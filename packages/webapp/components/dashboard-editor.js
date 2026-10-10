@@ -119,6 +119,7 @@ function initDashboardEditor(TP) {
         enabled = !!enabled;
         if (E.state.enabled === enabled) return;
         E.state.enabled = enabled;
+        TP.view.showTimeGroups = enabled; // Who shares its time with whom is always shown while editing (otherwise only while zoomed)
         if (!enabled) { E.cancelDrag(); E.state.selectedId = ""; closeMenu(); }
         E.refresh();
     };

@@ -69,13 +69,14 @@ var app = Vue.createApp({
         }, { passive: true });
     },
     created() {
-        // Escape closes the open panel (top panel first, then side panel)
+        // Escape closes the open popup, then goes back to live (drops the zoom), then closes the side panel, then leaves the edit mode
         this._onKeyDown = (e)=>{
             if (e.key != "Escape") return;
             const t = e.target;
             if (t && (t.tagName == "INPUT" || t.tagName == "TEXTAREA" || t.isContentEditable)) { if (t.blur) t.blur(); return; }
             if (t && t.blur && t.closest && t.closest(".tm")) t.blur();
             if (this.ctx.topPanel) this.ctx.topPanel = "";
+            else if (this.TP.view.isZoomed()) { this.TP.view.backToLive(); this.TP.state.isPaused = false; }
             else if (this.ctx.sidePanel) this.ctx.sidePanel = "";
             else if (this.editor.state.enabled) this.editor.setEnabled(false);
         };

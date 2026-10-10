@@ -88,6 +88,61 @@ TELEPLOT.dashboards.getOrCreateDashboard = function(name) {
     return dashboard;
 }
 
+/*
+ * Time groups of a dashboard (see TELEPLOT.view.resolveTimeGroups): its views share one zoom and one cursor, unless a view or a
+ * layout says otherwise with its "timeGroup" option.
+ */
+
+// Gives every view of every dashboard its group (update loop). Cheap: a walk through the views.
+TELEPLOT.dashboards.resolveTimeGroups = function() {
+    for (let name in TELEPLOT.dashboards.dashboards) {
+        let dashboard = TELEPLOT.dashboards.dashboards[name];
+        if (dashboard.view) TELEPLOT.view.resolveTimeGroups(dashboard.view, dashboard.getGroupName());
+    }
+    TELEPLOT.view.pruneTimeGroups();
+}
+
+// Custom time groups of a dashboard: [{name, key, color, views}]
+TELEPLOT.dashboards.getTimeGroups = function(dashboardName) {
+    let dashboard = TELEPLOT.dashboards.getDashboard(dashboardName);
+    if (dashboard === undefined || !dashboard.view) return [];
+    return TELEPLOT.view.resolveTimeGroups(dashboard.view, dashboard.getGroupName());
+}
+
+// Sets the time group of a view or a layout of a dashboard: "inherit", "dashboard", or "custom" with the name of the group to join.
+// "custom" without a name creates a group, named "Time 2", "Time 3"... Returns the name of the custom group ("" otherwise).
+TELEPLOT.dashboards.setTimeGroup = function(dashboardName, view, mode, name = "") {
+    name = String(name).trim();
+    if (mode !== "custom") name = "";
+    else if (name === "") {
+        let taken = TELEPLOT.dashboards.getTimeGroups(dashboardName).map((group) => group.name);
+        for (let n = 2; ; n++) { name = "Time " + n; if (!taken.includes(name)) break; }
+    }
+    view.options.timeGroup = (mode === "custom" || mode === "dashboard") ? mode : "inherit";
+    view.options.timeGroupName = name;
+    TELEPLOT.dashboards.resolveTimeGroups();
+    return name;
+}
+
+// Renames a custom time group of a dashboard (every view and layout that uses it follows; its zoom is kept). A name already used
+// merges the two groups. Returns the final name.
+TELEPLOT.dashboards.renameTimeGroup = function(dashboardName, oldName, newName) {
+    let dashboard = TELEPLOT.dashboards.getDashboard(dashboardName);
+    newName = String(newName).trim();
+    if (dashboard === undefined || !dashboard.view || newName === "" || newName === oldName) return oldName;
+    let prefix = dashboard.getGroupName() + TELEPLOT.view.TIME_GROUP_SEPARATOR;
+    if (TELEPLOT.view.groups[prefix + newName] === undefined && TELEPLOT.view.groups[prefix + oldName] !== undefined) {
+        TELEPLOT.view.groups[prefix + newName] = TELEPLOT.view.groups[prefix + oldName];
+    }
+    let visit = (view) => {
+        if (view.options.timeGroup === "custom" && view.options.timeGroupName === oldName) view.options.timeGroupName = newName;
+        if (Array.isArray(view.views)) view.views.forEach(visit);
+    };
+    visit(dashboard.view);
+    TELEPLOT.dashboards.resolveTimeGroups();
+    return newName;
+}
+
 // Creates an empty dashboard (a "grid" layout: views spread over the page, line after line) ready to receive views. An empty name gives "Dashboard 1", "Dashboard 2"...
 TELEPLOT.dashboards.createDashboard = function(name = "") {
     if (name == "") {

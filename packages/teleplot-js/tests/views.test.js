@@ -428,3 +428,15 @@ test('a label dropped on a view (drag-label): its telemetries are added and the 
     T.__timers.run();
     assert.equal(chart.telemetryIdOrNameList.length, 3);
 });
+
+test('backToLive drops the zoom and the cursor of a group, or of all of them', () => {
+    const T = loadTeleplot();
+    new T.view.ViewCurrentValue('a', [], 'one'); new T.view.ViewCurrentValue('b', [], 'two');
+    Object.assign(T.view.groups.one, { cursorActive: true, cursorTimestamp: 5, timestampFrom: 1, timestampTo: 9 });
+    assert.equal(T.view.isZoomed(), true);
+    assert.equal(T.view.isZoomed('two'), false);
+    assert.equal(T.view.backToLive('two'), false);
+    assert.equal(T.view.backToLive(), true);
+    assert.deepEqual(T.view.groups.one, { cursorActive: false, cursorTimestamp: -1, timestampFrom: -1, timestampTo: -1 });
+    assert.equal(T.view.isZoomed(), false);
+});

@@ -21,6 +21,19 @@ Target design: `doc/dashboard-edit-prototype.html` (interactive mockup, open it 
 | container | direction (row / column / grid / stack), column width of a grid, align, gap, appearance (inherit / cards / flat) and top color (inherit / on / off) for everything inside, children list |
 | view | header (duplicate, delete), breadcrumb (clickable ancestors), tab **Data** (title, telemetries with remove + add) and tab **Display** (the view's options, from `getOptionsSchema()`) |
 
+## Time groups (library feature, edited here)
+
+The views of a time group share their zoom and their cursor. A dashboard is one group by default; a view or a layout can say otherwise with its **Time group** (right panel: "Display" tab of a view, "Time group" section of a container). Design studies: `doc/view-time-mockups.html`, `doc/view-time-mockups-2.html`.
+
+- **Inherit** (default): the group of the container it is in.
+- **Dashboard**: the main group of the dashboard, whatever its containers say (the way out of a custom container).
+- **Custom**: a group of its own. Clicking "Custom" creates one, named "Time 2", "Time 3"... (the name can be changed, for every view that uses it); the list under it shows the custom groups of the dashboard, to join one that exists, and "New group". On a container, the views inside follow it as long as they are on "Inherit". A group goes away with its last user.
+- Where a group starts, a tag in its color says so (name, period it is zoomed on, a button to go back to the latest data); a container also gets a tinted frame. Tags are shown all the time in edit mode, and only while their group (or the one around it) is zoomed otherwise.
+- `Esc` and the play button of the top menu release every group at once; the button of a tag, or a double click on a chart, only its own.
+- A values, image or 3D view alone in a custom group has nothing that moves its cursor: it stays on the latest data while the rest is explored.
+
+In the library: options `timeGroup` / `timeGroupName` on every view, `TELEPLOT.view.resolveTimeGroups(root, base)` (gives each view of a tree its `group`; dashboards do it in the update loop), `TELEPLOT.dashboards.setTimeGroup / getTimeGroups / renameTimeGroup`, `TELEPLOT.view.showTimeGroups`, `TELEPLOT.view.timeGroupColor(name)`.
+
 ## Adding views
 
 - **"+" slots.** In edit mode a small "+" sits at every seam between two views, at both ends of every container and inside empty containers (a row that wraps gets them at the end of each line). Click one: a menu offers *Chart*, *Values*, *Log*, *3D*, *Image* and the containers *Row*, *Column*, *Grid*, *Stack*; the new element is created right there and selected. With the keyboard: focus a slot, `Enter`, arrows, `Enter` (`Esc` closes).

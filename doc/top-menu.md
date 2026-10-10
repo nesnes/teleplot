@@ -16,7 +16,7 @@ The top menu is a GUI feature (`packages/webapp/components/top-menu.js`): a floa
 
 ## Shortcuts
 
-Not active while typing in a field. `Space` pause/resume (a focused button keeps its own use of Space), `T` Telemetries, `S` Sources, `H` or `?` Help, `E` Edit, `Esc` closes the popup, then the open panel, then Edit mode (`main.js`).
+Not active while typing in a field. `Space` pause/resume (a focused button keeps its own use of Space), `T` Telemetries, `S` Sources, `H` or `?` Help, `E` Edit, `Esc` closes the popup, then goes back to live when a chart is zoomed (drops the zoom and the cursor, resumes if paused; while zoomed the pause button shows "play" and does the same), then the open panel, then Edit mode (`main.js`).
 
 ## State
 

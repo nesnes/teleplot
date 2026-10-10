@@ -18,8 +18,8 @@ function initComponent_panel_edit(vue) {
               <div class="edit-body">
                 <div class="edit-section first">Settings</div>
                 <label class="edit-field">Name
-                  <input type="text" class="edit-input" :value="dashboard.name" :disabled="dashboard.isAuto" :title="dashboard.isAuto ? 'The automatic dashboard keeps its name' : ''" spellcheck="false"
-                    @change="rename($event.target.value)" @keydown.enter="$event.target.blur()">
+                  <input type="text" class="edit-input" :value="drafts.name ?? dashboard.name" @input="drafts.name = $event.target.value" @blur="drafts.name = undefined" :disabled="dashboard.isAuto" :title="dashboard.isAuto ? 'The automatic dashboard keeps its name' : ''" spellcheck="false"
+                    @change="rename($event.target.value); drafts.name = undefined" @keydown.enter="$event.target.blur()">
                 </label>
                 <div class="edit-field">Time window
                   <span class="edit-value">{{ group.cursorActive ? 'zoomed' : 'full range' }}
@@ -85,6 +85,21 @@ function initComponent_panel_edit(vue) {
                 <div class="edit-field">Top color
                   <span class="edit-seg"><button v-for="o in [['inherit', 'Inherit'], ['on', 'On'], ['off', 'Off']]" :key="o[0]" :class="{on: (selected.layout.accent || 'inherit') == o[0]}" @click="selected.layout.accent = o[0]">{{ o[1] }}</button></span>
                 </div>
+                <div class="edit-section" title="Views of one time group share their zoom and their cursor">Time group</div>
+                <div class="edit-field edit-tg-mode">
+                  <span class="edit-seg"><button v-for="o in [['inherit', 'Inherit'], ['dashboard', 'Dashboard'], ['custom', 'Custom']]" :key="o[0]" :class="{on: timeGroup.mode == o[0]}" @click="setTimeGroup(o[0])">{{ o[1] }}</button></span>
+                </div>
+                <label v-if="timeGroup.mode == 'custom'" class="edit-field"><span><i class="edit-swatch" :style="{background: timeGroup.color}"></i> Group name</span>
+                  <input type="text" class="edit-input" :value="drafts.group ?? timeGroup.name" spellcheck="false" title="Renames the group, for every view that uses it" @input="drafts.group = $event.target.value" @blur="drafts.group = undefined"
+                    @change="renameTimeGroup($event.target.value); drafts.group = undefined" @keydown.enter="$event.target.blur()">
+                </label>
+                <div class="edit-tg-note">{{ timeGroup.note }}</div>
+                <div class="edit-tg-list">
+                  <button v-for="g in timeGroup.groups" :key="g.name" class="edit-tg-item" :class="{on: timeGroup.mode == 'custom' && g.name == timeGroup.name}" :title="'Use the time group ' + g.name" @click="setTimeGroup('custom', g.name)">
+                    <i class="edit-swatch" :style="{background: g.color}"></i> {{ g.name }} <span class="edit-muted">{{ g.views }} {{ g.views == 1 ? 'view' : 'views' }}</span>
+                  </button>
+                  <button class="edit-tg-item edit-tg-new" title="Create a time group for this element" @click="setTimeGroup('custom', '')">＋ New group</button>
+                </div>
                 <div class="edit-section">Children <span class="edit-count">{{ selected.views.length }}</span></div>
                 <div v-if="!selected.views.length" class="edit-hint">Empty. Click the + inside it, drag a pill, or drag a telemetry from the Telemetries panel into it.</div>
                 <div v-for="child in selected.views" :key="child.id" class="edit-field edit-child" @click="editor.select(child.id)">
@@ -144,6 +159,21 @@ function initComponent_panel_edit(vue) {
                         @change="setNumber(o, $event.target.value)">
                     </div>
                   </template>
+                  <div class="edit-section" title="Views of one time group share their zoom and their cursor">Time group</div>
+                  <div class="edit-field edit-tg-mode">
+                    <span class="edit-seg"><button v-for="o in [['inherit', 'Inherit'], ['dashboard', 'Dashboard'], ['custom', 'Custom']]" :key="o[0]" :class="{on: timeGroup.mode == o[0]}" @click="setTimeGroup(o[0])">{{ o[1] }}</button></span>
+                  </div>
+                  <label v-if="timeGroup.mode == 'custom'" class="edit-field"><span><i class="edit-swatch" :style="{background: timeGroup.color}"></i> Group name</span>
+                    <input type="text" class="edit-input" :value="drafts.group ?? timeGroup.name" spellcheck="false" title="Renames the group, for every view that uses it" @input="drafts.group = $event.target.value" @blur="drafts.group = undefined"
+                      @change="renameTimeGroup($event.target.value); drafts.group = undefined" @keydown.enter="$event.target.blur()">
+                  </label>
+                  <div class="edit-tg-note">{{ timeGroup.note }}</div>
+                  <div class="edit-tg-list">
+                    <button v-for="g in timeGroup.groups" :key="g.name" class="edit-tg-item" :class="{on: timeGroup.mode == 'custom' && g.name == timeGroup.name}" :title="'Use the time group ' + g.name" @click="setTimeGroup('custom', g.name)">
+                      <i class="edit-swatch" :style="{background: g.color}"></i> {{ g.name }} <span class="edit-muted">{{ g.views }} {{ g.views == 1 ? 'view' : 'views' }}</span>
+                    </button>
+                    <button class="edit-tg-item edit-tg-new" title="Create a time group for this element" @click="setTimeGroup('custom', '')">＋ New group</button>
+                  </div>
                   <div class="edit-hint">Width and height are set on the dashboard, with the pill of the view.</div>
                 </template>
               </div>
@@ -162,7 +192,7 @@ function initComponent_panel_edit(vue) {
             return { TP, ctx, editor };
         },
         data() {
-            return { tick: 0, tab: "data", addQuery: "", addOpen: false, dragFrom: -1, dropAt: -1, theme: document.documentElement.dataset["theme"] || "light" };
+            return { tick: 0, tab: "data", addQuery: "", addOpen: false, dragFrom: -1, dropAt: -1, drafts: {}, /* What is being typed in a name field: the panel redraws 4 times per second and must not overwrite it */ theme: document.documentElement.dataset["theme"] || "light" };
         },
         computed: {
             dashboard() { return this.ctx.activeDashboard; },
@@ -179,6 +209,20 @@ function initComponent_panel_edit(vue) {
             },
             viewIcon() {
                 return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
+            },
+            // Time group of the selected element: its choice, what it comes down to, and the custom groups of the dashboard
+            timeGroup() {
+                this.tick; this.editor.state.revision;
+                const view = this.selected;
+                if (!view) return { mode: "inherit", name: "", color: "", note: "", groups: [] };
+                const groups = this.TP.dashboards.getTimeGroups(this.dashboard.name);
+                const mode = view.options.timeGroup || "inherit", name = view.options.timeGroupName || "";
+                const prefix = this.dashboard.getGroupName() + this.TP.view.TIME_GROUP_SEPARATOR;
+                const followed = String(view.group).startsWith(prefix) ? 'the group "' + view.group.slice(prefix.length) + '"' : "the time of the dashboard";
+                let note = "Follows its container: " + followed + ".";
+                if (mode == "dashboard") note = "Follows the time of the dashboard, whatever its container does.";
+                if (mode == "custom") note = "Shares its zoom and its cursor with the views of this group" + (this.isContainer ? "; the views inside follow it." : ".");
+                return { mode, name, color: this.TP.view.timeGroupColor(name), note, groups };
             },
             schema() { return this.selected && this.selected.getOptionsSchema ? this.selected.getOptionsSchema() : []; },
             telemetries() {
@@ -218,7 +262,7 @@ function initComponent_panel_edit(vue) {
         beforeUnmount() { clearInterval(this._timer); },
         watch: {
             tick() { this.theme = document.documentElement.dataset["theme"] || "light"; }, // (the theme also follows the system)
-            "editor.state.selectedId"() { this.tab = "data"; this.addQuery = ""; this.addOpen = false; }
+            "editor.state.selectedId"() { this.drafts = {}; this.tab = "data"; this.addQuery = ""; this.addOpen = false; }
         },
         methods: {
             rename(value) {
@@ -226,15 +270,26 @@ function initComponent_panel_edit(vue) {
                 this.$el.querySelector("input").value = name;
             },
             resetZoom() {
-                this.group.cursorActive = false;
-                this.group.timestampFrom = -1;
-                this.group.timestampTo = -1;
+                this.TP.view.backToLive(this.dashboard.getGroupName());
             },
             setTheme(theme) {
                 this.theme = theme;
                 document.documentElement.dataset["theme"] = theme;
             },
             remove() { this.editor.removeView(this.selected.id); },
+            // Time group: "inherit", "dashboard", or "custom" with the group to join ("" creates one; clicking Custom while already custom keeps the group)
+            setTimeGroup(mode, name) {
+                if (mode == "custom" && name === undefined) {
+                    if (this.selected.options.timeGroup == "custom") return;
+                    name = "";
+                }
+                this.TP.dashboards.setTimeGroup(this.dashboard.name, this.selected, mode, name);
+                this.tick++;
+            },
+            renameTimeGroup(value) {
+                this.TP.dashboards.renameTimeGroup(this.dashboard.name, this.selected.options.timeGroupName, value);
+                this.tick++;
+            },
             // Reorder the telemetries of the view by dragging a row (own drag type: the dashboard's drop zones ignore it)
             onTelemDragStart(event, index) {
                 this.dragFrom = index;

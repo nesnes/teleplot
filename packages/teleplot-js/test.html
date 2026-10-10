@@ -400,6 +400,22 @@
     });
 
     // ====================================================================================================================== Empty states and titles
+    demo("Time groups: a layout or a view with its own zoom and cursor", "The views of a time group share their zoom and their cursor. Every view and layout has a timeGroup option: \"inherit\" (the group of its layout, the default), \"dashboard\" (the main group) or \"custom\" (the group named timeGroupName). Zoom the left chart: the right part does not move. Zoom the chart on the right: its values follow, a frame and a tag show its group with the period and a button to go back to the latest data.", ["100%", 280], (id) => {
+      const root = new Teleplot.view.ViewLayout(id, "groups-demo");
+      root.layout.align = "stretch"; root.setSize(1, 1);
+      Teleplot.view.addView(root);
+      const apart = new Teleplot.view.ViewLayout("", "groups-demo");
+      apart.layout.align = "stretch";
+      apart.setOption("timeGroup", "custom"); apart.setOption("timeGroupName", "Time 2"); // Its children are on "inherit": they follow it
+      root.addView(new Teleplot.view.ViewChart("", ["numberTelemetry"], "groups-demo"));
+      root.addView(apart);
+      apart.addView(new Teleplot.view.ViewChart("", ["number.cos"], "groups-demo"));
+      apart.addView(new Teleplot.view.ViewCurrentValue("", ["number.cos", "numberTelemetry"], "groups-demo"));
+      // Dashboards resolve their groups by themselves (TELEPLOT.dashboards.setTimeGroup / getTimeGroups / renameTimeGroup); for a bare layout:
+      Teleplot.updates.onUpdateHooks.unshift(() => Teleplot.view.resolveTimeGroups(root, "groups-demo"));
+      // Teleplot.view.showTimeGroups = true shows the tags all the time (an editor), not only while a group is zoomed
+    });
+
     section("Empty states and titles", "A view that has nothing to show says why (no telemetry, no data yet, the wrong kind of data, a telemetry that does not exist). Titles are shortened when they do not fit.");
 
     demo("Chart without telemetry", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, [])); });

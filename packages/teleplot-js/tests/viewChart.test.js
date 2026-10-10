@@ -255,3 +255,30 @@ test('decimators are never proxied by a reactive UI framework (webapp: a proxied
     const chart = new T.view.ViewChart('chart-raw', []);
     assert.equal(chart.decimators.__v_skip, true); // Vue's "do not proxy" flag
 });
+
+test('a zoom stays when the pointer leaves the chart, and is reset when the chart goes back to all its data (double click)', () => {
+    const T = loadTeleplot();
+    const chart = new T.view.ViewChart('chart-zoom', []);
+    chart.createChart();
+    const group = T.view.groups[chart.group];
+    const hooks = chart.chartOptions.hooks;
+    const u = { data: [[10, 11, 12, 13, 14]], scales: { x: { min: 11, max: 12 } }, cursor: { left: 40 }, posToIdx: () => 1 };
+    hooks.setScale[0](u, 'x');
+    assert.deepEqual([group.cursorActive, group.timestampFrom, group.timestampTo], [true, 11, 12]);
+    hooks.setCursor[0](u);
+    assert.equal(group.cursorTimestamp, 11);
+    u.cursor.left = -10; // The pointer leaves
+    hooks.setCursor[0](u);
+    assert.equal(group.cursorActive, true, 'still zoomed');
+    assert.equal(group.cursorTimestamp, 11, 'the views of the group stay on the last moment pointed at');
+    u.scales.x = { min: 10, max: 14 }; // Double click: back to the extent of the data
+    hooks.setScale[0](u, 'x');
+    assert.deepEqual([group.cursorActive, group.cursorTimestamp], [false, -1], 'back to the latest data');
+    // Without a zoom, the cursor goes with the pointer
+    u.cursor.left = 40;
+    hooks.setCursor[0](u);
+    assert.equal(group.cursorTimestamp, 11);
+    u.cursor.left = -10;
+    hooks.setCursor[0](u);
+    assert.equal(group.cursorTimestamp, -1);
+});

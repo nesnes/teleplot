@@ -75,10 +75,10 @@ function initComponent_top_menu(vue) {
 
                 <div class="tm-anchor">
                     <div class="tm-split" :class="{paused: paused}">
-                        <button class="tm-btn tm-play tm-tipped" :aria-pressed="paused" :aria-label="paused ? 'Resume' : 'Pause'" @click="togglePause($event);">
-                            <svg v-if="paused" class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/></svg>
+                        <button class="tm-btn tm-play tm-tipped" :aria-pressed="paused" :aria-label="zoomed ? 'Back to live' : (paused ? 'Resume' : 'Pause')" @click="zoomed ? backToLive($event) : togglePause($event);">
+                            <svg v-if="paused || zoomed" class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/></svg>
                             <svg v-else class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor"/></svg>
-                            <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{paused ? 'Resume' : 'Pause'}}</b><kbd>Space</kbd></span></span>
+                            <span class="tm-tip" role="tooltip"><span v-if="zoomed" class="tm-tip-head"><b>Back to live</b><kbd>Esc</kbd></span><span v-else class="tm-tip-head"><b>{{paused ? 'Resume' : 'Pause'}}</b><kbd>Space</kbd></span></span>
                         </button>
                         <button class="tm-rate" :class="{on: ctx.topPanel=='rate'}" aria-haspopup="dialog" :aria-expanded="ctx.topPanel=='rate'" aria-label="Data flow" @click="setTopPanel('rate', $event);">
                             <span class="tm-gauge" :class="['tm-gauge-' + memory.level, {flowing: flowing && !paused}]" :style="{'--p': memory.percent}" :title="memory.title"><i></i></span>
@@ -513,6 +513,8 @@ function initComponent_top_menu(vue) {
         },
         computed: {
             paused() { return !!this.TP.state.isPaused; },
+            // A chart is zoomed on a time range: the display no longer follows the latest data, the pause button becomes "back to live"
+            zoomed() { return Object.values(this.TP.view.groups).some(g => g.cursorActive); },
             // Reasons to stay on screen even when nothing moves
             pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused); },
             away() { return !(this.awake || this.pinned); },
@@ -632,6 +634,7 @@ function initComponent_top_menu(vue) {
                 return connections.map(c => ({ text: c.type + " " + c.name + (c.connected ? "" : " (lost)"), status: c.connected ? "ok" : "bad" }));
             },
             togglePause(event) { this.release(event); this.TP.state.isPaused = !this.TP.state.isPaused; },
+            backToLive(event) { this.release(event); this.TP.view.backToLive(); this.TP.state.isPaused = false; },
             toggleSidePanel(name, event) {
                 this.release(event);
                 this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;

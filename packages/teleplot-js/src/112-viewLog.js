@@ -78,7 +78,7 @@ class ViewLog extends ViewTelemetries{
     }
     hoverEnd() {
         this.hovering = false;
-        TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+        if (!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1; // (while zoomed the cursor stays where it was last, as on charts)
     }
 
     // First index of a sorted array whose value is >= x (or > x if strict)

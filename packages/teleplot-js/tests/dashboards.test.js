@@ -110,3 +110,53 @@ test('auto dashboard: telemetries with the same view label share a view per kind
     T.__timers.run();
     assert.deepEqual([layout.views.at(-1).getOption('title'), Array.from(layout.views.at(-1).telemetryIdOrNameList)], ['motors', [id('torque')]]);
 });
+
+test('time groups: views inherit the group of their layout; a view or a layout can follow the dashboard or a custom group', () => {
+    const T = loadTeleplot();
+    const dash = T.dashboards.createDashboard('Bench');
+    const root = dash.getView();
+    const row = new T.view.ViewLayout('', 'Bench');
+    const top = new T.view.ViewCurrentValue('', [], 'Bench');
+    const inRow = new T.view.ViewCurrentValue('', [], 'Bench');
+    const out = new T.view.ViewCurrentValue('', [], 'Bench');
+    root.addView(top); root.addView(row); row.addView(inRow); row.addView(out);
+    const SEP = T.view.TIME_GROUP_SEPARATOR;
+
+    assert.deepEqual(T.dashboards.getTimeGroups('Bench'), [], 'everything on inherit: one group, the one of the dashboard');
+    assert.deepEqual([root, row, top, inRow, out].map(v => v.group), ['Bench', 'Bench', 'Bench', 'Bench', 'Bench']);
+
+    // A custom group is created with a generated name; the views inside the layout inherit it
+    assert.equal(T.dashboards.setTimeGroup('Bench', row, 'custom'), 'Time 2');
+    assert.deepEqual([row.group, inRow.group, out.group, top.group], ['Bench' + SEP + 'Time 2', 'Bench' + SEP + 'Time 2', 'Bench' + SEP + 'Time 2', 'Bench']);
+    assert.deepEqual([row.timeGroupMark.label, row.timeGroupMark.parent, inRow.timeGroupMark.label], ['Time 2', 'Bench', ''], 'only the layout where the group starts is marked');
+    assert.ok(T.view.groups['Bench' + SEP + 'Time 2']);
+
+    // "dashboard" inside it goes back to the main group; another view creates its own group, a third one joins an existing group
+    T.dashboards.setTimeGroup('Bench', out, 'dashboard');
+    assert.deepEqual([out.group, out.timeGroupMark.label], ['Bench', 'Dashboard']);
+    assert.equal(T.dashboards.setTimeGroup('Bench', top, 'custom'), 'Time 3');
+    assert.equal(T.dashboards.setTimeGroup('Bench', top, 'custom', 'Time 2'), 'Time 2');
+    assert.deepEqual(T.dashboards.getTimeGroups('Bench').map(g => [g.name, g.views]), [['Time 2', 2]]);
+    assert.equal(T.view.groups['Bench' + SEP + 'Time 3'], undefined, 'a group goes away with its last view');
+    assert.notEqual(T.view.timeGroupColor('Time 2'), T.view.timeGroupColor('Time 3'));
+
+    // Zoom of one group only; renaming keeps it; back to live releases everything
+    Object.assign(T.view.groups[row.group], { cursorActive: true, timestampFrom: 5, timestampTo: 9 });
+    assert.equal(T.view.isZoomed('Bench'), false);
+    assert.equal(T.dashboards.renameTimeGroup('Bench', 'Time 2', 'Arm'), 'Arm');
+    assert.deepEqual([row.group, top.group, T.view.groups[row.group].timestampTo], ['Bench' + SEP + 'Arm', 'Bench' + SEP + 'Arm', 9]);
+    assert.equal(T.view.groups['Bench' + SEP + 'Time 2'], undefined);
+    assert.equal(T.view.backToLive(), true);
+
+    // Back to inherit, and a renamed dashboard: the groups follow
+    T.dashboards.setTimeGroup('Bench', row, 'inherit');
+    T.dashboards.setTimeGroup('Bench', top, 'inherit');
+    assert.deepEqual(T.dashboards.getTimeGroups('Bench'), []);
+    T.dashboards.renameDashboard('Bench', 'Rig');
+    T.dashboards.resolveTimeGroups();
+    assert.deepEqual([root.group, inRow.group, T.view.groups.Bench], ['Rig', 'Rig', undefined]);
+
+    // A copy keeps the choice of the view it was made from
+    T.dashboards.setTimeGroup('Rig', top, 'custom', 'Arm');
+    assert.deepEqual([top.clone().options.timeGroup, top.clone().options.timeGroupName], ['custom', 'Arm']);
+});

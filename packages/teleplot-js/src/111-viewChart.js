@@ -272,10 +272,10 @@ class ViewChart extends ViewTelemetries{
                 setCursor: [
                     (u) => {
                         if(this.updateRunning) return;
-                        // Mouse leave
+                        // Mouse leave: the zoom stays (it is only reset on purpose: double click, see setScale). While zoomed the
+                        // cursor stays too, where it was last: the views of the group keep showing that moment. Otherwise they go back to the latest data.
                         if(u.cursor.left < 0) {
-                            TELEPLOT.view.groups[this.group].cursorActive = false;
-                            TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+                            if(!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
                             return;
                         }
                         // Mouse hover
@@ -288,8 +288,15 @@ class ViewChart extends ViewTelemetries{
                     (u, key) => {
                         if(this.updateRunning) return;
                         if(key != "x") return;
-                        // Zoom selected
                         const s = u.scales[key];
+                        // Zoom reset (double click: uPlot goes back to all its data): the group follows the data again
+                        const times = u.data && u.data[0];
+                        if(times && times.length && s.min <= times[0] && s.max >= times[times.length - 1]) {
+                            TELEPLOT.view.groups[this.group].cursorActive = false;
+                            TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+                            return;
+                        }
+                        // Zoom selected: kept until it is reset, also when the pointer leaves the chart
                         TELEPLOT.view.groups[this.group].timestampFrom = s.min;
                         TELEPLOT.view.groups[this.group].timestampTo = s.max;
                         TELEPLOT.view.groups[this.group].cursorActive = true;

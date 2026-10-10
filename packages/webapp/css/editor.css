@@ -150,3 +150,13 @@ body.tp-dragging .tp-slots { display: none; }
 .edit-draggable.edit-dragging { opacity: 0.4; }
 .edit-draggable.edit-drop-before { border-top-color: var(--tp-edit-view, #2980b9); }
 .edit-draggable.edit-drop-after { border-bottom-color: var(--tp-edit-view, #2980b9); }
+
+/* Time group of the selected element */
+.edit-tg-mode .edit-seg { display: flex; flex: 1; } .edit-tg-mode .edit-seg button { flex: 1; }
+.edit-tg-note { font-size: 0.9em; color: var(--color-text-muted); line-height: 1.4; margin: 2px 0 6px; }
+.edit-tg-list { display: flex; flex-direction: column; gap: 2px; }
+.edit-tg-item { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 6px; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
+.edit-tg-item:hover { background: var(--color-bg-light); }
+.edit-tg-item.on { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+.edit-tg-item .edit-muted { margin-left: auto; }
+.edit-tg-new { color: var(--color-text-muted); }
