@@ -229,11 +229,9 @@ function createRobotSample(TP) {
         cameraView.setOption("title", "Camera + 3D");
         cameras.addView(cameraView);
 
-        const stateValues = values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 4, 1);
-        stateValues.setOption("displayLayoutRow", true); // Side by side: a strip above the logs
-        state.addView(stateValues);
+        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 4, 2));
         const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log"], group);
-        logView.setSize(4, 6);
+        logView.setSize(4, 5);
         state.addView(logView);
 
         bottom.addView(chart(["robot.current.left", "robot.current.right"], 3, 5));

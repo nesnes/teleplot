@@ -248,7 +248,7 @@ function initComponent_top_menu(vue) {
             border-radius: 0.35rem;
             color: var(--color-text-muted);
         }
-        .tm-logo { height: 1.7rem; width: auto; margin: 0 0.6rem 0 0.4rem; flex: none; }
+        .tm-logo { height: 2.7rem; width: auto; margin: 0 0.5rem 0 0.5rem; flex: none; } /* (the name is part of the drawing: under 2.5rem it cannot be read) */
         .tm-anchor { position: relative; display: flex; }
         .tm-anchor-dashboard { min-width: 0; }
         .tm-anchor-dashboard .tm-btn { min-width: 0; }
