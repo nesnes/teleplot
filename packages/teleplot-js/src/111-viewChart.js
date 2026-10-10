@@ -121,7 +121,16 @@ class ViewChart extends ViewTelemetries{
         let legendEl = document.getElementById(this.chartDivId);
         legendEl = legendEl && legendEl.parentElement && legendEl.parentElement.querySelector(".teleplot-js-chart-legend");
         if(!legendEl) return;
-        let blocks = Array.from(legendEl.querySelectorAll(".teleplot-js-chart-legend-block"));
+        let { visible, folded } = ViewChart.fitLegend(legendEl);
+        if(this.legend.visible !== visible) this.legend.visible = visible;
+        if(this.legend.folded !== folded) this.legend.folded = folded;
+        if(!folded && this.legend.open) this.closeLegendList();
+    }
+
+    // How many entries of a legend row (a ".teleplot-js-chart-legend" element) fit in its width, and how many do not: {visible, folded}.
+    // Shared by the views that have such a legend (the markup and its style are the chart's).
+    static fitLegend(legendEl) {
+        let blocks = Array.from(legendEl.querySelectorAll(":scope > .teleplot-js-chart-legend-block"));
         let style = getComputedStyle(legendEl);
         let gap = parseFloat(style.columnGap) || 0;
         let chip = legendEl.querySelector(".teleplot-js-chart-legend-more");
@@ -139,10 +148,7 @@ class ViewChart extends ViewTelemetries{
                 visible++;
             }
         }
-        if(this.legend.visible !== visible) this.legend.visible = visible;
-        let folded = widths.length - visible;
-        if(this.legend.folded !== folded) this.legend.folded = folded;
-        if(!folded && this.legend.open) this.closeLegendList();
+        return { visible, folded: widths.length - visible };
     }
 
     toggleLegendList() {

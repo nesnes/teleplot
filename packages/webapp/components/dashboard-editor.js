@@ -10,13 +10,13 @@
  *   removeView, setContainerType, addView, dropTelemetries.
  * - Edit chrome (DOM, drawn over each view and container while edit mode is on):
  *     - a "pill" per element (blue: view, orange: container, purple: nested container) labelled with the element type
- *       (Chart, Values, Log, Row, Column, Grid, Stack - never the content title). Click selects, drag moves.
+ *       (Chart, Values, Log, 3D, Image, Row, Column, Grid, Stack - never the content title). Click selects, drag moves.
  *     - the selected pill unfolds a second, connected line "w - n +" / "h - n +" (width weight, or columns in a grid; height step).
  *     - views are inert (a shield covers them: no cursor, zoom or hover) but keep updating, and still accept telemetry drops.
  *     - every container reserves a band at its top so its pill never covers its children.
  *     - dragging a pill shows a blue insertion line in the hovered container (empty containers accept drops too).
  *     - "+" slots at every seam between views and at the end of every container (and in empty ones): click opens a menu
- *       (Chart, Values, Log, Row, Column, Grid, Stack) that creates the element there. They are always visible in edit mode.
+ *       (Chart, Values, Log, 3D, Image, Row, Column, Grid, Stack) that creates the element there. They are always visible in edit mode.
  *   Outside edit mode the same slots appear only while a telemetry is being dragged from the Telemetries panel: dropping on a
  *   slot creates the view(s) suited to the telemetry (see TELEPLOT.view.suggestViewType), dropping on a view still adds it as a series,
  *   and dropping anywhere else on the dashboard (free room of a container, around or under the views) adds the view(s) at the end of
@@ -63,6 +63,8 @@ function initDashboardEditor(TP) {
             case "teleplot-chart": return "Chart";
             case "teleplot-current-value": return "Values";
             case "teleplot-log": return "Log";
+            case "teleplot-3d": return "3D";
+            case "teleplot-image": return "Image";
         }
         return view.name ? view.name.charAt(0).toUpperCase() + view.name.slice(1) : "View";
     };
@@ -260,10 +262,10 @@ function initDashboardEditor(TP) {
 
     // ------------------------------------------------------------------ Adding views
 
-    E.ADD_TYPES = ["chart", "values", "log", "row", "column", "grid", "stack"]; // What the "+" menu offers
-    E.ADD_LABELS = { chart: "Chart", values: "Values", log: "Log", row: "Row", column: "Column", grid: "Grid", stack: "Stack" };
+    E.ADD_TYPES = ["chart", "values", "log", "3d", "image", "row", "column", "grid", "stack"]; // What the "+" menu offers
+    E.ADD_LABELS = { chart: "Chart", values: "Values", log: "Log", "3d": "3D", image: "Image", row: "Row", column: "Column", grid: "Grid", stack: "Stack" };
 
-    // New element in a container at an index (default: the end): a view ("chart", "values", "log", optionally showing telemetries)
+    // New element in a container at an index (default: the end): a view ("chart", "values", "log", "3d", "image", optionally showing telemetries)
     // or an empty container ("row", "column", "grid", "stack"). Selected while editing. Returns it (undefined for an unknown type or container).
     E.addView = function(type, containerId, index = -1, telemetries = []) {
         let target = TP.view.getView(containerId);
@@ -287,17 +289,19 @@ function initDashboardEditor(TP) {
     };
 
     // Dropped telemetries (ids) become views at an index of a container: one view per kind of data (numbers together in a chart,
-    // the rest together in a values view), in the order the kinds appear. Unknown ids are ignored. Returns the new views.
+    // shapes and 3D points together in a 3D scene, the rest together in a values view), in the order the kinds appear. Images get a view
+    // each: an image view shows one picture (the other telemetries of the view are drawn over it). Unknown ids are ignored. Returns the new views.
     E.dropTelemetries = function(ids, containerId, index = -1) {
         let groups = new Map();
         for (let id of ids) {
             if (TP.datastore.getTelemetry(id) === undefined) continue;
             let type = TP.view.suggestViewType(id);
-            if (!groups.has(type)) groups.set(type, []);
-            if (!groups.get(type).includes(id)) groups.get(type).push(id);
+            let key = type === "image" ? "image:" + id : type;
+            if (!groups.has(key)) groups.set(key, { type, ids: [] });
+            if (!groups.get(key).ids.includes(id)) groups.get(key).ids.push(id);
         }
         let created = [];
-        for (let [type, list] of groups) {
+        for (let { type, ids: list } of groups.values()) {
             let view = E.addView(type, containerId, index < 0 ? -1 : index + created.length, list);
             if (view) created.push(view);
         }
@@ -684,7 +688,7 @@ function initDashboardEditor(TP) {
         menu = document.createElement("div");
         menu.className = "tp-menu";
         menu.setAttribute("role", "menu");
-        menu.innerHTML = '<div class="tp-menu-title">Add</div>' + ["chart", "values", "log"].map(item).join("") + '<hr><div class="tp-menu-title">Container</div>' + ["row", "column", "grid", "stack"].map(item).join("");
+        menu.innerHTML = '<div class="tp-menu-title">Add</div>' + ["chart", "values", "log", "3d", "image"].map(item).join("") + '<hr><div class="tp-menu-title">Container</div>' + ["row", "column", "grid", "stack"].map(item).join("");
         menu.__slot = slotEl;
         let spec = slotEl.__slot;
         menu.addEventListener("click", (e) => {

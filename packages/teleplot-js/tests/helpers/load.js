@@ -1,13 +1,13 @@
 // Loads the library sources (src/NNN-*.js) into a fresh, isolated Teleplot instance, without any browser.
-// Everything is loaded except the embedded third-party libraries (001-003: Vue, uPlot), replaced by the light
-// stubs of helpers/stubs.js. Timers are fake (nothing runs unless the test calls T.__timers.run()).
+// Everything is loaded except the embedded third-party libraries (001-004: Vue, uPlot, three.js): Vue and uPlot are replaced by the
+// light stubs of helpers/stubs.js, three.js is only used to draw (what the 3D view computes is tested without it). Timers are fake (nothing runs unless the test calls T.__timers.run()).
 // Everything shares one closure, like in the real bundle.
 const fs = require('node:fs');
 const path = require('node:path');
 const stubs = require('./stubs');
 
 const SRC = path.join(__dirname, '..', '..', 'src');
-const THIRD_PARTY = ['001', '002', '003'];
+const THIRD_PARTY = ['001', '002', '003', '004'];
 
 function loadTeleplot() {
     stubs.installGlobals();

@@ -194,6 +194,19 @@ test('grid containers: switched in place, added from the menu, a view takes colu
     assert.equal(editor.addView('log', grid.id).layout.width, 2);
 });
 
+test('image views: added from the menu, dropped images get a view each', () => {
+    const { T, editor, root } = setup();
+    const view = editor.addView('image', root.id);
+    assert.ok(view instanceof T.view.ViewImage);
+    assert.equal(editor.typeLabel(view), 'Image');
+    assert.ok(editor.ADD_TYPES.includes('image'));
+    T.parseDataText({ data: 'JPG|front:1000:AAAA\nJPG|rear:1000:BBBB\n3D|box:S:cube', timestamp: 0 });
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const created = editor.dropTelemetries([id('front'), id('box'), id('rear'), id('front')], root.id);
+    assert.deepEqual(created.map(editor.typeLabel), ['Image', '3D', 'Image']);
+    assert.deepEqual(created.map(v => Array.from(v.telemetryIdOrNameList)), [[id('front')], [id('box')], [id('rear')]]);
+});
+
 test('disabling edit mode clears the selection; changing the root resets it', () => {
     const { editor, a } = setup();
     editor.setEnabled(true); editor.select(a.id);
@@ -244,6 +257,20 @@ test('dropTelemetries: numbers together in a chart, the rest together in a value
     assert.deepEqual(Array.from(created[1].telemetryIdOrNameList), [n1.id, n2.id]);
     assert.deepEqual(Array.from(created[0].telemetryIdOrNameList), [t1.id]);
     assert.deepEqual(editor.dropTelemetries([9999], row.id), []);
+});
+
+test('3D views: added from the menu, shapes and 3D points dropped together share one scene', () => {
+    const { T, editor, root } = setup();
+    const scene = editor.addView('3d', root.id);
+    assert.ok(scene instanceof T.view.ViewScene3D);
+    assert.equal(editor.typeLabel(scene), '3D');
+    assert.ok(editor.ADD_TYPES.includes('3d'));
+    assert.equal(editor.ADD_LABELS['3d'], '3D');
+    T.parseDataText({ data: '3D|body:S:cube:P:1:2:3\n3D|wheel:S:cylinder\npath:1:2:3|xyz\nspeed:4', timestamp: 0 });
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const created = editor.dropTelemetries([id('body'), id('speed'), id('path'), id('wheel')], root.id);
+    assert.deepEqual(created.map(editor.typeLabel), ['3D', 'Chart']);
+    assert.deepEqual(Array.from(created[0].telemetryIdOrNameList), [id('body'), id('path'), id('wheel')]);
 });
 
 test('slotLayout: seams between children, ends of the container, empty containers', () => {

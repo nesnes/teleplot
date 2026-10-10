@@ -1,14 +1,21 @@
 /*
  * Sample data: a tiny robot wandering in a 4 x 3 m arena, to demo every kind of telemetry.
  * Self-contained: only uses the Teleplot API (TP.datastore, TP.view, TP.dashboards).
- * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, and one log per subsystem merged in a Log view), image (camera).
- * TODO: 3D telemetries (robot position/rotation) once the 3D views exist.
+ * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, and one log per subsystem merged in a Log view), image (camera),
+ * 3D (the robot in its arena: shapes for the floor, the walls, the body, the wheels, a screen showing the camera, what the distance sensor hits; a 3D point for its path).
+ * Frame of the 3D telemetries: x forward, y left, z up, in meters.
+ * The camera is a real one: a wide angle lens with distortion, whose pictures are computed pixel by pixel from the arena. It publishes its
+ * intrinsics, its distortion and where it is, so that an image view can draw the 3D telemetries over its pictures.
  *
  *   const robot = createRobotSample(TP);   // robot.start(), robot.stop(), robot.running, robot.dashboard
  */
 function createRobotSample(TP) {
     const P = TP.protocol;
     const W = 4, H = 3, WHEEL_BASE = 0.3, STEP = 0.02; // arena (m), distance between wheels (m), simulation step (s)
+    const WALL_T = 0.03, WALL_TALL = 0.3; // walls: thickness and height (m)
+    // Camera: at the front of the robot, looking forward. Pinhole model in pixels (center of the top left pixel = 0, 0) + lens distortion k1, k2, p1, p2, k3
+    const CAMERA = { width: 160, height: 120, fx: 105, fy: 105, cx: 79.5, cy: 59.5, distortion: [-0.26, 0.07, 0, 0, 0], forward: 0.12, up: 0.2 };
+    const WALL_COLORS = ["#c0392b", "#e67e22", "#2980b9", "#27ae60"]; // walls at x = 0, x = W, y = 0, y = H: same colors in the camera image and in the 3D view
     const noise = (s) => (Math.random() + Math.random() + Math.random() - 1.5) * s; // ~gaussian
 
     // --- Simulation: unicycle that drives straight and turns away from walls ---
@@ -69,6 +76,54 @@ function createRobotSample(TP) {
     const TEXT = P.SECTION_TYPE_TELEM_DATA_TEXT, IMAGE = P.SECTION_TYPE_TELEM_DATA_IMAGE;
     const log = (name, level, text) => put(name, TEXT, [`[${level}] ${text}`]); // One text telemetry per subsystem, merged by the Log view
 
+    // 3D shapes: a shape is a telemetry with a shape attribute, its data are its position, orientation, size, color...
+    const POSITION = P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, QUATERNION = P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, SIZE = P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE;
+    const shape = (name, type, size, color, opacity = 255) => { // What does not change is sent once
+        if (TP.datastore.getTelemetry(name)) return;
+        put(name, SIZE, size);
+        put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, [color]);
+        if (opacity < 255) put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, [opacity]);
+        TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_SHAPE, { type, data: "" });
+    };
+    function publish3D() { // 25 Hz
+        const CUBE = P.TELEM_ATTR_SHAPE_TYPE_CUBE, CYLINDER = P.TELEM_ATTR_SHAPE_TYPE_CYLINDER, SPHERE = P.TELEM_ATTR_SHAPE_TYPE_SPHERE;
+        if (!TP.datastore.getTelemetry("robot.3d.floor")) {
+            shape("robot.3d.floor", CUBE, [W, H, 0.02], "#7f8c8d", 110);
+            put("robot.3d.floor", POSITION, [W / 2, H / 2, -0.01]);
+            // Walls: low and a bit transparent, so that the robot stays visible from outside the arena
+            const T = WALL_T, TALL = WALL_TALL;
+            const walls = [["back", [-T / 2, H / 2], [T, H]], ["front", [W + T / 2, H / 2], [T, H]], ["right", [W / 2, -T / 2], [W, T]], ["left", [W / 2, H + T / 2], [W, T]]];
+            walls.forEach(([name, [x, y], [sx, sy]], i) => {
+                shape("robot.3d.wall." + name, CUBE, [sx, sy, TALL], WALL_COLORS[i], 200);
+                put("robot.3d.wall." + name, POSITION, [x, y, TALL / 2]);
+            });
+        }
+        shape("robot.3d.body", CUBE, [0.3, WHEEL_BASE - 0.06, 0.1], "#2980b9");
+        shape("robot.3d.wheel.left", CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
+        shape("robot.3d.wheel.right", CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
+        shape("robot.3d.screen", CUBE, [0.01, 0.24, 0.18], "white");
+        shape("robot.3d.obstacle", SPHERE, [0.1, 0.1, 0.1], "#e74c3c", 170);
+        if (!TP.datastore.getTelemetry("robot.3d.screen").data[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE]) {
+            put("robot.3d.screen", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, [P.TEXTURE_TYPE_IMAGE, "robot.camera"]); // Shows the image telemetry
+        }
+
+        // Orientation as quaternions (w, x, y, z): the heading is a rotation around z; wheels are cylinders laid on their side first (around x)
+        const c = Math.cos(bot.a / 2), s = Math.sin(bot.a / 2), h = Math.SQRT1_2;
+        const yaw = [c, 0, 0, s], wheel = [c * h, c * h, s * h, s * h];
+        const left = [-Math.sin(bot.a), Math.cos(bot.a)]; // unit vector to the left of the robot
+        put("robot.3d.body", POSITION, [bot.x, bot.y, 0.09]);
+        put("robot.3d.body", QUATERNION, yaw);
+        for (const [name, side] of [["robot.3d.wheel.left", 1], ["robot.3d.wheel.right", -1]]) {
+            put(name, POSITION, [bot.x + left[0] * side * WHEEL_BASE / 2, bot.y + left[1] * side * WHEEL_BASE / 2, 0.06]);
+            put(name, QUATERNION, wheel);
+        }
+        put("robot.3d.screen", POSITION, [bot.x - Math.cos(bot.a) * 0.1, bot.y - Math.sin(bot.a) * 0.1, 0.24]);
+        put("robot.3d.screen", QUATERNION, yaw);
+        const d = ray(bot.a).d;
+        put("robot.3d.obstacle", POSITION, [bot.x + Math.cos(bot.a) * d, bot.y + Math.sin(bot.a) * d, 0.09]);
+        put("robot.path", P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, [bot.x, bot.y, 0.005], "m");
+    }
+
     function publishFast() { // every step
         put("robot.wheel.left", NUMBER, [bot.vl + noise(0.01)], "m/s");
         put("robot.wheel.right", NUMBER, [bot.vr + noise(0.01)], "m/s");
@@ -82,24 +137,48 @@ function createRobotSample(TP) {
         put("robot.heading", NUMBER, [(bot.a * 180 / Math.PI % 360 + 360) % 360], "°");
         put("robot.battery", NUMBER, [bot.battery - 0.1 * (bot.il + bot.ir) + noise(0.01)], "V");
         put("robot.state", TEXT, [bot.state]);
-        put("robot.camera", IMAGE, [P.IMAGE_TYPE_PNG, camera()]);
+        // The camera: its parameters and where it is when the picture is taken, then the picture
+        const eye = [bot.x + Math.cos(bot.a) * CAMERA.forward, bot.y + Math.sin(bot.a) * CAMERA.forward, CAMERA.up];
+        put("robot.camera", P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, [CAMERA.width, CAMERA.height, CAMERA.fx, CAMERA.fy, CAMERA.cx, CAMERA.cy]);
+        put("robot.camera", P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, CAMERA.distortion);
+        put("robot.camera", POSITION, eye);
+        put("robot.camera", QUATERNION, [Math.cos(bot.a / 2), 0, 0, Math.sin(bot.a / 2)]); // looks along the x of the robot
+        put("robot.camera", SIZE, [0.35, 1, 1]); // how far its pyramid is drawn in 3D views
+        put("robot.camera", IMAGE, [P.IMAGE_TYPE_PNG, camera(eye)]);
     }
 
-    // Front camera: 128x96 raycast view of the arena, each wall has its own shade (base64 PNG)
+    // Front camera: each pixel is the color of what its ray hits in the arena (a wall, the floor, or nothing), as a base64 PNG.
+    // The ray of a pixel goes through the lens backwards: the distortion is undone to know where the pixel looks (once, it never changes).
     const canvas = document.createElement("canvas");
-    canvas.width = 128; canvas.height = 96;
+    canvas.width = CAMERA.width; canvas.height = CAMERA.height;
     const g = canvas.getContext("2d");
-    function camera() {
-        g.fillStyle = "#cfe8ff"; g.fillRect(0, 0, 128, 48); // sky
-        g.fillStyle = "#8a8f98"; g.fillRect(0, 48, 128, 48); // floor
-        const shades = ["#c0392b", "#e67e22", "#2980b9", "#27ae60"];
-        for (let col = 0; col < 128; col++) {
-            const a = bot.a + (col / 127 - 0.5) * 1.05; // ~60 degree field of view
-            const hit = ray(a);
-            const h = Math.min(96, 40 / (hit.d * Math.cos(a - bot.a)));
-            g.fillStyle = shades[hit.wall];
-            g.fillRect(col, 48 - h / 2, 1, h);
+    const frame = g.createImageData(CAMERA.width, CAMERA.height);
+    const rays = new Float32Array(CAMERA.width * CAMERA.height * 2); // per pixel: how much the ray goes left and up for 1 forward
+    for (let v = 0, i = 0; v < CAMERA.height; v++) for (let u = 0; u < CAMERA.width; u++) {
+        const [x, y] = TP.view.ViewImage.undistortPoint((u - CAMERA.cx) / CAMERA.fx, (v - CAMERA.cy) / CAMERA.fy, CAMERA.distortion);
+        rays[i++] = -x; rays[i++] = -y; // image x goes right and y down
+    }
+    // Like a real camera, the picture is not perfect: washed out colors, darker corners, and noise that changes on every picture
+    const rgb = (hex) => { const c = [1, 3, 5].map((at) => parseInt(hex.substr(at, 2), 16)), gray = (c[0] + c[1] + c[2]) / 3; return c.map((v) => v + (gray - v) * 0.45); };
+    const vignette = new Float32Array(CAMERA.width * CAMERA.height);
+    for (let v = 0, i = 0; v < CAMERA.height; v++) for (let u = 0; u < CAMERA.width; u++) vignette[i++] = 1 - 0.45 * (((u - CAMERA.cx) / CAMERA.cx) ** 2 + ((v - CAMERA.cy) / CAMERA.cx) ** 2);
+    const COLORS = { walls: WALL_COLORS.map(rgb), floor: rgb("#8a8f98"), sky: rgb("#cfe8ff"), outside: rgb("#b9bec5") };
+    function camera(eye) {
+        const cos = Math.cos(bot.a), sin = Math.sin(bot.a), pixels = frame.data;
+        for (let i = 0, n = CAMERA.width * CAMERA.height; i < n; i++) {
+            const left = rays[i * 2], up = rays[i * 2 + 1];
+            const dx = cos - sin * left, dy = sin + cos * left; // direction of the ray in the arena (dz = up)
+            // First wall on the way: x = 0 or W, y = 0 or H
+            const tx = dx > 0 ? (W - eye[0]) / dx : (dx < 0 ? -eye[0] / dx : Infinity), ty = dy > 0 ? (H - eye[1]) / dy : (dy < 0 ? -eye[1] / dy : Infinity);
+            const t = Math.min(tx, ty), z = eye[2] + t * up;
+            let color = COLORS.sky;
+            if (z < 0) color = COLORS.floor;                  // reaches the floor before the wall
+            else if (z <= WALL_TALL) color = COLORS.walls[tx < ty ? (dx > 0 ? 1 : 0) : (dy > 0 ? 3 : 2)];
+            else if (up < 0) color = COLORS.outside;          // passes over the wall and comes down behind it
+            const light = vignette[i], grain = (Math.random() - 0.5) * 14; // (values out of range are clamped by the image)
+            pixels[i * 4] = color[0] * light + grain; pixels[i * 4 + 1] = color[1] * light + grain; pixels[i * 4 + 2] = color[2] * light + grain; pixels[i * 4 + 3] = 255;
         }
+        g.putImageData(frame, 0, 0);
         return canvas.toDataURL("image/png").split(",")[1];
     }
 
@@ -121,16 +200,30 @@ function createRobotSample(TP) {
         top.addView(small);
         small.addView(chart(["robot.distance"], 2, 4));
         small.addView(chart(["robot.gyro.z"], 2, 4));
-        bottom.addView(values(["robot.camera"], 2, 5));
+        // The camera pictures, with what the 3D telemetries say drawn over them: the walls must fall on the walls of the picture
+        const cameraView = new TP.view.ViewImage("", ["robot.camera", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.obstacle"], group);
+        cameraView.setSize(2, 5);
+        cameraView.setOption("outline", true); // Outlines only: the picture stays visible inside the walls
+        cameraView.setOption("overlayOpacity", 100);
+        cameraView.setOption("title", "Camera + 3D");
+        bottom.addView(cameraView);
+        const rawView = new TP.view.ViewImage("", ["robot.camera"], group); // The same pictures, with nothing over them
+        rawView.setSize(2, 5);
+        rawView.setOption("title", "Camera");
+        bottom.addView(rawView);
         bottom.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 2, 5));
         const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log"], group);
-        logView.setSize(4, 5);
+        logView.setSize(3, 5);
         bottom.addView(logView);
+        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path"], group);
+        scene.setSize(3, 5);
+        scene.setOption("trailLength", 500);
+        bottom.addView(scene, 0);
         return dashboard;
     }
 
     // --- Public API ---
-    let timer = null, lastSlow = 0;
+    let timer = null, lastSlow = 0, last3D = 0;
     return {
         get running() { return timer !== null; },
         get dashboard() { return TP.dashboards.getDashboard("Robot sample"); },
@@ -141,6 +234,7 @@ function createRobotSample(TP) {
             timer = setInterval(() => { // Catch up if the page was throttled, so that simulated time follows real time
                 const now = Date.now();
                 for (let n = Math.min(50, Math.floor((now - last) / (STEP * 1000))); n > 0; n--) { step(); publishFast(); last += STEP * 1000; }
+                if (bot.t - last3D >= 0.039) { last3D = bot.t; publish3D(); }
                 if (bot.t - lastSlow >= 0.2) { lastSlow = bot.t; publishSlow(); }
             }, 20);
         },

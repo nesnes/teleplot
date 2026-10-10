@@ -2,7 +2,7 @@
  * Edit panel (right side, only while a dashboard is being edited). It follows the selection made on the dashboard:
  * - nothing selected: dashboard settings (name, time window, theme, structure)
  * - a container (row, column, stack): direction, alignment, gap, appearance (cards/flat) and top color for all its children, children
- * - a view (chart, values, log): header with duplicate/delete, breadcrumb, tabs "Data" (title, telemetries) and "Display" (options)
+ * - a view (chart, values, log, 3D, image): header with duplicate/delete, breadcrumb, tabs "Data" (title, telemetries) and "Display" (options)
  * What happens on the dashboard itself (pills, drag and drop, resize) is in dashboard-editor.js.
  */
 function initComponent_panel_edit(vue) {
@@ -174,7 +174,7 @@ function initComponent_panel_edit(vue) {
                 return Math.max(0, count(this.dashboard.view) - 1); // the dashboard layout itself doesn't count
             },
             viewIcon() {
-                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list" }[this.selected.type] || "icofont-chart";
+                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
             },
             schema() { return this.selected && this.selected.getOptionsSchema ? this.selected.getOptionsSchema() : []; },
             telemetries() {

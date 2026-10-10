@@ -92,6 +92,14 @@ The YX line chart will only be displayed when at least two values have been rece
 
 > Using `clr` flag when sending a telemetry will clear the previous values. This is useful when streaming cyclic data like lidar points.
 
+### 3D points
+
+Using the `xyz` flag and three values, teleplot displays a point in a 3D view, followed by the trail of its latest positions.
+
+- `drone:1.5:0.2:3|xyz`
+
+Like for `xy`, a timestamp can be added after the third value: `drone:1.5:0.2:3:1627551892437|xyz`.
+
 ### Publishing text format telemetries
 - Using the `t` flag and giving a text telemetry (with or without timestamp), teleplot will display a text chart.
 
@@ -138,11 +146,15 @@ To send 3D shapes to teleplot, use this syntax : `3D|A:B:C|E`, where
 **C** is a text representing the shape
 **E** is containing flags and is **optional**
 
+Shapes live in a right-handed frame: **x forward, y left, z up** (the grid of the 3D view is the ground, z = 0). Angles are in radians.
+Each shape is a telemetry: it is listed with the others, and several of them can be put in the same 3D view.
+The same shapes can be sent with the binary protocol (`doc/binaryProtocol.md`); how they are displayed is described in `doc/3d.md`.
+
 ### Writing **A** (the name of the shape telemetry)
 
-if **A** contains a comma, the text after the comma will be considered as a 'widget label', if multiple telemtries are sent with the same
-widget label, they will automatically be displayed on the same widget.
-The text before the comma will be considered as the name of the shape telemetry.
+if **A** contains a comma, the text before the comma is the name of the shape telemetry. The text after the comma was a 'widget label'
+in Teleplot V1 (shapes with the same label were displayed together): it is still accepted but ignored, shapes that are displayed
+automatically now all go to the same 3D view, and views are arranged in the dashboard.
 
 If **A** doesn't contain a comma, its whole text will be considered as the name of the shape telemetry.
 
@@ -156,11 +168,11 @@ LIST OF PROPERTIES :
 
 - "url" or "U" => the url to the STL file when using this kind of "shape". **Note** as urls can cotains ":" wich is used as a delimiter in the syntax, urls are expected to be contained in `"..."` or `'...'` string delimiters. eg: `...:U:"http://my.url/file.stl":...`
 
-- "position" or "P" => the position of the center of the sphere in a cartesian coordinate system 
+- "position" or "P" => the position of the center of the shape
     1st argument : x, 2nd argument : y, 3rd argument : z
     
 - "rotation" or "R" => the rotation ( in radian ) of the shape using Euler angles ( please avoid this method and use a quaternion instead )
-    1st argument : the rotation around the x axis, 2nd argument : the rotation around the y axis, 3rd argument : the rotation around the z axis
+    1st argument : the rotation around the x axis (roll), 2nd argument : the rotation around the y axis (pitch), 3rd argument : the rotation around the z axis (yaw)
     
 - "quaternion" or "Q" => the rotation of the shape using a quaternion
     1st argument : x coordinate, 2nd argument : y coordinate, 3rd argument : z coordinate, 4th argument : w coordinate
@@ -175,17 +187,34 @@ LIST OF PROPERTIES :
     - eg: `...:T:url:"http://my.url/file.jpg":...` or eg: `...:T:telem:myImageTelem:...`
     - The "color" property will blend with the texture, it is recommended to use a "white" or "#ffffff" color to display the expected texture
 
-=== Sphere only ===
+=== Size ===
 
-- "precision" or "PR" => the number of rectangles used to draw a sphere (the bigger the more precise, by default = 15)
+- "width" or "W" => the size of the shape along the x axis
+- "depth" or "D" => the size of the shape along the y axis
+- "height" or "H" => the size of the shape along the z axis (up)
+- "radius" or "RA" => the radius of a sphere (same as giving twice the radius as width, depth and height)
+- "precision" or "PR" => accepted for compatibility with Teleplot V1, ignored (spheres and cylinders are always drawn smooth)
 
-- "radius" or "RA"=> the radius of the sphere
+A cylinder stands along the z axis: W and D are its diameters, H its height. An STL file is scaled by W, D and H (1 by default: its own units).
 
-=== Cube only ===
+=== Camera of an image ===
 
-- "height" or "H" => the height of the cube ( Y axis )
-- "width" or "W" => the width of the cube ( X axis )
-- "depth" or "D" => the depth of the cube ( Z axis )
+A `3D|` line sent to the name of an image telemetry describes its camera. 3D shapes and points can then be drawn over its images, as the camera saw them (image view).
+
+- "intrinsics" or "K" => the pinhole model of the camera, in pixels
+    1st argument : fx, 2nd : fy (focal lengths), 3rd : cx, 4th : cy (principal point), 5th : width, 6th : height (size of the image the parameters are given for)
+- "distortion" or "DC" => the lens distortion coefficients (optional)
+    1st argument : k1, 2nd : k2, 3rd : p1, 4th : p2, 5th : k3
+- "position", "rotation", "quaternion" => where the camera is, in the same frame as the shapes: the camera looks along its x axis, y is to the left of the image, z to its top
+- "width" or "W" => how far the camera is drawn in 3D views (as the pyramid of what it sees)
+
+Intrinsics and distortion follow the usual image convention (the one of OpenCV and ROS: pixel 0,0 is the center of the top left pixel, u to the right, v down; Brown-Conrady distortion model).
+Images are displayed as received, never undistorted: what is drawn over them is distorted like the lens does.
+
+    - `JPG|camera:1627551892437:<base64 image>`
+    - `3D|camera:K:554.3:554.3:320:240:640:480`
+    - `3D|camera:1627551892437:P:1.2:0.4:0.25:Q:0:0:0.38:0.92`
+    - `3D|camera:DC:-0.28:0.07:0.0002:0.0001:0`
 
 
 
@@ -193,10 +222,8 @@ If you don't want to send all the arguments of a certain property, you still hav
 
 for unspecified properties, teleplot will use the ones from the previous shape state.
 
-If it is the first time teleplot receives data of a certain shape, the property "shape" (cube or sphere) has to be given and
-missing properties will be replaced by default ones.
-
-Also, the shape, color and precision properties can not be changed later on.
+Properties that were never given have a default: a cube of 1 at the origin, not rotated, opaque, in the color of its telemetry.
+Every property can be changed at any time, including the shape and the color.
 
 #### Some examples
 Creating a simple sphere and cube : 
@@ -238,8 +265,8 @@ Importing an STL file (needs to be downloadable by teleplot, so online or locall
 before you sent certain properties, it will not have any way to be aware of the properties you sent previously. 
 Therefore, it will have to use default values, or may not display anything at all, if it is not informed of the shape type for instance.
 
-/!\ If you send shapes at a too high frequency, teleplot will quickly be overloaded, also teleplot can only draw 3D shapes at a maximum speed 
-of 50-60 frames per second, therefore it is not recommended to send more than 60 shapes per seconds.
+/!\ Views are drawn 30 times per second: sending a shape more often than that is not visible live (every update is stored though, and
+can be seen again by hovering a chart of the same dashboard: the 3D view shows the shapes as they were at that time).
 
 # Publish telemetries
 

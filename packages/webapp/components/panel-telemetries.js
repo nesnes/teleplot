@@ -71,7 +71,7 @@ function initComponent_panel_telemetries(vue) {
 
     const vueCSS = `
         .telemetries-layout {
-            --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-other: #7f8c8d;
+            --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-shape: #d35400; --t-camera: #2c8c7a; --t-other: #7f8c8d;
             --mark: hsl(48 100% 70%);
             color: var(--color-text);
             width: 100%;
@@ -85,7 +85,7 @@ function initComponent_panel_telemetries(vue) {
         :root[data-theme="dark"] .telemetries-layout { --mark: hsl(48 90% 32%); }
 
         .telemetries-type-20 { --tc: var(--t-20); } .telemetries-type-21 { --tc: var(--t-21); } .telemetries-type-22 { --tc: var(--t-22); }
-        .telemetries-type-23 { --tc: var(--t-23); } .telemetries-type-24 { --tc: var(--t-24); } .telemetries-type-other { --tc: var(--t-other); }
+        .telemetries-type-23 { --tc: var(--t-23); } .telemetries-type-24 { --tc: var(--t-24); } .telemetries-type-shape { --tc: var(--t-shape); } .telemetries-type-camera { --tc: var(--t-camera); } .telemetries-type-other { --tc: var(--t-other); }
 
         .telemetries-toolbar {
             padding-bottom: 0.4rem;
@@ -192,6 +192,8 @@ function initComponent_panel_telemetries(vue) {
                     { code: P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, badge: "3D",  label: "Number 3D" },
                     { code: P.SECTION_TYPE_TELEM_DATA_TEXT,      badge: "TXT", label: "Text" },
                     { code: P.SECTION_TYPE_TELEM_DATA_IMAGE,     badge: "IMG", label: "Image" },
+                    { code: "shape",                             badge: "SHAPE", label: "3D shape" }, // Not one data type: a shape is made of several (position, color...)
+                    { code: "camera",                            badge: "CAM", label: "Camera (intrinsics, to draw 3D telemetries over its images)" },
                 ],
             }
         },
@@ -211,6 +213,8 @@ function initComponent_panel_telemetries(vue) {
                     const name = String(telem.attributes[P.TELEM_ATTR_NAME] ?? ("telemetry " + telem.id));
                     const unit = telem.attributes[P.TELEM_ATTR_UNIT] || "";
                     const types = Object.keys(telem.data).map(Number).filter(t => known.includes(t));
+                    if (this.TP.view.ViewScene3D.isShape(telem)) types.push("shape");
+                    if (this.TP.view.ViewScene3D.isCamera(telem)) types.push("camera");
                     const sep = name.startsWith("/") ? "/" : ".";
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
                     const rest = path.slice(1).join(sep);
@@ -267,6 +271,11 @@ function initComponent_panel_telemetries(vue) {
                 const P = this.TP.protocol;
                 if (!types.length) return "—";
                 const type = types[0];
+                if (type == "shape") { // Where it is: what changes the most often
+                    const SHAPES = { [P.TELEM_ATTR_SHAPE_TYPE_CUBE]: "cube", [P.TELEM_ATTR_SHAPE_TYPE_SPHERE]: "sphere", [P.TELEM_ATTR_SHAPE_TYPE_CYLINDER]: "cylinder", [P.TELEM_ATTR_SHAPE_TYPE_STL]: "STL" };
+                    const state = this.TP.view.ViewScene3D.shapeState(telem);
+                    return (SHAPES[state.type] || "shape") + " at " + state.position.map(v => +v.toFixed(Math.abs(v) >= 1000 ? 0 : 2)).join(", ");
+                }
                 const entry = telem.data[type];
                 if (!entry || !entry.timestamps.length) return "—";
                 const last = entry.data.map(channel => channel.at(-1));
@@ -276,13 +285,19 @@ function initComponent_panel_telemetries(vue) {
             },
             // Estimated update rate from the timestamps of the latest samples ("" until 2 samples, "idle" when the data stopped coming)
             rateText(telem, types) {
-                const rate = estimateRate(types.length ? telem.data[types[0]] : undefined);
+                const rate = estimateRate(types.length ? this.rateEntry(telem, types[0]) : undefined);
                 if (rate == 0) return "";
                 if (rate < 0) return "idle";
                 if (rate >= 1000) return (rate / 1000).toFixed(rate >= 10000 ? 0 : 1) + " kHz";
                 if (rate >= 10) return Math.round(rate) + " Hz";
                 if (rate >= 1) return rate.toFixed(1) + " Hz";
                 return rate.toFixed(2) + " Hz";
+            },
+            // Stored samples that tell how often a telemetry is updated: for a shape, the kind of data it got the most of
+            rateEntry(telem, type) {
+                if (type == "camera") return telem.data[this.TP.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS];
+                if (type != "shape") return telem.data[type];
+                return this.TP.protocol.SHAPE_DATA_TYPES.map(t => telem.data[t]).filter(Boolean).sort((a, b) => b.timestamps.length - a.timestamps.length)[0];
             },
             badge(code) { const t = this.typeList.find(t => t.code == code); return t ? t.badge : "?"; },
             typeLabel(code) { const t = this.typeList.find(t => t.code == code); return t ? t.label : "Other"; },

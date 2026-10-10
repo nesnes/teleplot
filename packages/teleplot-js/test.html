@@ -310,12 +310,12 @@
     }
 
     // Which view suits a telemetry (suggestViewType) and creating it (createView): what an application needs to build a view from a dropped telemetry
-    divId = createTestElement("createView(suggestViewType(telemetry)): number -> chart, text and 2D -> values, no data yet -> chart", "700px", "220px")
+    divId = createTestElement("createView(suggestViewType(telemetry)): number -> chart, text and 2D -> values, 3D numbers and shapes -> 3d, no data yet -> chart", "700px", "auto")
     {
       const row = new Teleplot.view.ViewLayout(divId, "default");
       row.layout.align = "stretch"; row.setSize(1, 1);
       Teleplot.view.addView(row);
-      for (const name of ["numberTelemetry", "text.Telemetry", "pose.3D", "empty.telemetry"]) {
+      for (const name of ["numberTelemetry", "text.Telemetry", "/2D/telemetry/with/a/very/long/name/that/is/hard/to/display/in/a/small/space", "pose.3D", "empty.telemetry"]) {
         const type = Teleplot.view.suggestViewType(name);
         const view = Teleplot.view.createView(type, [name], "default");
         view.setOption("title", name + " → " + type);
@@ -337,6 +337,200 @@
       const log = Teleplot.view.createView("log", ["log.main"], "default"); log.setSize(4, 2);
       grid.addView(log);
       console.log("Grid columns for 100em, columns of 12em, gap 1em:", Teleplot.view.ViewLayout.gridColumns(100, 12, 1));
+    }
+
+    // 3D scenes: shapes (text and binary protocols) and 3D points. Frame: x forward (red), y left (green), z up (blue).
+    // Drag to orbit, right drag to pan, wheel to zoom, double click to frame everything. Like the other views they follow the cursor of
+    // their group: hover a chart of this page and the scenes show that moment.
+    {
+      const P = Teleplot.protocol;
+      const now = () => Date.now();
+
+      // --- Text protocol: 3D|name:timestamp:properties
+      divId = createTestElement("3D - Text protocol: cube (grows, turns with R), sphere (RA, opacity), cylinder (quaternion), partial updates (P::y:)", "700px", "320px");
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(divId, ["text3d.cube", "text3d.sphere", "text3d.cylinder", "text3d.floor"]));
+      Teleplot.parseDataText("3D|text3d.floor:S:cube:P:0:0:-0.05:W:6:D:4:H:0.1:C:#7f8c8d:O:0.35");
+      Teleplot.parseDataText("3D|text3d.cube:S:cube:P:1:1:0.5:W:1:D:1:H:1:C:#2ecc71");
+      Teleplot.parseDataText("3D|text3d.sphere:shape:sphere:position:-1:1:0.5:radius:0.5:color:red:opacity:0.5");
+      Teleplot.parseDataText("3D|text3d.cylinder:S:cylinder:P:0:-1:0.75:W:0.6:D:0.6:H:1.5:C:#3498db");
+      setInterval(() => {
+        const t = now() / 1000;
+        Teleplot.parseDataText(`3D|text3d.cube:${now()}:W:${(1 + 0.4 * Math.sin(t)).toFixed(3)}:R:::${(t % (2 * Math.PI)).toFixed(3)}`);
+        Teleplot.parseDataText(`3D|text3d.sphere:P::${(1 + Math.sin(t * 2)).toFixed(3)}:`); // only y moves, no timestamp
+        Teleplot.parseDataText(`3D|text3d.cylinder:${now()}:Q:${Math.sin(t / 2).toFixed(4)}:0:0:${Math.cos(t / 2).toFixed(4)}`); // turns around x
+      }, 50);
+
+      // --- Binary protocol: one packet holds the attributes and every kind of shape data
+      class Packet { // little-endian, see doc/binaryProtocol.md
+        constructor(clientId) { this.bytes = [P.BINARY_MARKER, P.BINARY_VERSION]; this.u16(clientId); }
+        u8(v) { this.bytes.push(v & 0xff); return this; }
+        u16(v) { return this.u8(v).u8(v >> 8); }
+        u32(v) { return this.u16(v & 0xffff).u16(Math.floor(v / 65536)); }
+        u64(v) { v = BigInt(v); return this.u32(Number(v & 0xffffffffn)).u32(Number(v >> 32n)); }
+        f32(v) { this.bytes.push(...new Uint8Array(new Float32Array([v]).buffer)); return this; }
+        str(s) { this.bytes.push(...new TextEncoder().encode(s), 0); return this; }
+        section(type, telemId, write) { this.u8(type).u16(telemId).u64(BigInt(now()) * 1000000n).u8(1).u32(0); write(this); return this; } // one sample, at the reference time
+        send() { Teleplot.parseDataBinary(Uint8Array.from([...this.bytes, 0, 0]).buffer); }
+      }
+      const CLIENT = 7, binId = (telemId) => CLIENT * 0x10000 + telemId;
+      new Packet(CLIENT)
+        .u8(P.SECTION_TYPE_CLIENT_NAME).str("3D demo (binary)")
+        .u8(P.SECTION_TYPE_TELEM_ATTR).u16(1).u8(2).u8(P.TELEM_ATTR_NAME).str("bin3d.body").u8(P.TELEM_ATTR_SHAPE).u8(P.TELEM_ATTR_SHAPE_TYPE_CUBE)
+        .u8(P.SECTION_TYPE_TELEM_ATTR).u16(2).u8(2).u8(P.TELEM_ATTR_NAME).str("bin3d.beacon").u8(P.TELEM_ATTR_SHAPE).u8(P.TELEM_ATTR_SHAPE_TYPE_SPHERE)
+        .u8(P.SECTION_TYPE_TELEM_ATTR).u16(3).u8(2).u8(P.TELEM_ATTR_NAME).str("bin3d.mast").u8(P.TELEM_ATTR_SHAPE).u8(P.TELEM_ATTR_SHAPE_TYPE_CYLINDER)
+        .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, 1, (p) => p.f32(0.8).f32(0.5).f32(0.3))
+        .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, 1, (p) => p.str("#e67e22"))
+        .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, 2, (p) => p.f32(0.3).f32(0.3).f32(0.3))
+        .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, 3, (p) => p.f32(0.05).f32(0.05).f32(1))
+        .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, 3, (p) => p.f32(0).f32(0).f32(0.5))
+        .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_ROTATION, 3, (p) => p.f32(0).f32(0.3).f32(0)) // roll, pitch, yaw: leans forward
+        .send();
+      divId = createTestElement("3D - Binary protocol: body (position + quaternion), beacon (RGB color + opacity), mast (rotation), xyz trail", "700px", "320px");
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(divId, [binId(1), binId(2), binId(3), binId(4)]));
+      setInterval(() => {
+        const t = now() / 1000, yaw = t / 2 + Math.PI / 2; // drives on a circle, facing where it goes
+        const x = 1.5 * Math.cos(t / 2), y = 1.5 * Math.sin(t / 2);
+        new Packet(CLIENT)
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, 1, (p) => p.f32(x).f32(y).f32(0.15))
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, 1, (p) => p.f32(Math.cos(yaw / 2)).f32(0).f32(0).f32(Math.sin(yaw / 2))) // w, x, y, z
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, 2, (p) => p.f32(0).f32(0).f32(1.15))
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB, 2, (p) => p.u8(255).u8(Math.round(127 + 127 * Math.sin(t * 3))).u8(0))
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, 2, (p) => p.u8(Math.round(155 + 100 * Math.sin(t * 3))))
+          .section(P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, 4, (p) => p.f32(x).f32(y).f32(0.5 + 0.2 * Math.sin(t * 4)))
+          .send();
+      }, 50);
+      new Packet(CLIENT).u8(P.SECTION_TYPE_TELEM_ATTR).u16(4).u8(1).u8(P.TELEM_ATTR_NAME).str("bin3d.antenna.tip").send();
+
+      // --- Textures and STL files
+      const pyramid = "solid pyramid\n" + [ // ASCII STL: square base of 1, apex at z = 1
+        [[0,0,0],[1,1,0],[1,0,0]], [[0,0,0],[0,1,0],[1,1,0]], [[0,0,0],[1,0,0],[.5,.5,1]], [[1,0,0],[1,1,0],[.5,.5,1]], [[1,1,0],[0,1,0],[.5,.5,1]], [[0,1,0],[0,0,0],[.5,.5,1]]
+      ].map((f) => "facet normal 0 0 0\nouter loop\n" + f.map((v) => "vertex " + v.join(" ")).join("\n") + "\nendloop\nendfacet").join("\n") + "\nendsolid pyramid\n";
+      divId = createTestElement("3D - Texture from an url, texture following an image telemetry (img1), STL file (url in quotes), STL that can't be loaded (hidden, warning in the console)", "700px", "320px");
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(divId, ["tex3d.url", "tex3d.image", "tex3d.stl", "tex3d.missing"]));
+      Teleplot.parseDataText(`3D|tex3d.url:S:cube:P:0:1.5:0.5:C:white:T:url:"data:image/png;base64,${imgPng}"`);
+      Teleplot.parseDataText("3D|tex3d.image:S:sphere:P:0:0:0.5:RA:0.5:C:white:T:telem:img1");
+      Teleplot.parseDataText(`3D|tex3d.stl:S:stl:U:"data:model/stl;base64,${btoa(pyramid)}":P:-0.5:-2:0:W:1:D:1:H:1.5:C:#9b59b6`);
+      Teleplot.parseDataText('3D|tex3d.missing:S:stl:U:"does-not-exist.stl":P:2:0:0');
+      setInterval(() => Teleplot.parseDataText(`3D|tex3d.url:${now()}:R:::${(now() / 2000 % (2 * Math.PI)).toFixed(3)}`), 50);
+
+      // --- 3D points (xyz flag of the text protocol): a dot and the trail of its latest positions
+      divId = createTestElement("3D - Points: xyz text flag, trail of 300 positions, one of 20; no grid, no axes; units of 100 (the grid follows the scale)", "700px", "320px");
+      {
+        const helix = new Teleplot.view.ViewScene3D(divId, ["xyz.helix", "xyz.short"]);
+        helix.setOption("trailLength", 300);
+        Teleplot.view.addView(helix);
+        setInterval(() => {
+          const t = now() / 1000;
+          Teleplot.parseDataText(`xyz.helix:${(100 * Math.cos(t)).toFixed(2)}:${(100 * Math.sin(t)).toFixed(2)}:${(50 + 50 * Math.sin(t / 3)).toFixed(2)}:${now()}|xyz`);
+        }, 30);
+        // Same data, read by a second view with its own options
+        const plain = new Teleplot.view.ViewScene3D(createTestElement("3D - Same point: trailLength 20, displayGrid / displayAxes / displayLegend off, title", "340px", "320px"), ["xyz.helix"]);
+        plain.setOption("trailLength", 20); plain.setOption("displayGrid", false); plain.setOption("displayAxes", false); plain.setOption("displayLegend", false);
+        plain.setOption("title", "Helix");
+        Teleplot.view.addView(plain);
+      }
+
+      // --- Nothing to draw
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(createTestElement("3D - Nothing to display (number telemetry)", "340px", "200px"), ["numberTelemetry"]));
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(createTestElement("3D - No telemetry: drop one", "340px", "200px"), []));
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(createTestElement("3D - A shape with nothing but its type (3D|name:S:cube): a cube of 1 at the origin", "340px", "200px"), ["only.shape"]));
+      Teleplot.parseDataText("3D|only.shape,widget0:S:cube");
+
+      // --- Image views: 3D telemetries drawn over the images of a camera
+      // The pictures of this demo are drawn here with ViewImage.projectPoint (the camera model, point by point, lens distortion included):
+      // white lines for the edges of a cube and of a square on the ground. The image view draws the cube and the square themselves
+      // (three.js) over the picture: they must fit the white lines exactly, whatever the camera does.
+      {
+        const S = Teleplot.view.ViewScene3D, V = Teleplot.view.ViewImage;
+        Teleplot.parseDataText("3D|imgdemo.cube:S:cube:P:2:0:0.5:W:1:D:1:H:1:C:#e67e22");
+        Teleplot.parseDataText("3D|imgdemo.ground:S:cube:P:2:0:-0.01:W:3:D:3:H:0.02:C:#3498db");
+        const box = (cx, cy, cz, sx, sy, sz) => { // the 12 edges of a box, as pairs of points
+          const c = [];
+          for (const dx of [-1, 1]) for (const dy of [-1, 1]) for (const dz of [-1, 1]) c.push([cx + dx * sx / 2, cy + dy * sy / 2, cz + dz * sz / 2]);
+          const edges = [];
+          for (let a = 0; a < 8; a++) for (let b = a + 1; b < 8; b++) if ([0, 1, 2].filter((k) => c[a][k] != c[b][k]).length == 1) edges.push([c[a], c[b]]);
+          return edges;
+        };
+        const edges = box(2, 0, 0.5, 1, 1, 1).concat(box(2, 0, -0.01, 3, 3, 0.02));
+        const toCamera = (camera, p) => { // world -> frame of the camera: rotation by the inverse of its quaternion
+          const [w, x, y, z] = camera.quaternion, v = [p[0] - camera.position[0], p[1] - camera.position[1], p[2] - camera.position[2]];
+          const q = [-x, -y, -z], t = [2 * (q[1] * v[2] - q[2] * v[1]), 2 * (q[2] * v[0] - q[0] * v[2]), 2 * (q[0] * v[1] - q[1] * v[0])];
+          return [v[0] + w * t[0] + q[1] * t[2] - q[2] * t[1], v[1] + w * t[1] + q[2] * t[0] - q[0] * t[2], v[2] + w * t[2] + q[0] * t[1] - q[1] * t[0]];
+        };
+        const canvas = document.createElement("canvas"), g = canvas.getContext("2d");
+        function picture(camera, label) { // base64 PNG of what the camera sees
+          canvas.width = camera.width; canvas.height = camera.height;
+          g.fillStyle = "#2c3e50"; g.fillRect(0, 0, camera.width, camera.height);
+          g.strokeStyle = "white"; g.lineWidth = 1.5;
+          for (const [a, b] of edges) {
+            g.beginPath();
+            let drawing = false;
+            for (let i = 0; i <= 40; i++) { // many points per edge: a distorted edge is a curve
+              const pixel = V.projectPoint(camera, toCamera(camera, [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * i / 40)));
+              if (!pixel) { drawing = false; continue; }
+              if (drawing) g.lineTo(pixel[0] + 0.5, pixel[1] + 0.5); else g.moveTo(pixel[0] + 0.5, pixel[1] + 0.5); // canvas coordinates start at the corner of the pixel
+              drawing = true;
+            }
+            g.stroke();
+          }
+          g.fillStyle = "white"; g.font = "11px sans-serif"; g.fillText(label, 6, 14);
+          return canvas.toDataURL("image/png").split(",")[1];
+        }
+        const pose = (t, radius, height) => { // turns around the cube, looking at it
+          const angle = t / 4, position = [2 + radius * Math.cos(angle), radius * Math.sin(angle), height];
+          const yaw = Math.atan2(-position[1], 2 - position[0]), pitch = Math.atan2(height - 0.5, radius);
+          return { position, quaternion: S.eulerToQuaternion(0.15 * Math.sin(t), pitch, yaw) }; // a bit of roll too
+        };
+
+        // Camera 1, text protocol: pinhole (K), pose with P and Q. Camera 2, binary protocol: intrinsics, lens distortion, pose.
+        const pinhole = { width: 320, height: 240, fx: 260, fy: 255, cx: 150.5, cy: 125.5, distortion: undefined };
+        const fisheye = { width: 320, height: 240, fx: 170, fy: 170, cx: 159.5, cy: 119.5, distortion: [-0.32, 0.11, 0.004, -0.003, -0.012] };
+        new Packet(CLIENT).u8(P.SECTION_TYPE_TELEM_ATTR).u16(20).u8(1).u8(P.TELEM_ATTR_NAME).str("imgdemo.camera.distorted").send();
+        function shoot() {
+          const stamp = now(), t = stamp / 1000;
+          const a = Object.assign({}, pinhole, pose(t, 3.2, 1.6));
+          const [w, x, y, z] = a.quaternion;
+          Teleplot.parseDataText(`3D|imgdemo.camera.pinhole:${stamp}:K:${a.fx}:${a.fy}:${a.cx}:${a.cy}:${a.width}:${a.height}:P:${a.position.join(":")}:Q:${x}:${y}:${z}:${w}:W:0.6`);
+          Teleplot.parseDataText(`PNG|imgdemo.camera.pinhole:${stamp}:${picture(a, "pinhole, text protocol")}`);
+
+          const b = Object.assign({}, fisheye, pose(-t * 0.7, 2.4, 1.1));
+          // The binary protocol carries float32: the picture is drawn with the values the viewer will get
+          b.position = Array.from(new Float32Array(b.position)); b.quaternion = Array.from(new Float32Array(b.quaternion)); b.distortion = Array.from(new Float32Array(b.distortion));
+          const bytes = Uint8Array.from(atob(picture(b, "wide angle with distortion, binary protocol")), (c) => c.charCodeAt(0));
+          const packet = new Packet(CLIENT)
+            .section(P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, 20, (p) => p.u16(b.width).u16(b.height).f32(b.fx).f32(b.fy).f32(b.cx).f32(b.cy))
+            .section(P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, 20, (p) => b.distortion.forEach((v) => p.f32(v)))
+            .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, 20, (p) => b.position.forEach((v) => p.f32(v)))
+            .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, 20, (p) => b.quaternion.forEach((v) => p.f32(v)))
+            .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, 20, (p) => p.f32(0.6).f32(1).f32(1));
+          packet.section(P.SECTION_TYPE_TELEM_DATA_IMAGE, 20, (p) => { p.u8(P.IMAGE_TYPE_PNG).u16(0).u16(1).u16(bytes.length); p.bytes.push(...bytes); });
+          packet.send();
+        }
+        shoot();
+        setInterval(shoot, 200);
+
+        const solid = (view) => { view.setOption("outline", false); return view; }; // Whole objects (by default only their outlines are drawn)
+        divId = createTestElement("Image - Pinhole camera (text: K, P, Q), outline off: the orange cube and the blue ground must stay on the white lines of the picture", "480px", "360px");
+        Teleplot.view.addView(solid(new Teleplot.view.ViewImage(divId, ["imgdemo.camera.pinhole", "imgdemo.cube", "imgdemo.ground"])));
+        divId = createTestElement("Image - Lens distortion (binary: intrinsics + distortion), outline off: what is drawn over is bent like the lens does, the picture is untouched", "480px", "360px");
+        Teleplot.view.addView(solid(new Teleplot.view.ViewImage(divId, [binId(20), "imgdemo.cube", "imgdemo.ground"])));
+        divId = createTestElement("3D - The two cameras as the pyramids of what they see (size along x = how far they are drawn)", "480px", "360px");
+        Teleplot.view.addView(new Teleplot.view.ViewScene3D(divId, ["imgdemo.cube", "imgdemo.ground", "imgdemo.camera.pinhole", binId(20)]));
+        {
+          const options = new Teleplot.view.ViewImage(createTestElement("Image - Options: outline off, overlayOpacity 100, no legend, title; also a 3D point with its trail", "340px", "280px"), ["imgdemo.camera.pinhole", "imgdemo.cube", "imgdemo.orbit"]);
+          options.setOption("outline", false); options.setOption("overlayOpacity", 100); options.setOption("displayLegend", false); options.setOption("title", "Opaque");
+          Teleplot.view.addView(options);
+          setInterval(() => { const t = now() / 500; Teleplot.parseDataText(`imgdemo.orbit:${(2 + Math.cos(t)).toFixed(3)}:${Math.sin(t).toFixed(3)}:1.2:${now()}|xyz`); }, 50);
+        }
+        for (const [title, camera, width] of [["Image - Outlines only (the default; outlineWidth 3), pinhole camera: a line where an object ends or meets another one", "imgdemo.camera.pinhole", 3], ["Image - Outlines only, with lens distortion, outlineWidth 8", binId(20), 8]]) {
+          const outlined = new Teleplot.view.ViewImage(createTestElement(title, "340px", "280px"), [camera, "imgdemo.cube", "imgdemo.ground", "imgdemo.orbit"]);
+          outlined.setOption("outline", true); outlined.setOption("outlineWidth", width); outlined.setOption("overlayOpacity", 100);
+          Teleplot.view.addView(outlined);
+        }
+        Teleplot.view.addView(new Teleplot.view.ViewImage(createTestElement("Image - No camera parameters (img1): the picture alone, and a note because a shape is asked over it", "340px", "280px"), ["img1", "imgdemo.cube"]));
+        Teleplot.view.addView(new Teleplot.view.ViewImage(createTestElement("Image - A picture alone (no WebGL canvas is created)", "340px", "280px"), ["img1"]));
+        Teleplot.view.addView(new Teleplot.view.ViewImage(createTestElement("Image - Nothing to display (shapes, no image)", "340px", "200px"), ["imgdemo.cube"]));
+      }
     }
 
     // Auto dashboard: telemetries created after this call are displayed without any setup

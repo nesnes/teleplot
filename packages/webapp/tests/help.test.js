@@ -23,7 +23,18 @@ for (const example of HELP_EXAMPLES) {
         }
         const telem = find(T, e.name);
         assert.ok(telem, 'telemetry ' + e.name + ' exists');
-        const type = { number: P.SECTION_TYPE_TELEM_DATA_NUMBER, '2d': P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, text: P.SECTION_TYPE_TELEM_DATA_TEXT }[e.type];
+        if (e.camera) {
+            const camera = T.view.ViewScene3D.cameraState(telem);
+            assert.deepEqual([camera.fx, camera.fy, camera.cx, camera.cy, camera.width, camera.height, camera.position], [554, 554, 320, 240, 640, 480, [0, 0, 1]]);
+            return;
+        }
+        if (e.shape) {
+            assert.equal(telem.attributes[P.TELEM_ATTR_SHAPE].type, P.TELEM_ATTR_SHAPE_TYPE_CUBE);
+            assert.deepEqual(T.view.ViewScene3D.shapeState(telem).position, [1, 0, 0.5]);
+            assert.equal(T.view.suggestViewType(telem.id), '3d');
+            return;
+        }
+        const type = { number: P.SECTION_TYPE_TELEM_DATA_NUMBER, '2d': P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, '3d': P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, text: P.SECTION_TYPE_TELEM_DATA_TEXT }[e.type];
         assert.ok(telem.data[type], 'has data of type ' + e.type);
         if (e.samples) assert.equal(telem.data[type].timestamps.length, e.samples);
         if (e.unit) assert.equal(telem.attributes[P.TELEM_ATTR_UNIT], e.unit);

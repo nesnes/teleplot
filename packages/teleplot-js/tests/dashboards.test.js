@@ -83,5 +83,7 @@ test('createView builds a view of a known type with its telemetries and a size t
     assert.ok(T.view.createView('values', ['a']) instanceof T.view.ViewCurrentValue);
     assert.ok(T.view.createView('log') instanceof T.view.ViewLog);
     assert.equal(T.view.createView('nope'), undefined);
-    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log']);
+    assert.ok(T.view.createView('3d', ['a']) instanceof T.view.ViewScene3D);
+    assert.ok(T.view.createView('image', ['a']) instanceof T.view.ViewImage);
+    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', '3d', 'image']);
 });

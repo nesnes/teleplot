@@ -72,7 +72,7 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - **VALUE_1**(float32): the value of the telemetry in the first dimension (x).
         - **VALUE_2**(float32): the value of the telemetry in the second dimension (y).
 
-  - `22` **TELEM_DATA_NUMBER_3D**:
+  - `22` **TELEM_DATA_NUMBER_3D**: *(displayed as a point of a 3D view, with the trail of its latest positions)*
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_NUMBER_3D( {TIMEDIFF[32]} - {VALUE_1[32]} - {VALUE_2[32]} - {VALUE_3[32]} )...`
         - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds at which this telemetry has been generated. `timestamp = TIME_REFERENCE + TIMEDIFF`
         - **VALUE_1**(float32): the value of the telemetry in the first dimension (x).
@@ -90,12 +90,14 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - **IMAGE_TYPE**(uint8): the type of image shared (encoding):
           - `0` : JPEG
           - `1` : PNG
-        - **IMAGE_PART_INDEX**(uint16): as images can be too big for a single packet, this allows to split image into parts (smaller buffer, identified by an index).
+        - **IMAGE_PART_INDEX**(uint16): as images can be too big for a single packet, this allows to split image into parts (smaller buffer, identified by an index, from 0 to **IMAGE_PART_COUNT** - 1). The parts of an image share the same timestamp; they can come in any order and in several packets. The image is stored once all its parts are received; parts of an image that never completes are dropped when the next image starts.
         - **IMAGE_PART_COUNT**(uint16): total number of **IMAGE_PART_INDEX** expected to complete this image.
         - **IMAGE_PART_SIZE**(uint16): size in byte of the **VALUE** buffer.
         - **VALUE**(buffer): buffer containing the raw bytes of this image part.
 
-  - `24` **TELEM_DATA_SHAPE_3D_POSITION**:
+  3D shapes: a telemetry with the **TELEM_ATTR_SHAPE** attribute and/or any of the **TELEM_DATA_SHAPE_...** sections below is a shape. Each section is optional and can be sent on its own, at its own rate (ex: the size and the color once, the position 50 times per second). What was never sent has a default: a cube of 1 at the origin, not rotated, opaque, in the color of the telemetry (**TELEM_ATTR_COLOR**). Frame: right-handed, **x forward, y left, z up**. The text protocol has the same shapes (`3D|...` lines, see the README); how they are displayed is in `doc/3d.md`.
+
+  - `25` **TELEM_DATA_SHAPE_3D_POSITION**:
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_SHAPE_3D_POSITION( {TIMEDIFF[32]} - {VALUE_X[32]} - {VALUE_Y[32]} - {VALUE_Z[32]} )...`
         - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds at which this telemetry has been generated. `timestamp = TIME_REFERENCE + TIMEDIFF`
         - **VALUE_X**(float32): the position of the 3D shape along x axis.
@@ -108,6 +110,7 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - **VALUE_R**(float32): the rotation of the 3D shape, in radian, using euler angles. Roll along x axis.
         - **VALUE_P**(float32): the rotation of the 3D shape, in radian, using euler angles. Pitch along y axis.
         - **VALUE_Y**(float32): the rotation of the 3D shape, in radian, using euler angles. Yaw along z axis.
+        - The three rotations are applied in that order (roll, pitch, yaw) around the fixed axes. When a shape received both rotations and quaternions, the latest one is used.
 
   - `27` **TELEM_DATA_SHAPE_3D_QUATERNION**:
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_SHAPE_3D_QUATERNION( {TIMEDIFF[32]} - {VALUE_W[32]} - {VALUE_X[32]} - {VALUE_Y[32]} - {VALUE_Z[32]} )...`
@@ -135,11 +138,12 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - **VALUE**(uint8): opacity value to the shape, 0 being fully transparent and 255 fully opaque
 
   - `31` **TELEM_DATA_SHAPE_SIZE**:
-    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_SHAPE_SIZE( {TIMEDIFF[32]} - {VALUE_R[32]} - {VALUE_G[32]} - {VALUE_B[32]} )...`
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_SHAPE_SIZE( {TIMEDIFF[32]} - {VALUE_X[32]} - {VALUE_Y[32]} - {VALUE_Z[32]} )...`
         - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds at which this telemetry has been generated. `timestamp = TIME_REFERENCE + TIMEDIFF`
         - **VALUE_X**(float32): size along X axis.
         - **VALUE_Y**(float32): size along Y axis.
         - **VALUE_Z**(float32): size along Z axis.
+        - The size is the extent of the shape along each axis: the sides of a cube, the diameters of a sphere, the diameters (x, y) and the height (z) of a cylinder. An STL file is scaled by it.
         
   - `32` **TELEM_DATA_SHAPE_TEXTURE**:
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_SHAPE_TEXTURE( {TIMEDIFF[32]} - {VALUE_TYPE[8]} - {VALUE[...]} )...`
@@ -149,5 +153,23 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
             - `1` **TEXTURE_URL**: interpret the **VALUE** as an URL to an image and apply it as a texture.
             - `2` **TEXTURE_IMAGE**: interpret the **VALUE** as the name of an image-type telemetry, and apply this image as the texture.
         - **VALUE**(null terminated string): the **TEXTURE_URL** or **TEXTURE_IMAGE** string value, terminated by a `\0`.
+
+  Cameras: an image telemetry that also has **TELEM_DATA_CAMERA_INTRINSICS** is a camera, and 3D telemetries (shapes, 3D points) can be drawn over its images as it saw them (image view, see `doc/3d.md`). Where the camera is comes from the shape sections sent on the same telemetry: **TELEM_DATA_SHAPE_3D_POSITION** and **TELEM_DATA_SHAPE_3D_QUATERNION** (or **ROTATION**), in the frame of the scene like any shape: the camera looks along its x axis, its y axis is to the left of the image and its z axis to the top of the image (not rotated: it looks along the x of the world, upright). Never sent: at the origin, not rotated. **TELEM_DATA_SHAPE_SIZE** x is how far the camera is drawn in 3D views (the pyramid of what it sees). Each image is displayed with the camera parameters and the 3D telemetries as they were at the timestamp of the image (the last sample at or before it): nothing is interpolated.
+
+  - `33` **TELEM_DATA_CAMERA_INTRINSICS**:
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_CAMERA_INTRINSICS( {TIMEDIFF[32]} - {WIDTH[16]} - {HEIGHT[16]} - {FX[32]} - {FY[32]} - {CX[32]} - {CY[32]} )...`
+        - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds from which these parameters apply. `timestamp = TIME_REFERENCE + TIMEDIFF`
+        - **WIDTH**, **HEIGHT**(uint16): size in pixels of the image the parameters are given for. The images sent can have another size with the same proportions (ex: sent smaller than they were calibrated).
+        - **FX**, **FY**(float32): focal lengths, in pixels.
+        - **CX**, **CY**(float32): principal point, in pixels.
+        - These follow the usual image convention (pinhole model, as in OpenCV and ROS): pixel (0, 0) is the center of the top left pixel, u goes to the right and v down, and a point at X (right), Y (down), Z (forward) of the camera is seen at `u = FX * X / Z + CX`, `v = FY * Y / Z + CY`.
+
+  - `34` **TELEM_DATA_CAMERA_DISTORTION**: *(optional: without it the camera is a plain pinhole)*
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_CAMERA_DISTORTION( {TIMEDIFF[32]} - {K1[32]} - {K2[32]} - {P1[32]} - {P2[32]} - {K3[32]} )...`
+        - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds from which these coefficients apply. `timestamp = TIME_REFERENCE + TIMEDIFF`
+        - **K1**, **K2**, **K3**(float32): radial distortion coefficients.
+        - **P1**, **P2**(float32): tangential distortion coefficients.
+        - Brown-Conrady model, in the order of OpenCV. With `x = X / Z`, `y = Y / Z` and `r² = x² + y²`: `x' = x (1 + K1 r² + K2 r⁴ + K3 r⁶) + 2 P1 x y + P2 (r² + 2 x²)`, `y' = y (1 + K1 r² + K2 r⁴ + K3 r⁶) + P1 (r² + 2 y²) + 2 P2 x y`, then `u = FX * x' + CX`, `v = FY * y' + CY`.
+        - The images are displayed as they are received (never undistorted): what is drawn over them is distorted like the lens does.
 
 - TODO 2D shapes

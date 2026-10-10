@@ -27,12 +27,26 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY: 30,
     SECTION_TYPE_TELEM_DATA_SHAPE_SIZE: 31,
     SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE: 32,
+    SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS: 33,
+    SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION: 34,
     IMAGE_TYPE_JPEG: 0,
     IMAGE_TYPE_PNG: 1,
     TEXTURE_TYPE_NONE: 0,
     TEXTURE_TYPE_URL: 1,
     TEXTURE_TYPE_IMAGE: 2
 };
+
+// Data types that describe a 3D shape (a telemetry with any of them, or with the TELEM_ATTR_SHAPE attribute, is a shape)
+TELEPLOT.protocol.SHAPE_DATA_TYPES = [
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_3D_ROTATION,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE
+];
 
 TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
     switch(sectionType) {
@@ -62,6 +76,10 @@ TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
             return 3; // x, y, z
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE:
             return 2; // type, value
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS:
+            return 6; // width, height, fx, fy, cx, cy
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION:
+            return 5; // k1, k2, p1, p2, k3
     }
     console.error(Error(`Unknown section type: ${sectionType}`));
     return -1;

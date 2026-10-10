@@ -132,3 +132,72 @@ test('packets are ignored while paused', () => {
     T.parseDataBinary(new PacketBuilder(1).numbers(1, 1_000_000_000n, [[0, 1]]).build());
     assert.deepEqual(T.datastore.telemetries, {});
 });
+
+test('3D shapes: attribute and every shape section', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    const printed = captureConsole(() => T.parseDataBinary(new PacketBuilder(2)
+        .attrs(1, [[ATTR.NAME, 'robot'], [ATTR.SHAPE, { type: 2 }]])
+        .attrs(2, [[ATTR.SHAPE, { type: 10, url: 'http://host/part.stl' }]])
+        .shapeFloats('SHAPE_POSITION', 1, 1_000_000_000n, [[0, 1, 2, 3], [1000, 4, 5, 6]])
+        .shapeFloats('SHAPE_ROTATION', 1, 1_000_000_000n, [[0, 0.5, 0.25, -1]])
+        .shapeFloats('SHAPE_QUATERNION', 1, 1_000_000_000n, [[0, 1, 0, 0.5, 0]])
+        .shapeFloats('SHAPE_SIZE', 1, 1_000_000_000n, [[0, 2, 4, 8]])
+        .shapeColorStr(1, 1_000_000_000n, [[0, '#2ecc71']])
+        .shapeColorRGB(1, 1_000_000_000n, [[0, 255, 128, 0]])
+        .shapeOpacity(1, 1_000_000_000n, [[0, 128]])
+        .shapeTexture(1, 1_000_000_000n, [[0, P.TEXTURE_TYPE_URL, 'http://host/t.png'], [10, P.TEXTURE_TYPE_IMAGE, 'camera']])
+        .numbers(3, 1_000_000_000n, [[0, 7]])
+        .build()));
+    assert.deepEqual(printed.error, [], 'nothing is rejected');
+    const telem = T.datastore.getTelemetry(id(2, 1));
+    assert.deepEqual(telem.getAttribute(P.TELEM_ATTR_SHAPE), { type: P.TELEM_ATTR_SHAPE_TYPE_CYLINDER, data: '' });
+    assert.deepEqual(T.datastore.getTelemetry(id(2, 2)).getAttribute(P.TELEM_ATTR_SHAPE), { type: P.TELEM_ATTR_SHAPE_TYPE_STL, data: 'http://host/part.stl' });
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION).data, [[1, 4], [2, 5], [3, 6]]);
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_ROTATION).data, [[0.5], [0.25], [-1]]);
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION).data, [[1], [0], [0.5], [0]], 'w, x, y, z');
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE).data, [[2], [4], [8]]);
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR).data, [['#2ecc71']]);
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB).data, [[255], [128], [0]]);
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY).data, [[128]]);
+    assert.deepEqual(entry(T, 2, 1, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE).data, [[P.TEXTURE_TYPE_URL, P.TEXTURE_TYPE_IMAGE], ['http://host/t.png', 'camera']], 'type and value (regression: textures were rejected)');
+    assert.deepEqual(entry(T, 2, 3).data[0], [7], 'the sections after the shapes are still read');
+});
+
+test('camera of an image telemetry: intrinsics and distortion sections', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    const printed = captureConsole(() => T.parseDataBinary(new PacketBuilder(3)
+        .cameraIntrinsics(1, 1_000_000_000n, [[0, 640, 480, 554.25, 553.5, 320, 240.5], [1000, 320, 240, 277, 277, 160, 120]])
+        .cameraDistortion(1, 1_000_000_000n, [[0, -0.25, 0.5, 0.001, -0.002, 0.125]])
+        .shapeFloats('SHAPE_POSITION', 1, 1_000_000_000n, [[0, 1, 2, 3]])
+        .numbers(2, 1_000_000_000n, [[0, 7]])
+        .build()));
+    assert.deepEqual(printed.error, []);
+    assert.deepEqual(entry(T, 3, 1, P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS).data, [[640, 320], [480, 240], [554.25, 277], [553.5, 277], [320, 160], [240.5, 120]], 'width, height, fx, fy, cx, cy');
+    const distortion = entry(T, 3, 1, P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION).data.map(c => c[0]);
+    [-0.25, 0.5, 0.001, -0.002, 0.125].forEach((v, i) => near(distortion[i], v, 1e-7));
+    assert.deepEqual(entry(T, 3, 2).data[0], [7], 'the sections after the camera are still read');
+    assert.equal(T.view.ViewScene3D.isCamera(T.datastore.getTelemetry(id(3, 1))), true);
+});
+
+test('images: stored as base64 like the text protocol, an image in several parts is stored once complete', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    const IMAGE = P.SECTION_TYPE_TELEM_DATA_IMAGE;
+    T.parseDataBinary(new PacketBuilder(4).images(1, 1_000_000_000n, [[0, P.IMAGE_TYPE_PNG, 0, 1, [1, 2, 3]]]).build());
+    assert.deepEqual(entry(T, 4, 1, IMAGE).data, [[P.IMAGE_TYPE_PNG], [Buffer.from([1, 2, 3]).toString('base64')]]);
+    assert.deepEqual(T.view.ViewScene3D.imageAt(T.datastore.getTelemetry(id(4, 1))), { t: 1, url: 'data:image/png;base64,AQID' });
+
+    // Three parts, received out of order and in different packets
+    T.parseDataBinary(new PacketBuilder(4).images(2, 2_000_000_000n, [[0, P.IMAGE_TYPE_JPEG, 2, 3, [7, 8]], [0, P.IMAGE_TYPE_JPEG, 0, 3, [1, 2, 3]]]).build());
+    assert.equal(T.datastore.getTelemetry(id(4, 2)).data[IMAGE], undefined, 'not complete yet');
+    T.parseDataBinary(new PacketBuilder(4).images(2, 2_000_000_000n, [[0, P.IMAGE_TYPE_JPEG, 1, 3, [4, 5, 6]]]).numbers(3, 1_000_000_000n, [[0, 7]]).build());
+    assert.deepEqual(entry(T, 4, 2, IMAGE).data, [[P.IMAGE_TYPE_JPEG], [Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]).toString('base64')]]);
+    assert.deepEqual(entry(T, 4, 3).data[0], [7], 'the sections after the image are still read');
+
+    // A new image starts before the previous one is complete: the incomplete one is dropped
+    T.parseDataBinary(new PacketBuilder(4).images(2, 3_000_000_000n, [[0, P.IMAGE_TYPE_JPEG, 0, 2, [9]]]).build());
+    T.parseDataBinary(new PacketBuilder(4).images(2, 4_000_000_000n, [[0, P.IMAGE_TYPE_JPEG, 0, 2, [1]], [0, P.IMAGE_TYPE_JPEG, 1, 2, [2]]]).build());
+    assert.deepEqual(entry(T, 4, 2, IMAGE).timestamps, [2, 4]);
+});

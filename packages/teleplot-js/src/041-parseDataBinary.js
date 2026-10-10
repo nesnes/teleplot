@@ -103,6 +103,12 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE:
                     offset = _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS:
+                    offset = _parseDataBinary_parseTELEM_DATA_CAMERA_INTRINSICS(view, offset, clientId);
+                    break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION:
+                    offset = _parseDataBinary_parseTELEM_DATA_CAMERA_DISTORTION(view, offset, clientId);
+                    break;
                 default:
                     console.warn(`parseDataBinary: unknown section type ${sectionType}`);
                     return;
@@ -209,7 +215,7 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
             case TELEPLOT.protocol.TELEM_ATTR_SHAPE: {
                 let shapeType = view.getUint8(offset);
                 offset++;
-                let shapeData = null;
+                let shapeData = ""; // Only an STL file has data: its url
                 if(shapeType === TELEPLOT.protocol.TELEM_ATTR_SHAPE_TYPE_STL) {
                     let [url, newOffset] = _parseDataBinary_readString(view, offset);
                     shapeData = url;
@@ -335,7 +341,8 @@ function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset, clientId) {
     offset = newOffset;
 
     let timestamps = [];
-    let imageData = [];
+    let types = [];
+    let images = []; // base64, like the images of the text protocol
 
     for(let i = 0; i < count; i++) {
         let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
@@ -351,16 +358,42 @@ function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset, clientId) {
         let buffer = new Uint8Array(view.buffer, view.byteOffset + offset, partSize);
         offset += partSize;
         
-        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
-        // TODO: implement image reassembly and rendering
-        imageData.push({type: imageType, partIndex, partCount, buffer});
+        let timestamp = _parseDataBinary_makeTimestamp(timeRef, timeDiff);
+        let bytes = buffer;
+        if(partCount > 1) { // An image in several parts (indexes 0 to count-1, same timestamp): stored once they are all there
+            let pending = _parseDataBinary_imageParts[telemId];
+            if(pending === undefined || pending.timestamp !== timestamp || pending.partCount !== partCount || pending.type !== imageType) {
+                pending = _parseDataBinary_imageParts[telemId] = { timestamp, partCount, type: imageType, parts: {}, received: 0 };
+            }
+            if(partIndex >= partCount) continue;
+            if(pending.parts[partIndex] === undefined) pending.received++;
+            pending.parts[partIndex] = buffer.slice(); // The packet buffer does not outlive this call
+            if(pending.received < partCount) continue;
+            delete _parseDataBinary_imageParts[telemId];
+            let total = 0;
+            for(let p = 0; p < partCount; p++) total += pending.parts[p].length;
+            bytes = new Uint8Array(total);
+            for(let p = 0, at = 0; p < partCount; p++) { bytes.set(pending.parts[p], at); at += pending.parts[p].length; }
+        }
+        timestamps.push(timestamp);
+        types.push(imageType);
+        images.push(_parseDataBinary_toBase64(bytes));
     }
 
-    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
-    // TODO: call addData with proper image handling once image rendering is implemented
-    // telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE, timestamps, [imageData]);
+    if(timestamps.length) {
+        let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
+        telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE, timestamps, [types, images]);
+    }
 
     return offset;
+}
+
+const _parseDataBinary_imageParts = {}; // telemetry id -> parts of the image being received
+
+function _parseDataBinary_toBase64(bytes) {
+    let binary = "";
+    for(let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); // By chunks: arguments are limited
+    return btoa(binary);
 }
 
 function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset, clientId) {
@@ -573,7 +606,8 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset, clientId) 
     offset = newOffset;
 
     let timestamps = [];
-    let textureData = [];
+    let textureTypes = [];
+    let textureValues = [];
 
     for(let i = 0; i < count; i++) {
         let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
@@ -584,11 +618,64 @@ function _parseDataBinary_parseTELEM_DATA_SHAPE_TEXTURE(view, offset, clientId) 
         offset = newOffset;
         
         timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
-        textureData.push({type: textureType, value: value});
+        textureTypes.push(textureType);
+        textureValues.push(value);
     }
 
     let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
-    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, timestamps, [textureData]);
+    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, timestamps, [textureTypes, textureValues]);
+
+    return offset;
+}
+
+// Camera of an image telemetry: {width[16], height[16], fx, fy, cx, cy} (pinhole model, in pixels of an image of width x height)
+function _parseDataBinary_parseTELEM_DATA_CAMERA_INTRINSICS(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+
+    let timestamps = [];
+    let channels = [[], [], [], [], [], []]; // width, height, fx, fy, cx, cy
+
+    for(let i = 0; i < count; i++) {
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
+        offset += 4;
+        channels[0].push(view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN));
+        offset += 2;
+        channels[1].push(view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN));
+        offset += 2;
+        for(let c = 2; c < 6; c++) {
+            channels[c].push(view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN));
+            offset += 4;
+        }
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
+    }
+
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
+    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, timestamps, channels);
+
+    return offset;
+}
+
+// Lens distortion of the camera of an image telemetry: {k1, k2, p1, p2, k3} (Brown-Conrady model)
+function _parseDataBinary_parseTELEM_DATA_CAMERA_DISTORTION(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+
+    let timestamps = [];
+    let channels = [[], [], [], [], []]; // k1, k2, p1, p2, k3
+
+    for(let i = 0; i < count; i++) {
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
+        offset += 4;
+        for(let c = 0; c < 5; c++) {
+            channels[c].push(view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN));
+            offset += 4;
+        }
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, timeDiff));
+    }
+
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
+    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, timestamps, channels);
 
     return offset;
 }
