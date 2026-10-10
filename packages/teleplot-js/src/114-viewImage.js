@@ -407,9 +407,19 @@ class ViewImage extends ViewScene3D {
         </div>
     `;
 
+    __sync(element) {
+        super.__sync(element);
+        element.classList.add("teleplot-js-image-view"); // (its title is over the picture, see the CSS)
+    }
+
     static vueCSS = `
         @scope (.teleplot-js-style)
         {
+            /* The title is over the picture too: same background as the legend, and the color of plain text */
+            .teleplot-js-image-view > .teleplot-js-view-title {
+                top: 0.45em; left: 0.5em; padding: 0.1em 0.6em; border-radius: 1em;
+                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 82%, transparent);
+            }
             .teleplot-js-image-container {
                 position: relative;
                 width: 100%;

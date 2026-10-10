@@ -198,35 +198,52 @@ function createRobotSample(TP) {
         const values = (names, w, h) => { const v = new TP.view.ViewCurrentValue("", names, group); v.setSize(w, h); return v; };
         const layout = (type, w, h) => { const l = new TP.view.ViewLayout("", group); l.layout.type = type; l.layout.align = "stretch"; l.setSize(w, h); return l; }; // stretch: views of a row share its height
 
-        // Everything visible at once: motion charts on top, then camera, values and the merged logs of all subsystems
-        const main = layout("column"), top = layout("row"), bottom = layout("row"), small = layout("column", 2, 5);
+        const stack = (w, h) => { const s = new TP.view.ViewStack("", group); s.setSize(w, h); return s; };
+        const timeGroup = (view, name) => { view.setOption("timeGroup", "custom"); view.setOption("timeGroupName", name); return view; };
+
+        // On top, where the robot is: the 3D scene, what its camera sees, its state and the merged logs of all subsystems.
+        // Under it, the motion charts, in a time group of their own ("Live") shared with the plain camera picture: zooming on them
+        // moves that picture and leaves the rest of the dashboard on the latest data.
+        const main = layout("column"), top = layout("row"), bottom = timeGroup(layout("row"), "Live");
+        const cameras = layout("column", 2, 7), state = layout("column", 4, 7), tabs = stack(2, 5);
         dashboard.setView(main);
         main.addView(top);
         main.addView(bottom);
-        top.addView(chart(["robot.wheel.left", "robot.wheel.right"], 3, 5));
-        top.addView(chart(["robot.current.left", "robot.current.right"], 3, 5));
-        top.addView(small);
-        small.addView(chart(["robot.distance"], 2, 4));
-        small.addView(chart(["robot.gyro.z"], 2, 4));
-        // The camera pictures, with what the 3D telemetries say drawn over them: the walls must fall on the walls of the picture
+
+        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path"], group);
+        scene.setSize(5, 7);
+        scene.setOption("trailLength", 500);
+        top.addView(scene);
+        top.addView(cameras);
+        top.addView(state);
+
+        const rawView = timeGroup(new TP.view.ViewImage("", ["robot.camera"], group), "Live"); // The pictures, with nothing over them
+        rawView.setSize(2, 3);
+        rawView.setOption("title", "Camera");
+        cameras.addView(rawView);
+        // The same pictures with what the 3D telemetries say drawn over them: the walls must fall on the walls of the picture
         const cameraView = new TP.view.ViewImage("", ["robot.camera", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.obstacle"], group);
-        cameraView.setSize(2, 5);
+        cameraView.setSize(2, 3);
         cameraView.setOption("outline", true); // Outlines only: the picture stays visible inside the walls
         cameraView.setOption("overlayOpacity", 100);
         cameraView.setOption("title", "Camera + 3D");
-        bottom.addView(cameraView);
-        const rawView = new TP.view.ViewImage("", ["robot.camera"], group); // The same pictures, with nothing over them
-        rawView.setSize(2, 5);
-        rawView.setOption("title", "Camera");
-        bottom.addView(rawView);
-        bottom.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 2, 5));
+        cameras.addView(cameraView);
+
+        const stateValues = values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 4, 1);
+        stateValues.setOption("displayLayoutRow", true); // Side by side: a strip above the logs
+        state.addView(stateValues);
         const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log"], group);
-        logView.setSize(3, 5);
-        bottom.addView(logView);
-        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path"], group);
-        scene.setSize(3, 5);
-        scene.setOption("trailLength", 500);
-        bottom.addView(scene, 0);
+        logView.setSize(4, 6);
+        state.addView(logView);
+
+        bottom.addView(chart(["robot.current.left", "robot.current.right"], 3, 5));
+        bottom.addView(chart(["robot.wheel.left", "robot.wheel.right"], 3, 5));
+        bottom.addView(tabs);
+        const distance = chart(["robot.distance"], 2, 5), gyro = chart(["robot.gyro.z"], 2, 5);
+        distance.setOption("title", "Distance"); // (the title of a view is the name of its tab)
+        gyro.setOption("title", "Gyro");
+        tabs.addView(distance);
+        tabs.addView(gyro);
         return dashboard;
     }
 
