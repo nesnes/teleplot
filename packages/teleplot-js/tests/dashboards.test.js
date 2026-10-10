@@ -87,3 +87,26 @@ test('createView builds a view of a known type with its telemetries and a size t
     assert.ok(T.view.createView('image', ['a']) instanceof T.view.ViewImage);
     assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', '3d', 'image']);
 });
+
+test('auto dashboard: telemetries with the same view label share a view per kind of view, titled with the label', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText({ data: 'speed,motors:1\nalone:2\ncurrent,motors:3\nstate,motors:on|t\n3D|arm,robot:S:cube\n3D|free:S:sphere\n3D|leg,robot:S:cube\nJPG|front,cams:1000:AAAA\nJPG|rear,cams:1000:BBBB', timestamp: 0 });
+    T.__timers.run();
+    const layout = T.dashboards.getDashboard('Live').getView();
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    assert.deepEqual(layout.views.map(v => [v.type, v.getOption('title'), Array.from(v.telemetryIdOrNameList)]), [
+        ['teleplot-chart', 'motors', [id('speed'), id('current')]],
+        ['teleplot-chart', '', [id('alone')]],
+        ['teleplot-current-value', 'motors', [id('state')]],     // same label, but text is not plotted
+        ['teleplot-3d', 'robot', [id('arm'), id('leg')]],
+        ['teleplot-3d', '', [id('free')]],                       // shapes without label keep sharing their scene
+        ['teleplot-image', '', [id('front')]],                   // an image view shows one picture
+        ['teleplot-image', '', [id('rear')]],
+    ]);
+    // The view of a label was removed by the user: the next telemetry of the label gets a new one
+    layout.removeView(layout.views[0].id);
+    T.parseDataText({ data: 'torque,motors:1', timestamp: 0 });
+    T.__timers.run();
+    assert.deepEqual([layout.views.at(-1).getOption('title'), Array.from(layout.views.at(-1).telemetryIdOrNameList)], ['motors', [id('torque')]]);
+});

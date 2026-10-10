@@ -29,6 +29,7 @@ Rework of Teleplot for better performance and UI.
 
 ## Protocol
 - Binary: little-endian everywhere (C++ `BinaryEncoder` default, JS `_parseDataBinary_LITTLE_ENDIAN`), marker 0x10, version 1, client id uint16, typed sections (client name, telem attr, data number/2D/3D/text/image, 3D shape position/rotation/quaternion/color/opacity/size/texture, camera intrinsics/distortion), checksum still TODO. Spec in `doc/binaryProtocol.md`; constants in `src/011-protocol.js`.
+- View label: `name,label` in text, `TELEM_ATTR_VIEW_LABEL` in binary. Telemetries with the same label share a view (per kind of view, titled with the label) in the auto dashboard; the webapp's Telemetries panel has a card per label to drag them together. It only decides the first placement. Views can follow labels (`options.followLabels`, `view.followLabel(label)`): new telemetries of a followed label that the view can display (`suitsTelemetry`) are added to it; the auto dashboard's label views and the views a label card is dropped on (drag type `text/x-teleplot-drag-label`) follow it.
 - Text: V1 `name:value` style, UDP port 47269; commands UDP 47268. Flags `xy`, `xyz` (3D point), `t`, `np`, `clr`. `3D|name:props` lines describe shapes (and, with `K`/`DC`, the camera of an image telemetry): each property is stored in the data type (or attribute) the binary protocol has for it, so both protocols give the same telemetry.
 
 ## Server and webapp

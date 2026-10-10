@@ -38,6 +38,7 @@ for (const example of HELP_EXAMPLES) {
         assert.ok(telem.data[type], 'has data of type ' + e.type);
         if (e.samples) assert.equal(telem.data[type].timestamps.length, e.samples);
         if (e.unit) assert.equal(telem.attributes[P.TELEM_ATTR_UNIT], e.unit);
+        if (e.label) assert.equal(telem.attributes[P.TELEM_ATTR_VIEW_LABEL], e.label);
         if (e.autoplot === false) assert.equal(telem.attributes[P.TELEM_ATTR_AUTOPLOT], false);
     });
 }

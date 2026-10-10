@@ -138,6 +138,20 @@ The `np` (for no-plot) flag can be used to prevent this behavior:
 - `myValue:1627551892437:1234|np`
 - `trajectory:12.3:45.67|xy,np`
 
+### Display telemetries together
+
+A label can follow the name of a telemetry, after a comma: `name,label:value`. Telemetries that have the same label are displayed in the same view
+when teleplot displays them by itself (the Live dashboard): numbers of a label share a chart, its 3D shapes a 3D view, the rest a values view.
+
+- `left,motors:0.42`
+- `right,motors:0.40`
+- `state,motors:running|t`
+
+The label is not part of the name (the telemetries above are `left`, `right` and `state`). It only decides where a telemetry first goes: views can be
+rearranged freely afterwards. In the Telemetries panel each label has a card of its own, to drag all its telemetries on a dashboard at once.
+A view that received a label this way (and the views teleplot made for a label by itself) follows it: telemetries that show up later with
+the same label are added to it. This can be stopped per view in the edit panel.
+
 ### Publishing 3D telemetries
 
 To send 3D shapes to teleplot, use this syntax : `3D|A:B:C|E`, where
@@ -152,9 +166,8 @@ The same shapes can be sent with the binary protocol (`doc/binaryProtocol.md`); 
 
 ### Writing **A** (the name of the shape telemetry)
 
-if **A** contains a comma, the text before the comma is the name of the shape telemetry. The text after the comma was a 'widget label'
-in Teleplot V1 (shapes with the same label were displayed together): it is still accepted but ignored, shapes that are displayed
-automatically now all go to the same 3D view, and views are arranged in the dashboard.
+if **A** contains a comma, the text before the comma is the name of the shape telemetry and the text after it a label: shapes with the
+same label are displayed in the same 3D view by default (see "Display telemetries together"). Shapes without label all share one 3D view.
 
 If **A** doesn't contain a comma, its whole text will be considered as the name of the shape telemetry.
 

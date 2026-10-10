@@ -15,6 +15,7 @@ const HELP_EXAMPLES = [
     { title: "Some text", code: "state:forward|t", note: "Text is shown as a value, or in a log.", expect: { name: "state", type: "text" } },
     { title: "A unit", code: "temperature:25.3§°C", note: "Displayed next to the value.", expect: { name: "temperature", type: "number", unit: "°C" } },
     { title: "A log line", code: ">:Motors armed", note: "Lines starting with > go to the log.", expect: { log: true } },
+    { title: "Shown together", code: "left,motors:0.4", note: "Telemetries with the same label after the comma share a view of the Live dashboard, and can be dragged together from the Telemetries panel.", expect: { name: "left", type: "number", label: "motors" } },
     { title: "Not charted automatically", code: "debug:42|np", note: "Keeps it out of the Live dashboard; add it yourself in Edit mode.", expect: { name: "debug", type: "number", autoplot: false } },
 ];
 

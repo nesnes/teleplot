@@ -148,8 +148,9 @@ test('update loop: hooks run in isolation, timed-out data is pruned, interval ca
     assert.ok(reached);
     // changing the interval replaces the timer
     T.updates.setUpdateInterval(100);
-    assert.equal(T.__timers.pending.size, 1);
-    assert.equal([...T.__timers.pending.values()][0].ms, 100);
+    const delays = [...T.__timers.pending.values()].map(t => t.ms).filter(ms => ms != 100); // (the new telemetry also has its hooks waiting)
+    assert.equal([...T.__timers.pending.values()].filter(t => t.ms == 100 && t.repeat !== false).length >= 1, true);
+    assert.equal(delays.some(ms => Math.abs(ms - 1000 / 30) < 1), false, 'the previous interval is gone');
 });
 
 test('auto dashboard: new telemetries get a chart (numbers) or a value view (others), np is respected', () => {
@@ -378,4 +379,52 @@ test('grid layout: columns come by pairs from the width, views span columns with
 
     grid.layout.type = 'grid'; grid.layout.columnWidth = 20;
     assert.deepEqual([grid.clone().layout.type, grid.clone().layout.columnWidth], ['grid', 20]);
+});
+
+test('views that follow a view label get the new telemetries of that label that they can display', () => {
+    const T = loadTeleplot();
+    const send = (data) => { T.parseDataText({ data, timestamp: 0 }); T.__timers.run(); };
+    send('left,motors:1\nlog.a,logs:hello|t');
+    const chart = new T.view.ViewChart('', ['left']), values = new T.view.ViewCurrentValue('', []), log = new T.view.ViewLog('', ['log.a']);
+    const scene = new T.view.ViewScene3D('', []), image = new T.view.ViewImage('', []), other = new T.view.ViewChart('', []);
+    [chart, values, log, scene, image, other].forEach(v => T.view.addView(v));
+    assert.equal(chart.followLabel('motors'), true);
+    assert.equal(chart.followLabel('motors'), false, 'already followed');
+    assert.equal(chart.followLabel(''), false);
+    [values, scene, image].forEach(v => v.followLabel('motors'));
+    log.followLabel('logs'); values.followLabel('logs');
+
+    send('right,motors:2\nstate,motors:on|t\n3D|arm,motors:S:cube\nJPG|cam,motors:1000:AAAA\nfree:3\nlog.b,logs:world|t');
+    const names = (view) => Array.from(view.telemetryIdOrNameList).map(e => typeof e == 'number' ? T.datastore.getTelemetry(e).getAttribute(T.protocol.TELEM_ATTR_NAME) : e);
+    assert.deepEqual(names(chart), ['left', 'right'], 'numbers of the label; the telemetries that existed before are not added');
+    assert.deepEqual(names(values), ['state', 'log.b'], 'what a values view displays, for both labels it follows');
+    assert.deepEqual(names(log), ['log.a', 'log.b'], 'a log takes text');
+    assert.deepEqual(names(scene), ['arm']);
+    assert.deepEqual(names(image), ['arm'], 'an image view takes what can be drawn over its picture, not another picture');
+    assert.deepEqual(names(other), [], 'a view that follows nothing');
+
+    // Not followed anymore; copies follow the same labels (and have their own list)
+    const copy = chart.clone();
+    T.view.addView(copy);
+    assert.equal(chart.unfollowLabel('motors'), true);
+    assert.equal(chart.unfollowLabel('motors'), false);
+    send('torque,motors:4');
+    assert.deepEqual([names(chart), names(copy)], [['left', 'right'], ['left', 'right', 'torque']]);
+    assert.deepEqual(Array.from(chart.options.followLabels), []);
+});
+
+test('a label dropped on a view (drag-label): its telemetries are added and the view follows the label', () => {
+    const T = loadTeleplot();
+    T.parseDataText({ data: 'left,motors:1\nright,motors:2', timestamp: 0 });
+    T.__timers.run();
+    const chart = new T.view.ViewChart('', []);
+    T.view.addView(chart);
+    const ids = ['left', 'right'].map(n => T.datastore.getTelemetry(n).id);
+    const data = { 'text/x-teleplot-drag-type-telemetry': '', 'text/x-teleplot-drag-id': String(ids[0]), 'text/x-teleplot-drag-ids': ids.join(','), 'text/x-teleplot-drag-label': 'motors' };
+    chart.onDragDrop({ dataTransfer: { types: Object.keys(data), getData: (type) => data[type] } }, chart);
+    assert.deepEqual(Array.from(chart.telemetryIdOrNameList), ids);
+    assert.deepEqual(Array.from(chart.options.followLabels), ['motors']);
+    T.parseDataText({ data: 'torque,motors:3', timestamp: 0 });
+    T.__timers.run();
+    assert.equal(chart.telemetryIdOrNameList.length, 3);
 });

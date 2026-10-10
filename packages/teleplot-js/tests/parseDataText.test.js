@@ -197,3 +197,16 @@ test('camera of an image telemetry: K (intrinsics) and DC (distortion) on a 3D l
     assert.equal(printed.log.length, 1, 'intrinsics without the image size are refused');
     assert.equal(T.datastore.getTelemetry('other').data[P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS], undefined);
 });
+
+test('view label: "name,label" names the telemetry and keeps the label (numbers, text, xy, 3D shapes)', () => {
+    const T = loadTeleplot();
+    const LABEL = T.protocol.TELEM_ATTR_VIEW_LABEL;
+    parse(T, 'speed,motors:1.5\ncurrent,motors:1000:0.4§A|np\nstate,motors:on|t\n3D|arm,robot:S:cube\nalone:1');
+    assert.deepEqual(['speed', 'current', 'state', 'arm', 'alone'].map(n => T.datastore.getTelemetry(n).getAttribute(LABEL)), ['motors', 'motors', 'motors', 'robot', undefined]);
+    assert.equal(T.datastore.hasTelemetry('speed,motors'), false, 'the label is not part of the name');
+    assert.deepEqual(entry(T, 'current').data[0], [0.4]);
+    assert.equal(T.datastore.getTelemetry('current').getAttribute(T.protocol.TELEM_ATTR_UNIT), 'A');
+    parse(T, 'speed:2\nalone,:2');
+    assert.equal(T.datastore.getTelemetry('speed').getAttribute(LABEL), 'motors', 'a line without label keeps the one the telemetry has');
+    assert.equal(T.datastore.getTelemetry('alone').getAttribute(LABEL), undefined, 'an empty label is no label');
+});

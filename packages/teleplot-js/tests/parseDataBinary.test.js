@@ -201,3 +201,10 @@ test('images: stored as base64 like the text protocol, an image in several parts
     T.parseDataBinary(new PacketBuilder(4).images(2, 4_000_000_000n, [[0, P.IMAGE_TYPE_JPEG, 0, 2, [1]], [0, P.IMAGE_TYPE_JPEG, 1, 2, [2]]]).build());
     assert.deepEqual(entry(T, 4, 2, IMAGE).timestamps, [2, 4]);
 });
+
+test('view label attribute', () => {
+    const T = loadTeleplot();
+    T.parseDataBinary(new PacketBuilder(5).attrs(1, [[ATTR.NAME, 'speed'], [6, 'motors']]).numbers(1, 1_000_000_000n, [[0, 1]]).build());
+    assert.equal(T.datastore.getTelemetry(id(5, 1)).getAttribute(T.protocol.TELEM_ATTR_VIEW_LABEL), 'motors');
+    assert.deepEqual(entry(T, 5, 1).data[0], [1], 'the sections after the attribute are still read');
+});

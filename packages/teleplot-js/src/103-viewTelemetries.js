@@ -12,6 +12,7 @@ class ViewTelemetries extends Views {
         this.setOption("displayNumberDecimals", 3);
 
         this.options.title = "";             // Text written in a corner of the view
+        this.options.followLabels = [];      // View labels the view follows: new telemetries that have one of them are added to the view (see followLabel)
         this.supportedLabel = "";            // Kind of data the view shows, for its empty state ("number", "text"...). Empty: any kind
         this.emptyState = TELEPLOT.Vue.reactive({ text: "", hint: "" }); // What to say instead of an empty view (nothing when there is something to show)
         this.telemetryIdOrNameList = [];
@@ -44,6 +45,32 @@ class ViewTelemetries extends Views {
         if(alreadyThere) return false;
         this.telemetryIdOrNameList.push(telem !== undefined ? telem.id : telemIdOrName);
         return true;
+    }
+
+    // Follow a view label (TELEM_ATTR_VIEW_LABEL, "name,label" in the text protocol): from now on, new telemetries that have this label
+    // and that the view can display are added to it. The telemetries that already exist are not: add them yourself (addTelemetry).
+    followLabel(label) {
+        label = String(label || "");
+        if(label === "" || this.options.followLabels.includes(label)) return false;
+        this.options.followLabels.push(label);
+        return true;
+    }
+
+    unfollowLabel(label) {
+        let index = this.options.followLabels.indexOf(label);
+        if(index < 0) return false;
+        this.options.followLabels.splice(index, 1);
+        return true;
+    }
+
+    // Is a telemetry something a view that follows its label should take ? What this kind of view is the natural display of
+    // (suggestViewType); a log also takes any text, and an image view what can be drawn over its picture.
+    suitsTelemetry(telem) {
+        const P = TELEPLOT.protocol;
+        if(this.type == "teleplot-log") return telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined;
+        if(this.type == "teleplot-image") return telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined && TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined;
+        let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-3d": "3d" }[this.type];
+        return kind !== undefined && TELEPLOT.view.suggestViewType(telem.id) === kind;
     }
 
     // Moves a telemetry in the list (display order, series order of a chart): from an index to another. false when an index is out of range.
@@ -179,6 +206,8 @@ class ViewTelemetries extends Views {
         for(let id of ids) {
             if(TELEPLOT.datastore.getTelemetry(id) !== undefined) view.addTelemetry(id); // unknown telemetries are ignored
         }
+        // A whole label was dropped ("drag-label"): the view also takes the telemetries of that label that will come later
+        if(event.dataTransfer.types.includes("text/x-teleplot-drag-label")) view.followLabel(event.dataTransfer.getData("text/x-teleplot-drag-label"));
     }
 
     static dragDropHtml = `
@@ -192,6 +221,16 @@ class ViewTelemetries extends Views {
 }
 
 TELEPLOT.view.ViewTelemetries = ViewTelemetries;
+
+// New telemetries go to the views that follow their label (the hook runs a moment after the telemetry shows up: its label and its first data are there)
+TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
+    let label = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL);
+    if(!label) return;
+    for(let view of TELEPLOT.view.views) {
+        if(!view.options || !Array.isArray(view.options.followLabels) || !view.options.followLabels.includes(label)) continue;
+        if(typeof view.suitsTelemetry === "function" && view.suitsTelemetry(telem)) view.addTelemetry(telem.id);
+    }
+});
 
 // Add css to head
 {

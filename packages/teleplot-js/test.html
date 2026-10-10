@@ -623,7 +623,7 @@
     // ====================================================================================================================== Dashboards
     section("Dashboards", "A dashboard is a named layout. The automatic one displays new telemetries without any setup: numbers get a chart, shapes and 3D points share one 3D scene, images get an image view, the rest a values view.");
 
-    demo("Automatic dashboard", "Only telemetries created after enableAutoDashboard() are displayed: auto.sin and auto.text here. The library does not decide where a dashboard goes on the page: the callback puts it in this card.", ["100%", "auto"], (id) => {
+    demo("Automatic dashboard", "Only telemetries created after enableAutoDashboard() are displayed. auto.sin and auto.text have no label: a view each. auto.left, auto.right and auto.state have the view label \"motors\" (name,label in the text protocol): the two numbers share a chart titled with the label, the text gets the values view of the label. The library does not decide where a dashboard goes on the page: the callback puts it in this card.", ["100%", "auto"], (id) => {
       Teleplot.dashboards.enableAutoDashboard("Auto demo", (dashboard) => {
         const element = document.createElement("div");
         element.id = dashboard.getView().divId;
@@ -633,6 +633,7 @@
         const now = Date.now() / 1000;
         Teleplot.datastore.getOrCreateTelemetry("auto.sin").addData(P.SECTION_TYPE_TELEM_DATA_NUMBER, [now], [[Math.sin(now)]]);
         Teleplot.datastore.getOrCreateTelemetry("auto.text").addData(P.SECTION_TYPE_TELEM_DATA_TEXT, [now], [["auto " + Math.floor(now % 10)]]);
+        Teleplot.parseDataText(`auto.left,motors:${Math.sin(now * 2).toFixed(3)}\nauto.right,motors:${Math.cos(now * 2).toFixed(3)}\nauto.state,motors:${Math.sin(now * 2) > 0 ? "forward" : "backward"}|t`);
       }, 50);
     });
   </script>

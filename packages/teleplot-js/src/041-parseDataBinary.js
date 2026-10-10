@@ -224,6 +224,12 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE, {type: shapeType, data: shapeData});
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL: {
+                let [label, newOffset] = _parseDataBinary_readString(view, offset);
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, label);
+                offset = newOffset;
+                break;
+            }
             default:
                 console.warn(`parseDataBinary: unknown TELEM_ATTR code ${attrCode}`);
         }

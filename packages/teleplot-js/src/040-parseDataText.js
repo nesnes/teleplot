@@ -162,6 +162,7 @@ function _parseDataText_parseVariablesData(msg, now)
     if(flags.includes("clr")) telemetry.clearData();
 
     if(unit.length>0) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT, unit);
+    if(widgetLabel) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, widgetLabel); // "name,label": shown with the telemetries of the same label
 
     // Add Telemetry data
     if(timestampArray.length>0){
@@ -292,13 +293,15 @@ function _parseDataText_parseImage(msg, now)
 
     // Add image to telemetry
     if(fullB64.length) {
-        // Get Telemetry
-        let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(key);
+        // Get Telemetry ("name,label": the label is not part of the name)
+        let [name, widgetLabel] = _parseDataText_separateWidgetAndLabel(key);
+        let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(name);
 
         // Handle flags
         if(flags.includes("np")) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT, false);
         if(flags.includes("clr")) telemetry.clearData();
         if(unit.length>0) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT, unit);
+        if(widgetLabel) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, widgetLabel);
 
         // Add image
         telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE, [timestamp], [[typeCode],[fullB64]]);
@@ -370,6 +373,7 @@ function _parseDataText_parse3D(msg, now)
     let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(name);
     if(flags.includes("np")) telemetry.setAttribute(P.TELEM_ATTR_AUTOPLOT, false);
     if(flags.includes("clr")) telemetry.clearData();
+    if(widgetLabel) telemetry.setAttribute(P.TELEM_ATTR_VIEW_LABEL, widgetLabel);
 
     // What the shape has so far, to complete values given in part
     let latest = (dataType, defaults) => {

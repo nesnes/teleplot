@@ -7,6 +7,7 @@ TELEPLOT.protocol = {
     TELEM_ATTR_AUTOPLOT: 3,
     TELEM_ATTR_DATA_TIMEOUT: 4,
     TELEM_ATTR_SHAPE: 5,
+    TELEM_ATTR_VIEW_LABEL: 6, // Telemetries with the same label are displayed in the same view when nobody arranged them ("name,label" in text)
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,

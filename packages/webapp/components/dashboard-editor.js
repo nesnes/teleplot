@@ -291,7 +291,9 @@ function initDashboardEditor(TP) {
     // Dropped telemetries (ids) become views at an index of a container: one view per kind of data (numbers together in a chart,
     // shapes and 3D points together in a 3D scene, the rest together in a values view), in the order the kinds appear. Images get a view
     // each: an image view shows one picture (the other telemetries of the view are drawn over it). Unknown ids are ignored. Returns the new views.
-    E.dropTelemetries = function(ids, containerId, index = -1) {
+    // "label": the ids are the telemetries of a view label (a label card of the Telemetries panel was dropped): the views are titled with
+    // it and follow it (the telemetries of that label that come later are added to them).
+    E.dropTelemetries = function(ids, containerId, index = -1, label = "") {
         let groups = new Map();
         for (let id of ids) {
             if (TP.datastore.getTelemetry(id) === undefined) continue;
@@ -303,7 +305,14 @@ function initDashboardEditor(TP) {
         let created = [];
         for (let { type, ids: list } of groups.values()) {
             let view = E.addView(type, containerId, index < 0 ? -1 : index + created.length, list);
-            if (view) created.push(view);
+            if (!view) continue;
+            if (label) { view.setOption("title", label); if (view.followLabel) view.followLabel(label); }
+            else { // Telemetries that happen to all have the same view label: the view is titled with it
+                let labels = new Set(list.map((id) => TP.datastore.getTelemetry(id).getAttribute(TP.protocol.TELEM_ATTR_VIEW_LABEL)));
+                let shared = labels.size === 1 ? labels.values().next().value : undefined;
+                if (shared && list.length > 1) view.setOption("title", shared);
+            }
+            created.push(view);
         }
         return created;
     };
@@ -521,6 +530,7 @@ function initDashboardEditor(TP) {
 
     const TELEMETRY_TYPE = "text/x-teleplot-drag-type-telemetry";
     const isTelemetryDrag = (event) => !!event.dataTransfer && Array.from(event.dataTransfer.types || []).includes(TELEMETRY_TYPE);
+    const dragLabel = (event) => Array.from(event.dataTransfer.types).includes("text/x-teleplot-drag-label") ? event.dataTransfer.getData("text/x-teleplot-drag-label") : "";
     function dragIds(event) {
         let ids = [Number(event.dataTransfer.getData("text/x-teleplot-drag-id"))];
         if (Array.from(event.dataTransfer.types).includes("text/x-teleplot-drag-ids")) ids = event.dataTransfer.getData("text/x-teleplot-drag-ids").split(",").map(Number);
@@ -588,7 +598,7 @@ function initDashboardEditor(TP) {
             if (!isTelemetryDrag(e)) return;
             e.preventDefault(); e.stopPropagation();
             b.classList.remove("tp-hot");
-            E.dropTelemetries(dragIds(e), b.__slot.containerId, b.__slot.index);
+            E.dropTelemetries(dragIds(e), b.__slot.containerId, b.__slot.index, dragLabel(e));
             setTelemetryDrag(false);
             E.refresh();
         });
@@ -823,7 +833,7 @@ function initDashboardEditor(TP) {
             markLooseTarget(undefined);
             if (!target) return;
             e.preventDefault();
-            E.dropTelemetries(dragIds(e), target.view.id, -1);
+            E.dropTelemetries(dragIds(e), target.view.id, -1, dragLabel(e));
             setTelemetryDrag(false);
             E.refresh();
         });

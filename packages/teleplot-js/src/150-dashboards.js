@@ -136,6 +136,8 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
 
 /*
  * Auto dashboard: new telemetries are displayed without any setup (like Teleplot V1: send data, see it).
+ * Telemetries that have the same view label (TELEM_ATTR_VIEW_LABEL, "name,label" in the text protocol) and are displayed the same way share
+ * one view, titled with the label. The label only decides where a telemetry first goes: one that is already displayed is not moved.
  * Number telemetries get a chart, shapes and 3D numbers share one 3D scene, other types a current value view, telemetries with the autoplot
  * attribute set to false (text protocol flag "np") are left alone. Views are added to a "grid" layout (charts two columns wide, values one).
  * The dashboard is created when the first telemetry shows up; onCreated(dashboard) lets the caller
@@ -143,7 +145,8 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
  */
 TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = () => {}) {
     let layout = undefined;
-    let scene = undefined; // The 3D view every shape goes to: things that live in the same space are seen together
+    let scene = undefined; // The 3D view every shape without label goes to: things that live in the same space are seen together
+    let labelled = {};     // "label|view type" -> the view of the telemetries of that label
     TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
         let dataType = Object.keys(telem.data)[0];
@@ -160,10 +163,13 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         }
 
         let type = TELEPLOT.view.suggestViewType(telem.id);
-        if (type == "3d" && scene !== undefined && layout.getViewFromId(scene.id) !== undefined) scene.addTelemetry(telem.id);
+        let label = type == "image" ? undefined : telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL); // An image view shows one picture: images are not grouped
+        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : undefined);
+        if (shared !== undefined && layout.getViewFromId(shared.id) !== undefined) shared.addTelemetry(telem.id); // (a view the user removed is not used anymore)
         else {
             let view = TELEPLOT.view.createView(type, [telem.id], dashboard.getGroupName());
-            if (type == "3d") scene = view;
+            if (label) { labelled[label + "|" + type] = view; view.setOption("title", label); view.followLabel(label); }
+            else if (type == "3d") scene = view;
             layout.addView(view);
         }
         if (isNew) onCreated(dashboard);

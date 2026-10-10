@@ -48,6 +48,7 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - `2` **TELEM_ATTR_COLOR**(null terminated string): color of the telemetry, as a CSS color string or hex code (ex: `blue`, `#2ecc71`).
         - `3` **TELEM_ATTR_AUTOPLOT**(uint8, default=1): set to 0 to prevent the automatic-display of this telemetry in the UI
         - `4` **TELEM_ATTR_DATA_TIMEOUT**(uint64, default=0): the validity-duration in nanoseconds associated to a telemetry data. Allows data to disappear from the UI automatically after a given duration. 0 means no timeout.
+        - `6` **TELEM_ATTR_VIEW_LABEL**(null terminated string): a label shared by telemetries that should be displayed together (ex: `motors`). When the viewer displays telemetries by itself, the ones with the same label go to the same view (per kind of view: numbers in a chart, shapes in a 3D view...). Same as `name,label` in the text protocol.
         - `5` **TELEM_ATTR_SHAPE** `{TELEM_ATTR_SHAPE_TYPE[8] - TELEM_ATTR_SHAPE_DATA[x]}`:
           - `0` **TELEM_ATTR_SHAPE_TYPE_CUBE**: the 2D object is a square, and the 3D object is a cube. (no **TELEM_ATTR_SHAPE_DATA**)
           - `1` **TELEM_ATTR_SHAPE_TYPE_SPHERE**: the 2D object is a circle, and the 3D object is a sphere. (no **TELEM_ATTR_SHAPE_DATA**)

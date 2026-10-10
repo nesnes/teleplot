@@ -207,6 +207,28 @@ test('image views: added from the menu, dropped images get a view each', () => {
     assert.deepEqual(created.map(v => Array.from(v.telemetryIdOrNameList)), [[id('front')], [id('box')], [id('rear')]]);
 });
 
+test('dropTelemetries: telemetries that share a view label give views titled with it', () => {
+    const { T, editor, root } = setup();
+    T.parseDataText({ data: 'left,motors:1\nright,motors:2\nstate,motors:on|t\nother:3', timestamp: 0 });
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const created = editor.dropTelemetries([id('left'), id('right'), id('state')], root.id); // what a label card of the Telemetries panel drags
+    assert.deepEqual(created.map(v => [editor.typeLabel(v), v.getOption('title') || '']), [['Chart', 'motors'], ['Values', '']], 'a single telemetry needs no title');
+    assert.equal(editor.dropTelemetries([id('left'), id('other')], root.id)[0].getOption('title') || '', '', 'not all of the same label');
+});
+
+test('dropTelemetries with a label: the views are titled with it and follow it', () => {
+    const { T, editor, root } = setup();
+    const send = (data) => { T.parseDataText({ data, timestamp: 0 }); T.__timers.run(); };
+    send('left,motors:1\nstate,motors:on|t');
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const created = editor.dropTelemetries([id('left'), id('state')], root.id, -1, 'motors');
+    assert.deepEqual(created.map(v => [editor.typeLabel(v), v.getOption('title'), Array.from(v.options.followLabels)]), [['Chart', 'motors', ['motors']], ['Values', 'motors', ['motors']]]);
+    send('right,motors:2\nmode,motors:auto|t\nfree:3');
+    assert.deepEqual(created.map(v => Array.from(v.telemetryIdOrNameList)), [[id('left'), id('right')], [id('state'), id('mode')]]);
+    // Without label nothing is followed
+    assert.deepEqual(Array.from(editor.dropTelemetries([id('left'), id('right')], root.id)[0].options.followLabels), []);
+});
+
 test('disabling edit mode clears the selection; changing the root resets it', () => {
     const { editor, a } = setup();
     editor.setEnabled(true); editor.select(a.id);

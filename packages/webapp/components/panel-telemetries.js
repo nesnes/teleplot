@@ -4,6 +4,8 @@
  * - Search: words separated by spaces must all be in the name (case-insensitive), matches are highlighted, groups stay a tree (opened on the matches).
  * - Type selectors: toggle data types, the counts follow the search.
  * - Tiles and group headers are draggable (a group adds all its telemetries to the view it is dropped on).
+ * - View labels ("name,label" in the text protocol): each label has a card of its own, to drag all its telemetries at once. The telemetries
+ *   of a label are only listed inside its card, which is folded until opened.
  */
 function initComponent_panel_telemetries(vue) {
     let name = "panel-telemetries";
@@ -42,9 +44,10 @@ function initComponent_panel_telemetries(vue) {
                         </div>
                     </div>
 
-                    <details v-for="group in section.groups" :key="group.key" :open="isOpen(group.key)" @toggle="onToggle(group.key, $event)">
-                        <summary draggable="true" :title="'Drag to add the ' + group.items.length + ' telemetries of this group'"
-                            @dragstart.stop="onDragStart($event, group.items.map(i => i.id))" @dragover.stop.prevent>
+                    <details v-for="group in section.groups" :key="group.key" :class="{'telemetries-label': group.isLabel}" :open="isOpen(group)" @toggle="onToggle(group.key, $event)">
+                        <summary draggable="true" :title="group.isLabel ? 'Label: drag to add its ' + group.items.length + ' telemetries (and the ones that will come with this label), click to see them' : 'Drag to add the ' + group.items.length + ' telemetries of this group'"
+                            @dragstart.stop="onDragStart($event, group.items.map(i => i.id), group.isLabel ? group.label : '')" @dragover.stop.prevent>
+                            <i v-if="group.isLabel" class="icofont-tag"></i>
                             <span><template v-for="seg in segmentsOf(group.label)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span>
                             <span class="telemetries-group-count">{{group.items.length}}</span>
                             <span class="telemetries-grow"></span>
@@ -54,7 +57,7 @@ function initComponent_panel_telemetries(vue) {
                             <div v-for="item in group.items" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
                                 draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent>
                                 <span class="telemetries-name">
-                                    <span class="telemetries-dim"><template v-for="seg in segments(item, 0, item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span><template v-for="seg in segments(item, item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template>
+                                    <span class="telemetries-dim"><template v-for="seg in segments(item, 0, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span><template v-for="seg in segments(item, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template>
                                 </span>
                                 <span class="telemetries-value-line">
                                     <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
@@ -134,6 +137,10 @@ function initComponent_panel_telemetries(vue) {
         .telemetries-layout summary::before { content: "\\25B8"; position: absolute; left: 0.2rem; color: var(--color-text-muted); transition: transform 0.12s; }
         .telemetries-layout details[open] > summary::before { transform: rotate(90deg); }
         .telemetries-layout summary:hover { background: var(--color-bg-dark); }
+        /* A view label: a card of its own (dashed), its telemetries are behind it */
+        .telemetries-layout details.telemetries-label { border: 1px dashed var(--color-text-muted); border-radius: 0.4rem; margin-bottom: 0.35rem; }
+        .telemetries-layout details.telemetries-label > summary { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+        .telemetries-layout details.telemetries-label[open] { padding-bottom: 0.3rem; }
         .telemetries-group-count { font-weight: 400; font-size: 0.85rem; color: var(--color-text-muted); }
         .telemetries-grow { flex: 1; }
         .telemetries-dots { display: inline-flex; gap: 0.15rem; }
@@ -219,14 +226,15 @@ function initComponent_panel_telemetries(vue) {
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
                     const rest = path.slice(1).join(sep);
                     const mainType = types.length ? types[0] : "other";
+                    const label = telem.attributes[P.TELEM_ATTR_VIEW_LABEL] || "";
                     const rate = this.rateText(telem, types);
                     list.push({
-                        id: telem.id, name, unit, types, mainType, clientId: telem.clientId,
+                        id: telem.id, name, unit, types, mainType, label, clientId: telem.clientId,
                         group: path.length > 1 ? path[0] : null,
                         dimLength: path.length > 1 ? name.length - rest.length : 0, // The group and its separator are dimmed
                         valueText: this.valueText(telem, types),
                         rateText: this.rateText(telem, types),
-                        tooltip: name + "\n" + (types.length ? types.map(t => this.typeLabel(t)).join(", ") : "No data yet") + (unit ? "\nUnit: " + unit : "") + (rate ? "\nUpdate rate: " + rate : ""),
+                        tooltip: name + "\n" + (types.length ? types.map(t => this.typeLabel(t)).join(", ") : "No data yet") + (unit ? "\nUnit: " + unit : "") + (label ? "\nLabel: " + label : "") + (rate ? "\nUpdate rate: " + rate : ""),
                         lower: name.toLowerCase(),
                     });
                 }
@@ -250,18 +258,24 @@ function initComponent_panel_telemetries(vue) {
                 return Object.entries(byClient).map(([clientId, list]) => {
                     const groups = {};
                     const ungrouped = [];
-                    for (const item of list) {
-                        if (item.group === null) ungrouped.push(item);
+                    const labels = {};
+                    for (const item of list) { // A telemetry with a view label is listed under its label only
+                        if (item.label) (labels[item.label] = labels[item.label] || []).push(item);
+                        else if (item.group === null) ungrouped.push(item);
                         else (groups[item.group] = groups[item.group] || []).push(item);
                     }
                     return {
                         id: clientId,
                         title: titled ? (clients[clientId] ? clients[clientId].name : "") : "",
                         ungrouped,
-                        groups: Object.entries(groups).map(([label, items]) => ({
-                            key: clientId + "/" + label, label, items,
+                        // Labels first (folded until opened: their card is there to drag them all at once), then the groups made from the names
+                        groups: Object.entries(labels).map(([label, items]) => ({
+                            key: clientId + "/label/" + label, label, items, isLabel: true,
                             types: [...new Set(items.flatMap(i => i.types))],
-                        })),
+                        })).concat(Object.entries(groups).map(([label, items]) => ({
+                            key: clientId + "/" + label, label, items, isLabel: false,
+                            types: [...new Set(items.flatMap(i => i.types))],
+                        }))),
                     };
                 });
             },
@@ -305,7 +319,8 @@ function initComponent_panel_telemetries(vue) {
                 const idx = this.selectedTypes.indexOf(code);
                 if (idx >= 0) this.selectedTypes.splice(idx, 1); else this.selectedTypes.push(code);
             },
-            isOpen(key) { return this.searching || this.openGroups[key] !== false; },
+            // Groups are open until closed, labels closed until opened; a search opens everything it finds
+            isOpen(group) { return this.searching || (group.isLabel ? this.openGroups[group.key] === true : this.openGroups[group.key] !== false); },
             onToggle(key, event) { if (!this.searching) this.openGroups[key] = event.target.open; },
             // Cut text in {t, m} pieces, m = matches a search word. Matches are found in the whole name, [from, to) is the part displayed.
             segmentsOf(text, from = 0, to = text.length) {
@@ -323,8 +338,10 @@ function initComponent_panel_telemetries(vue) {
                 return out;
             },
             segments(item, from, to) { return this.segmentsOf(item.name, from, to === undefined ? item.name.length : to); },
-            onDragStart(event, ids) {
+            // label: the ids are all the telemetries of a view label; the views they are dropped on will follow that label
+            onDragStart(event, ids, label = "") {
                 event.dataTransfer.setData("text/x-teleplot-drag-type-telemetry", "");
+                if (label) event.dataTransfer.setData("text/x-teleplot-drag-label", label);
                 event.dataTransfer.setData("text/x-teleplot-drag-id", ids[0]);
                 if (ids.length > 1) event.dataTransfer.setData("text/x-teleplot-drag-ids", ids.join(","));
                 return true;

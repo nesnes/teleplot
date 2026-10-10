@@ -110,6 +110,10 @@ function initComponent_panel_edit(vue) {
                   <label class="edit-field">Title
                     <input type="text" class="edit-input" v-model="selected.options.title" placeholder="none" spellcheck="false">
                   </label>
+                  <div v-for="label in (selected.options.followLabels || [])" :key="label" class="edit-field" title="New telemetries that have this label are added to this view">
+                    <span><i class="icofont-tag"></i> Follows label <b>{{ label }}</b></span>
+                    <button class="edit-icon small" title="Stop following this label" aria-label="Stop following this label" @click="selected.unfollowLabel(label); tick++"><i class="icofont-close"></i></button>
+                  </div>
                   <div class="edit-section">{{ selected.type == 'teleplot-chart' ? 'Series' : 'Telemetries' }} <span class="edit-count">{{ telemetries.length }}</span></div>
                   <div v-if="!telemetries.length" class="edit-hint">Nothing displayed yet. Add a telemetry below, or drop one from the Telemetries panel on the view.</div>
                   <div v-for="(t, i) in telemetries" :key="t.key" class="edit-field edit-draggable"

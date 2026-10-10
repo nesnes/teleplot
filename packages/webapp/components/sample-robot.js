@@ -74,35 +74,42 @@ function createRobotSample(TP) {
     };
     const NUMBER = P.SECTION_TYPE_TELEM_DATA_NUMBER, NUMBER_2D = P.SECTION_TYPE_TELEM_DATA_NUMBER_2D;
     const TEXT = P.SECTION_TYPE_TELEM_DATA_TEXT, IMAGE = P.SECTION_TYPE_TELEM_DATA_IMAGE;
-    const log = (name, level, text) => put(name, TEXT, [`[${level}] ${text}`]); // One text telemetry per subsystem, merged by the Log view
+    const log = (name, level, text) => { // One text telemetry per subsystem, merged by the Log view; they share the view label "logs"
+        put(name, TEXT, [`[${level}] ${text}`]);
+        TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_VIEW_LABEL, "logs");
+    };
 
     // 3D shapes: a shape is a telemetry with a shape attribute, its data are its position, orientation, size, color...
     const POSITION = P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, QUATERNION = P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, SIZE = P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE;
-    const shape = (name, type, size, color, opacity = 255) => { // What does not change is sent once
+    // View labels: what makes the robot and what makes its environment. Telemetries of a label are displayed together by default, and the
+    // Telemetries panel has a card per label to drag them all at once.
+    const ROBOT = "robot", ENVIRONMENT = "environment";
+    const shape = (name, label, type, size, color, opacity = 255) => { // What does not change is sent once
         if (TP.datastore.getTelemetry(name)) return;
         put(name, SIZE, size);
         put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, [color]);
         if (opacity < 255) put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, [opacity]);
         TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_SHAPE, { type, data: "" });
+        TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_VIEW_LABEL, label);
     };
     function publish3D() { // 25 Hz
         const CUBE = P.TELEM_ATTR_SHAPE_TYPE_CUBE, CYLINDER = P.TELEM_ATTR_SHAPE_TYPE_CYLINDER, SPHERE = P.TELEM_ATTR_SHAPE_TYPE_SPHERE;
         if (!TP.datastore.getTelemetry("robot.3d.floor")) {
-            shape("robot.3d.floor", CUBE, [W, H, 0.02], "#7f8c8d", 110);
+            shape("robot.3d.floor", ENVIRONMENT, CUBE, [W, H, 0.02], "#7f8c8d", 110);
             put("robot.3d.floor", POSITION, [W / 2, H / 2, -0.01]);
             // Walls: low and a bit transparent, so that the robot stays visible from outside the arena
             const T = WALL_T, TALL = WALL_TALL;
             const walls = [["back", [-T / 2, H / 2], [T, H]], ["front", [W + T / 2, H / 2], [T, H]], ["right", [W / 2, -T / 2], [W, T]], ["left", [W / 2, H + T / 2], [W, T]]];
             walls.forEach(([name, [x, y], [sx, sy]], i) => {
-                shape("robot.3d.wall." + name, CUBE, [sx, sy, TALL], WALL_COLORS[i], 200);
+                shape("robot.3d.wall." + name, ENVIRONMENT, CUBE, [sx, sy, TALL], WALL_COLORS[i], 200);
                 put("robot.3d.wall." + name, POSITION, [x, y, TALL / 2]);
             });
         }
-        shape("robot.3d.body", CUBE, [0.3, WHEEL_BASE - 0.06, 0.1], "#2980b9");
-        shape("robot.3d.wheel.left", CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
-        shape("robot.3d.wheel.right", CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
-        shape("robot.3d.screen", CUBE, [0.01, 0.24, 0.18], "white");
-        shape("robot.3d.obstacle", SPHERE, [0.1, 0.1, 0.1], "#e74c3c", 170);
+        shape("robot.3d.body", ROBOT, CUBE, [0.3, WHEEL_BASE - 0.06, 0.1], "#2980b9");
+        shape("robot.3d.wheel.left", ROBOT, CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
+        shape("robot.3d.wheel.right", ROBOT, CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
+        shape("robot.3d.screen", ROBOT, CUBE, [0.01, 0.24, 0.18], "white");
+        shape("robot.3d.obstacle", ENVIRONMENT, SPHERE, [0.1, 0.1, 0.1], "#e74c3c", 170);
         if (!TP.datastore.getTelemetry("robot.3d.screen").data[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE]) {
             put("robot.3d.screen", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, [P.TEXTURE_TYPE_IMAGE, "robot.camera"]); // Shows the image telemetry
         }
@@ -122,6 +129,7 @@ function createRobotSample(TP) {
         const d = ray(bot.a).d;
         put("robot.3d.obstacle", POSITION, [bot.x + Math.cos(bot.a) * d, bot.y + Math.sin(bot.a) * d, 0.09]);
         put("robot.path", P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, [bot.x, bot.y, 0.005], "m");
+        TP.datastore.getTelemetry("robot.path").setAttribute(P.TELEM_ATTR_VIEW_LABEL, ROBOT);
     }
 
     function publishFast() { // every step
