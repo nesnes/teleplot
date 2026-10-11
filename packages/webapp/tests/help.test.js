@@ -15,6 +15,11 @@ for (const example of HELP_EXAMPLES) {
         const T = loadTeleplot();
         T.parseDataText(example.code);
         const P = T.protocol, e = example.expect;
+        if (e.dashboard) {
+            T.__timers.run();
+            assert.ok(T.dashboards.getDashboard(e.dashboard), 'dashboard ' + e.dashboard + ' exists');
+            if (!e.name) return; // A dashboard line: no telemetry
+        }
         if (e.log) {
             const logs = Object.values(T.datastore.telemetries).filter(t => t.data[P.SECTION_TYPE_TELEM_DATA_TEXT]);
             assert.equal(logs.length, 1);
@@ -81,6 +86,13 @@ test('examples of a step build on each other: sent in order, a step gives what i
     assert.deepEqual(find(T, 'speed').data[T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER].data[0], [0], 'clr forgot the samples sent before');
     T = run('Text: states and logs');
     assert.deepEqual(views(T), ['current-value::1', 'log:logs:1', 'log::1']);
+    // The dashboard step: the telemetries place themselves, the lines size their chart and add a column with a log
+    T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    assert.equal(T.parseDataText(HELP_STEPS.find(s => s.title == 'Your own dashboard').examples.map(e => e.code).join('\n')), 0);
+    T.__timers.run();
+    assert.equal(T.dashboards.getDashboard('Live'), undefined, 'nothing went to the Live dashboard');
+    assert.deepEqual(T.dashboards.exportText('Robot').split('\n'), ['DASH|Robot:grid', 'DASH|Robot/Motion:chart:speed,accel|w=4|h=3', 'DASH|Robot/side:column', 'DASH|Robot/side/Log:log:nav,state|maxLines=50']);
 });
 
 test('shortcuts listed in the help exist in the top menu', () => {
@@ -110,6 +122,8 @@ test('helpColorize cuts a message in its parts without changing it', () => {
     assert.deepEqual(kinds('lidar:9000;1:0:0;0:1:0|pc'), ['name=lidar', 'time=9000', 'value=1:0:0', 'value=0:1:0', 'flags=pc']);
     assert.deepEqual(kinds('3D|box:S:cube:P:1:0:0.5'), ['flags=3D|', 'name=box', 'value=S:cube:P:1:0:0.5']);
     assert.deepEqual(kinds('>:Motors armed'), ['flags=>', 'value=Motors armed']);
+    assert.deepEqual(kinds('DASH|Robot/Motion:chart:speed,accel|w=2|h=3'), ['flags=DASH|', 'name=Robot/Motion', 'value=chart:speed,accel', 'flags=w=2|h=3']);
+    assert.deepEqual(kinds('DASH|Robot'), ['flags=DASH|', 'name=Robot']);
     assert.deepEqual(kinds('left,motors:0.4'), ['name=left,motors', 'value=0.4']);
     assert.deepEqual(kinds('half'), ['name=half'], 'a message being typed');
     assert.deepEqual(kinds(''), []);
@@ -132,6 +146,7 @@ test('helpLine writes the line of each way to send; what a serial port receives 
         const T = loadTeleplot();
         assert.equal(T.parseDataText({ data: sent, fromSerial: true }), 0, sent);
         if (example.expect.log) continue;
+        if (!example.expect.name) { assert.ok(T.dashboards.getDashboard(example.expect.dashboard), 'serial: ' + sent); continue; }
         assert.ok(find(T, example.expect.name), 'serial: ' + sent);
     }
 });
@@ -153,7 +168,11 @@ test('helpDescribe tells what Teleplot made of a message sent from the panel', (
     assert.match(say('left,motors:0.4'), /named left\./);
     assert.match(say('debug:42|np'), /not charted automatically/);
     assert.match(say('>:Motors armed'), /a log line/);
-    for (const wrong of ['hello', 'value:abc', 'bad:1:2:3;4:5|pc']) {
+    assert.match(say('speed,Robot/Motion:1.2'), /named speed\..*on the Robot dashboard/);
+    assert.match(say('DASH|Robot/top/Motion:chart:speed'), /the view top\/Motion of the dashboard Robot/);
+    assert.match(say('DASH|Robot:row'), /the layout of the dashboard Robot/);
+    assert.match(say('DASH|Robot/Motion:none'), /is removed/);
+    for (const wrong of ['hello', 'value:abc', 'bad:1:2:3;4:5|pc', 'DASH|Robot/Motion:pie', 'DASH|Robot/Motion:chart|w=wide']) {
         const T = loadTeleplot();
         const answer = helpDescribe(T, wrong, T.parseDataText(wrong));
         assert.equal(answer.ok, false, wrong);

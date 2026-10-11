@@ -54,6 +54,13 @@ const HELP_STEPS = [
         { code: "3D|camera:K:554:554:320:240:640:480:P:0:0:1", note: "Sent to the same name as the image above: its camera. K: fx, fy, cx, cy, width, height in pixels. P (and R or Q): where the camera is.", expect: { name: "camera", camera: true } },
         { code: "3D|camera:DC:-0.26:0.07:0:0:0", note: "DC: the distortion of its lens (k1, k2, p1, p2, k3), so that what is drawn follows the curves of the picture.", expect: { name: "camera", distortion: [-0.26, 0.07, 0, 0, 0] } },
     ] },
+    { title: "Your own dashboard", intro: "A device can say where its telemetries go, and describe whole dashboards, with the same kind of lines. The dashboard menu exports any dashboard as such lines, and imports them.", examples: [
+        { code: "speed,Robot/Motion:1.2", note: "A label that is a path: the dashboard, a slash, the view. Both are created if needed.", expect: { name: "speed", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
+        { code: "accel,Robot/Motion:0.3", note: "Same path: it joins the chart \"Motion\" of the dashboard \"Robot\".", expect: { name: "accel", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
+        { code: "DASH|Robot/Motion:chart|w=4|h=3", note: "A DASH| line describes a view by its path: its type (chart, values, log, 3d, image), then options (here its width and height). Send it again to change the view.", expect: { dashboard: "Robot" } },
+        { code: "DASH|Robot/side/Log:log:nav,state|maxLines=50", note: "After the type, the telemetries the view shows, by name: they do not have to exist yet. A longer path nests the view in layouts, created on the way.", expect: { dashboard: "Robot" } },
+        { code: "DASH|Robot/side:column", note: "A layout has a line too: row, column, grid or stack. Lines can come in any order; the type none removes a view.", expect: { dashboard: "Robot" } },
+    ] },
 ];
 const HELP_EXAMPLES = HELP_STEPS.flatMap((step) => step.examples);
 
@@ -87,6 +94,17 @@ function helpColorize(message) {
         add(">", "flags");
         if (colon < 0) { add(rest.slice(1), "value"); return parts; }
         add(rest.slice(1, colon), "time"); add(":"); add(rest.slice(colon + 1), "value");
+        return parts;
+    }
+    if (rest.startsWith("DASH|")) { // A dashboard line: DASH|path:type:telemetries|option=value|...
+        add("DASH|", "flags");
+        rest = rest.slice(5);
+        const options = rest.indexOf("|");
+        const head = options < 0 ? rest : rest.slice(0, options);
+        const colon = head.indexOf(":");
+        add(colon < 0 ? head : head.slice(0, colon), "name");
+        if (colon >= 0) { add(":"); add(head.slice(colon + 1), "value"); }
+        if (options >= 0) { add("|"); add(rest.slice(options + 1), "flags"); }
         return parts;
     }
     const prefix = /^(3D|JPG|PNG)\|/.exec(rest);
@@ -137,6 +155,12 @@ function helpLine(senderId, example) {
 // What Teleplot made of a message that was just given to its parser: {ok, text}. `problems` is what parseDataText returned.
 function helpDescribe(TP, message, problems) {
     message = String(message).trim();
+    if (message.startsWith("DASH|")) {
+        const line = TP.dashboards.parseLine(message);
+        if (problems > 0 || !line) return { ok: false, text: "Teleplot did not understand this dashboard line. It is DASH|dashboard/view:type:telemetries|option=value, for example DASH|Robot/Motion:chart:speed" };
+        if (line.type == "none") return { ok: true, text: "Received: " + (line.segments.length ? "the view " + line.segments.join("/") + " of the dashboard " + line.name : "the dashboard " + line.name) + " is removed." };
+        return { ok: true, text: "Received: " + (line.segments.length ? "the view " + line.segments.join("/") + " of the dashboard " + line.name : "the layout of the dashboard " + line.name) + ". Sending the same line again changes nothing." };
+    }
     if (problems > 0 || !message.includes(":")) return { ok: false, text: "Teleplot did not understand this line. A message is name:value, for example temperature:25.3" };
     if (message.startsWith(">")) return { ok: true, text: "Received: a log line. Text telemetries are shown by a Log view." };
     const prefix = /^(3D|JPG|PNG)\|/.exec(message);
@@ -165,7 +189,8 @@ function helpDescribe(TP, message, problems) {
         if (samples > 1) what = samples + " numbers";
     }
     const charted = telem.getAttribute(P.TELEM_ATTR_AUTOPLOT) !== false;
-    return { ok: true, text: "Received: " + what + " named " + name + ". It is in the Telemetries panel" + (charted ? " and on the Live dashboard." : ", not charted automatically.") };
+    const placed = TP.dashboards.getLabelPath(telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL)); // A label that is a path: its own dashboard
+    return { ok: true, text: "Received: " + what + " named " + name + ". It is in the Telemetries panel" + (charted ? " and on the " + (placed ? placed.name : "Live") + " dashboard." : ", not charted automatically.") };
 }
 
 function initComponent_panel_help(vue) {
@@ -218,6 +243,7 @@ function initComponent_panel_help(vue) {
                     <div class="help-step-fold" :inert="openStep != index + 1"><div class="help-step-body">
                         <p class="help-step-intro">{{step.intro}}</p>
                         <div v-for="ex in step.examples" :key="ex.code" class="help-example">
+                            <p class="help-example-note">{{ex.note}}</p>
                             <div class="help-code"><code>${colored("line(ex).parts")}</code>
                                 <div class="help-actions">
                                     <button class="help-act" title="Put this message in the field at the top, to change it before sending it" @click.stop="tryMessage(ex.code)"><i class="icofont-edit"></i> Edit</button>
@@ -227,7 +253,6 @@ function initComponent_panel_help(vue) {
                             </div>
                             <small v-if="sent.code == ex.code" class="help-sent" :class="{bad: !sent.ok}" role="status"><i></i>{{sent.text}}</small>
                             <small v-if="line(ex).note" class="help-missing">{{line(ex).note}}</small>
-                            <small>{{ex.note}}</small>
                         </div>
                     </div></div>
                 </div>
@@ -341,7 +366,12 @@ function initComponent_panel_help(vue) {
         .help-step-body > :last-child { margin-bottom: 0.55rem; }
         @media (prefers-reduced-motion: reduce) { .help-step-fold { transition: none; } }
         .help-layout p.help-step-intro { margin: 0 0 0.5rem; line-height: 1.4; }
-        .help-example + .help-example { margin-top: 0.55rem; }
+        /* An example is one block: what it does, then the line that does it (and what the page answered) */
+        .help-example { padding: 0.45rem 0.5rem 0.5rem; border-radius: 0.45rem; background: var(--color-bg); border-left: 3px solid color-mix(in srgb, var(--color-primary) 55%, transparent); }
+        .help-example + .help-example { margin-top: 0.6rem; }
+        .help-layout p.help-example-note { margin: 0 0 0.4rem; font-size: 0.9rem; line-height: 1.35; color: var(--color-text); }
+        .help-example .help-code code { background: var(--color-bg-light); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
+        .help-example small { margin-top: 0.35rem; }
         .help-code { position: relative; }
         .help-code code {
             display: block; padding: 0.4rem 0.55rem 1.7rem; border-radius: 0.35rem;

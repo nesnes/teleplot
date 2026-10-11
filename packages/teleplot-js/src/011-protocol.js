@@ -15,6 +15,7 @@ TELEPLOT.protocol = {
     TELEM_ATTR_SHAPE_TYPE_STL: 10,
     SECTION_TYPE_RESERVED: 0,
     SECTION_TYPE_CLIENT_NAME: 1,
+    SECTION_TYPE_DASHBOARD: 2, // Dashboard lines, as in the text protocol ("DASH|Robot/Motion:chart:speed"), one or several separated by line feeds
     SECTION_TYPE_TELEM_ATTR: 10,
     SECTION_TYPE_TELEM_DATA_NUMBER: 20,
     SECTION_TYPE_TELEM_DATA_NUMBER_2D: 21,

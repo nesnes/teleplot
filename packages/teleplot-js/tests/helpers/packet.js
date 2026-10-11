@@ -17,6 +17,7 @@ class PacketBuilder {
     str(s) { this.bytes.push(...Buffer.from(s, 'utf8'), 0); return this; }
 
     clientName(name) { return this.u8(SECTION.CLIENT_NAME).str(name); }
+    dashboard(lines) { return this.u8(2).str(lines); } // Dashboard lines ("DASH|..."), separated by line feeds
     // attrs: [[code, value], ...]
     attrs(telemId, list) {
         this.u8(SECTION.ATTR).u16(telemId).u8(list.length);

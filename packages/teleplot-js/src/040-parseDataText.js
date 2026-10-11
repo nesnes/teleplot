@@ -26,6 +26,8 @@ TELEPLOT.parseDataText = function(msgIn){
             // Log
             else if(msg.startsWith(">"))
                 _parseDataText_parseLog(msg, now, msgIn.input);
+            // Dashboard: a view described by its path (151-dashboardText.js)
+            else if (msg.substring(0,5) == "DASH|") { if(!TELEPLOT.dashboards.receiveLine(msg)) problems++; }
             // 3D
             else if (msg.substring(0,3) == "3D|")
                 _parseDataText_parse3D(msg, now);

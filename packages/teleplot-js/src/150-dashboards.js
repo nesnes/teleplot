@@ -210,6 +210,8 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
     let labelled = {};     // "label|view type" -> the view of the telemetries of that label
     TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
+        // A label that is a path ("Robot/Motion") says in which dashboard the telemetry goes: see placeTelemetry (151-dashboardText.js)
+        if (TELEPLOT.dashboards.getLabelPath(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL)) !== undefined) return;
         let dataType = Object.keys(telem.data)[0];
         if (dataType === undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) === undefined) return; // No data (yet): nothing to display
         // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
@@ -221,10 +223,13 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         let dashboard = TELEPLOT.dashboards.getOrCreateDashboard(name);
         if (isNew) {
             dashboard.isAuto = true;
-            layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
-            layout.layout.type = "grid";
-            layout.layout.align = "stretch";
-            dashboard.setView(layout);
+            if (dashboard.view && Array.isArray(dashboard.view.views)) layout = dashboard.view; // (a dashboard of that name was received first)
+            else {
+                layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
+                layout.layout.type = "grid";
+                layout.layout.align = "stretch";
+                dashboard.setView(layout);
+            }
         }
 
         let type = TELEPLOT.view.suggestViewType(telem.id);

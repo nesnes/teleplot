@@ -37,6 +37,11 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
   - `1` **CLIENT_NAME**: Defines the name of the client that emits this packet
     - **SECTION_DATA**: `{CLIENT_NAME[null terminate string]}`
 
+  - `2` **DASHBOARD**: Describes views of a dashboard, with the same lines as the text protocol (see `dashboard-text.md`)
+    - **SECTION_DATA**: `{LINES[null terminate string]}`
+      - **LINES**: one or several lines `DASH|dashboard/view:type:telemetries|option=value`, separated by line feeds (`\n`). Telemetries are named as in their `TELEM_ATTR_NAME` attribute. A line is applied when it differs from the last one received for the same path, so the section can be sent again at will.
+      - A telemetry can also place itself: a `TELEM_ATTR_VIEW_LABEL` attribute that is a path (`Robot/Motion`) puts it in that view of that dashboard.
+
   - `10` **TELEM_ATTR**: Definition of telemetry attributes.
     - **SECTION_DATA**: `{TELEM_ID[16]} - {COUNT[8]} - TELEM_ATTR({TELEM_ATTR_CODE[8]} - {TELEM_ATTR_DATA})...`
       - **TELEM_ID**(uint16): client-defined, per-client-unique, id of the telemetry described.

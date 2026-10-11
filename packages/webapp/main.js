@@ -16,7 +16,8 @@ var app = Vue.createApp({
                 showHelp: true,
                 sampleRunning: false,
                 bandVisible: false, // The band above the dashboard (room for the top menu) is scrolled into view
-                activeDashboard: null
+                activeDashboard: null,
+                importNotice: "" // What went wrong with the dashboard files that were just imported (shown in the dashboard list)
             }),
             editor: null,
             shownPanel: "", // The side panel on display: it stays until the dock has finished closing
@@ -96,6 +97,21 @@ var app = Vue.createApp({
         this.TP.dashboards.enableAutoDashboard("Live", (dashboard)=>{
             if (!this.ctx.activeDashboard) this.ctx.activeDashboard = dashboard;
         });
+        // A dashboard that a device describes (DASH lines, labels that are paths) is displayed when it shows up, unless the user is
+        // looking at a dashboard of their own or editing
+        this.TP.dashboards.onReceivedDashboardHooks.push((dashboard)=>{
+            const active = this.ctx.activeDashboard;
+            if (!active || (active.isAuto && !this.editor.state.enabled)) this.ctx.activeDashboard = dashboard;
+        });
+        // Dashboard files dropped on the page are imported (see top-menu.js)
+        this._onFileDragOver = (event)=>{ if (event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault(); };
+        this._onFileDrop = (event)=>{
+            if (!event.dataTransfer || !event.dataTransfer.files || !event.dataTransfer.files.length) return;
+            event.preventDefault();
+            importDashboardFiles(this.TP, this.ctx, event.dataTransfer.files);
+        };
+        window.addEventListener("dragover", this._onFileDragOver);
+        window.addEventListener("drop", this._onFileDrop);
         console.log("Teleplot loaded:", this.TP);
         Vue.provide("TP", this.TP);
         Vue.provide("ctx", this.ctx);

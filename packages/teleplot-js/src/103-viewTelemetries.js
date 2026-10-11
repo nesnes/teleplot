@@ -234,6 +234,19 @@ TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
     }
 });
 
+// Views can be given the name of a telemetry that does not exist yet (a dashboard described before its data). Telemetries of the
+// text protocol are found by their name; the others (binary protocol: an id, and a name as an attribute) take their place here.
+TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
+    let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
+    if(!name || TELEPLOT.datastore.getTelemetry(name) !== undefined) return;
+    for(let view of TELEPLOT.view.views) {
+        let list = view.telemetryIdOrNameList;
+        if(!list) continue;
+        let index = list.indexOf(name);
+        if(index >= 0) list.splice(index, 1, telem.id);
+    }
+});
+
 // Add css to head
 {
     let elem = document.createElement('style');

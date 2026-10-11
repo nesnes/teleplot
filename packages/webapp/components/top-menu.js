@@ -20,6 +20,38 @@
 const IDLE_MS = 3000; // Without mouse or keyboard activity for this long, the island fades out
 const ACTIVITY_EVENTS = ["pointermove", "pointerdown", "keydown", "touchstart"];
 
+// Dashboards as text files: one "DASH|..." line per view (the library writes and reads them, see doc/dashboard-text.md)
+function dashboardFileName(name) {
+    return (String(name).replace(/[\\/:*?"<>|\x00-\x1f]+/g, "_").trim() || "dashboard") + ".dashboard.txt";
+}
+function exportDashboardFile(TP, dashboard) {
+    const url = URL.createObjectURL(new Blob([TP.dashboards.exportText(dashboard.name) + "\n"], { type: "text/plain" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = dashboardFileName(dashboard.name);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+// Creates the dashboards of text files (picked, or dropped on the page) and displays the first one. Nothing that exists is replaced:
+// a name that is taken gives "name 2". What went wrong is said in the dashboard list (ctx.importNotice), which opens for it.
+async function importDashboardFiles(TP, ctx, files) {
+    const created = [], notes = [];
+    for (const file of Array.from(files || [])) {
+        let text = "";
+        try { text = await file.text(); } catch (e) { notes.push("\"" + file.name + "\" could not be read."); continue; }
+        if (!/^DASH\|/m.test(text)) { notes.push("No dashboard in \"" + file.name + "\": its lines must start with DASH|"); continue; }
+        const result = TP.dashboards.importText(text);
+        created.push(...result.dashboards);
+        if (result.problems) notes.push(result.problems + (result.problems == 1 ? " line" : " lines") + " of \"" + file.name + "\" " + (result.problems == 1 ? "was" : "were") + " not understood.");
+    }
+    if (created.length) ctx.activeDashboard = TP.dashboards.getDashboard(created[0]);
+    ctx.importNotice = notes.join(" ");
+    ctx.topPanel = notes.length ? "dashboard" : (ctx.topPanel == "dashboard" ? "" : ctx.topPanel);
+    return created;
+}
+
 function initComponent_top_menu(vue) {
     let name = "top-menu";
 
@@ -60,6 +92,9 @@ function initComponent_top_menu(vue) {
                                     <button class="tm-row-edit" title="Edit dashboard" aria-label="Edit dashboard" @click="editDashboard(dashboard);">
                                         <i class="icofont-duotone icofont-pencil"></i>
                                     </button>
+                                    <button class="tm-row-edit" title="Export dashboard (a text file, one line per view)" aria-label="Export dashboard" @click="exportDashboard(dashboard);">
+                                        <i class="icofont-download"></i>
+                                    </button>
                                     <button v-if="!dashboard.isAuto" class="tm-row-edit tm-row-delete" title="Delete dashboard" aria-label="Delete dashboard" @click="askDelete(dashboard, $event);">
                                         <i class="icofont-trash"></i>
                                     </button>
@@ -68,9 +103,16 @@ function initComponent_top_menu(vue) {
                             </template>
                             <div v-if="!dashboardList().length" class="tm-empty">No dashboard yet. Send some data, or create one.</div>
                             <div class="tm-sep-h"></div>
-                            <button class="tm-new" role="menuitem" @click="newDashboard();">
-                                <i class="icofont-plus"></i> New dashboard
-                            </button>
+                            <div v-if="ctx.importNotice" class="tm-notice" role="status">{{ctx.importNotice}}</div>
+                            <div class="tm-new-row">
+                                <button class="tm-new" role="menuitem" @click="newDashboard();">
+                                    <i class="icofont-plus"></i> New dashboard
+                                </button>
+                                <button class="tm-new tm-import" role="menuitem" title="Dashboards from text files (exported here, or written by hand). A file can also be dropped on the page." @click="$refs.importFile.click();">
+                                    <i class="icofont-upload"></i> Import
+                                </button>
+                                <input ref="importFile" type="file" accept=".txt,text/plain" multiple hidden @change="importDashboards($event);">
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -462,6 +504,12 @@ function initComponent_top_menu(vue) {
         .tm-empty { display: block; padding: 0.5rem 0.7rem; color: var(--color-text-muted); }
         .tm-new { width: 100%; padding: 0.55rem 0.7rem; border-radius: 0.7rem; font-weight: 600; color: var(--color-primary) !important; }
         .tm-new:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+        .tm-new-row { display: flex; gap: 0.2rem; }
+        .tm-new-row .tm-new { flex: 1; width: auto; text-align: left; }
+        .tm-new-row .tm-import { width: auto; flex: none; color: var(--color-text-muted) !important; }
+        .tm-new-row .tm-import:hover { color: var(--color-primary) !important; }
+        .tm-notice { margin: 0 0.3rem 0.4rem; padding: 0.4rem 0.6rem; border-radius: 0.6rem; max-width: 22rem; white-space: normal; font-size: 0.85rem; line-height: 1.35;
+            color: var(--color-text); background: color-mix(in srgb, var(--tm-thinned, orange) 16%, transparent); }
         .tm-popup button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-primary); }
 
         /* Tighter islands: logo and shortcut hints first, then the "Editing" prefix */
@@ -656,6 +704,7 @@ function initComponent_top_menu(vue) {
             },
             setTopPanel(name, event) {
                 this.release(event);
+                this.ctx.importNotice = "";
                 this.ctx.topPanel = (this.ctx.topPanel == name) ? "" : name;
             },
             // Dashboards in the order they are listed: the auto one first, then the others by creation
@@ -694,6 +743,14 @@ function initComponent_top_menu(vue) {
             },
             newDashboard() {
                 this.editDashboard(this.TP.dashboards.createDashboard());
+            },
+            exportDashboard(dashboard) {
+                exportDashboardFile(this.TP, dashboard);
+            },
+            async importDashboards(event) {
+                const input = event.target;
+                await importDashboardFiles(this.TP, this.ctx, input.files);
+                input.value = ""; // The same file can be picked again
             },
             toggleEdit(event) {
                 this.release(event);

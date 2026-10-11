@@ -64,6 +64,12 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_CLIENT_NAME:
                     offset = _parseDataBinary_parseCLIENT_NAME(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_DASHBOARD: {
+                    let [text, newOffset] = _parseDataBinary_readString(view, offset);
+                    TELEPLOT.dashboards.receiveText(text);
+                    offset = newOffset;
+                    break;
+                }
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_ATTR:
                     offset = _parseDataBinary_parseTELEM_ATTR(view, offset, clientId);
                     break;

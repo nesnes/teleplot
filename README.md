@@ -167,6 +167,22 @@ rearranged freely afterwards. In the Telemetries panel each label has a card of 
 A view that received a label this way (and the views teleplot made for a label by itself) follows it: telemetries that show up later with
 the same label are added to it. This can be stopped per view in the edit panel.
 
+### Choosing the dashboard, describing dashboards
+
+A label that is a path says in which dashboard and which view a telemetry goes; both are created if needed:
+
+- `speed,Robot/Motion:12.5`
+- `accel,Robot/Motion:0.3`
+
+A whole dashboard can be described with `DASH|` lines, one per view, addressed by the same paths:
+
+- `DASH|Robot/Motion:chart:speed,accel|w=4|h=3`
+- `DASH|Robot/side/Log:log:robot.log|maxLines=50`
+- `DASH|Robot/side:column`
+
+Lines can come in any order and be sent again at will (a line only does something when it changed). The dashboard menu exports any dashboard
+as a file of such lines and imports them. The format is described in `doc/dashboard-text.md`.
+
 ### Publishing 3D telemetries
 
 To send 3D shapes to teleplot, use this syntax : `3D|A:B:C|E`, where

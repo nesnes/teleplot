@@ -66,6 +66,10 @@ What an application needs from the library to edit dashboards is generic and liv
 - `TELEPLOT.dashboards.renameDashboard(old, new)`, `TELEPLOT.dashboards.removeDashboard(name)` (also forgets its views; the auto dashboard is kept).
 - Containers have a minimum height (`layout.height`, default 0) like views; `setSize(width, height)` ignores `undefined`.
 
+## Dashboards as text
+
+A dashboard can be exported, imported and sent by a device as lines of text, one per view (`DASH|Robot/top/Motion:chart:speed|w=3`): see `dashboard-text.md`. What the user edits here stays when a device repeats the same lines; a line that changes updates its view.
+
 ## Known limits
 
 - The pill covers the top left corner of a view (very small views unfold the size line beside the pill). Content there is still visible once the view is not selected, or by making the view bigger.
