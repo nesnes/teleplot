@@ -118,6 +118,13 @@ class ViewCurrentValue extends ViewTelemetries{
                     maximumFractionDigits: this.getOption("displayNumberDecimals", telem.id)
                 });
                 let channelIdx = 0;
+                if(dataType == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD) { // A cloud is not written out: how many points it has, and what they carry
+                    let shown = this.telemetries[telem.id].data[dataType];
+                    let points = dataPoint.data[0] ? dataPoint.data[0].length / 3 : 0;
+                    shown.lastValue[0] = points;
+                    shown.lastDisplayValue[0] = points + " points" + (dataPoint.data[1] ? ", intensity" : "") + (dataPoint.data[2] ? ", color" : "");
+                    continue;
+                }
                 
                 for(let dataChannel in dataPoint.data) {
                     let lastValue = dataPoint.data[dataChannel];
@@ -180,6 +187,9 @@ class ViewCurrentValue extends ViewTelemetries{
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-number"
                         v-bind:title="''+telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D}].lastValue[0]+', '+telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D}].lastValue[1]+', '+telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D}].lastValue[2]">
                         <span>{{telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D}].lastDisplayValue.join(", ")}}</span>
+                    </div>
+                    <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-number">
+                        <span>{{telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD}].lastDisplayValue[0]}}</span>
                     </div>
                     <div v-if="!Object.keys(telem.data).length" class="teleplot-js-current-value-value teleplot-js-current-value-empty" title="No data yet">&mdash;</div>
                 </div>

@@ -18,8 +18,8 @@ function initComponent_panel_edit(vue) {
               <div class="edit-body">
                 <div class="edit-section first">Settings</div>
                 <label class="edit-field">Name
-                  <input type="text" class="edit-input" :value="drafts.name ?? dashboard.name" @input="drafts.name = $event.target.value" @blur="drafts.name = undefined" :disabled="dashboard.isAuto" :title="dashboard.isAuto ? 'The automatic dashboard keeps its name' : ''" spellcheck="false"
-                    @change="rename($event.target.value); drafts.name = undefined" @keydown.enter="$event.target.blur()">
+                  <input type="text" class="edit-input" v-value="dashboard.name" :disabled="dashboard.isAuto" :title="dashboard.isAuto ? 'The automatic dashboard keeps its name' : ''" spellcheck="false"
+                    @change="rename($event.target.value)" @keydown.enter="$event.target.blur()">
                 </label>
                 <div class="edit-field">Time window
                   <span class="edit-value">{{ group.cursorActive ? 'zoomed' : 'full range' }}
@@ -90,8 +90,8 @@ function initComponent_panel_edit(vue) {
                   <span class="edit-seg"><button v-for="o in [['inherit', 'Inherit'], ['dashboard', 'Dashboard'], ['custom', 'Custom']]" :key="o[0]" :class="{on: timeGroup.mode == o[0]}" @click="setTimeGroup(o[0])">{{ o[1] }}</button></span>
                 </div>
                 <label v-if="timeGroup.mode == 'custom'" class="edit-field"><span><i class="edit-swatch" :style="{background: timeGroup.color}"></i> Group name</span>
-                  <input type="text" class="edit-input" :value="drafts.group ?? timeGroup.name" spellcheck="false" title="Renames the group, for every view that uses it" @input="drafts.group = $event.target.value" @blur="drafts.group = undefined"
-                    @change="renameTimeGroup($event.target.value); drafts.group = undefined" @keydown.enter="$event.target.blur()">
+                  <input type="text" class="edit-input" v-value="timeGroup.name" spellcheck="false" title="Renames the group, for every view that uses it"
+                    @change="renameTimeGroup($event.target.value)" @keydown.enter="$event.target.blur()">
                 </label>
                 <div class="edit-tg-note">{{ timeGroup.note }}</div>
                 <div class="edit-tg-list">
@@ -155,7 +155,7 @@ function initComponent_panel_edit(vue) {
                       <input type="checkbox" class="edit-check" :checked="selected.options[o.key]" @change="selected.options[o.key] = $event.target.checked">
                     </label>
                     <div v-else class="edit-field">{{ o.label }}
-                      <input type="number" class="edit-input edit-number" :min="o.min" :max="o.max" :step="o.step || 1" :value="selected.options[o.key]"
+                      <input type="number" class="edit-input edit-number" :min="o.min" :max="o.max" :step="o.step || 1" v-value="selected.options[o.key]"
                         @change="setNumber(o, $event.target.value)">
                     </div>
                   </template>
@@ -164,8 +164,8 @@ function initComponent_panel_edit(vue) {
                     <span class="edit-seg"><button v-for="o in [['inherit', 'Inherit'], ['dashboard', 'Dashboard'], ['custom', 'Custom']]" :key="o[0]" :class="{on: timeGroup.mode == o[0]}" @click="setTimeGroup(o[0])">{{ o[1] }}</button></span>
                   </div>
                   <label v-if="timeGroup.mode == 'custom'" class="edit-field"><span><i class="edit-swatch" :style="{background: timeGroup.color}"></i> Group name</span>
-                    <input type="text" class="edit-input" :value="drafts.group ?? timeGroup.name" spellcheck="false" title="Renames the group, for every view that uses it" @input="drafts.group = $event.target.value" @blur="drafts.group = undefined"
-                      @change="renameTimeGroup($event.target.value); drafts.group = undefined" @keydown.enter="$event.target.blur()">
+                    <input type="text" class="edit-input" v-value="timeGroup.name" spellcheck="false" title="Renames the group, for every view that uses it"
+                      @change="renameTimeGroup($event.target.value)" @keydown.enter="$event.target.blur()">
                   </label>
                   <div class="edit-tg-note">{{ timeGroup.note }}</div>
                   <div class="edit-tg-list">
@@ -192,7 +192,7 @@ function initComponent_panel_edit(vue) {
             return { TP, ctx, editor };
         },
         data() {
-            return { tick: 0, tab: "data", addQuery: "", addOpen: false, dragFrom: -1, dropAt: -1, drafts: {}, /* What is being typed in a name field: the panel redraws 4 times per second and must not overwrite it */ theme: document.documentElement.dataset["theme"] || "light" };
+            return { tick: 0, tab: "data", addQuery: "", addOpen: false, dragFrom: -1, dropAt: -1, theme: document.documentElement.dataset["theme"] || "light" };
         },
         computed: {
             dashboard() { return this.ctx.activeDashboard; },
@@ -262,7 +262,7 @@ function initComponent_panel_edit(vue) {
         beforeUnmount() { clearInterval(this._timer); },
         watch: {
             tick() { this.theme = document.documentElement.dataset["theme"] || "light"; }, // (the theme also follows the system)
-            "editor.state.selectedId"() { this.drafts = {}; this.tab = "data"; this.addQuery = ""; this.addOpen = false; }
+            "editor.state.selectedId"() { this.tab = "data"; this.addQuery = ""; this.addOpen = false; }
         },
         methods: {
             rename(value) {
@@ -317,7 +317,7 @@ function initComponent_panel_edit(vue) {
                 if (!Number.isFinite(n)) return;
                 if (option.min !== undefined) n = Math.max(option.min, n);
                 if (option.max !== undefined) n = Math.min(option.max, n);
-                this.selected.options[option.key] = Math.round(n);
+                this.selected.options[option.key] = option.type == "number" ? n : Math.round(n); // ("int": whole numbers)
             }
         },
         template: vueHTML,

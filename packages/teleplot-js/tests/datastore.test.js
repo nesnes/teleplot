@@ -324,3 +324,18 @@ test('clearing: all the data, all but some telemetries, or forgetting the teleme
     T.parseDataText('a:5');
     assert.equal(T.datastore.getTelemetry('a').id, idOfA, 'views that displayed it find it again');
 });
+
+
+test('point clouds: their memory is counted, and thinning keeps whole clouds (the last of each group)', () => {
+    const T = loadTeleplot();
+    T.state.dataTimeout = 0;
+    const CLOUD = T.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD;
+    const telem = T.datastore.addTelemetry('lidar');
+    for (let i = 0; i < 16; i++) telem.addData(CLOUD, [i], [[new Float32Array(300).fill(i)], [new Float32Array(100)], [null]]);
+    assert.equal(telem.getMemoryUsage().bytes, 16 * (8 + (16 + 1200) + (16 + 400) + 16), 'timestamps + positions + intensities + nothing');
+    telem.thinOldest(0.5);
+    const e = telem.data[CLOUD];
+    assert.deepEqual(e.timestamps, [3, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    assert.ok(e.data[0][0] instanceof Float32Array && e.data[0][0][0] === 3 && e.data[0][0].length === 300, 'a cloud that stays is untouched');
+    assert.equal(e.data.__v_skip || telem.data.__v_skip, true, 'never proxied');
+});

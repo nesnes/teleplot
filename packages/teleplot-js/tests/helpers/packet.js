@@ -49,6 +49,18 @@ class PacketBuilder {
     cameraDistortion(telemId, refNs, samples) { return this._data(SECTION.CAMERA_DISTORTION, telemId, refNs, samples, v => v.forEach(x => this.f32(x))); }
     // Images. samples: [[timeDiffNs, type, partIndex, partCount, bytes]]
     images(telemId, refNs, samples) { return this._data(24, telemId, refNs, samples, v => { this.u8(v[0]).u16(v[1]).u16(v[2]).u16(v[3].length); this.bytes.push(...v[3]); }); }
+    // Point clouds. samples: [[timeDiffNs, flags (1: intensity, 2: rgb), partIndex, partCount, points]], points: [[x, y, z, (intensity), (r, g, b)]]
+    pointClouds(telemId, refNs, samples) {
+        return this._data(35, telemId, refNs, samples, v => {
+            this.u8(v[0]).u16(v[1]).u16(v[2]).u16(v[3].length);
+            for (const p of v[3]) {
+                this.f32(p[0]).f32(p[1]).f32(p[2]);
+                let at = 3;
+                if (v[0] & 1) this.f32(p[at++]);
+                if (v[0] & 2) this.u8(p[at]).u8(p[at + 1]).u8(p[at + 2]);
+            }
+        });
+    }
     text(telemId, refNs, samples) { return this._data(SECTION.TEXT, telemId, refNs, samples, v => this.str(v[0])); }
 
     build() { // The checksum is not verified by the parser yet: zeros

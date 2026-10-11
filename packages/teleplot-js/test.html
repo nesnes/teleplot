@@ -540,6 +540,45 @@
     });
 
     // ====================================================================================================================== Images
+    data("Point clouds (lidar scans...)", "A sample of a point cloud telemetry is a whole cloud. Text: name:x:y:z;x:y:z|pc (a field alone first is the timestamp; x:y:z:i adds an intensity, x:y:z:r:g:b a color, x:y:z:i:r:g:b both). Points are in the frame of the sensor: its pose is sent like the one of a shape (3D|name:P:...:R:...). Binary: section POINT_CLOUD, in parts when a cloud does not fit in a packet.", () => {
+      // Text: a 2D lidar (z = 0) that drives on a circle in a room of 6 x 4 m, 180 rays, intensity = 1 / distance
+      const room = (x, y, angle) => { const dx = Math.cos(angle), dy = Math.sin(angle); return Math.min(dx > 0 ? (3 - x) / dx : (-3 - x) / dx, dy > 0 ? (2 - y) / dy : (-2 - y) / dy); };
+      setInterval(() => {
+        const ms = Date.now(), t = ms / 1000, x = 1.5 * Math.cos(t / 3), y = Math.sin(t / 3), yaw = t / 3 + Math.PI / 2;
+        const points = [];
+        for (let i = 0; i < 180; i++) {
+          const angle = i / 180 * 2 * Math.PI, d = room(x, y, yaw + angle) + (Math.random() - 0.5) * 0.02;
+          points.push(`${(Math.cos(angle) * d).toFixed(3)}:${(Math.sin(angle) * d).toFixed(3)}:0:${(1 / d).toFixed(3)}`);
+        }
+        Teleplot.parseDataText(`3D|cloud.scan:${ms}:P:${x.toFixed(3)}:${y.toFixed(3)}:0.2:R:0:0:${yaw.toFixed(3)}`); // where the sensor is
+        Teleplot.parseDataText(`cloud.scan:${ms};${points.join(";")}|pc`);
+      }, 100);
+
+      // Binary: a 3D cloud of 40 x 40 points with a color each (flags = POINT_CLOUD_RGB), one part
+      new Packet(CLIENT).u8(P.SECTION_TYPE_TELEM_ATTR).u16(60).u8(1).u8(P.TELEM_ATTR_NAME).str("cloud.surface").send();
+      setInterval(() => {
+        const t = Date.now() / 1000;
+        new Packet(CLIENT).section(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, 60, (p) => {
+          p.u8(P.POINT_CLOUD_RGB).u16(0).u16(1).u16(1600); // flags, part index, part count, points in this part
+          for (let i = 0; i < 40; i++) for (let j = 0; j < 40; j++) {
+            const x = i / 10 - 2, y = j / 10 - 2, z = 1.2 + 0.3 * Math.sin(x * 2 + t) * Math.cos(y * 2);
+            p.f32(x).f32(y).f32(z).u8(Math.round(i * 6.5)).u8(Math.round(j * 6.5)).u8(Math.round(128 + 400 * (z - 1.2)));
+          }
+        }).send();
+      }, 200);
+    });
+    demo("Point clouds", "A flat scan colored by its intensities (blue: low, red: high), drawn where its sensor is, and a 3D cloud that has its own colors. The legend tells how many points the cloud on display has. Options: pointSize, pointColorByHeight.", [560, 320], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(id, ["cloud.scan", binId(60)]));
+    });
+    demo("Point clouds: accumulation", "cloudCount draws the last clouds together (here 40), cloudInterval sets the minimum time between two of them (here 0.3 s): the scans of the moving lidar draw the room. Every cloud stays where its sensor was when it was taken; nothing is merged. Points colored by their height (pointColorByHeight).", [560, 320], (id) => {
+      const view = new Teleplot.view.ViewScene3D(id, ["cloud.scan"]);
+      view.setOption("cloudCount", 40);
+      view.setOption("cloudInterval", 0.3);
+      view.setOption("pointSize", 2);
+      view.setOption("pointColorByHeight", true);
+      Teleplot.view.addView(view);
+    });
+
     section("Images and cameras", "ViewImage: the pictures of an image telemetry, with 3D telemetries drawn over them as its camera saw them. The camera is described by intrinsics (and optionally lens distortion) in the usual image convention, and by a pose in the frame of the scene. Pictures are shown as received, never undistorted; nothing is interpolated: each picture is shown with the samples in effect when it was taken.");
 
     data("Two cameras turning around a cube", "The pictures are drawn here, point by point, with ViewImage.projectPoint (the camera model, lens distortion included): white lines for the edges of a cube and of a square on the ground. The views below draw the cube and the square themselves over the pictures: they must fit the white lines, whatever the cameras do. Camera 1 uses the text protocol (K, P, Q); camera 2 the binary protocol, with distortion.", () => {

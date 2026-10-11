@@ -130,6 +130,7 @@ class ViewImage extends ViewScene3D {
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
+            ...ViewScene3D.CLOUD_OPTIONS_SCHEMA,
         ];
     }
 
@@ -216,7 +217,7 @@ class ViewImage extends ViewScene3D {
         this.__updateLegend(sources, element);
         let three = this.three;
         if(!three) return;
-        three.renderer.domElement.style.visibility = draw ? "" : "hidden";
+        three.canvas.style.visibility = draw ? "" : "hidden";
         three.ready = draw;
         if(!draw) return;
         this.__syncObjects(three, sources, timestamp, since);
@@ -244,7 +245,7 @@ class ViewImage extends ViewScene3D {
         let width = this.state.frameWidth, height = this.state.frameHeight;
         if(three.sizeKey != width + "x" + height) {
             three.sizeKey = width + "x" + height;
-            three.renderer.setSize(width, height);
+            this.__setSize(three, width, height);
         }
 
         // Depth range: from very close to behind everything there is
@@ -327,12 +328,14 @@ class ViewImage extends ViewScene3D {
     __render() {
         let three = this.three;
         if(!three || !three.ready) return;
-        if(!three.warp) { three.renderer.render(three.scene, three.camera); return; }
-        three.renderer.setRenderTarget(three.warp.target);
-        three.renderer.clear();
-        three.renderer.render(three.scene, three.camera);
-        three.renderer.setRenderTarget(null);
-        three.renderer.render(three.warp.scene, three.warp.camera);
+        this.__present(three, (renderer) => {
+            if(!three.warp) { renderer.render(three.scene, three.camera); return; }
+            renderer.setRenderTarget(three.warp.target);
+            renderer.clear();
+            renderer.render(three.scene, three.camera);
+            renderer.setRenderTarget(null);
+            renderer.render(three.warp.scene, three.warp.camera);
+        });
     }
 
     static warpVertexShader = `

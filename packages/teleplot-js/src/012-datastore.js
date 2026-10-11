@@ -131,6 +131,7 @@ class Telemetry {
         let picked = Math.min(count, 32), total = 0;
         for (let i = 0; i < picked; i++) {
             let value = channel[Math.floor(i * count / picked)];
+            if (value && value.byteLength !== undefined) { total += 16 + value.byteLength; continue; } // A typed array (point cloud)
             total += typeof value === "string" ? 16 + value.length * 2 : (typeof value === "number" ? 8 : 16); // (strings: 2 bytes per character at worst)
         }
         return total / picked;

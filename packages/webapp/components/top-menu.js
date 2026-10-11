@@ -34,7 +34,10 @@ function initComponent_top_menu(vue) {
                 <div class="tm-anchor tm-anchor-dashboard">
                     <button class="tm-btn" :class="{on: ctx.topPanel=='dashboard'}" aria-haspopup="menu" :aria-expanded="ctx.topPanel=='dashboard'" @click="setTopPanel('dashboard', $event);">
                         <span v-if="editor.state.enabled" class="tm-crumb">Editing</span>
-                        <span class="tm-dashboard-name">{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
+                        <span class="tm-dashboard-label">
+                            <span class="tm-dashboard-name">{{ctx.activeDashboard ? ctx.activeDashboard.name : 'Dashboard'}}</span>
+                            <span v-if="dashboardList().length > 1" class="tm-dashboard-count">{{dashboardList().length}} dashboards</span>
+                        </span>
                         <i class="icofont-simple-down tm-caret"></i>
                     </button>
                     <template v-if="ctx.topPanel=='dashboard'">
@@ -95,7 +98,7 @@ function initComponent_top_menu(vue) {
                                 <div class="tm-choice tm-grow" role="group" aria-label="How long data is kept">
                                     <button v-for="w in windows" :key="w[0]" :class="{on: TP.state.dataTimeout == w[0]}" :aria-pressed="TP.state.dataTimeout == w[0]" @click="setWindow(w[0])">{{w[1]}}</button>
                                 </div>
-                                <label class="tm-field-label" title="Seconds of data kept per telemetry (0: everything)"><input class="tm-field" type="number" min="0" step="10" :value="windowDraft ?? TP.state.dataTimeout" @input="windowDraft = $event.target.value" @change="setWindow($event.target.value); windowDraft = null" @blur="windowDraft = null"> s</label>
+                                <label class="tm-field-label" title="Seconds of data kept per telemetry (0: everything)"><input class="tm-field" type="number" min="0" step="10" v-value="TP.state.dataTimeout" @change="setWindow($event.target.value)"> s</label>
                             </div>
                             <div class="tm-time" :title="span.title">
                                 <i v-if="span.thinned" class="tm-time-thinned" :style="{width: span.thinned + '%'}"></i>
@@ -105,7 +108,7 @@ function initComponent_top_menu(vue) {
                             <div class="tm-time-ticks"><span>{{span.fromText}}</span><span class="tm-time-text">{{span.text}}<span v-if="span.thinnedText" class="tm-time-note"> · {{span.thinnedText}}</span></span><span>now</span></div>
 
                             <h5>Memory <span class="tm-h5-value">{{memory.usedText}} of</span>
-                                <label class="tm-field-label" title="How much the stored data may take, in MB (0: no limit)"><input class="tm-field" type="number" min="0" step="50" :value="limitDraft ?? Math.round(TP.state.memoryLimit / 1e6)" @input="limitDraft = $event.target.value" @change="setLimit($event.target.value); limitDraft = null" @blur="limitDraft = null"> MB</label>
+                                <label class="tm-field-label" title="How much the stored data may take, in MB (0: no limit)"><input class="tm-field" type="number" min="0" step="50" v-value="Math.round(TP.state.memoryLimit / 1e6)" @change="setLimit($event.target.value)"> MB</label>
                             </h5>
                             <div class="tm-stack" :title="memory.title">
                                 <i v-for="seg in memory.segments" :key="seg.key" :style="{width: seg.width + '%', background: seg.color}" :title="seg.title"></i>
@@ -253,6 +256,9 @@ function initComponent_top_menu(vue) {
         .tm-anchor-dashboard { min-width: 0; }
         .tm-anchor-dashboard .tm-btn { min-width: 0; }
         .tm-dashboard-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        /* Closed, the button also says that there are other dashboards: how many, under the name */
+        .tm-dashboard-label { display: flex; flex-direction: column; justify-content: center; gap: 0.1rem; min-width: 0; line-height: 1.15; text-align: left; }
+        .tm-dashboard-count { font-size: 0.75rem; font-weight: 600; line-height: 1; color: var(--color-text-muted); white-space: nowrap; }
         .tm-sep { width: 1px; height: 1.8rem; margin: 0 0.3rem; background: var(--color-bg-dark); flex: none; }
         .tm-svg { width: 1.2rem; height: 1.2rem; flex: none; }
         .tm-caret { font-size: 0.7em; opacity: 0.6; }
@@ -500,7 +506,6 @@ function initComponent_top_menu(vue) {
                 confirmForget: false, // "Forget everything" is being confirmed in the data menu
                 usage: { bytes: 0, samples: 0, telemetries: [] }, // Memory taken by the data (TP.datastore.memory, refreshed by the timer)
                 memoryEvent: { action: "", actedAt: 0, actedOn: [] }, // What the library last did about a full memory
-                windowDraft: null, limitDraft: null, // What is being typed in the fields of the data menu (the menu redraws while data flows: it must not be overwritten)
                 timeSpan: null, // How far back the data goes (TP.datastore.memory.span: the telemetry that covers the longest time)
                 pausedAt: 0, pausedFor: 0, // When the pause started (ms), and for how long it has lasted (seconds, refreshed by the timer)
                 windows: [[15, "15 s"], [60, "1 min"], [300, "5 min"], [3600, "1 h"], [0, "All"]], // Seconds of data kept

@@ -170,6 +170,17 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds from which these coefficients apply. `timestamp = TIME_REFERENCE + TIMEDIFF`
         - **K1**, **K2**, **K3**(float32): radial distortion coefficients.
         - **P1**, **P2**(float32): tangential distortion coefficients.
+
+  - `35` **TELEM_DATA_POINT_CLOUD**: *(a sample is a whole cloud: a lidar scan, the points of a depth camera...)*
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - TELEM_DATA_POINT_CLOUD( {TIMEDIFF[32]} - {FLAGS[8]} - {PART_INDEX[16]} - {PART_COUNT[16]} - {POINT_COUNT[16]} - POINT( {X[32]} - {Y[32]} - {Z[32]} - {INTENSITY[32]}? - {R[8]}{G[8]}{B[8]}? )... )...`
+        - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, when the cloud was taken. `timestamp = TIME_REFERENCE + TIMEDIFF`
+        - **FLAGS**(uint8): what each point carries after its position. Bit 0 (`1`): an intensity. Bit 1 (`2`): a color. Both can be set.
+        - **PART_INDEX**, **PART_COUNT**(uint16): a cloud that does not fit in one packet is sent in **PART_COUNT** parts, numbered from 0, with the same timestamp and flags. It is stored once every part has arrived, in the order of the parts. A cloud in one piece has **PART_INDEX** 0 and **PART_COUNT** 1.
+        - **POINT_COUNT**(uint16): number of points in this part.
+        - **X**, **Y**, **Z**(float32): position of the point **in the frame of the sensor** (x forward, y left, z up). A flat scan (2D lidar) sets Z to 0.
+        - **INTENSITY**(float32, only with flag 1): any scale; a cloud is colored from its lowest to its highest intensity.
+        - **R**, **G**, **B**(uint8, only with flag 2): color of the point.
+        - Where the sensor is in the scene is sent with the shape sections `25` (position) and `26` or `27` (orientation) on the same telemetry: each cloud is drawn with the pose in effect at its timestamp. Without them the sensor is at the origin.
         - Brown-Conrady model, in the order of OpenCV. With `x = X / Z`, `y = Y / Z` and `r² = x² + y²`: `x' = x (1 + K1 r² + K2 r⁴ + K3 r⁶) + 2 P1 x y + P2 (r² + 2 x²)`, `y' = y (1 + K1 r² + K2 r⁴ + K3 r⁶) + P1 (r² + 2 y²) + 2 P2 x y`, then `u = FX * x' + CX`, `v = FY * y' + CY`.
         - The images are displayed as they are received (never undistorted): what is drawn over them is distorted like the lens does.
 

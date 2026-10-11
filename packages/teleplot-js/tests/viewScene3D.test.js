@@ -104,7 +104,7 @@ test('3D view: suggested for shapes and 3D numbers, options, clone, empty state'
 
     const view = T.view.createView('3d', ['shape', 'point'], 'g');
     assert.equal(view.type, 'teleplot-3d');
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayGrid', 'displayAxes', 'displayLegend', 'displayNumberDecimals', 'trailLength']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayGrid', 'displayAxes', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval']);
     view.setOption('trailLength', 50);
     const copy = view.clone();
     assert.ok(copy instanceof T.view.ViewScene3D);
@@ -147,4 +147,42 @@ test('legend of the 3D view: positions as text, entries hide and highlight their
     assert.deepEqual([view.hidden[5], view.highlighted], [undefined, 5], 'back, and under the pointer');
     view.highlightTelemetry(undefined);
     assert.equal(view.highlighted, undefined);
+});
+
+
+test('point clouds: which clouds are drawn at a time (the current one, and older ones when accumulating)', () => {
+    const T = loadTeleplot();
+    const S = T.view.ViewScene3D;
+    const entry = { timestamps: [10, 11, 12, 13, 14, 15, 20] };
+    assert.deepEqual(S.cloudSamples(entry), [6], 'now: the latest cloud, alone by default');
+    assert.deepEqual(S.cloudSamples(entry, 13.5), [3], 'the last cloud at or before the time');
+    assert.deepEqual(S.cloudSamples(entry, 5), [], 'no cloud yet at that time: none is made up');
+    assert.deepEqual(S.cloudSamples(undefined), []);
+    assert.deepEqual(S.cloudSamples(entry, 15, 3), [5, 4, 3], 'accumulation: the clouds before it');
+    assert.deepEqual(S.cloudSamples(entry, 11, 5), [1, 0], 'no more than there are');
+    assert.deepEqual(S.cloudSamples(entry, -1, 4, 2), [6, 5, 3, 1], 'at least 2 s between two of them');
+    assert.deepEqual(S.cloudSamples(entry, -1, 4, 100), [6], 'nothing old enough');
+    assert.deepEqual(S.cloudSamples(entry, -1, 0), [6]);
+});
+
+test('point clouds: colors from their own colors, their intensities or their height; a view draws each cloud where its sensor was', () => {
+    const T = loadTeleplot();
+    const S = T.view.ViewScene3D;
+    const positions = Float32Array.from([0, 0, 0, 0, 0, 1, 0, 0, 2]);
+    assert.equal(S.cloudColors(positions, null, null), undefined, 'nothing of their own: the color of the telemetry');
+    const own = S.cloudColors(positions, null, Uint8Array.from([255, 0, 0, 0, 255, 0, 0, 0, 0]));
+    near(Array.from(own), [1, 0, 0, 0, 1, 0, 0, 0, 0]);
+    const ramp = S.CLOUD_RAMP;
+    const byIntensity = S.cloudColors(positions, Float32Array.from([5, 10, 7.5]), null);
+    near(Array.from(byIntensity.slice(0, 3)), ramp[0]); near(Array.from(byIntensity.slice(3, 6)), ramp[ramp.length - 1]); near(Array.from(byIntensity.slice(6, 9)), ramp[2], 1e-6);
+    const byHeight = S.cloudColors(positions, Float32Array.from([9, 9, 9]), Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9]), true);
+    near(Array.from(byHeight.slice(0, 3)), ramp[0]); near(Array.from(byHeight.slice(6, 9)), ramp[ramp.length - 1]);
+
+    T.parseDataText('3D|lidar:1000:P:1:0:0\nlidar:1000;1:0:0|pc\n3D|lidar:2000:P:2:0:0\nlidar:2000;1:0:0;2:0:0|pc');
+    const view = new T.view.ViewScene3D('', ['lidar'], 'g');
+    view.setOption('cloudCount', 2);
+    const { sources } = view.__collectSources(-1);
+    assert.deepEqual([sources[0].kind, sources[0].clouds, sources[0].points], ['cloud', [1, 0], 2]);
+    assert.deepEqual(sources[0].poses.map(p => p.position), [[2, 0, 0], [1, 0, 0]], 'the pose at the time of each cloud');
+    assert.ok(view.supportedDataTypes.includes(String(T.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD)));
 });

@@ -208,3 +208,28 @@ test('view label attribute', () => {
     assert.equal(T.datastore.getTelemetry(id(5, 1)).getAttribute(T.protocol.TELEM_ATTR_VIEW_LABEL), 'motors');
     assert.deepEqual(entry(T, 5, 1).data[0], [1], 'the sections after the attribute are still read');
 });
+
+
+test('point clouds: positions, optional intensity and color, a cloud in several parts is stored once complete', () => {
+    const T = loadTeleplot();
+    const CLOUD = T.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD;
+    assert.equal(CLOUD, 35);
+    T.parseDataBinary(new PacketBuilder(1)
+        .pointClouds(7, 2e9, [[0, 0, 0, 1, [[1, 2, 3], [4, 5, 6]]], [5e8, 3, 0, 1, [[1, 2, 3, 0.5, 255, 128, 0]]]])
+        .build());
+    let e = entry(T, 1, 7, CLOUD);
+    assert.deepEqual(e.timestamps, [2, 2.5]);
+    assert.ok(e.data[0][0] instanceof Float32Array);
+    assert.deepEqual([Array.from(e.data[0][0]), e.data[1][0], e.data[2][0]], [[1, 2, 3, 4, 5, 6], null, null]);
+    assert.deepEqual([Array.from(e.data[0][1]), Array.from(e.data[1][1]), Array.from(e.data[2][1])], [[1, 2, 3], [0.5], [255, 128, 0]]);
+
+    // Three parts, received out of order: nothing until the last one, then one cloud in the order of the parts
+    T.parseDataBinary(new PacketBuilder(1).pointClouds(8, 3e9, [[0, 1, 2, 3, [[5, 5, 5, 0.3]]], [0, 1, 0, 3, [[1, 1, 1, 0.1], [2, 2, 2, 0.2]]]]).build());
+    assert.equal(T.datastore.getTelemetry(id(1, 8)).data[CLOUD], undefined);
+    T.parseDataBinary(new PacketBuilder(1).pointClouds(8, 3e9, [[0, 1, 1, 3, [[3, 3, 3, 0.25]]]]).build());
+    e = entry(T, 1, 8, CLOUD);
+    assert.deepEqual(e.timestamps, [3]);
+    assert.deepEqual(Array.from(e.data[0][0]), [1, 1, 1, 2, 2, 2, 3, 3, 3, 5, 5, 5]);
+    assert.deepEqual(Array.from(e.data[1][0]), [0.1, 0.2, 0.25, 0.3].map(Math.fround));
+    assert.equal(T.view.ViewScene3D.kindOf(T.datastore.getTelemetry(id(1, 8))), 'cloud');
+});

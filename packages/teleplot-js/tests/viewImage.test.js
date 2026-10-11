@@ -117,7 +117,7 @@ test('image view: suggested for images, shows the first image telemetry, the oth
     const view = T.view.createView('image', ['number', 'box', 'cam', 'path', 'other'], 'g');
     assert.equal(view.type, 'teleplot-image');
     assert.equal(view.getImageTelemetry().id, T.datastore.getTelemetry('cam').id);
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['outline', 'outlineWidth', 'overlayOpacity', 'displayLegend', 'displayNumberDecimals', 'trailLength']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['outline', 'outlineWidth', 'overlayOpacity', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval']);
     const { sources } = view.__collectSources(1, view.getImageTelemetry());
     assert.deepEqual(sources.map(s => [s.telem.getAttribute(T.protocol.TELEM_ATTR_NAME), s.kind]), [['box', 'shape'], ['path', 'point']], 'the picture is not drawn over itself, images without camera and numbers are not 3D');
 

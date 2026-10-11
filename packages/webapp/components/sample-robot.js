@@ -132,6 +132,25 @@ function createRobotSample(TP) {
         TP.datastore.getTelemetry("robot.path").setAttribute(P.TELEM_ATTR_VIEW_LABEL, ROBOT);
     }
 
+    // A 2D lidar on top of the robot: one turn of 240 rays, 10 times per second. A point cloud telemetry: the points are in the frame
+    // of the sensor (x forward, y left, z = 0 for a flat scan), each with an intensity (how well its wall reflects, weaker with the
+    // distance); the pose of the sensor is sent like the one of a shape, so that the scan lands where the robot is.
+    const LIDAR = { rays: 240, up: 0.16, reflectivity: [0.9, 0.55, 0.75, 0.35] };
+    function publishLidar() {
+        const positions = new Float32Array(LIDAR.rays * 3), intensities = new Float32Array(LIDAR.rays);
+        for (let i = 0; i < LIDAR.rays; i++) {
+            const angle = i / LIDAR.rays * 2 * Math.PI;
+            const hit = ray(bot.a + angle), d = hit.d + noise(0.01);
+            positions[i * 3] = Math.cos(angle) * d;
+            positions[i * 3 + 1] = Math.sin(angle) * d;
+            intensities[i] = LIDAR.reflectivity[hit.wall] / (1 + 0.15 * d * d) + noise(0.02);
+        }
+        put("robot.lidar", POSITION, [bot.x, bot.y, LIDAR.up]);
+        put("robot.lidar", QUATERNION, [Math.cos(bot.a / 2), 0, 0, Math.sin(bot.a / 2)]);
+        put("robot.lidar", P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [positions, intensities, null]);
+        TP.datastore.getTelemetry("robot.lidar").setAttribute(P.TELEM_ATTR_VIEW_LABEL, ROBOT);
+    }
+
     function publishFast() { // every step
         put("robot.wheel.left", NUMBER, [bot.vl + noise(0.01)], "m/s");
         put("robot.wheel.right", NUMBER, [bot.vr + noise(0.01)], "m/s");
@@ -210,7 +229,7 @@ function createRobotSample(TP) {
         main.addView(top);
         main.addView(bottom);
 
-        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path"], group);
+        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path", "robot.lidar"], group);
         scene.setSize(5, 7);
         scene.setOption("trailLength", 500);
         top.addView(scene);
@@ -222,7 +241,7 @@ function createRobotSample(TP) {
         rawView.setOption("title", "Camera");
         cameras.addView(rawView);
         // The same pictures with what the 3D telemetries say drawn over them: the walls must fall on the walls of the picture
-        const cameraView = new TP.view.ViewImage("", ["robot.camera", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.obstacle"], group);
+        const cameraView = new TP.view.ViewImage("", ["robot.camera", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.obstacle", "robot.lidar"], group);
         cameraView.setSize(2, 3);
         cameraView.setOption("outline", true); // Outlines only: the picture stays visible inside the walls
         cameraView.setOption("overlayOpacity", 100);
@@ -246,7 +265,7 @@ function createRobotSample(TP) {
     }
 
     // --- Public API ---
-    let timer = null, lastSlow = 0, last3D = 0;
+    let timer = null, lastSlow = 0, last3D = 0, lastLidar = 0;
     return {
         get running() { return timer !== null; },
         get dashboard() { return TP.dashboards.getDashboard("Robot sample"); },
@@ -258,6 +277,7 @@ function createRobotSample(TP) {
                 const now = Date.now();
                 for (let n = Math.min(50, Math.floor((now - last) / (STEP * 1000))); n > 0; n--) { step(); publishFast(); last += STEP * 1000; }
                 if (bot.t - last3D >= 0.039) { last3D = bot.t; publish3D(); }
+                if (bot.t - lastLidar >= 0.099) { lastLidar = bot.t; publishLidar(); }
                 if (bot.t - lastSlow >= 0.2) { lastSlow = bot.t; publishSlow(); }
             }, 20);
         },

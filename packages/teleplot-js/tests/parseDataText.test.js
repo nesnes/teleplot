@@ -210,3 +210,40 @@ test('view label: "name,label" names the telemetry and keeps the label (numbers,
     assert.equal(T.datastore.getTelemetry('speed').getAttribute(LABEL), 'motors', 'a line without label keeps the one the telemetry has');
     assert.equal(T.datastore.getTelemetry('alone').getAttribute(LABEL), undefined, 'an empty label is no label');
 });
+
+
+test('point cloud: every point of a "pc" line is one sample, with optional timestamp, intensity and color', () => {
+    const T = loadTeleplot();
+    const CLOUD = T.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD;
+    T.datastore.addTelemetry('scan').setAttribute(T.protocol.TELEM_ATTR_DATA_TIMEOUT, 0); // (its second cloud is dated far in the past)
+    assert.equal(T.parseDataText('scan:1:2:0;3:4:0;5:6:0.5|pc'), 0);
+    let e = T.datastore.getTelemetry('scan').data[CLOUD];
+    assert.equal(e.timestamps.length, 1, 'one sample for the whole line, at the time it was received');
+    assert.ok(e.data[0][0] instanceof Float32Array);
+    assert.deepEqual(Array.from(e.data[0][0]), [1, 2, 0, 3, 4, 0, 5, 6, 0.5]);
+    assert.deepEqual([e.data[1][0], e.data[2][0]], [null, null], 'no intensity, no color');
+
+    // A field alone is the timestamp (ms); 4 values: intensity; 6: color; 7: both. Unit and view label work as for other lines.
+    T.parseDataText('scan,lidars:9000;1:2:3:0.5;4:5:6:0.25§m|pc');
+    T.parseDataText('rgb:1:2:3:255:128:0;4:5:6:300:-4:7|pc');
+    T.parseDataText('both:1:2:3:0.5:10:20:30|pc,np');
+    e = T.datastore.getTelemetry('scan').data[CLOUD];
+    assert.deepEqual([e.timestamps.length, e.timestamps[0]], [2, 9], 'the cloud dated 9 s goes before the one received now');
+    assert.deepEqual([Array.from(e.data[0][0]), Array.from(e.data[1][0]), e.data[2][0]], [[1, 2, 3, 4, 5, 6], [0.5, 0.25], null]);
+    assert.deepEqual([T.datastore.getTelemetry('scan').getAttribute(T.protocol.TELEM_ATTR_UNIT), T.datastore.getTelemetry('scan').getAttribute(T.protocol.TELEM_ATTR_VIEW_LABEL)], ['m', 'lidars']);
+    const rgb = T.datastore.getTelemetry('rgb').data[CLOUD];
+    assert.ok(rgb.data[2][0] instanceof Uint8Array);
+    assert.deepEqual([rgb.data[1][0], Array.from(rgb.data[2][0])], [null, [255, 128, 0, 255, 0, 7]], 'colors are bytes');
+    const both = T.datastore.getTelemetry('both');
+    assert.deepEqual([Array.from(both.data[CLOUD].data[1][0]), Array.from(both.data[CLOUD].data[2][0]), both.getAttribute(T.protocol.TELEM_ATTR_AUTOPLOT)], [[0.5], [10, 20, 30], false]);
+
+    // The pose of the sensor is sent like the one of a shape, on the same telemetry
+    T.parseDataText('3D|scan:9000:P:1:2:0.3');
+    assert.equal(T.view.ViewScene3D.kindOf(T.datastore.getTelemetry('scan')), 'cloud');
+    assert.deepEqual(T.view.ViewScene3D.shapeState(T.datastore.getTelemetry('scan'), 9).position, [1, 2, 0.3]);
+
+    // Points that do not all have the same number of values: the line is a problem, nothing is stored
+    const log = captureConsole(() => assert.equal(T.parseDataText('bad:1:2:3;4:5|pc'), 1));
+    assert.equal(T.datastore.getTelemetry('bad'), undefined);
+    assert.equal(T.view.suggestViewType('scan'), '3d');
+});

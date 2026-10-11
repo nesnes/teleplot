@@ -21,7 +21,7 @@ class ViewScene3D extends ViewTelemetries {
         this.name = "3d";
         this.type = "teleplot-3d";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
-        this.supportedDataTypes = [TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D].concat(TELEPLOT.protocol.SHAPE_DATA_TYPES).map(String);
+        this.supportedDataTypes = [TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D, TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD].concat(TELEPLOT.protocol.SHAPE_DATA_TYPES).map(String);
         this.supportedLabel = "3D";
 
         this.options.displayGrid = true;    // Ground grid (z = 0)
@@ -29,6 +29,10 @@ class ViewScene3D extends ViewTelemetries {
         this.options.displayLegend = true;  // Names and positions of the telemetries, with their colors
         this.options.displayNumberDecimals = 2;
         this.options.trailLength = 200;     // Points: number of past positions drawn as a line (0: none)
+        this.options.pointSize = 3;         // Point clouds: size of a point, in pixels
+        this.options.pointColorByHeight = false; // Point clouds: colored by their height (z) instead of their own color, intensity, or the color of the telemetry
+        this.options.cloudCount = 1;        // Point clouds: how many clouds are drawn together (1: the current one only, more: accumulation)
+        this.options.cloudInterval = 0;     // Accumulation: minimum time between two of the clouds drawn, in seconds (0: every cloud)
 
         this.layout.width = 2;
         this.layout.height = 6;
@@ -62,9 +66,67 @@ class ViewScene3D extends ViewTelemetries {
         return !ViewScene3D.isCamera(telem) && !ViewScene3D.isShape(telem) && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D] !== undefined;
     }
 
-    // How a telemetry is drawn in a scene: "camera", "shape", "point", or undefined (not a 3D telemetry)
+    static isCloud(telem) {
+        return telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD] !== undefined;
+    }
+
+    // Samples of a point cloud telemetry to draw at a time (negative: now): indexes, the current cloud first, then at most count - 1
+    // older ones, each at least "interval" seconds before the one picked after it. Empty when there is no cloud at that time.
+    static cloudSamples(entry, timestamp=-1, count=1, interval=0) {
+        let index = ViewScene3D.sampleIndex(entry, timestamp);
+        if(index < 0 || (timestamp >= 0 && entry.timestamps[index] > timestamp)) return [];
+        let picked = [index];
+        count = Math.max(1, Math.min(ViewScene3D.CLOUD_COUNT_MAX, Math.floor(count) || 1));
+        interval = Math.max(0, Number(interval) || 0);
+        while(picked.length < count && index > 0) {
+            let before = entry.timestamps[index] - interval;
+            let next = index - 1;
+            if(interval > 0) { // The latest cloud that is old enough
+                if(entry.timestamps[next] > before) {
+                    let lo = 0, hi = index; // First sample after "before"
+                    while(lo < hi) { let mid = (lo + hi) >> 1; if(entry.timestamps[mid] <= before) lo = mid + 1; else hi = mid; }
+                    next = lo - 1;
+                }
+                if(next < 0) break;
+            }
+            picked.push(next);
+            index = next;
+        }
+        return picked;
+    }
+    static CLOUD_COUNT_MAX = 500;
+
+    // Colors of the points of a cloud, as r, g, b from 0 to 1 in a Float32Array, or undefined when they all take the color of the
+    // telemetry. byHeight: from their z. Otherwise their own colors when they have some, else their intensities, both as received:
+    // colors are only converted to what the renderer expects, intensities are spread from the lowest to the highest of the cloud.
+    static cloudColors(positions, intensities, colors, byHeight=false) {
+        let count = positions.length / 3;
+        if(!byHeight && colors) {
+            let out = new Float32Array(count * 3);
+            for(let i = 0; i < out.length; i++) out[i] = ViewScene3D.SRGB_TO_LINEAR[colors[i]];
+            return out;
+        }
+        let scalar = byHeight ? (i) => positions[i*3+2] : (intensities ? (i) => intensities[i] : undefined);
+        if(!scalar) return undefined;
+        let low = Infinity, high = -Infinity;
+        for(let i = 0; i < count; i++) { let v = scalar(i); if(Number.isFinite(v)) { if(v < low) low = v; if(v > high) high = v; } }
+        let span = high > low ? high - low : 1;
+        let ramp = ViewScene3D.CLOUD_RAMP, out = new Float32Array(count * 3);
+        for(let i = 0; i < count; i++) {
+            let v = scalar(i);
+            let at = Number.isFinite(v) ? (v - low) / span * (ramp.length - 1) : 0;
+            let a = Math.min(ramp.length - 2, Math.floor(at)), f = at - a;
+            for(let c = 0; c < 3; c++) out[i*3+c] = ramp[a][c] + (ramp[a+1][c] - ramp[a][c]) * f;
+        }
+        return out;
+    }
+    static CLOUD_RAMP = [[0.02, 0.05, 0.6], [0, 0.55, 0.75], [0.1, 0.65, 0.15], [0.9, 0.7, 0.02], [0.85, 0.05, 0.02]]; // Low to high: blue, cyan, green, yellow, red
+    static SRGB_TO_LINEAR = Float32Array.from({ length: 256 }, (_, i) => { let c = i / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+
+    // How a telemetry is drawn in a scene: "camera", "cloud", "shape", "point", or undefined (not a 3D telemetry)
     static kindOf(telem) {
         if(ViewScene3D.isCamera(telem)) return "camera";
+        if(ViewScene3D.isCloud(telem)) return "cloud"; // (it can have a position and an orientation, like a shape: the pose of its sensor)
         if(ViewScene3D.isShape(telem)) return "shape";
         return ViewScene3D.isPoint(telem) ? "point" : undefined;
     }
@@ -195,8 +257,15 @@ class ViewScene3D extends ViewTelemetries {
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
+            ...ViewScene3D.CLOUD_OPTIONS_SCHEMA,
         ];
     }
+    static CLOUD_OPTIONS_SCHEMA = [
+        { key: "pointSize", label: "Point size (px)", type: "int", min: 1, max: 20, step: 1 },
+        { key: "pointColorByHeight", label: "Points colored by height", type: "bool" },
+        { key: "cloudCount", label: "Clouds drawn together", type: "int", min: 1, max: ViewScene3D.CLOUD_COUNT_MAX, step: 1 },
+        { key: "cloudInterval", label: "Time between them (s)", type: "number", min: 0, max: 3600, step: 0.1 },
+    ];
 
     // Shows or hides what draws a telemetry (click on its legend entry)
     toggleTelemetry(id) {
@@ -312,16 +381,38 @@ class ViewScene3D extends ViewTelemetries {
         this.highlighted = undefined;
     }
 
-    // Renderer, scene, lights and what shapes are made of, in a canvas added to "host" (shared by the views that draw 3D telemetries).
+    // One WebGL renderer for every view that draws 3D telemetries: browsers only allow a few WebGL contexts per page (about 16, the
+    // oldest is lost beyond), and a dashboard or a test page can have more views than that. Each view is drawn in a corner of the
+    // canvas of that renderer, then copied to its own plain (2D) canvas: see __present.
+    static __shared = undefined; // { renderer, users, width, height }
+    static __acquireRenderer() {
+        const THREE = TELEPLOT.THREE;
+        if(!ViewScene3D.__shared) {
+            let renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // Transparent: what is behind the canvas of a view shows
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            ViewScene3D.__shared = { renderer, users: 0, width: 0, height: 0 };
+        }
+        ViewScene3D.__shared.users++;
+        return ViewScene3D.__shared.renderer;
+    }
+    static __releaseRenderer() {
+        let shared = ViewScene3D.__shared;
+        if(!shared || --shared.users > 0) return;
+        shared.renderer.dispose();
+        shared.renderer.forceContextLoss(); // Give the context back now
+        ViewScene3D.__shared = undefined;
+    }
+
+    // Renderer, scene, lights and what shapes are made of, with a canvas added to "host" (shared by the views that draw 3D telemetries).
     // Undefined (and state.error says why) when WebGL is not available.
     __createThree(host) {
         const THREE = TELEPLOT.THREE;
         let renderer;
-        try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } // Transparent: what is behind the canvas shows
+        try { renderer = ViewScene3D.__acquireRenderer(); }
         catch(e) { this.state.error = "3D needs WebGL, which is not available here"; return undefined; }
         this.state.error = "";
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        host.appendChild(renderer.domElement);
+        let canvas = document.createElement("canvas"); // What the view shows: a copy of what the shared renderer drew for it
+        host.appendChild(canvas);
 
         let scene = new THREE.Scene();
         let camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
@@ -334,7 +425,7 @@ class ViewScene3D extends ViewTelemetries {
         // Raw (not reactive): an application wrapping the library in a UI framework would turn every three.js object into a proxy,
         // which three.js does not survive (and would be slow)
         return TELEPLOT.Vue.markRaw({
-            host, renderer, scene, camera, controls: undefined,
+            host, renderer, canvas, context: canvas.getContext("2d"), width: 0, height: 0, scene, camera, controls: undefined,
             lights: { sky, sun },
             objects: new Map(), // telemetry id -> what draws it
             geometries: {       // Shared, of size 1: shapes are scaled to their size
@@ -356,7 +447,7 @@ class ViewScene3D extends ViewTelemetries {
         this.three = three;
         three.camera.up.set(0, 0, 1); // z up
         three.camera.position.set(-4, -2.5, 3); // Behind and above: x goes away from the viewer, y to the left
-        three.controls = new THREE.OrbitControls(three.camera, three.renderer.domElement);
+        three.controls = new THREE.OrbitControls(three.camera, three.canvas);
         three.controls.addEventListener("change", () => this.__requestRender());
         three.controls.addEventListener("start", () => { if(this.three) this.three.userMoved = true; }); // The camera is the user's from now on
         three.resizeObserver = new ResizeObserver(() => this.__resize());
@@ -376,9 +467,37 @@ class ViewScene3D extends ViewTelemetries {
         for(let geometry of Object.values(three.geometries)) geometry.dispose();
         for(let entry of three.stl.values()) if(entry.geometry) entry.geometry.dispose();
         this.__disposeHelpers(three);
-        three.renderer.dispose();
-        three.renderer.forceContextLoss(); // Browsers only allow a few WebGL contexts: give this one back now
-        three.renderer.domElement.remove();
+        three.canvas.remove();
+        ViewScene3D.__releaseRenderer();
+    }
+
+    // Size of the drawing of the view, in pixels of the page
+    __setSize(three, width, height) {
+        let ratio = three.renderer.getPixelRatio();
+        three.width = width; three.height = height;
+        three.canvas.width = Math.max(1, Math.floor(width * ratio));
+        three.canvas.height = Math.max(1, Math.floor(height * ratio));
+        three.canvas.style.width = width + "px";
+        three.canvas.style.height = height + "px";
+    }
+
+    // Draws the view with the shared renderer ("draw(renderer)" does the rendering, in a viewport of the size of the view) and copies
+    // the result to the canvas of the view. The shared canvas only grows: it is as large as the largest view.
+    __present(three, draw) {
+        let shared = ViewScene3D.__shared, renderer = three.renderer;
+        if(!shared || !three.width || !three.height) return;
+        if(shared.width < three.width || shared.height < three.height) {
+            shared.width = Math.max(shared.width, three.width);
+            shared.height = Math.max(shared.height, three.height);
+            renderer.setSize(shared.width, shared.height, false);
+        }
+        renderer.setViewport(0, 0, three.width, three.height); // (bottom left corner of the shared canvas)
+        renderer.setScissor(0, 0, three.width, three.height);
+        renderer.setScissorTest(true);
+        draw(renderer);
+        let source = renderer.domElement, width = three.canvas.width, height = three.canvas.height;
+        three.context.clearRect(0, 0, width, height);
+        three.context.drawImage(source, 0, source.height - height, width, height, 0, 0, width, height);
     }
 
     dispose() {
@@ -392,7 +511,7 @@ class ViewScene3D extends ViewTelemetries {
         if(!three) return;
         let width = three.host.clientWidth, height = three.host.clientHeight;
         if(!width || !height) return;
-        three.renderer.setSize(width, height);
+        this.__setSize(three, width, height);
         three.camera.aspect = width / height;
         three.camera.updateProjectionMatrix();
         this.__render(); // Right away: a canvas that was resized is blank until drawn
@@ -405,7 +524,8 @@ class ViewScene3D extends ViewTelemetries {
     }
 
     __render() {
-        if(this.three) this.three.renderer.render(this.three.scene, this.three.camera);
+        let three = this.three;
+        if(three) this.__present(three, (renderer) => renderer.render(three.scene, three.camera));
     }
 
     // ------------------------------------------------------------------ Update
@@ -441,6 +561,7 @@ class ViewScene3D extends ViewTelemetries {
         const P = TELEPLOT.protocol;
         let sources = [];
         let key = `${timestamp},${this.options.displayLegend},${this.options.trailLength},${this.options.displayNumberDecimals},${this.highlighted},${Object.keys(this.hidden).join("/")}`;
+        key += `,${this.options.pointSize},${this.options.pointColorByHeight},${this.options.cloudCount},${this.options.cloudInterval}`;
         let serieIdx = 0;
         for(let telemIdOrName of this.telemetryIdOrNameList){
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
@@ -459,6 +580,15 @@ class ViewScene3D extends ViewTelemetries {
                 if(!source.camera) continue; // Intrinsics that make no sense
                 source.position = source.camera.position;
                 key += ":" + JSON.stringify(source.camera);
+            }
+            else if(kind == "cloud") {
+                let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];
+                source.clouds = ViewScene3D.cloudSamples(entry, timestamp, this.options.cloudCount, this.options.cloudInterval);
+                key += `:${entry.lastUpdate}:${entry.timestamps.length}:${entry.lateInsertions}:${source.clouds.join("/")}`;
+                // Each cloud is where its sensor was when it was taken
+                source.poses = source.clouds.map((index) => { let pose = ViewScene3D.shapeState(telem, entry.timestamps[index]); return { position: pose.position, quaternion: pose.quaternion }; });
+                key += ":" + JSON.stringify(source.poses);
+                source.points = source.clouds.length ? entry.data[0][source.clouds[0]].length / 3 : undefined; // (of the current cloud, for the legend)
             }
             else if(shape) {
                 source.state = ViewScene3D.shapeState(telem, timestamp, color);
@@ -490,6 +620,7 @@ class ViewScene3D extends ViewTelemetries {
         }
         for(let source of sources) {
             if(source.kind == "camera") this.__updateCamera(three, source);
+            else if(source.kind == "cloud") this.__updateCloud(three, source);
             else if(source.shape) this.__updateShape(three, source);
             else this.__updatePoint(three, source, timestamp, since);
         }
@@ -502,6 +633,7 @@ class ViewScene3D extends ViewTelemetries {
             let id = source.telem.id;
             let position = source.shape ? source.state.position : source.position;
             let value = position ? ViewScene3D.formatPosition(position, this.options.displayNumberDecimals) : "";
+            if(source.kind == "cloud") value = source.points !== undefined ? source.points + " pts" : "";
             if(value.length > (this.valueChars[id] || 0)) this.valueChars[id] = value.length;
             return { id, name: source.telem.getAttribute(P.TELEM_ATTR_NAME) || String(id), unit: source.telem.getAttribute(P.TELEM_ATTR_UNIT) || "",
                 color: source.shape ? source.state.color : source.color, value, valueChars: this.valueChars[id] || 0 };
@@ -670,7 +802,73 @@ class ViewScene3D extends ViewTelemetries {
         current.needsUpdate = true;
     }
 
+    // A point cloud: the points of each cloud to draw (see cloudSamples), placed where their sensor was. The arrays that were received
+    // are given to the renderer as they are.
+    __updateCloud(three, source) {
+        const THREE = TELEPLOT.THREE;
+        let entry = source.telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];
+        let object = three.objects.get(source.telem.id);
+        if(!object) {
+            object = { kind: "cloud", clouds: [] }; // clouds: [{points (THREE.Points), key}], the current one first
+            three.objects.set(source.telem.id, object);
+        }
+        let size = Math.max(1, Math.min(20, Number(this.options.pointSize) || 3));
+        let byHeight = !!this.options.pointColorByHeight;
+        while(object.clouds.length > source.clouds.length) { // Fewer clouds than before
+            let extra = object.clouds.pop();
+            three.scene.remove(extra.points);
+            extra.points.geometry.dispose(); extra.points.material.dispose();
+        }
+        source.clouds.forEach((index, n) => {
+            let cloud = object.clouds[n];
+            if(!cloud) {
+                let points = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ size, sizeAttenuation: false, transparent: true }));
+                points.frustumCulled = false; // (the camera of an image view is not one three.js can test against)
+                cloud = object.clouds[n] = { points, key: "", box: new THREE.Box3(), boxKey: "" };
+                three.scene.add(points);
+            }
+            let positions = entry.data[0][index], intensities = entry.data[1][index], colors = entry.data[2][index];
+            let key = `${entry.timestamps[index]}:${positions.length}:${byHeight}:${entry.lateInsertions}`;
+            if(key != cloud.key) { // Another cloud in this slot
+                cloud.key = key;
+                let geometry = cloud.points.geometry;
+                geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+                let own = ViewScene3D.cloudColors(positions, intensities, colors, byHeight);
+                if(own) geometry.setAttribute("color", new THREE.BufferAttribute(own, 3)); else geometry.deleteAttribute("color");
+                if(cloud.points.material.vertexColors !== !!own) { cloud.points.material.vertexColors = !!own; cloud.points.material.needsUpdate = true; }
+            }
+            let material = cloud.points.material;
+            if(material.vertexColors) material.color.set(0xffffff); else ViewScene3D.setColor(material.color, source.color);
+            material.size = size;
+            material.opacity = source.faded ? 0.15 : 1;
+            cloud.points.visible = !source.hidden;
+            let pose = source.poses[n];
+            cloud.points.position.set(pose.position[0], pose.position[1], pose.position[2]);
+            cloud.points.quaternion.set(pose.quaternion[1], pose.quaternion[2], pose.quaternion[3], pose.quaternion[0]);
+            cloud.points.updateMatrixWorld(true);
+            // Where its points are in the scene, from the points themselves (the box of a turned box would be larger than what is drawn)
+            let boxKey = key + ":" + JSON.stringify(pose);
+            if(boxKey != cloud.boxKey) {
+                cloud.boxKey = boxKey;
+                cloud.box.makeEmpty();
+                let m = cloud.points.matrixWorld.elements, low = cloud.box.min, high = cloud.box.max;
+                for(let i = 0; i + 2 < positions.length; i += 3) {
+                    let x = positions[i], y = positions[i+1], z = positions[i+2];
+                    if(!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z))) continue;
+                    let wx = m[0]*x + m[4]*y + m[8]*z + m[12], wy = m[1]*x + m[5]*y + m[9]*z + m[13], wz = m[2]*x + m[6]*y + m[10]*z + m[14];
+                    if(wx < low.x) low.x = wx; if(wy < low.y) low.y = wy; if(wz < low.z) low.z = wz;
+                    if(wx > high.x) high.x = wx; if(wy > high.y) high.y = wy; if(wz > high.z) high.z = wz;
+                }
+            }
+        });
+    }
+
     __disposeObject(three, object) {
+        if(object.kind == "cloud") {
+            for(let cloud of object.clouds) { three.scene.remove(cloud.points); cloud.points.geometry.dispose(); cloud.points.material.dispose(); }
+            object.clouds = [];
+            return;
+        }
         if(object.kind == "camera") {
             three.scene.remove(object.lines);
             object.lines.geometry.dispose();
@@ -693,7 +891,8 @@ class ViewScene3D extends ViewTelemetries {
         const THREE = TELEPLOT.THREE;
         let box = new THREE.Box3();
         for(let object of this.three.objects.values()) {
-            if(object.kind == "camera") { if(object.lines.visible) box.expandByObject(object.lines); }
+            if(object.kind == "cloud") { for(let cloud of object.clouds) { if(cloud.points.visible && !cloud.box.isEmpty()) box.union(cloud.box); } }
+            else if(object.kind == "camera") { if(object.lines.visible) box.expandByObject(object.lines); }
             else if(object.kind == "shape") { if(object.mesh.visible) box.expandByObject(object.mesh); }
             else if(object.line.visible || object.dot.visible) {
                 let positions = object.line.geometry.getAttribute("position");

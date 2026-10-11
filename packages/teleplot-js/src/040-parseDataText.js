@@ -97,6 +97,7 @@ function _parseDataText_parseVariablesData(msg, now)
     
     let flags = msg.substr(endIdx+1);
     let isTextFormatTelem = flags.includes('t');
+    if(flags.includes("pc")) return _parseDataText_parsePointCloud(msg, now); // A point cloud: all the points are one sample
     let isXYZ = flags.includes("xyz");
     let isXY = !isXYZ && flags.includes("xy");
 
@@ -185,6 +186,48 @@ function _parseDataText_parseVariablesData(msg, now)
             telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, timestampArray, [xArray]);
         }
     }
+}
+
+// A point cloud (lidar scan...): every point of the line belongs to one sample.
+//   name:x:y:z;x:y:z;...|pc                points in the frame of the sensor (a 2D scan sets z to 0)
+//   name:1627551892437;x:y:z;x:y:z|pc      a field alone is the timestamp of the cloud (ms)
+//   x:y:z:i  x:y:z:r:g:b  x:y:z:i:r:g:b    optional intensity and / or color (0 to 255) of each point, the same for the whole line
+// The pose of the sensor is given like the one of a shape: 3D|name:P:x:y:z:R:roll:pitch:yaw (or Q:...)
+function _parseDataText_parsePointCloud(msg, now)
+{
+    let startIdx = msg.indexOf(':');
+    let endIdx = msg.lastIndexOf('|');
+    let [name, widgetLabel] = _parseDataText_separateWidgetAndLabel(msg.substr(0, startIdx));
+    let flags = msg.substr(endIdx + 1);
+    let unit = "";
+    let unitIdx = msg.indexOf('§');
+    if(unitIdx != -1) { unit = msg.substring(unitIdx + 1, endIdx); endIdx = unitIdx; }
+
+    let fields = msg.substring(startIdx + 1, endIdx).split(';').filter((field) => field.length > 0).map((field) => field.split(':'));
+    let timestamp = now;
+    if(fields.length && fields[0].length == 1) { // A field alone: the timestamp
+        let given = parseFloat(fields.shift()[0]) / 1000;
+        if(Number.isFinite(given)) timestamp = given;
+    }
+    let width = fields.length ? fields[0].length : 3; // Values per point: 3 (x, y, z), 4 (+ intensity), 6 (+ r, g, b) or 7 (+ intensity, r, g, b)
+    if(![3, 4, 6, 7].includes(width) || fields.some((point) => point.length != width)) throw new Error("Point cloud: every point must have the same 3, 4, 6 or 7 values");
+    let count = fields.length;
+    let positions = new Float32Array(count * 3);
+    let intensities = (width == 4 || width == 7) ? new Float32Array(count) : null;
+    let colors = width >= 6 ? new Uint8Array(count * 3) : null;
+    for(let i = 0; i < count; i++) {
+        let point = fields[i];
+        positions[i*3] = parseFloat(point[0]); positions[i*3+1] = parseFloat(point[1]); positions[i*3+2] = parseFloat(point[2]);
+        if(intensities) intensities[i] = parseFloat(point[3]);
+        if(colors) for(let c = 0; c < 3; c++) colors[i*3+c] = Math.max(0, Math.min(255, Math.round(parseFloat(point[width - 3 + c])) || 0));
+    }
+
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(name);
+    if(flags.includes("np")) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT, false);
+    if(flags.includes("clr")) telemetry.clearData();
+    if(unit.length > 0) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT, unit);
+    if(widgetLabel) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, widgetLabel);
+    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [timestamp], [[positions], [intensities], [colors]]);
 }
 
 function _parseDataText_parseImage(msg, now)

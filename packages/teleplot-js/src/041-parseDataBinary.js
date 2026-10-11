@@ -112,6 +112,9 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION:
                     offset = _parseDataBinary_parseTELEM_DATA_CAMERA_DISTORTION(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD:
+                    offset = _parseDataBinary_parseTELEM_DATA_POINT_CLOUD(view, offset, clientId);
+                    break;
                 default:
                     console.warn(`parseDataBinary: unknown section type ${sectionType}`);
                     return;
@@ -398,6 +401,76 @@ function _parseDataBinary_parseTELEM_DATA_IMAGE(view, offset, clientId) {
 }
 
 const _parseDataBinary_imageParts = {}; // telemetry id -> parts of the image being received
+
+// A point cloud: per sample, TIMEDIFF (uint32), flags (uint8: POINT_CLOUD_INTENSITY | POINT_CLOUD_RGB), part index and part count
+// (uint16, like images: a cloud bigger than a packet comes in parts that share a timestamp), number of points of the part (uint16),
+// then for each point x, y, z (float32), its intensity (float32) if flagged, its color r, g, b (uint8) if flagged.
+function _parseDataBinary_parseTELEM_DATA_POINT_CLOUD(view, offset, clientId) {
+    const P = TELEPLOT.protocol;
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+
+    let timestamps = [], positionsList = [], intensitiesList = [], colorsList = [];
+    for(let i = 0; i < count; i++) {
+        let timeDiff = view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN);
+        offset += 4;
+        let flags = view.getUint8(offset);
+        offset++;
+        let partIndex = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
+        offset += 2;
+        let partCount = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
+        offset += 2;
+        let pointCount = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
+        offset += 2;
+        let hasIntensity = (flags & P.POINT_CLOUD_INTENSITY) != 0, hasColor = (flags & P.POINT_CLOUD_RGB) != 0;
+
+        let part = { positions: new Float32Array(pointCount * 3), intensities: hasIntensity ? new Float32Array(pointCount) : null, colors: hasColor ? new Uint8Array(pointCount * 3) : null };
+        for(let p = 0; p < pointCount; p++) {
+            part.positions[p*3] = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN);
+            part.positions[p*3+1] = view.getFloat32(offset + 4, _parseDataBinary_LITTLE_ENDIAN);
+            part.positions[p*3+2] = view.getFloat32(offset + 8, _parseDataBinary_LITTLE_ENDIAN);
+            offset += 12;
+            if(hasIntensity) { part.intensities[p] = view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN); offset += 4; }
+            if(hasColor) { part.colors[p*3] = view.getUint8(offset); part.colors[p*3+1] = view.getUint8(offset + 1); part.colors[p*3+2] = view.getUint8(offset + 2); offset += 3; }
+        }
+
+        let timestamp = _parseDataBinary_makeTimestamp(timeRef, timeDiff);
+        if(partCount > 1) { // Stored once all the parts are there
+            let pending = _parseDataBinary_cloudParts[telemId];
+            if(pending === undefined || pending.timestamp !== timestamp || pending.partCount !== partCount || pending.flags !== flags) {
+                pending = _parseDataBinary_cloudParts[telemId] = { timestamp, partCount, flags, parts: {}, received: 0 };
+            }
+            if(partIndex >= partCount) continue;
+            if(pending.parts[partIndex] === undefined) pending.received++;
+            pending.parts[partIndex] = part;
+            if(pending.received < partCount) continue;
+            delete _parseDataBinary_cloudParts[telemId];
+            let total = 0;
+            for(let n = 0; n < partCount; n++) total += pending.parts[n].positions.length / 3;
+            let whole = { positions: new Float32Array(total * 3), intensities: hasIntensity ? new Float32Array(total) : null, colors: hasColor ? new Uint8Array(total * 3) : null };
+            for(let n = 0, at = 0; n < partCount; n++) {
+                let piece = pending.parts[n];
+                whole.positions.set(piece.positions, at * 3);
+                if(hasIntensity) whole.intensities.set(piece.intensities, at);
+                if(hasColor) whole.colors.set(piece.colors, at * 3);
+                at += piece.positions.length / 3;
+            }
+            part = whole;
+        }
+        timestamps.push(timestamp);
+        positionsList.push(part.positions);
+        intensitiesList.push(part.intensities);
+        colorsList.push(part.colors);
+    }
+
+    if(timestamps.length) {
+        let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
+        telemetry.addData(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, timestamps, [positionsList, intensitiesList, colorsList]);
+    }
+    return offset;
+}
+
+const _parseDataBinary_cloudParts = {}; // telemetry id -> parts of the point cloud being received
 
 function _parseDataBinary_toBase64(bytes) {
     let binary = "";

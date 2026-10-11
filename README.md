@@ -100,6 +100,14 @@ Using the `xyz` flag and three values, teleplot displays a point in a 3D view, f
 
 Like for `xy`, a timestamp can be added after the third value: `drone:1.5:0.2:3:1627551892437|xyz`.
 
+### Point clouds
+
+Using the `pc` flag, all the points of a line are one sample: a point cloud (lidar scan, depth camera...), shown in a 3D view.
+
+- `lidar:1:0:0;0.7:0.7:0;0:1:0|pc`
+
+Points are `x:y:z` in the frame of the sensor (a 2D scan sets z to 0). They can carry an intensity (`x:y:z:i`), a color (`x:y:z:r:g:b`) or both (`x:y:z:i:r:g:b`). A field alone at the start is the timestamp of the cloud: `lidar:1627551892437;1:0:0;0:1:0|pc`. The pose of the sensor is sent like the one of a shape: `3D|lidar:P:1:2:0.2:R:0:0:1.57`. See `doc/3d.md`.
+
 ### Publishing text format telemetries
 - Using the `t` flag and giving a text telemetry (with or without timestamp), teleplot will display a text chart.
 

@@ -30,6 +30,9 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE: 32,
     SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS: 33,
     SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION: 34,
+    SECTION_TYPE_TELEM_DATA_POINT_CLOUD: 35,
+    POINT_CLOUD_INTENSITY: 1, // Flags of a point cloud: each point has an intensity (float32)
+    POINT_CLOUD_RGB: 2,       //                          each point has a color (r, g, b bytes)
     IMAGE_TYPE_JPEG: 0,
     IMAGE_TYPE_PNG: 1,
     TEXTURE_TYPE_NONE: 0,
@@ -81,6 +84,8 @@ TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
             return 6; // width, height, fx, fy, cx, cy
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION:
             return 5; // k1, k2, p1, p2, k3
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD:
+            return 3; // A sample is a whole cloud: positions (Float32Array x, y, z...), intensities (Float32Array or null), colors (Uint8Array r, g, b... or null)
     }
     console.error(Error(`Unknown section type: ${sectionType}`));
     return -1;

@@ -100,6 +100,29 @@ var app = Vue.createApp({
 });
 
 // Load components
+// v-value: the value of a field that comes from the application (used with @change, in place of ":value").
+// Panels redraw several times per second (timers, live data), and a plain ":value" then writes the stored value back over what is being
+// typed. v-value leaves the field alone from the first key typed until the entry is confirmed (change) or left (blur); then the field
+// shows what the application holds again (the entry as it was taken: clamped, rounded, refused...).
+// Every text or number field bound to application state must use it.
+app.directive("value", {
+    mounted(el, binding) {
+        const show = () => { const text = String(el.__appValue ?? ""); if (!el.__editing && el.value !== text) el.value = text; };
+        el.__appValue = binding.value;
+        el.__editing = false;
+        show();
+        const done = () => { el.__editing = false; setTimeout(show, 400); }; // (redraws show it sooner; this is for a panel that would not redraw)
+        el.addEventListener("input", () => { el.__editing = true; });
+        el.addEventListener("change", done);
+        el.addEventListener("blur", done);
+    },
+    updated(el, binding) {
+        el.__appValue = binding.value;
+        const text = String(binding.value ?? "");
+        if (!el.__editing && el.value !== text) el.value = text;
+    }
+});
+
 initComponent_top_menu(app);
 initComponent_welcome(app);
 initComponent_panel_help(app);

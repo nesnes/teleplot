@@ -28,6 +28,12 @@ for (const example of HELP_EXAMPLES) {
             assert.deepEqual([camera.fx, camera.fy, camera.cx, camera.cy, camera.width, camera.height, camera.position], [554, 554, 320, 240, 640, 480, [0, 0, 1]]);
             return;
         }
+        if (e.cloud) { // A point cloud: one sample holding that many points, displayed in a 3D view
+            const entry = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];
+            assert.deepEqual([entry.timestamps.length, entry.data[0][0].length / 3], [1, e.cloud]);
+            assert.equal(T.view.suggestViewType(telem.id), '3d');
+            return;
+        }
         if (e.shape) {
             assert.equal(telem.attributes[P.TELEM_ATTR_SHAPE].type, P.TELEM_ATTR_SHAPE_TYPE_CUBE);
             assert.deepEqual(T.view.ViewScene3D.shapeState(telem).position, [1, 0, 0.5]);
