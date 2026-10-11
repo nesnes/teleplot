@@ -74,10 +74,12 @@ class ViewLog extends ViewTelemetries{
     // The mouse is over a line / left the view: the group cursor follows
     hoverRow(row) {
         this.hovering = true;
+        TELEPLOT.view.hoveredGroup = this.group;
         TELEPLOT.view.groups[this.group].cursorTimestamp = row.t;
     }
     hoverEnd() {
         this.hovering = false;
+        TELEPLOT.view.hoveredGroup = "";
         if (!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1; // (while zoomed the cursor stays where it was last, as on charts)
     }
 

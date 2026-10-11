@@ -156,6 +156,28 @@ test('time groups: views inherit the group of their layout; a view or a layout c
     T.dashboards.resolveTimeGroups();
     assert.deepEqual([root.group, inRow.group, T.view.groups.Bench], ['Rig', 'Rig', undefined]);
 
+    // Marks: nothing by default; the tag alone while the pointer is over a chart or a log of the dashboard; tag and frame while zoomed or with showTimeGroups
+    assert.equal(top.getTimeGroupMarkState(), '', 'a view that follows its layout has no mark');
+    T.dashboards.setTimeGroup('Rig', row, 'custom', 'Arm');
+    assert.equal(row.getTimeGroupMarkState(), '');
+    T.view.hoveredGroup = 'Rig';
+    assert.deepEqual([row.getTimeGroupMarkState(), inRow.getTimeGroupMarkState()], ['tag', '']);
+    T.view.hoveredGroup = 'Other dashboard';
+    assert.equal(row.getTimeGroupMarkState(), '');
+    T.view.groups[row.group].cursorActive = true;
+    assert.equal(row.getTimeGroupMarkState(), 'frame');
+    T.view.backToLive();
+    T.view.showTimeGroups = true;
+    assert.equal(row.getTimeGroupMarkState(), 'frame');
+    T.view.showTimeGroups = false;
+    const log = new T.view.ViewLog('', [], 'Rig');
+    row.addView(log); T.dashboards.resolveTimeGroups();
+    log.hoverRow({ t: 3 });
+    assert.equal(T.view.hoveredGroup, row.group);
+    log.hoverEnd();
+    assert.equal(T.view.hoveredGroup, '');
+    T.dashboards.setTimeGroup('Rig', row, 'inherit');
+
     // A copy keeps the choice of the view it was made from
     T.dashboards.setTimeGroup('Rig', top, 'custom', 'Arm');
     assert.deepEqual([top.clone().options.timeGroup, top.clone().options.timeGroupName], ['custom', 'Arm']);

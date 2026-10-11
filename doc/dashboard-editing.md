@@ -28,7 +28,7 @@ The views of a time group share their zoom and their cursor. A dashboard is one 
 - **Inherit** (default): the group of the container it is in.
 - **Dashboard**: the main group of the dashboard, whatever its containers say (the way out of a custom container).
 - **Custom**: a group of its own. Clicking "Custom" creates one, named "Time 2", "Time 3"... (the name can be changed, for every view that uses it); the list under it shows the custom groups of the dashboard, to join one that exists, and "New group". On a container, the views inside follow it as long as they are on "Inherit". A group goes away with its last user.
-- Where a group starts, a tag in its color says so (name, period it is zoomed on, a button to go back to the latest data); a container also gets a tinted frame. Tags are shown all the time in edit mode, and only while their group (or the one around it) is zoomed otherwise.
+- Where a group starts, a tag in its color says so (name, period it is zoomed on, a button to go back to the latest data); a container also gets a tinted frame. Tags are shown all the time in edit mode, and only while their group (or the one around it) is zoomed otherwise. While the pointer is over a chart or a log line, the tags of the dashboard's groups also show (the tag alone, without the frame, after a short delay): they tell which views follow that cursor and which do not.
 - `Esc` and the play button of the top menu release every group at once; the button of a tag, or a double click on a chart, only its own.
 - A values, image or 3D view alone in a custom group has nothing that moves its cursor: it stays on the latest data while the rest is explored.
 

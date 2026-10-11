@@ -321,8 +321,8 @@ class ViewChart extends ViewTelemetries{
         // The pointer on this chart drives the cursor of the group; on the other charts the cursor follows the group (see syncCursor)
         this.pointerInside = false;
         if(this.chart.over && this.chart.over.addEventListener) {
-            this.chart.over.addEventListener("mouseenter", () => { this.pointerInside = true; });
-            this.chart.over.addEventListener("mouseleave", () => { this.pointerInside = false; });
+            this.chart.over.addEventListener("mouseenter", () => { this.pointerInside = true; TELEPLOT.view.hoveredGroup = this.group; });
+            this.chart.over.addEventListener("mouseleave", () => { this.pointerInside = false; TELEPLOT.view.hoveredGroup = ""; });
         }
     }
 

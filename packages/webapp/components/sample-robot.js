@@ -202,9 +202,9 @@ function createRobotSample(TP) {
         const timeGroup = (view, name) => { view.setOption("timeGroup", "custom"); view.setOption("timeGroupName", name); return view; };
 
         // On top, where the robot is: the 3D scene, what its camera sees, its state and the merged logs of all subsystems.
-        // Under it, the motion charts, in a time group of their own ("Live") shared with the plain camera picture: zooming on them
-        // moves that picture and leaves the rest of the dashboard on the latest data.
-        const main = layout("column"), top = layout("row"), bottom = timeGroup(layout("row"), "Live");
+        // Under it, the motion charts. The plain camera picture is alone in a time group of its own ("Live"): nothing moves its
+        // cursor, so it keeps showing the latest picture while the rest of the dashboard is zoomed or follows the pointer.
+        const main = layout("column"), top = layout("row"), bottom = layout("row");
         const cameras = layout("column", 2, 7), state = layout("column", 4, 7), tabs = stack(2, 5);
         dashboard.setView(main);
         main.addView(top);

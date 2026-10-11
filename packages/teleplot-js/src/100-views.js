@@ -91,13 +91,27 @@ class Views{
 
     // Where a time group starts (a view or a layout that does not follow its parent), a tag says so: its name and color, the period
     // it is zoomed on, and a button to go back to the latest data. A layout also gets a frame. Shown while the group (or the one
-    // around it) is zoomed, or all the time with TELEPLOT.view.showTimeGroups (an editor...).
+    // around it) is zoomed, or all the time with TELEPLOT.view.showTimeGroups (an editor...). While the pointer is over a chart or
+    // a log of the same dashboard, the tag alone is shown (no frame: nothing must move under the pointer), after a short delay: it
+    // tells which views follow that cursor and which do not.
+    // Returns "" (nothing), "tag" or "frame" (tag, and frame on a layout).
+    getTimeGroupMarkState() {
+        let mark = this.timeGroupMark;
+        if(mark.label === "") return "";
+        let group = TELEPLOT.view.groups[this.group];
+        let around = mark.parent ? TELEPLOT.view.groups[mark.parent] : undefined;
+        if(TELEPLOT.view.showTimeGroups || (group && group.cursorActive) || (around && around.cursorActive)) return "frame";
+        let hovered = TELEPLOT.view.hoveredGroup;
+        let base = (name) => String(name).split(TELEPLOT.view.TIME_GROUP_SEPARATOR)[0];
+        return (hovered !== "" && base(hovered) === base(this.group)) ? "tag" : "";
+    }
+
     __syncTimeGroup(element) {
         let mark = this.timeGroupMark;
         let group = TELEPLOT.view.groups[this.group];
         let zoomed = !!(group && group.cursorActive);
-        let around = mark.parent ? TELEPLOT.view.groups[mark.parent] : undefined;
-        let shown = mark.label !== "" && (TELEPLOT.view.showTimeGroups || zoomed || !!(around && around.cursorActive));
+        let state = this.getTimeGroupMarkState();
+        let shown = state !== "";
         let tag = Array.from(element.children).find((c) => c.classList.contains("teleplot-js-time-group"));
         if(!shown) {
             if(tag) { tag.remove(); element.classList.remove("teleplot-js-time-group-frame"); element.style.removeProperty("--teleplot-time-group"); }
@@ -116,7 +130,8 @@ class Views{
         if(when.textContent !== period) when.textContent = period;
         if(reset.hidden !== !zoomed) reset.hidden = !zoomed;
         if(element.style.getPropertyValue("--teleplot-time-group") !== mark.color) element.style.setProperty("--teleplot-time-group", mark.color);
-        element.classList.toggle("teleplot-js-time-group-frame", Array.isArray(this.views));
+        tag.classList.toggle("teleplot-js-time-group-hover", state === "tag");
+        element.classList.toggle("teleplot-js-time-group-frame", state === "frame" && Array.isArray(this.views));
     }
 
     // "18:57:02" for a timestamp in seconds
@@ -156,14 +171,16 @@ class Views{
             .teleplot-js-view {
                 position: relative;
             }
-            /* Time group that starts on this view: a tag astride its top edge (it covers nothing of the view); a layout gets a frame with the tag inside, at the top */
+            /* Time group that starts on this view: a tag in its top right corner (inside: a view at the top of the page has no room above it); a layout gets a frame with the tag inside, at the top */
             .teleplot-js-time-group {
-                position: absolute; top: -0.8em; right: 0.9em; z-index: 4;
+                position: absolute; top: 0.35em; right: 0.5em; z-index: 4;
                 display: inline-flex; align-items: center; gap: 0.35em; max-width: calc(100% - 1em);
                 padding: 0.05em 0.5em; border-radius: 0.8em; font-size: 0.85em; line-height: 1.5; white-space: nowrap;
                 color: var(--teleplot-text, inherit); background: var(--teleplot-surface, Canvas);
                 box-shadow: inset 0 0 0 1px var(--teleplot-time-group);
             }
+            .teleplot-js-time-group-hover { animation: teleplot-js-time-group-in 0.15s 0.3s both; } /* Not for a pointer that only passes by */
+            @keyframes teleplot-js-time-group-in { from { opacity: 0; } to { opacity: 1; } }
             .teleplot-js-time-group i { flex: none; width: 0.6em; height: 0.6em; border-radius: 50%; background: var(--teleplot-time-group); }
             .teleplot-js-time-group b { font-weight: 700; }
             .teleplot-js-time-group span { color: var(--teleplot-muted, gray); overflow: hidden; text-overflow: ellipsis; }
@@ -192,7 +209,8 @@ class Views{
 TELEPLOT.view = {
     views: [],
     groups: {},
-    showTimeGroups: false // true: time groups are marked on the views all the time (an editor), not only while they are zoomed
+    showTimeGroups: false, // true: time groups are marked on the views all the time (an editor), not only while they are zoomed
+    hoveredGroup: ""       // Group of the chart or log the pointer is over ("" when it is over none)
 };
 
 // State of a group of views (created if needed): its zoom (cursorActive, timestampFrom/To) and its cursor
