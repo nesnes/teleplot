@@ -2,7 +2,7 @@
  * Top menu: a floating island at the top of the workspace.
  * [logo] [dashboard switcher] [pause/resume | data rate] [panels: Telemetries, Sources, Export] [Edit] [Help]
  * - The panels are one segmented control, icon only, with a hint of their content next to the icon. Telemetries and Sources share the left
- *   dock (ctx.sidePanel, one at a time); Help has its own dock on the right (ctx.helpOpen), so it can stay open next to one of them.
+ *   dock (ctx.sidePanel, one at a time); Help has its own dock on the right (ctx.helpOpen), so it can stay open next to one of them; Export and import opens on the right too (ctx.exportOpen), in place of Help.
  * - Pause/resume is the library's own TP.state.isPaused (incoming data is ignored while paused: the displays freeze).
  * - Shortcuts (not while typing): Space pause/resume, T / S / H panels, E edit. Esc is handled in main.js.
  * - The island floats over the dashboard and fades out when the mouse rests (IDLE_MS), to leave the whole stage to the data. It stays while a popup
@@ -22,7 +22,7 @@ const ACTIVITY_EVENTS = ["pointermove", "pointerdown", "keydown", "touchstart"];
 
 // Dashboards as text files: one "DASH|..." line per view (the library writes and reads them, see doc/dashboard-text.md)
 function dashboardFileName(name) {
-    return (String(name).replace(/[\\/:*?"<>|\x00-\x1f]+/g, "_").trim() || "dashboard") + ".dashboard.txt";
+    return (String(name).replace(/[\\/:*?"<>|\x00-\x1f]+/g, "_").trim() || "dashboard") + ".teleplot.txt"; // The extension of text files: lines of the text protocol, here DASH lines only
 }
 function exportDashboardFile(TP, dashboard) {
     const url = URL.createObjectURL(new Blob([TP.dashboards.exportText(dashboard.name) + "\n"], { type: "text/plain" }));
@@ -34,24 +34,6 @@ function exportDashboardFile(TP, dashboard) {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-// Creates the dashboards of text files (picked, or dropped on the page) and displays the first one. Nothing that exists is replaced:
-// a name that is taken gives "name 2". What went wrong is said in the dashboard list (ctx.importNotice), which opens for it.
-async function importDashboardFiles(TP, ctx, files) {
-    const created = [], notes = [];
-    for (const file of Array.from(files || [])) {
-        let text = "";
-        try { text = await file.text(); } catch (e) { notes.push("\"" + file.name + "\" could not be read."); continue; }
-        if (!/^DASH\|/m.test(text)) { notes.push("No dashboard in \"" + file.name + "\": its lines must start with DASH|"); continue; }
-        const result = TP.dashboards.importText(text);
-        created.push(...result.dashboards);
-        if (result.problems) notes.push(result.problems + (result.problems == 1 ? " line" : " lines") + " of \"" + file.name + "\" " + (result.problems == 1 ? "was" : "were") + " not understood.");
-    }
-    if (created.length) ctx.activeDashboard = TP.dashboards.getDashboard(created[0]);
-    ctx.importNotice = notes.join(" ");
-    ctx.topPanel = notes.length ? "dashboard" : (ctx.topPanel == "dashboard" ? "" : ctx.topPanel);
-    return created;
-}
-
 function initComponent_top_menu(vue) {
     let name = "top-menu";
 
@@ -103,15 +85,14 @@ function initComponent_top_menu(vue) {
                             </template>
                             <div v-if="!dashboardList().length" class="tm-empty">No dashboard yet. Send some data, or create one.</div>
                             <div class="tm-sep-h"></div>
-                            <div v-if="ctx.importNotice" class="tm-notice" role="status">{{ctx.importNotice}}</div>
                             <div class="tm-new-row">
                                 <button class="tm-new" role="menuitem" @click="newDashboard();">
                                     <i class="icofont-plus"></i> New dashboard
                                 </button>
-                                <button class="tm-new tm-import" role="menuitem" title="Dashboards from text files (exported here, or written by hand). A file can also be dropped on the page." @click="$refs.importFile.click();">
-                                    <i class="icofont-upload"></i> Import
+                                <button class="tm-new tm-import" role="menuitem" title="Opens a file in the Import panel: it says what the file holds (dashboards, data) and lets you choose what to take" @click="$refs.importFile.click();">
+                                    <i class="icofont-upload"></i> Import…
                                 </button>
-                                <input ref="importFile" type="file" accept=".txt,text/plain" multiple hidden @change="importDashboards($event);">
+                                <input ref="importFile" type="file" multiple hidden @change="importDashboards($event);">
                             </div>
                         </div>
                     </template>
@@ -508,8 +489,6 @@ function initComponent_top_menu(vue) {
         .tm-new-row .tm-new { flex: 1; width: auto; text-align: left; }
         .tm-new-row .tm-import { width: auto; flex: none; color: var(--color-text-muted) !important; }
         .tm-new-row .tm-import:hover { color: var(--color-primary) !important; }
-        .tm-notice { margin: 0 0.3rem 0.4rem; padding: 0.4rem 0.6rem; border-radius: 0.6rem; max-width: 22rem; white-space: normal; font-size: 0.85rem; line-height: 1.35;
-            color: var(--color-text); background: color-mix(in srgb, var(--tm-thinned, orange) 16%, transparent); }
         .tm-popup button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-primary); }
 
         /* Tighter islands: logo and shortcut hints first, then the "Editing" prefix */
@@ -547,7 +526,7 @@ function initComponent_top_menu(vue) {
                 panels: [
                     { name: "telemetries", label: "Telemetries", key: "T", icon: "icofont-duotone icofont-chart" },
                     { name: "sources", label: "Sources", key: "S", icon: "icofont-link" },
-                    { name: "export", label: "Export", key: "X", icon: "icofont-share-alt", soon: true },
+                    { name: "export", label: "Export and import", key: "X", icon: "icofont-share-alt" },
                     { name: "help", label: "Help", key: "H", icon: "icofont-info" },
                 ],
                 awake: true,    // Recent activity of the mouse or keyboard
@@ -687,6 +666,7 @@ function initComponent_top_menu(vue) {
             tipLines(panel) {
                 if (panel.name == "telemetries") return [{ text: this.telemetryCount + (this.telemetryCount == 1 ? " telemetry" : " telemetries") }];
                 if (panel.soon) return [{ text: "Coming soon" }];
+                if (panel.name == "export") return [{ text: "Save your data, open a file" }];
                 if (panel.name != "sources") return [];
                 const connections = this.TP.connection.connections;
                 if (!connections.length) return [{ text: "No source" }];
@@ -697,14 +677,14 @@ function initComponent_top_menu(vue) {
             toggleSidePanel(name, event) {
                 this.release(event);
                 if (name == "help") this.ctx.helpOpen = !this.ctx.helpOpen;
+                else if (name == "export") this.ctx.exportOpen = !this.ctx.exportOpen;
                 else this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;
                 this.ctx.topPanel = "";
             },
-            isPanelOpen(panel) { return panel.name == "help" ? !!this.ctx.helpOpen : this.ctx.sidePanel == panel.name;
+            isPanelOpen(panel) { return panel.name == "help" ? !!this.ctx.helpOpen : (panel.name == "export" ? !!this.ctx.exportOpen : this.ctx.sidePanel == panel.name);
             },
             setTopPanel(name, event) {
                 this.release(event);
-                this.ctx.importNotice = "";
                 this.ctx.topPanel = (this.ctx.topPanel == name) ? "" : name;
             },
             // Dashboards in the order they are listed: the auto one first, then the others by creation
@@ -747,9 +727,10 @@ function initComponent_top_menu(vue) {
             exportDashboard(dashboard) {
                 exportDashboardFile(this.TP, dashboard);
             },
-            async importDashboards(event) {
+            // A file picked here goes to the Import panel (panel-export.js), like a file dropped on the page: one place to open files
+            importDashboards(event) {
                 const input = event.target;
-                await importDashboardFiles(this.TP, this.ctx, input.files);
+                if (input.files.length) { this.ctx.droppedFiles = Vue.markRaw(Array.from(input.files)); this.ctx.exportOpen = true; this.ctx.topPanel = ""; }
                 input.value = ""; // The same file can be picked again
             },
             toggleEdit(event) {

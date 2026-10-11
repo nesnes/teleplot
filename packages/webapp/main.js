@@ -12,16 +12,18 @@ var app = Vue.createApp({
             ctx: Vue.reactive({
                 sidePanel: "",   // Panel of the left dock: "telemetries", "sources" or ""
                 helpOpen: false, // The Help panel, in its own dock on the right: it can be open next to a left panel
+                exportOpen: false, // The Export and import panel, on the right too: it takes the place of Help (one of the two at a time)
                 topPanel: "",
                 showHelp: true,
                 sampleRunning: false,
                 bandVisible: false, // The band above the dashboard (room for the top menu) is scrolled into view
                 activeDashboard: null,
-                importNotice: "" // What went wrong with the dashboard files that were just imported (shown in the dashboard list)
+                droppedFiles: null // Files dropped on the page, waiting for the Export panel to take them
             }),
             editor: null,
             shownPanel: "", // The side panel on display: it stays until the dock has finished closing
-            shownHelp: false // Same for the Help panel
+            shownHelp: false, // Same for the Help panel
+            shownExport: false // And for the Export and import panel
         }
     },
     methods: {
@@ -49,9 +51,14 @@ var app = Vue.createApp({
             if (name) this.shownPanel = name;
             else this._dockTimer = setTimeout(()=>{ if (!this.ctx.sidePanel) this.shownPanel = ""; }, 400); // Longer than the dock transition (style.css)
         },
+        "ctx.exportOpen"(open){
+            clearTimeout(this._exportTimer);
+            if (open) { this.shownExport = true; this.ctx.helpOpen = false; }
+            else this._exportTimer = setTimeout(()=>{ if (!this.ctx.exportOpen) this.shownExport = false; }, 400);
+        },
         "ctx.helpOpen"(open){
             clearTimeout(this._helpTimer);
-            if (open) this.shownHelp = true;
+            if (open) { this.shownHelp = true; this.ctx.exportOpen = false; }
             else this._helpTimer = setTimeout(()=>{ if (!this.ctx.helpOpen) this.shownHelp = false; }, 400);
         },
         // The editor works on the displayed dashboard
@@ -86,6 +93,7 @@ var app = Vue.createApp({
             if (this.ctx.topPanel) this.ctx.topPanel = "";
             else if (this.TP.view.isZoomed()) { this.TP.view.backToLive(); this.TP.state.isPaused = false; }
             else if (this.ctx.helpOpen) this.ctx.helpOpen = false;
+            else if (this.ctx.exportOpen) this.ctx.exportOpen = false;
             else if (this.ctx.sidePanel) this.ctx.sidePanel = "";
             else if (this.editor.state.enabled) this.editor.setEnabled(false);
         };
@@ -103,12 +111,13 @@ var app = Vue.createApp({
             const active = this.ctx.activeDashboard;
             if (!active || (active.isAuto && !this.editor.state.enabled)) this.ctx.activeDashboard = dashboard;
         });
-        // Dashboard files dropped on the page are imported (see top-menu.js)
+        // Files dropped on the page go to the Export panel, which says what each holds before opening it (see panel-export.js)
         this._onFileDragOver = (event)=>{ if (event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault(); };
         this._onFileDrop = (event)=>{
             if (!event.dataTransfer || !event.dataTransfer.files || !event.dataTransfer.files.length) return;
             event.preventDefault();
-            importDashboardFiles(this.TP, this.ctx, event.dataTransfer.files);
+            this.ctx.droppedFiles = Vue.markRaw(Array.from(event.dataTransfer.files));
+            this.ctx.exportOpen = true;
         };
         window.addEventListener("dragover", this._onFileDragOver);
         window.addEventListener("drop", this._onFileDrop);
@@ -151,6 +160,7 @@ initComponent_top_menu(app);
 initComponent_welcome(app);
 initComponent_panel_help(app);
 initComponent_panel_sources(app);
+initComponent_panel_export(app);
 initComponent_panel_telemetries(app);
 initComponent_panel_edit(app);
 initComponent_dashboard(app);

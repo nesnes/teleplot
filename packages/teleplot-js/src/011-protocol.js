@@ -1,6 +1,8 @@
 TELEPLOT.protocol = {
     BINARY_MARKER: 0x10,
     BINARY_VERSION: 1,
+    CLIENT_ID_NAMED: 0xFFFF, // Client id of telemetries that are identified by their name (as in the text protocol), not by a client and an id: their name attribute comes first
+    FILE_MAGIC: [0x54, 0x50, 0x4C, 0x54, 0x0A, 0x01, 0x00, 0x00], // First bytes of a binary data file: "TPLT", a line feed, the file version, two reserved bytes. Then packets, each after its length (uint32)
     TELEM_ATTR_NAME: 0,
     TELEM_ATTR_UNIT: 1,
     TELEM_ATTR_COLOR: 2,
@@ -33,6 +35,7 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS: 33,
     SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION: 34,
     SECTION_TYPE_TELEM_DATA_POINT_CLOUD: 35,
+    SECTION_TYPE_TELEM_DATA_FLOAT64: 36, // Samples of a data type made of numbers, each number as a float64: for values that the float32 (or integer) section of the data type would round
     POINT_CLOUD_INTENSITY: 1, // Flags of a point cloud: each point has an intensity (float32)
     POINT_CLOUD_RGB: 2,       //                          each point has a color (r, g, b bytes)
     IMAGE_TYPE_JPEG: 0,
@@ -88,6 +91,8 @@ TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
             return 5; // k1, k2, p1, p2, k3
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD:
             return 3; // A sample is a whole cloud: positions (Float32Array x, y, z...), intensities (Float32Array or null), colors (Uint8Array r, g, b... or null)
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
+            return 0; // Not a data type: a way to write the others
     }
     console.error(Error(`Unknown section type: ${sectionType}`));
     return -1;

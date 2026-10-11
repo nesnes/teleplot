@@ -183,6 +183,13 @@ A whole dashboard can be described with `DASH|` lines, one per view, addressed b
 Lines can come in any order and be sent again at will (a line only does something when it changed). The dashboard menu exports any dashboard
 as a file of such lines and imports them. The format is described in `doc/dashboard-text.md`.
 
+### Data files
+
+A file of text protocol lines is a data file: a device can log the lines it sends (with their time) to an SD card, and the file opens in
+teleplot. The binary protocol has its file too (a short header, then each packet after its length), smaller and exact. Teleplot writes and
+reads both: see `doc/files.md`. For spreadsheets and scripts there is also a CSV export (and CSV files can be opened), with a choice of
+separator; numbers are always written with a point. In the webapp all of this is in the "Export and import" panel of the top menu.
+
 ### Publishing 3D telemetries
 
 To send 3D shapes to teleplot, use this syntax : `3D|A:B:C|E`, where

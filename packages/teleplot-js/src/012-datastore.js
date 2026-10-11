@@ -1,5 +1,7 @@
 // Where the data being parsed comes from (the id of a connection), for the telemetries and clients it creates: see TELEPLOT.datastore.withSource
 let _datastore_currentSourceId = undefined;
+let _datastore_addWatcher = undefined; // Called with (telemetry, dataType, timestamps) for what is added while it is set (see watchAdds)
+let _datastore_dry = false;            // true: nothing is stored nor cleared, the watcher still sees what would be added (see dryRun)
 
 class Telemetry {
     constructor(id) {
@@ -18,6 +20,7 @@ class Telemetry {
     }
     addData(dataType, timestamps, dataList) { // addData(TELEM_DATA_SHAPE_COLOR_RGB, [t1,t2], [[r1,r2], [g1,g2], [b1,b2]])
         if(TELEPLOT.state.isPaused) return; // Do not handle incoming data while paused
+        if(_datastore_dry) { if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps); return; }
         // Check inputs
         let expectedDataCount = TELEPLOT.protocol.getSectionTypeTelemDataDataCount(dataType);
         if( !expectedDataCount || expectedDataCount < 0 ) { console.error(Error(`Cannot check expected data channels`)); return; }
@@ -67,6 +70,7 @@ class Telemetry {
         }
 
         stored.lastUpdate = Date.now();
+        if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps);
     };
     getDataPoint(dataType, timestamp=-1) { // timestamp=-1 means "the latest value"
         let result = {timestamp:-1, data:[], index:undefined};
@@ -106,7 +110,25 @@ class Telemetry {
         return result;
     };
     clearData() {
+        if(_datastore_dry) return;
         Object.keys(this.data).forEach(key => delete this.data[key]);
+    };
+
+    // Removes the samples of a data type between two timestamps (seconds, limits included). Returns how many were removed.
+    removeRange(dataType, from, to) {
+        let entry = this.data[dataType];
+        if(entry === undefined) return 0;
+        let timestamps = entry.timestamps;
+        let lower = (value) => { let lo = 0, hi = timestamps.length; while(lo < hi) { let mid = (lo + hi) >> 1; if(timestamps[mid] < value) lo = mid + 1; else hi = mid; } return lo; };
+        let start = lower(from), end = lower(to);
+        while(end < timestamps.length && timestamps[end] === to) end++;
+        if(end <= start) return 0;
+        timestamps.splice(start, end - start);
+        for(let channel of entry.data) channel.splice(start, end - start);
+        entry.lateInsertions++; // (what was computed from the data is outdated, as after a late insertion)
+        entry.lastUpdate = Date.now();
+        if(timestamps.length === 0) delete this.data[dataType];
+        return end - start;
     };
 
     // Room taken by the stored data, estimated: {bytes, samples}. 8 bytes per number (timestamps included); texts and images are
@@ -277,6 +299,45 @@ TELEPLOT.datastore = {
     telemetriesNameMap : {}, // Telemetries without id (ex: sent with text protocol) need this to be mapped to an id
 }
 
+// Runs fn() and calls watcher(telemetry, dataType, timestamps) for every addData done meanwhile (to know what a file brought). Returns what fn returns.
+TELEPLOT.datastore.watchAdds = function(watcher, fn) {
+    let previous = _datastore_addWatcher;
+    _datastore_addWatcher = watcher;
+    try { return fn(); }
+    finally { _datastore_addWatcher = previous; }
+}
+
+// Dry run: while fn() runs nothing is stored and nothing is cleared (the watcher of watchAdds still sees what would be added), and
+// new telemetries are not announced. Telemetries, attributes and clients may still be created: begin a dry run with
+// rememberIdentity() and call what it returns to undo that. Used to describe a file before it is opened.
+TELEPLOT.datastore.dryRun = function(fn) {
+    let previous = _datastore_dry;
+    _datastore_dry = true;
+    try { return fn(); }
+    finally { _datastore_dry = previous; }
+}
+
+// Remembers which telemetries and clients exist, with their attributes; the function returned puts that back (what was created
+// since is forgotten, attributes that changed get their value back). Data is not concerned.
+TELEPLOT.datastore.rememberIdentity = function() {
+    let attributes = {};
+    for(let id in TELEPLOT.datastore.telemetries) attributes[id] = Object.assign({}, TELEPLOT.datastore.telemetries[id].attributes);
+    let names = Object.assign({}, TELEPLOT.datastore.telemetriesNameMap);
+    let clients = {};
+    for(let id in TELEPLOT.clients.clients) clients[id] = TELEPLOT.clients.clients[id].name;
+    return function restore() {
+        for(let id of Object.keys(TELEPLOT.datastore.telemetries)) {
+            if(attributes[id] === undefined) delete TELEPLOT.datastore.telemetries[id];
+            else TELEPLOT.datastore.telemetries[id].attributes = attributes[id];
+        }
+        for(let name of Object.keys(TELEPLOT.datastore.telemetriesNameMap)) if(!(name in names)) delete TELEPLOT.datastore.telemetriesNameMap[name];
+        for(let id of Object.keys(TELEPLOT.clients.clients)) {
+            if(!(id in clients)) delete TELEPLOT.clients.clients[id];
+            else TELEPLOT.clients.clients[id].name = clients[id];
+        }
+    };
+}
+
 // Runs fn() (parsing a message...) telling that what it creates comes from a source (a connection id). Returns what fn returns.
 TELEPLOT.datastore.withSource = function(sourceId, fn) {
     let previous = _datastore_currentSourceId;
@@ -414,7 +475,7 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
     }
 
     // Call new telemetry hooks
-    for(let hook of TELEPLOT.datastore.onNewTelemetryHooks) {
+    if(!_datastore_dry) for(let hook of TELEPLOT.datastore.onNewTelemetryHooks) {
         // Call hook with a delay, giving time to receive attributes and data
         setTimeout(()=>{
             hook(telem);

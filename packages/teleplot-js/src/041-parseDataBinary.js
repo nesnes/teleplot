@@ -36,8 +36,8 @@ TELEPLOT.parseDataBinary = function(msgIn) {
             throw new Error("No data in packet");
         };
 
-        // Create client if missing
-        TELEPLOT.clients.getOrCreateClient(clientId);
+        // Create client if missing (telemetries identified by their name have none)
+        if(clientId !== TELEPLOT.protocol.CLIENT_ID_NAMED) TELEPLOT.clients.getOrCreateClient(clientId);
 
         let offset = 4; // skip BINARY_MARKER, PROTOCOL_VERSION and CLIENT_ID
         _parseDataBinary_processSections(view, offset, dataLen + offset, clientId);
@@ -121,6 +121,9 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD:
                     offset = _parseDataBinary_parseTELEM_DATA_POINT_CLOUD(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
+                    offset = _parseDataBinary_parseTELEM_DATA_FLOAT64(view, offset, clientId);
+                    break;
                 default:
                     console.warn(`parseDataBinary: unknown section type ${sectionType}`);
                     return;
@@ -144,7 +147,17 @@ function _parseDataBinary_makeTimestamp(ref, diff) {
     return ref + diff / 1e9;
 }
 
+// Telemetries of the client id CLIENT_ID_NAMED are identified by their name, like those of the text protocol: their id in the packets
+// stands for the telemetry of the name given by the name attribute that came first (as the first attribute of a TELEM_ATTR section).
+const _parseDataBinary_named = {}; // telemetry id in the packets -> id of the telemetry of that name
+TELEPLOT.parseDataBinary.forgetNames = function() { for(let id in _parseDataBinary_named) delete _parseDataBinary_named[id]; }
+
 function _parseDataBinary_setCombineClientAndTelem(clientId, telemId) {
+    if(clientId === TELEPLOT.protocol.CLIENT_ID_NAMED && _parseDataBinary_named[telemId] !== undefined) {
+        let id = _parseDataBinary_named[telemId];
+        if(TELEPLOT.datastore.getTelemetry(id) === undefined) TELEPLOT.datastore.getOrCreateTelemetry(id); // (forgotten since: it comes back)
+        return id;
+    }
     let combinedId = clientId * 0x10000 + telemId;
     let telem = TELEPLOT.datastore.getOrCreateTelemetry(combinedId);
     telem.clientId = clientId;
@@ -183,6 +196,10 @@ function _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId) {
 function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
     let telemId = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
     offset += 2;
+    if(clientId === TELEPLOT.protocol.CLIENT_ID_NAMED && view.getUint8(offset) > 0 && view.getUint8(offset + 1) === TELEPLOT.protocol.TELEM_ATTR_NAME) {
+        let [name] = _parseDataBinary_readString(view, offset + 2);
+        if(name !== "") _parseDataBinary_named[telemId] = TELEPLOT.datastore.getOrCreateTelemetry(name).id;
+    }
     let combinedId = _parseDataBinary_setCombineClientAndTelem(clientId, telemId);
     let count = view.getUint8(offset);
     offset++;
@@ -252,6 +269,34 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
         }
     }
 
+    return offset;
+}
+
+// Data types whose samples are only numbers: they can also be written as float64 (TELEM_DATA_FLOAT64)
+const _parseDataBinary_NUMERIC_TYPES = [20, 21, 22, 25, 26, 27, 29, 30, 31, 33, 34];
+
+// {TELEM_ID[16]} {TIME_REFERENCE[64]} {COUNT[8]} {DATA_TYPE[8]} then for each sample {TIMEDIFF[32]} and a float64 for each number of
+// a sample of the data type (in the order of its own section).
+function _parseDataBinary_parseTELEM_DATA_FLOAT64(view, offset, clientId) {
+    let [telemId, timeRef, count, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+    let dataType = view.getUint8(offset);
+    offset++;
+    if(!_parseDataBinary_NUMERIC_TYPES.includes(dataType)) throw new Error(`TELEM_DATA_FLOAT64 cannot carry the data type ${dataType}`);
+    let channelCount = TELEPLOT.protocol.getSectionTypeTelemDataDataCount(dataType);
+    let timestamps = [];
+    let channels = [];
+    for(let c = 0; c < channelCount; c++) channels.push([]);
+    for(let i = 0; i < count; i++) {
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN)));
+        offset += 4;
+        for(let c = 0; c < channelCount; c++) {
+            channels[c].push(view.getFloat64(offset, _parseDataBinary_LITTLE_ENDIAN));
+            offset += 8;
+        }
+    }
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
+    telemetry.addData(dataType, timestamps, channels);
     return offset;
 }
 

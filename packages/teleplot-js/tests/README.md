@@ -11,6 +11,7 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 |---|---|
 | `datastore.test.js` | ordered/late insertion, pruning, timeouts, `getDataPoint`, naming |
 | `parseDataText.test.js` | V1 text protocol (retro-compatibility) |
+| `files.test.js` | data files: text and binary export, read back and compared with what was stored; import in pieces, options |
 | `dashboardText.test.js` | dashboards as text: `DASH|` lines received (text and binary), export, import, labels that are paths |
 | `parseDataBinary.test.js` | binary protocol decoding (packets built by `helpers/packet.js`, independent of the parser) |
 | `decimator.test.js` | min/max decimation vs a naive reference, incremental == from scratch |

@@ -378,6 +378,7 @@ function _dashText_created(dashboard) {
 // A dashboard line that was received (text protocol, binary section): applied when it differs from the last one received for the same
 // path. Returns false for a line that could not be understood, at least in part.
 TELEPLOT.dashboards.receiveLine = function(line) {
+    if(_dashText_importJob !== undefined) return _dashText_importJob.addLine(line); // The line comes from a file that is being imported
     let parsed = TELEPLOT.dashboards.parseLine(line);
     if(parsed === undefined) return false;
     line = String(line).trim();
@@ -422,25 +423,60 @@ TELEPLOT.dashboards.receiveText = function(text) {
 // created under a free name ("Robot 2"): nothing that exists is changed. Empty lines and lines that start with "#" are skipped.
 // Returns { dashboards: names of the dashboards created, problems: number of lines not understood (at least in part) }.
 TELEPLOT.dashboards.importText = function(text) {
-    let created = {}, problems = 0;
+    let job = TELEPLOT.dashboards.createImport();
+    let problems = 0;
     for(let line of String(text).split("\n")) {
         line = line.trim();
         if(line === "" || line.startsWith("#")) continue;
-        let parsed = TELEPLOT.dashboards.parseLine(line);
-        if(parsed === undefined) { problems++; continue; }
-        if(created[parsed.name] === undefined) created[parsed.name] = _dashText_addDashboard(parsed.name);
-        let dashboard = created[parsed.name];
-        if(!_dashText_isListed(dashboard)) continue; // (removed by a "none" line of the text)
-        if(_dashText_apply(dashboard, parsed) > 0) problems++;
+        if(!job.addLine(line)) problems++;
     }
-    let names = [];
-    for(let dashboard of Object.values(created)) {
-        if(!_dashText_isListed(dashboard)) continue;
-        if(!dashboard.view) dashboard.setView(_dashText_create("grid", dashboard.getGroupName()));
-        names.push(dashboard.name);
-    }
-    TELEPLOT.dashboards.resolveTimeGroups();
-    return { dashboards: names, problems: problems };
+    return { dashboards: job.finish(), problems: problems };
+}
+
+// An import in several steps: addLine(line) for each dashboard line (false when it was not understood, at least in part), then
+// finish(), which returns the names of the dashboards created. job.names tells the name each dashboard of the text got.
+// dry: nothing is created, the lines are only read (finish() returns the names the dashboards would get).
+TELEPLOT.dashboards.createImport = function(dry = false) {
+    let created = {};
+    let names = {}; // Name in the text -> name of the dashboard
+    let freeName = (name) => { let base = name; for(let n = 2; TELEPLOT.dashboards.hasDashboard(name); n++) name = base + " " + n; return name; };
+    return {
+        names: names,
+        addLine(line) {
+            let parsed = TELEPLOT.dashboards.parseLine(String(line).trim());
+            if(parsed === undefined) return false;
+            if(dry) {
+                if(parsed.type === "none" && parsed.segments.length === 0) delete names[parsed.name];
+                else if(names[parsed.name] === undefined) names[parsed.name] = freeName(parsed.name);
+                let type = parsed.type;
+                return type === "" || type === "none" || type === "stack" || _dashText_LAYOUTS.includes(type) || Object.values(_dashText_LEAF_TYPES).includes(type);
+            }
+            if(created[parsed.name] === undefined) { created[parsed.name] = _dashText_addDashboard(parsed.name); names[parsed.name] = created[parsed.name].name; }
+            let dashboard = created[parsed.name];
+            if(!_dashText_isListed(dashboard)) return true; // (removed by a "none" line of the text)
+            return _dashText_apply(dashboard, parsed) === 0;
+        },
+        finish() {
+            if(dry) return Object.values(names);
+            let list = [];
+            for(let dashboard of Object.values(created)) {
+                if(!_dashText_isListed(dashboard)) continue;
+                if(!dashboard.view) dashboard.setView(_dashText_create("grid", dashboard.getGroupName()));
+                list.push(dashboard.name);
+            }
+            TELEPLOT.dashboards.resolveTimeGroups();
+            return list;
+        }
+    };
+}
+
+// Runs fn() with the dashboard lines the protocols receive meanwhile going to an import (a data file that also describes dashboards)
+let _dashText_importJob = undefined;
+TELEPLOT.dashboards.withImport = function(job, fn) {
+    let previous = _dashText_importJob;
+    _dashText_importJob = job;
+    try { return fn(); }
+    finally { _dashText_importJob = previous; }
 }
 
 /*

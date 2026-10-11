@@ -190,4 +190,17 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - Brown-Conrady model, in the order of OpenCV. With `x = X / Z`, `y = Y / Z` and `r² = x² + y²`: `x' = x (1 + K1 r² + K2 r⁴ + K3 r⁶) + 2 P1 x y + P2 (r² + 2 x²)`, `y' = y (1 + K1 r² + K2 r⁴ + K3 r⁶) + P1 (r² + 2 y²) + 2 P2 x y`, then `u = FX * x' + CX`, `v = FY * y' + CY`.
         - The images are displayed as they are received (never undistorted): what is drawn over them is distorted like the lens does.
 
+  - `36` **TELEM_DATA_FLOAT64**: Samples of a data type made of numbers, each number as a float64. For values that the section of the data type would round (its float32, or its integers): what Teleplot writes to a binary file uses it when needed, a device can use it too.
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - {DATA_TYPE[8]} - ({TIMEDIFF[32]} - {VALUE[64]}...)...`
+      - **DATA_TYPE**(uint8): the section type of the data: `20`, `21`, `22` (numbers), `25`, `26`, `27`, `29`, `30`, `31` (shapes), `33`, `34` (cameras).
+      - **VALUE**(float64): as many as a sample of the data type has numbers, in the order of its own section (`22`: x, y, z; `33`: width, height, fx, fy, cx, cy...).
+
+### Telemetries identified by their name
+
+The client id `0xFFFF` is reserved: its telemetries are identified by their **name**, as in the text protocol, not by a client and an id. In a `TELEM_ATTR` section of this client, the name attribute comes first; from then on the `TELEM_ID` of the section stands for the telemetry of that name (created if needed), until another name is given to this id. Teleplot uses it to write, in a binary file, the telemetries it received from the text protocol: read back, they are the same telemetries.
+
+### Binary files
+
+A binary data file is `54 50 4C 54 0A 01 00 00` ("TPLT", a line feed, the file version, two reserved bytes), then packets, each after its length (uint32, little-endian). See `files.md`.
+
 - TODO 2D shapes

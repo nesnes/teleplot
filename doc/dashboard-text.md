@@ -2,7 +2,7 @@
 
 A dashboard can be written as text: one line per view, addressed by its path in the dashboard. The same lines are
 
-- a **file**: the dashboard menu of the webapp exports a dashboard as a `.dashboard.txt` file and imports such files (a file can also be dropped on the page),
+- a **file**: the dashboard menu of the webapp exports a dashboard as a `.teleplot.txt` file (the extension of text files: lines of the text protocol, here `DASH|` lines only); such files are opened in the Export and import panel (from "Import…" in the dashboard menu, or dropped on the page), like data files, which can hold dashboards too (`files.md`),
 - a **message** of the text protocol: a device describes the dashboard it wants, next to its telemetry,
 - the content of a **binary section** (`SECTION_TYPE_DASHBOARD`, see `binaryProtocol.md`).
 
@@ -75,7 +75,7 @@ Since `/` now has a meaning in a label, a V1 label that contained one is read as
 
 - **Export** writes one line per view, parents first, with only what differs from the defaults. Views without a title get keys `#1`, `#2`...; so do views whose title is already taken among their siblings (they keep it with `title=`). Telemetries are written by name.
 - **Import** creates a new dashboard for each dashboard of the text. Nothing that exists is replaced: when the name is taken, the dashboard is called "Robot 2". Empty lines and lines that start with `#` are skipped, so a file can be commented.
-- An exported file can be sent as it is to the text protocol (`cat Robot.dashboard.txt | nc -u -w0 127.0.0.1 47269`), or pasted in the code of a device.
+- An exported file can be sent as it is to the text protocol (`cat Robot.teleplot.txt | nc -u -w0 127.0.0.1 47269`), or pasted in the code of a device.
 
 Not exported: the state of the page (which tab of a stack is open, zoom, hidden series).
 
