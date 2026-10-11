@@ -77,6 +77,7 @@ function createRobotSample(TP) {
     const log = (name, level, text) => { // One text telemetry per subsystem, merged by the Log view; they share the view label "logs"
         put(name, TEXT, [`[${level}] ${text}`]);
         TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_VIEW_LABEL, "logs");
+        TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_LOG, true); // Text emitted as a log (robot.state is text emitted as a state)
     };
 
     // 3D shapes: a shape is a telemetry with a shape attribute, its data are its position, orientation, size, color...

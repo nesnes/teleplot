@@ -166,8 +166,9 @@ TELEPLOT.dashboards.createDashboard = function(name = "") {
  */
 TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "3d", "image"];
 
-// Numbers are plotted, shapes and 3D numbers go to a 3D scene, images to an image view, anything else (text, 2D...) is shown as values.
-// A telemetry without data yet defaults to a chart.
+// Numbers are plotted, shapes, 3D numbers and point clouds go to a 3D scene, images to an image view, text emitted as a log
+// (TELEM_ATTR_LOG) to a log view, anything else (text emitted as a state, 2D...) is shown as values.
+// A telemetry without data yet defaults to a chart. It is only a default: values and log views both display any text telemetry.
 TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
     if(telem === undefined) return "chart";
@@ -175,6 +176,7 @@ TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     if(TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined) return "3d";
     let dataType = Object.keys(telem.data)[0];
     if(dataType === undefined || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) return "chart";
+    if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true) return "log";
     return "values";
 }
 
@@ -193,7 +195,10 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
  * Auto dashboard: new telemetries are displayed without any setup (like Teleplot V1: send data, see it).
  * Telemetries that have the same view label (TELEM_ATTR_VIEW_LABEL, "name,label" in the text protocol) and are displayed the same way share
  * one view, titled with the label. The label only decides where a telemetry first goes: one that is already displayed is not moved.
- * Number telemetries get a chart, shapes and 3D numbers share one 3D scene, other types a current value view, telemetries with the autoplot
+ * A label also ties a camera to its scene: the 3D view of a label shows the image telemetries of that label as cameras, and the image view
+ * of a labelled image telemetry gets the shapes, points and clouds of the label drawn over its pictures.
+ * Number telemetries get a chart, shapes and 3D numbers share one 3D scene, texts emitted as logs share one log view (their lines are
+ * merged by time), other types a current value view, telemetries with the autoplot
  * attribute set to false (text protocol flag "np") are left alone. Views are added to a "grid" layout (charts two columns wide, values one).
  * The dashboard is created when the first telemetry shows up; onCreated(dashboard) lets the caller
  * display it (the library doesn't decide where a dashboard goes on the page).
@@ -201,13 +206,16 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
 TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = () => {}) {
     let layout = undefined;
     let scene = undefined; // The 3D view every shape without label goes to: things that live in the same space are seen together
+    let logs = undefined;  // The log view every log without label goes to: one place to read what happened, in order
     let labelled = {};     // "label|view type" -> the view of the telemetries of that label
     TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
         let dataType = Object.keys(telem.data)[0];
         if (dataType === undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) === undefined) return; // No data (yet): nothing to display
-        // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed
-        if (layout !== undefined && layout.views.some((v) => v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
+        // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
+        // scene is in the 3D view of its label, and still gets its image view.)
+        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", "3d": "teleplot-3d", image: "teleplot-image" }[TELEPLOT.view.suggestViewType(telem.id)];
+        if (layout !== undefined && layout.views.some((v) => v.type === ownViewType && v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
 
         let isNew = layout === undefined;
         let dashboard = TELEPLOT.dashboards.getOrCreateDashboard(name);
@@ -221,12 +229,23 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
 
         let type = TELEPLOT.view.suggestViewType(telem.id);
         let label = type == "image" ? undefined : telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL); // An image view shows one picture: images are not grouped
-        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : undefined);
+        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : (type == "log" ? logs : undefined));
         if (shared !== undefined && layout.getViewFromId(shared.id) !== undefined) shared.addTelemetry(telem.id); // (a view the user removed is not used anymore)
         else {
             let view = TELEPLOT.view.createView(type, [telem.id], dashboard.getGroupName());
-            if (label) { labelled[label + "|" + type] = view; view.setOption("title", label); view.followLabel(label); }
+            let ownLabel = type == "image" ? telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) : label;
+            if (label) { labelled[label + "|" + type] = view; view.setOption("title", label); }
+            if (ownLabel) {
+                view.followLabel(ownLabel);
+                // What already has this label and belongs in this view too (the camera of a scene, the shapes to draw over a picture)
+                for (let id in TELEPLOT.datastore.telemetries) {
+                    let other = TELEPLOT.datastore.telemetries[id];
+                    if (other.id === telem.id || other.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) !== ownLabel) continue;
+                    if (TELEPLOT.view.suggestViewType(other.id) !== type && view.suitsTelemetry(other) && !view.telemetryIdOrNameList.includes(other.id)) view.addTelemetry(other.id);
+                }
+            }
             else if (type == "3d") scene = view;
+            else if (type == "log") logs = view;
             layout.addView(view);
         }
         if (isNew) onCreated(dashboard);

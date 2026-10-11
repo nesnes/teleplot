@@ -236,6 +236,11 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 offset = newOffset;
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_LOG: {
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, view.getUint8(offset) !== 0);
+                offset++;
+                break;
+            }
             default:
                 console.warn(`parseDataBinary: unknown TELEM_ATTR code ${attrCode}`);
         }

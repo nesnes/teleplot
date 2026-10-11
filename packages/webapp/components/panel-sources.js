@@ -85,7 +85,7 @@ function initComponent_panel_sources(vue) {
             </div>
             <svg class="sources-spark" viewBox="0 0 59 20" preserveAspectRatio="none" aria-hidden="true"><polyline :points="sparkPoints" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
             <div class="sources-sub">{{health.detail}}<span v-if="health.issues" class="sources-danger"> · {{health.issues}}</span></div>
-            <div v-if="health.state == 'none'" class="sources-sub">Nothing arrives ? <a href="#" @click.prevent="ctx.sidePanel = 'help'">See how to send data</a>.</div>
+            <div v-if="health.state == 'none'" class="sources-sub">Nothing arrives ? <a href="#" @click.prevent="ctx.helpOpen = true">See how to send data</a>.</div>
           </div>
 
           <div class="sources-section">Sources</div>

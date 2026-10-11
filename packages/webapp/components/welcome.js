@@ -31,7 +31,7 @@ function initComponent_welcome(vue) {
 
             <div class="welcome-actions">
                 <button class="welcome-primary" @click="startSampleData(TP, ctx)">Try with sample data</button>
-                <button class="welcome-secondary" @click="ctx.sidePanel = 'help'">How to send data</button>
+                <button class="welcome-secondary" @click="ctx.helpOpen = true">How to send data</button>
             </div>
 
             <p class="welcome-status" :class="status.level" role="status"><i class="welcome-dot"></i>{{status.text}}</p>

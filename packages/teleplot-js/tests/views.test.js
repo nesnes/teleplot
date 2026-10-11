@@ -399,7 +399,7 @@ test('views that follow a view label get the new telemetries of that label that 
     assert.deepEqual(names(chart), ['left', 'right'], 'numbers of the label; the telemetries that existed before are not added');
     assert.deepEqual(names(values), ['state', 'log.b'], 'what a values view displays, for both labels it follows');
     assert.deepEqual(names(log), ['log.a', 'log.b'], 'a log takes text');
-    assert.deepEqual(names(scene), ['arm']);
+    assert.deepEqual(names(scene), ['arm', 'cam'], 'a 3D scene takes the shapes, and the image telemetries of the label: its cameras');
     assert.deepEqual(names(image), ['arm'], 'an image view takes what can be drawn over its picture, not another picture');
     assert.deepEqual(names(other), [], 'a view that follows nothing');
 

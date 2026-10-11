@@ -3,7 +3,7 @@
 The top menu is a GUI feature (`packages/webapp/components/top-menu.js`): a floating island centred above the dashboard. It fades out when the mouse rests (see Auto-hide), to leave the whole stage to the data. The library only provides what it shows (`TP.state.isPaused`, `TP.datastore.telemetries`, `TP.connection.connections`, `TP.dashboards`). The side panels stay docked on each side of the workspace, and the island takes the room that is left between them (it drops the logo, the shortcut hints, then the "Editing" prefix when that room is small).
 
 ```
-[logo] [Dashboard v] | [pause | rate v] | [Telemetries 24] [Sources 2] [Export] [Help] | [Edit]
+[logo] [Dashboard v] | [pause | rate v] | [Telemetries 24] [Sources 2] [Export] | [Edit] [Help]
 ```
 
 ## Controls
@@ -11,12 +11,13 @@ The top menu is a GUI feature (`packages/webapp/components/top-menu.js`): a floa
 - **Dashboard**: the name of the dashboard on display and, when there are several, how many there are in a small line under it ("2 dashboards": closed, the button would otherwise look the same with one dashboard or ten; design study: `doc/top-menu-dashboards-mockups.html`). It opens the dashboard list (the auto "Live" dashboard first, then the others, "New dashboard" at the bottom, a pencil to edit one, a bin to delete one). Deleting is confirmed in place: the row turns into `Delete "name"? [Cancel] [Delete]`, the list stays open, and a deleted dashboard that was displayed gives its place to the first of the list. The auto dashboard cannot be deleted. While editing, the name is prefixed with "Editing".
 - **Pause / resume**: toggles `TP.state.isPaused`. While paused the library ignores incoming data, so every view freezes and nothing is recorded. The control turns amber and shows "paused".
 - **Rate**: samples received per second, all telemetries together (estimated from the latest timestamps, see `components/telemetry-rate.js`, shared with the Telemetries panel). "idle" when the data stopped coming, "no data" before anything arrived. The caret opens the data menu (see below).
-- **Panels**: Telemetries, Sources, Export (not available yet, shown disabled), Help. They are exclusive (`ctx.sidePanel`), so they are one segmented control, icon only, with a hint of the content next to the icon: number of telemetries, number of sources plus a dot (green all connected, amber some lost, red all lost). A tooltip (hover and keyboard focus) gives the name, the shortcut and a summary (the list of sources and their state for Sources).
+- **Panels**: Telemetries, Sources, Export (not available yet, shown disabled). They are exclusive (`ctx.sidePanel`), so they are one segmented control, icon only, with a hint of the content next to the icon: number of telemetries, number of sources plus a dot (green all connected, amber some lost, red all lost). A tooltip (hover and keyboard focus) gives the name, the shortcut and a summary (the list of sources and their state for Sources).
 - **Edit** (turns into **Done** while editing): see `doc/dashboard-editing.md`. Disabled until a dashboard is displayed.
+- **Help**: the word, as a button of its own at the right end: its panel opens on the right, while the panels of the group open on the left (design studies: `doc/top-menu-help-mockups.html` and `-2` to `-4`). Edit and Help show no key next to their word: the shortcut is in their tooltip, like for the other buttons.
 
 ## Shortcuts
 
-Not active while typing in a field. `Space` pause/resume (a focused button keeps its own use of Space), `T` Telemetries, `S` Sources, `H` or `?` Help, `E` Edit, `Esc` closes the popup, then goes back to live when a chart is zoomed (drops the zoom and the cursor, resumes if paused; while zoomed the pause button shows "play" and does the same), then the open panel, then Edit mode (`main.js`).
+Not active while typing in a field. `Space` pause/resume (a focused button keeps its own use of Space), `T` Telemetries, `S` Sources, `H` or `?` Help, `E` Edit, `Esc` closes the popup, then goes back to live when a chart is zoomed (drops the zoom and the cursor, resumes if paused; while zoomed the pause button shows "play" and does the same), then the Help panel, then the open left panel, then Edit mode (`main.js`). Telemetries and Sources share the left dock (one at a time); Help opens on the right and can stay open next to them.
 
 ## State
 

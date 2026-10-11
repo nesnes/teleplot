@@ -186,3 +186,19 @@ test('point clouds: colors from their own colors, their intensities or their hei
     assert.deepEqual(sources[0].poses.map(p => p.position), [[2, 0, 0], [1, 0, 0]], 'the pose at the time of each cloud');
     assert.ok(view.supportedDataTypes.includes(String(T.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD)));
 });
+
+
+test('frameExtent: the camera frames the content with the origin (grid and axes), unless the content is tiny and far away', () => {
+    const T = loadTeleplot();
+    const S = T.view.ViewScene3D;
+    // A single point above the ground: without the origin it would be a dot in an empty view
+    assert.deepEqual(S.frameExtent([1.5, 0.2, 3], [1.5, 0.2, 3]), { min: [0, 0, 0], max: [1.5, 0.2, 3], origin: true });
+    // A point at the origin: some room around it
+    assert.deepEqual(S.frameExtent([0, 0, 0], [0, 0, 0]), { min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5], origin: true });
+    // An arena next to the origin, a drone that hovers within a centimeter 3 m up: the origin stays in the picture
+    assert.deepEqual(S.frameExtent([0, 0, 0], [4, 3, 0.3]), { min: [0, 0, 0], max: [4, 3, 0.3], origin: true });
+    assert.equal(S.frameExtent([1.5, 0.2, 3], [1.51, 0.2, 3.005]).origin, true);
+    assert.deepEqual(S.frameExtent([-2, 1, 1], [-1, 2, 2]), { min: [-2, 0, 0], max: [0, 2, 2], origin: true });
+    // A 100 m track 6000 km from the origin: framing both would make it invisible
+    assert.deepEqual(S.frameExtent([6e6, 0, 0], [6e6 + 100, 50, 0]), { min: [6e6, 0, 0], max: [6e6 + 100, 50, 0], origin: false });
+});

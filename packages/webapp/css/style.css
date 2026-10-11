@@ -76,6 +76,8 @@ button {
 .dock-left { --side-w: min(32rem, 44vw); align-items: flex-start; } /* Panels keep the height of their content */
 .dock-left.open { width: calc(var(--side-w) + 1em); }
 .dock-right.open { width: calc(280px + 1em); } /* The width of .edit-panel (editor.css) and its margin */
+.dock-help { --side-w: min(30rem, 38vw); align-items: flex-start; } /* A little narrower than the left dock: both can be open */
+.dock-help.open { width: calc(var(--side-w) + 1em); }
 
 .side-panel {
     flex: none;
@@ -125,6 +127,15 @@ button {
             font-size: 1rem;
         }
     }
+}
+/* The same panel docked on the right (Help): mirrored frame */
+.side-panel.side-panel-right {
+    padding: 0.7rem 0 0 0.8rem;
+    margin: 0 0 0 1em;
+    border: 2px solid var(--color-bg-dark);
+    border-right: 0px;
+    border-top: 0px;
+    border-radius: 0 0 0 1em;
 }
 /* Switching panel: the content fades while the dock keeps its size */
 .dock-swap-enter-active { transition: opacity var(--motion-fast) ease-out, transform var(--motion-fast) var(--ease-out); }

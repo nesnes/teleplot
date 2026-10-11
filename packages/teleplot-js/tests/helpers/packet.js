@@ -22,7 +22,7 @@ class PacketBuilder {
         this.u8(SECTION.ATTR).u16(telemId).u8(list.length);
         for (const [code, value] of list) {
             this.u8(code);
-            if (code === P.AUTOPLOT) this.u8(value ? 1 : 0);
+            if (code === P.AUTOPLOT || code === 7) this.u8(value ? 1 : 0); // (7: TELEM_ATTR_LOG)
             else if (code === P.TIMEOUT) this.u64(value); // nanoseconds
             else if (code === P.SHAPE) { this.u8(value.type); if (value.type === 10) this.str(value.url); } // {type, url}: the url only for an STL file
             else this.str(value);

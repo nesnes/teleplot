@@ -74,7 +74,7 @@ function initComponent_panel_telemetries(vue) {
 
     const vueCSS = `
         .telemetries-layout {
-            --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-shape: #d35400; --t-camera: #2c8c7a; --t-other: #7f8c8d;
+            --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-shape: #d35400; --t-camera: #2c8c7a; --t-log: #7d6608; --t-35: #5b6abf; --t-other: #7f8c8d;
             --mark: hsl(48 100% 70%);
             color: var(--color-text);
             width: 100%;
@@ -88,7 +88,7 @@ function initComponent_panel_telemetries(vue) {
         :root[data-theme="dark"] .telemetries-layout { --mark: hsl(48 90% 32%); }
 
         .telemetries-type-20 { --tc: var(--t-20); } .telemetries-type-21 { --tc: var(--t-21); } .telemetries-type-22 { --tc: var(--t-22); }
-        .telemetries-type-23 { --tc: var(--t-23); } .telemetries-type-24 { --tc: var(--t-24); } .telemetries-type-shape { --tc: var(--t-shape); } .telemetries-type-camera { --tc: var(--t-camera); } .telemetries-type-other { --tc: var(--t-other); }
+        .telemetries-type-23 { --tc: var(--t-23); } .telemetries-type-24 { --tc: var(--t-24); } .telemetries-type-shape { --tc: var(--t-shape); } .telemetries-type-camera { --tc: var(--t-camera); } .telemetries-type-log { --tc: var(--t-log); } .telemetries-type-35 { --tc: var(--t-35); } .telemetries-type-other { --tc: var(--t-other); }
 
         .telemetries-toolbar {
             padding-bottom: 0.4rem;
@@ -198,7 +198,9 @@ function initComponent_panel_telemetries(vue) {
                     { code: P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, badge: "2D",  label: "Number 2D" },
                     { code: P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, badge: "3D",  label: "Number 3D" },
                     { code: P.SECTION_TYPE_TELEM_DATA_TEXT,      badge: "TXT", label: "Text" },
+                    { code: "log",                               badge: "LOG", label: "Text emitted as a log (a Log view by default)" }, // Not a data type: a text telemetry with the log attribute
                     { code: P.SECTION_TYPE_TELEM_DATA_IMAGE,     badge: "IMG", label: "Image" },
+                    { code: P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, badge: "CLOUD", label: "Point cloud" },
                     { code: "shape",                             badge: "SHAPE", label: "3D shape" }, // Not one data type: a shape is made of several (position, color...)
                     { code: "camera",                            badge: "CAM", label: "Camera (intrinsics, to draw 3D telemetries over its images)" },
                 ],
@@ -220,12 +222,15 @@ function initComponent_panel_telemetries(vue) {
                     const name = String(telem.attributes[P.TELEM_ATTR_NAME] ?? ("telemetry " + telem.id));
                     const unit = telem.attributes[P.TELEM_ATTR_UNIT] || "";
                     const types = Object.keys(telem.data).map(Number).filter(t => known.includes(t));
-                    if (this.TP.view.ViewScene3D.isShape(telem)) types.push("shape");
+                    const isCloud = this.TP.view.ViewScene3D.isCloud(telem); // (its position and orientation are the pose of its sensor, not a shape)
+                    const isLog = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && telem.attributes[P.TELEM_ATTR_LOG] === true;
+                    if (isLog) types.push("log");
+                    if (!isCloud && this.TP.view.ViewScene3D.isShape(telem)) types.push("shape");
                     if (this.TP.view.ViewScene3D.isCamera(telem)) types.push("camera");
                     const sep = name.startsWith("/") ? "/" : ".";
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
                     const rest = path.slice(1).join(sep);
-                    const mainType = types.length ? types[0] : "other";
+                    const mainType = isLog ? "log" : (types.length ? types[0] : "other");
                     const label = telem.attributes[P.TELEM_ATTR_VIEW_LABEL] || "";
                     const rate = this.rateText(telem, types);
                     list.push({
@@ -294,6 +299,7 @@ function initComponent_panel_telemetries(vue) {
                 if (!entry || !entry.timestamps.length) return "—";
                 const last = entry.data.map(channel => channel.at(-1));
                 if (type == P.SECTION_TYPE_TELEM_DATA_IMAGE) return "image";
+                if (type == P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD) return (last[0] ? last[0].length / 3 : 0) + " points";
                 if (type == P.SECTION_TYPE_TELEM_DATA_TEXT) return String(last[0]);
                 return last.map(v => (typeof v === "number") ? String(+v.toFixed(Math.abs(v) >= 1000 ? 0 : 3)) : String(v)).join(", ");
             },

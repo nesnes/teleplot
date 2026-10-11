@@ -123,6 +123,22 @@ class ViewScene3D extends ViewTelemetries {
     static CLOUD_RAMP = [[0.02, 0.05, 0.6], [0, 0.55, 0.75], [0.1, 0.65, 0.15], [0.9, 0.7, 0.02], [0.85, 0.05, 0.02]]; // Low to high: blue, cyan, green, yellow, red
     static SRGB_TO_LINEAR = Float32Array.from({ length: 256 }, (_, i) => { let c = i / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
 
+    // What the camera frames for content between min and max ([x, y, z]): {min, max, origin}. The content, and the origin with it: the
+    // grid and the axes are there, and without them a point above the ground is a dot in an empty view. The origin is left out
+    // ("origin": false) when the content is tiny compared to how far away it is (positions on a map...), where framing both would
+    // reduce it to nothing. A single point counts as content to locate, so the origin is shown; at the origin it gets some room.
+    static frameExtent(min, max) {
+        let axes = [0, 1, 2];
+        let size = Math.hypot(...axes.map((i) => max[i] - min[i]));
+        let far = Math.hypot(...axes.map((i) => Math.max(Math.abs(min[i]), Math.abs(max[i])))); // From the origin to the farthest corner
+        let origin = size == 0 || size * ViewScene3D.FRAME_ORIGIN_RATIO >= far;
+        let low = min.slice(), high = max.slice();
+        if(origin) for(let i of axes) { low[i] = Math.min(low[i], 0); high[i] = Math.max(high[i], 0); }
+        if(axes.every((i) => high[i] == low[i])) { low = low.map((v) => v - 0.5); high = high.map((v) => v + 0.5); }
+        return { min: low, max: high, origin };
+    }
+    static FRAME_ORIGIN_RATIO = 1000;
+
     // How a telemetry is drawn in a scene: "camera", "cloud", "shape", "point", or undefined (not a 3D telemetry)
     static kindOf(telem) {
         if(ViewScene3D.isCamera(telem)) return "camera";
@@ -435,7 +451,8 @@ class ViewScene3D extends ViewTelemetries {
             },
             stl: new Map(),     // url -> {geometry} (undefined while loading or after a failure)
             helpers: undefined, helpersKey: "", unit: 1,
-            framed: undefined,  // Box the camera frames: everything drawn so far
+            content: undefined, // Box of everything drawn so far
+            framed: undefined, framedOrigin: false, // Box the camera frames (see frameExtent), and whether it reaches the origin
             userMoved: false, frame: 0, resizeObserver: undefined
         });
     }
@@ -910,6 +927,7 @@ class ViewScene3D extends ViewTelemetries {
         if(!this.three) return;
         this.three.userMoved = false;
         this.three.framed = undefined;
+        this.three.content = undefined;
         this.lastKey = ""; // Framed by the next update
     }
 
@@ -918,14 +936,21 @@ class ViewScene3D extends ViewTelemetries {
     __keepInFrame(three) {
         const THREE = TELEPLOT.THREE;
         let box = this.__bounds();
-        if(!box || (three.framed && three.framed.containsBox(box))) return;
-        if(three.framed) box.union(three.framed);
+        if(!box) return;
+        if(three.content) box.union(three.content);
+        three.content = box.clone();
+        let extent = ViewScene3D.frameExtent(box.min.toArray(), box.max.toArray());
+        box.min.fromArray(extent.min); box.max.fromArray(extent.max);
+        let same = three.framed !== undefined && three.framedOrigin === extent.origin; // (the origin leaving the frame: the camera comes closer, once)
+        if(same && three.framed.containsBox(box)) return;
+        if(same) box.union(three.framed);
         three.framed = box;
+        three.framedOrigin = extent.origin;
 
         let center = box.getCenter(new THREE.Vector3());
         let radius = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1e-6);
         let direction = three.camera.position.clone().sub(three.controls.target).normalize();
-        let distance = radius / Math.sin(three.camera.fov * Math.PI / 360) ; // The sphere around the box fits in the height of the view
+        let distance = radius * 1.1 / Math.sin(three.camera.fov * Math.PI / 360) ; // The sphere around the box fits in the height of the view, with a little room (a dot on the edge of the view would be cut)
         three.camera.position.copy(center).addScaledVector(direction, distance);
         three.camera.near = distance / 1000;
         three.camera.far = distance * 1000;

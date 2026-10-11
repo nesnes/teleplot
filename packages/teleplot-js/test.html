@@ -318,6 +318,28 @@
     demo("Two telemetries merged", "Each line shows where it comes from. Hover the chart below: the line of that moment is highlighted.", [500, 210], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewLog(id, ["log.main", "log.events"]));
     });
+    data("Text as a state, text as a log", "The same text data, with a word on how it is emitted: the t flag (a state: its latest value matters) or the log flag (lines to read one after the other; TELEM_ATTR_LOG in binary). It only chooses the default view: suggestViewType() answers \"values\" for a state and \"log\" for a log, and both views display both.", () => {
+      const steps = ["idle", "forward", "turning", "forward", "stopped"];
+      let count = 0;
+      const send = () => {
+        const step = steps[count++ % steps.length];
+        Teleplot.parseDataText(`text.state:${step}|t`);                               // a state
+        Teleplot.parseDataText(`text.journal:[INFO] The robot is now ${step}|log`);   // a log
+      };
+      send(); // (right away: the demo below asks which view suits them)
+      setInterval(send, 1500);
+    });
+    demo("The default view of each", "Built with createView(suggestViewType(name)): the state gets a values view, the log a log view. The third view is a log view given the state on purpose: it works too.", ["100%", 200], (id) => {
+      const row = new Teleplot.view.ViewLayout(id, "default");
+      row.layout.align = "stretch"; row.setSize(1, 1);
+      Teleplot.view.addView(row);
+      for (const name of ["text.state", "text.journal"]) {
+        const view = Teleplot.view.createView(Teleplot.view.suggestViewType(name), [name], "default");
+        view.setOption("title", name + " → " + Teleplot.view.suggestViewType(name));
+        row.addView(view);
+      }
+      row.addView(new Teleplot.view.ViewLog("", ["text.state"]));
+    });
     demo("A chart of the same group", "Hover it to move the cursor of the logs above (and of every other view of this page).", [500, 210], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["numberTelemetry"]));
     });

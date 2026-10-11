@@ -247,3 +247,24 @@ test('point cloud: every point of a "pc" line is one sample, with optional times
     assert.equal(T.datastore.getTelemetry('bad'), undefined);
     assert.equal(T.view.suggestViewType('scan'), '3d');
 });
+
+
+test('text emitted as a state ("t") or as a log ("log", and ">" lines): same data, another default view', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, TEXT = P.SECTION_TYPE_TELEM_DATA_TEXT;
+    assert.equal(T.parseDataText('state:forward|t\nevents:Motors armed|log\n>:Battery low\nnotes:1627551892437:hello|log,np'), 0);
+    const state = T.datastore.getTelemetry('state'), events = T.datastore.getTelemetry('events'), notes = T.datastore.getTelemetry('notes');
+    const lines = Object.values(T.datastore.telemetries).find(t => t !== state && t !== events && t !== notes);
+    assert.deepEqual([state.data[TEXT].data[0], events.data[TEXT].data[0], lines.data[TEXT].data[0]], [['forward'], ['Motors armed'], ['Battery low']], 'all stored as text');
+    assert.deepEqual([state, events, lines, notes].map(t => t.getAttribute(P.TELEM_ATTR_LOG)), [undefined, true, true, true]);
+    assert.deepEqual([state, events, lines].map(t => T.view.suggestViewType(t.id)), ['values', 'log', 'log']);
+    assert.deepEqual([notes.data[TEXT].timestamps, notes.getAttribute(P.TELEM_ATTR_AUTOPLOT)], [[1627551892.437], false], 'timestamp and other flags work as with "t"');
+
+    // The last flag used tells: a text that is sent as a state again is a state again
+    T.parseDataText('events:idle|t');
+    assert.deepEqual([events.getAttribute(P.TELEM_ATTR_LOG), T.view.suggestViewType('events')], [false, 'values']);
+    // The flag does not turn numbers into anything else, and both views take both kinds of text
+    T.parseDataText('speed:1.5');
+    assert.equal(T.view.suggestViewType('speed'), 'chart');
+    assert.ok(new T.view.ViewLog('', ['state']).supportedDataTypes.includes(String(TEXT)));
+});

@@ -1,7 +1,8 @@
 /*
  * Top menu: a floating island at the top of the workspace.
- * [logo] [dashboard switcher] [pause/resume | data rate] [panels: Telemetries, Sources, Export, Help] [Edit]
- * - The four side panels are exclusive (ctx.sidePanel): they are one segmented control, icon only, with a hint of their content next to the icon.
+ * [logo] [dashboard switcher] [pause/resume | data rate] [panels: Telemetries, Sources, Export] [Edit] [Help]
+ * - The panels are one segmented control, icon only, with a hint of their content next to the icon. Telemetries and Sources share the left
+ *   dock (ctx.sidePanel, one at a time); Help has its own dock on the right (ctx.helpOpen), so it can stay open next to one of them.
  * - Pause/resume is the library's own TP.state.isPaused (incoming data is ignored while paused: the displays freeze).
  * - Shortcuts (not while typing): Space pause/resume, T / S / H panels, E edit. Esc is handled in main.js.
  * - The island floats over the dashboard and fades out when the mouse rests (IDLE_MS), to leave the whole stage to the data. It stays while a popup
@@ -149,7 +150,7 @@ function initComponent_top_menu(vue) {
                 <span class="tm-sep"></span>
 
                 <div class="tm-seg" role="group" aria-label="Panels">
-                    <button v-for="p in panels" :key="p.name" class="tm-btn tm-tipped" :class="{on: ctx.sidePanel==p.name}" :disabled="p.soon" :aria-pressed="ctx.sidePanel==p.name" :aria-label="p.label + (countOf(p) === null ? '' : ', ' + countOf(p))" @click="toggleSidePanel(p.name, $event);">
+                    <button v-for="p in leftPanels" :key="p.name" class="tm-btn tm-tipped" :class="{on: isPanelOpen(p)}" :disabled="p.soon" :aria-pressed="isPanelOpen(p)" :aria-label="p.label + (countOf(p) === null ? '' : ', ' + countOf(p))" @click="toggleSidePanel(p.name, $event);">
                         <i :class="p.icon"></i>
                         <span v-if="countOf(p) !== null" class="tm-count">{{countOf(p)}}</span>
                         <i v-if="p.name=='sources' && sourcesStatus" class="tm-status" :class="sourcesStatus"></i>
@@ -162,10 +163,15 @@ function initComponent_top_menu(vue) {
 
                 <span class="tm-sep"></span>
 
-                <button class="tm-btn tm-edit" :class="{done: editor.state.enabled}" :disabled="!ctx.activeDashboard" :aria-pressed="editor.state.enabled" @click="toggleEdit($event);">
+                <button class="tm-btn tm-edit tm-tipped" :class="{done: editor.state.enabled}" :disabled="!ctx.activeDashboard" :aria-pressed="editor.state.enabled" @click="toggleEdit($event);">
                     <i :class="editor.state.enabled ? 'icofont-check' : 'icofont-duotone icofont-pencil'"></i>
                     <span>{{editor.state.enabled ? 'Done' : 'Edit'}}</span>
-                    <kbd>{{editor.state.enabled ? 'Esc' : 'E'}}</kbd>
+                    <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{editor.state.enabled ? 'Leave edit mode' : 'Edit the dashboard'}}</b><kbd>{{editor.state.enabled ? 'Esc' : 'E'}}</kbd></span></span>
+                </button>
+                <!-- Help: a button of its own at the right end, the side where its panel opens (the panels of the group open on the left) -->
+                <button class="tm-btn tm-help tm-tipped" :class="{on: ctx.helpOpen}" :aria-pressed="!!ctx.helpOpen" @click="toggleSidePanel('help', $event);">
+                    <span>Help</span>
+                    <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>Help</b><kbd>H</kbd></span><span class="tm-tip-line">How to send data, shortcuts, sample data</span></span>
                 </button>
             </div>
         </div>
@@ -330,7 +336,6 @@ function initComponent_top_menu(vue) {
         /* Edit */
         .tm-edit { background: var(--color-text); color: var(--color-bg-light); font-weight: 600; }
         .tm-edit:hover { background: color-mix(in srgb, var(--color-text) 82%, var(--color-bg-light)); }
-        .tm-edit kbd { border-color: transparent; background: color-mix(in srgb, var(--color-bg-light) 18%, transparent); color: inherit; }
         .tm-edit.done { background: var(--tp-edit-container, #e67e22); color: #fff; }
         .tm-edit.done:hover { background: color-mix(in srgb, var(--tp-edit-container, #e67e22) 85%, black); }
         .tm-edit:disabled { background: color-mix(in srgb, var(--color-text) 15%, transparent); color: var(--color-text-muted); }
@@ -461,7 +466,7 @@ function initComponent_top_menu(vue) {
 
         /* Tighter islands: logo and shortcut hints first, then the "Editing" prefix */
         @container (max-width: 860px) {
-            .tm-logo, .tm-edit kbd { display: none; }
+            .tm-logo { display: none; }
         }
         @container (max-width: 700px) {
             .tm-crumb { display: none; }
@@ -587,6 +592,7 @@ function initComponent_top_menu(vue) {
                     title: span ? `"${span.name}" goes the furthest back: ${time(kept)}` + (window > 0 ? ` of the ${time(window)} kept` : "") + (thinnedFor > 0 ? `. Hatched: ${names} thinned out to save memory (real samples, fewer of them)` : "") : "How much of the data window is filled",
                 };
             },
+            leftPanels() { return this.panels.filter(p => p.name != "help"); }, // The group of buttons: Help has its own, after Edit
             telemetryCount() { return Object.keys(this.TP.datastore.telemetries).length; },
             sourceCount() { return this.TP.connection.connections.length; },
             // Every source receiving: ok, some lost: warn, all lost: bad, none configured: no dot
@@ -642,8 +648,11 @@ function initComponent_top_menu(vue) {
             backToLive(event) { this.release(event); this.TP.view.backToLive(); this.TP.state.isPaused = false; },
             toggleSidePanel(name, event) {
                 this.release(event);
-                this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;
+                if (name == "help") this.ctx.helpOpen = !this.ctx.helpOpen;
+                else this.ctx.sidePanel = (this.ctx.sidePanel == name) ? "" : name;
                 this.ctx.topPanel = "";
+            },
+            isPanelOpen(panel) { return panel.name == "help" ? !!this.ctx.helpOpen : this.ctx.sidePanel == panel.name;
             },
             setTopPanel(name, event) {
                 this.release(event);

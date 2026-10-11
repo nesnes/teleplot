@@ -79,6 +79,7 @@ function _parseDataText_parseLog(msg, now, input)
     
     let telemName = input && input.type=="serial" ? input.port+_defaultTextLogName : _defaultTextLogName;
     let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemName);
+    if(telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) !== true) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, true);
     telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [logTimestamp], [[logText]]);
 }
 
@@ -96,7 +97,8 @@ function _parseDataText_parseVariablesData(msg, now)
     let [name, widgetLabel] = _parseDataText_separateWidgetAndLabel(keyAndWidgetLabel);  
     
     let flags = msg.substr(endIdx+1);
-    let isTextFormatTelem = flags.includes('t');
+    let isLog = flags.includes("log"); // Text emitted as a log (a Log view by default); "t": text emitted as a state (a value by default)
+    let isTextFormatTelem = isLog || flags.includes('t');
     if(flags.includes("pc")) return _parseDataText_parsePointCloud(msg, now); // A point cloud: all the points are one sample
     let isXYZ = flags.includes("xyz");
     let isXY = !isXYZ && flags.includes("xy");
@@ -170,6 +172,7 @@ function _parseDataText_parseVariablesData(msg, now)
 
     if(unit.length>0) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT, unit);
     if(widgetLabel) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, widgetLabel); // "name,label": shown with the telemetries of the same label
+    if(isTextFormatTelem && (telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true) !== isLog) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, isLog); // (the last flag used tells)
 
     // Add Telemetry data
     if(timestampArray.length>0){

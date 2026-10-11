@@ -10,7 +10,8 @@ var app = Vue.createApp({
         return {
             TP: Vue.reactive({}),
             ctx: Vue.reactive({
-                sidePanel: "",
+                sidePanel: "",   // Panel of the left dock: "telemetries", "sources" or ""
+                helpOpen: false, // The Help panel, in its own dock on the right: it can be open next to a left panel
                 topPanel: "",
                 showHelp: true,
                 sampleRunning: false,
@@ -18,7 +19,8 @@ var app = Vue.createApp({
                 activeDashboard: null
             }),
             editor: null,
-            shownPanel: "" // The side panel on display: it stays until the dock has finished closing
+            shownPanel: "", // The side panel on display: it stays until the dock has finished closing
+            shownHelp: false // Same for the Help panel
         }
     },
     methods: {
@@ -46,6 +48,11 @@ var app = Vue.createApp({
             if (name) this.shownPanel = name;
             else this._dockTimer = setTimeout(()=>{ if (!this.ctx.sidePanel) this.shownPanel = ""; }, 400); // Longer than the dock transition (style.css)
         },
+        "ctx.helpOpen"(open){
+            clearTimeout(this._helpTimer);
+            if (open) this.shownHelp = true;
+            else this._helpTimer = setTimeout(()=>{ if (!this.ctx.helpOpen) this.shownHelp = false; }, 400);
+        },
         // The editor works on the displayed dashboard
         "ctx.activeDashboard"(dashboard){
             this.editor.setRoot(dashboard ? dashboard.getView() : undefined);
@@ -69,7 +76,7 @@ var app = Vue.createApp({
         }, { passive: true });
     },
     created() {
-        // Escape closes the open popup, then goes back to live (drops the zoom), then closes the side panel, then leaves the edit mode
+        // Escape closes the open popup, then goes back to live (drops the zoom), then closes the Help, then the side panel, then leaves the edit mode
         this._onKeyDown = (e)=>{
             if (e.key != "Escape") return;
             const t = e.target;
@@ -77,6 +84,7 @@ var app = Vue.createApp({
             if (t && t.blur && t.closest && t.closest(".tm")) t.blur();
             if (this.ctx.topPanel) this.ctx.topPanel = "";
             else if (this.TP.view.isZoomed()) { this.TP.view.backToLive(); this.TP.state.isPaused = false; }
+            else if (this.ctx.helpOpen) this.ctx.helpOpen = false;
             else if (this.ctx.sidePanel) this.ctx.sidePanel = "";
             else if (this.editor.state.enabled) this.editor.setEnabled(false);
         };

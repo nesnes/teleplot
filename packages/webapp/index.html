@@ -34,14 +34,6 @@
             </div>
             <panel-sources></panel-sources>
           </div>
-          <div v-else-if="shownPanel=='help'" key="help" class="side-panel">
-            <div class="panel-title">
-              <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.sidePanel='';"><i class="icofont-close"></i></button>
-              <h1>Help</h1>
-              <span>Send your data, shortcuts, sample data.</span>
-            </div>
-            <panel-help></panel-help>
-          </div>
         </transition>
       </div>
 
@@ -55,6 +47,18 @@
             </template>
           </template>
           <welcome v-else-if="ctx.showHelp"></welcome>
+        </div>
+      </div>
+
+      <!-- Help dock, on the right: it can stay open next to the Telemetries or Sources panel (try a message, watch it arrive) -->
+      <div class="dock dock-right dock-help" :class="{open: ctx.helpOpen}">
+        <div v-if="shownHelp" class="side-panel side-panel-right">
+          <div class="panel-title">
+            <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.helpOpen = false;"><i class="icofont-close"></i></button>
+            <h1>Help</h1>
+            <span>Send your data, shortcuts, sample data.</span>
+          </div>
+          <panel-help></panel-help>
         </div>
       </div>
 

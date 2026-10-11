@@ -114,6 +114,13 @@ Points are `x:y:z` in the frame of the sensor (a 2D scan sets z to 0). They can 
 - `motor_4_state:Turned On|t`
 - `motor_4_state:1627551892437:Off|t`
 
+Text sent with `t` is a **state**: what matters is its latest value, and it is shown as a value by default. Text that is a **log** (lines to read one after the other) uses the `log` flag instead and gets a log view by default:
+
+- `motor_4_events:Overcurrent detected|log`
+- `motor_4_events:1627551892437:Back to normal|log`
+
+Both are the same kind of data and both views display both: the flag only chooses the view a telemetry gets when nobody arranged it.
+
 ### Publishing multiple points
 /!\ here, many values will be received at the same time by teleplot, therefore you must precise their timestamps.
 

@@ -233,3 +233,14 @@ test('point clouds: positions, optional intensity and color, a cloud in several 
     assert.deepEqual(Array.from(e.data[1][0]), [0.1, 0.2, 0.25, 0.3].map(Math.fround));
     assert.equal(T.view.ViewScene3D.kindOf(T.datastore.getTelemetry(id(1, 8))), 'cloud');
 });
+
+
+test('log attribute: a text telemetry emitted as a log', () => {
+    const T = loadTeleplot();
+    assert.equal(T.protocol.TELEM_ATTR_LOG, 7);
+    T.parseDataBinary(new PacketBuilder(5).attrs(1, [[ATTR.NAME, 'events'], [7, true]]).text(1, 1_000_000_000n, [[0, 'Motors armed']])
+        .attrs(2, [[ATTR.NAME, 'state'], [7, false]]).text(2, 1_000_000_000n, [[0, 'forward']]).build());
+    assert.deepEqual([1, 2].map(n => T.datastore.getTelemetry(id(5, n)).getAttribute(T.protocol.TELEM_ATTR_LOG)), [true, false]);
+    assert.deepEqual([1, 2].map(n => T.view.suggestViewType(id(5, n))), ['log', 'values']);
+    assert.deepEqual(entry(T, 5, 2, TEXT).data[0], ['forward'], 'the sections after the attribute are still read');
+});

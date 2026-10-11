@@ -182,3 +182,41 @@ test('time groups: views inherit the group of their layout; a view or a layout c
     T.dashboards.setTimeGroup('Rig', top, 'custom', 'Arm');
     assert.deepEqual([top.clone().options.timeGroup, top.clone().options.timeGroupName], ['custom', 'Arm']);
 });
+
+
+test('auto dashboard: texts emitted as states get values, texts emitted as logs share one log view', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText({ data: 'state:forward|t\nnav:Path clear|log\n>:Battery low\nmode:auto|t\nmotor:Spike on the left|log\njournal,arm:Homing done|log', timestamp: 0 });
+    T.__timers.run();
+    const layout = T.dashboards.getDashboard('Live').getView();
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const lines = Object.values(T.datastore.telemetries).find(t => !['state', 'nav', 'mode', 'motor', 'journal'].includes(t.getAttribute(T.protocol.TELEM_ATTR_NAME)));
+    assert.deepEqual(layout.views.map(v => [v.type, v.getOption('title'), Array.from(v.telemetryIdOrNameList)]), [
+        ['teleplot-current-value', '', [id('state')]],
+        ['teleplot-log', '', [id('nav'), lines.id, id('motor')]], // one place to read every log, in order
+        ['teleplot-current-value', '', [id('mode')]],
+        ['teleplot-log', 'arm', [id('journal')]],                 // a label keeps its own view, as for the other kinds
+    ]);
+});
+
+
+test('auto dashboard: a label ties a camera to its scene, whichever comes first', () => {
+    const shapes = '3D|box,scene:S:cube:P:1:0:0.5\n3D|ball,scene:S:sphere:P:0:1:0.3';
+    const camera = 'PNG|camera,scene:AAAA\n3D|camera:K:554:554:320:240:640:480:P:0:0:1';
+    for (const order of [[shapes, camera], [camera, shapes], [shapes + '\n' + camera]]) {
+        const T = loadTeleplot();
+        T.dashboards.enableAutoDashboard('Live');
+        for (const lines of order) { T.parseDataText({ data: lines, timestamp: 0 }); T.__timers.run(); }
+        const names = (view) => view.telemetryIdOrNameList.map(id => T.datastore.getTelemetry(id).getAttribute(T.protocol.TELEM_ATTR_NAME)).sort().join(',');
+        const views = T.dashboards.getDashboard('Live').getView().views;
+        assert.deepEqual(views.map(v => v.type + ' ' + names(v)).sort(), ['teleplot-3d ball,box,camera', 'teleplot-image ball,box,camera'], 'order ' + order.length);
+        const scene = views.find(v => v.type == 'teleplot-3d');
+        assert.deepEqual(scene.__collectSources(-1).sources.map(s => s.kind).sort(), ['camera', 'shape', 'shape'], 'the camera is drawn in the scene');
+    }
+    // Without a label nothing is tied: the image has its view, the shape the common scene
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText({ data: '3D|box:S:cube\nPNG|camera:AAAA', timestamp: 0 }); T.__timers.run();
+    assert.deepEqual(T.dashboards.getDashboard('Live').getView().views.map(v => v.telemetryIdOrNameList.length), [1, 1]);
+});

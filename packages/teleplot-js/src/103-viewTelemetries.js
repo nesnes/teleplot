@@ -69,6 +69,8 @@ class ViewTelemetries extends Views {
         const P = TELEPLOT.protocol;
         if(this.type == "teleplot-log") return telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined;
         if(this.type == "teleplot-image") return telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined && TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined;
+        // A 3D scene also takes the image telemetries of its label: they are its cameras (drawn once they have their parameters)
+        if(this.type == "teleplot-3d" && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return true;
         let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-3d": "3d" }[this.type];
         return kind !== undefined && TELEPLOT.view.suggestViewType(telem.id) === kind;
     }
