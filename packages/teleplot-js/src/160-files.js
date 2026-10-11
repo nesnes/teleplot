@@ -128,10 +128,14 @@ TELEPLOT.files.exportText = function(options = {}) {
         // The shape itself is an attribute: said once, before its properties
         let shape = telem.getAttribute(P.TELEM_ATTR_SHAPE);
         if(shape !== undefined && shape !== null) {
-            let type = { [P.TELEM_ATTR_SHAPE_TYPE_CUBE]: "cube", [P.TELEM_ATTR_SHAPE_TYPE_SPHERE]: "sphere", [P.TELEM_ATTR_SHAPE_TYPE_CYLINDER]: "cylinder", [P.TELEM_ATTR_SHAPE_TYPE_STL]: "stl" }[shape.type];
+            let type = ["cube", "sphere", "cylinder", "rect", "circle", "line", "polygon", "arrow", "text", , "stl"][shape.type];
             let url = shape.data ? _files_quoted(shape.data) : undefined;
             if(type !== undefined) push("3D|" + key + ":S:" + type + (url !== undefined ? ":U:" + url : "") + flags(""));
         }
+        // Its frame too
+        let frame = telem.getAttribute(P.TELEM_ATTR_FRAME);
+        let frameName = frame && frame.name ? _files_quoted(frame.name) : undefined;
+        if(frameName !== undefined) push("3D|" + key + (frame.type === P.FRAME_TYPE_PIXELS ? ":FPX:" : ":F:") + frameName + flags(""));
 
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER, key + ":", unitText + flags(""), (d, i, ms) => ms + ":" + d[0][i]);
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, key + ":", unitText + flags("xy"), (d, i, ms) => d[0][i] + ":" + d[1][i] + ":" + ms);
@@ -177,6 +181,9 @@ TELEPLOT.files.exportText = function(options = {}) {
             let value = type === undefined ? undefined : _files_quoted(d[1][i]);
             return value === undefined || value === "" ? "T::" : "T:" + type + ":" + value;
         });
+        property(P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR, (d, i) => "V:" + d[0][i] + ":" + d[1][i] + ":" + d[2][i]);
+        property(P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH, (d, i) => "LW:" + d[0][i]);
+        property(P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, (d, i) => { let text = _files_quoted(d[0][i]); return text === undefined ? undefined : "TX:" + (text === "" ? '""' : text); });
         property(P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, (d, i) => "K:" + d[2][i] + ":" + d[3][i] + ":" + d[4][i] + ":" + d[5][i] + ":" + d[0][i] + ":" + d[1][i]); // stored width, height first
         property(P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, (d, i) => "DC:" + [0, 1, 2, 3, 4].map((c) => d[c][i]).join(":"));
     }
@@ -245,6 +252,9 @@ function _files_encoders(P) {
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION] = floats(4);
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE] = floats(3);
     encoders[P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION] = floats(5);
+    encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR] = floats(3);
+    encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH] = floats(1);
+    encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT] = { skip: (d, i) => _files_NUL.test(String(d[0][i])), write: (w, d, i) => w.str(String(d[0][i])) };
     encoders[P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS] = {
         exact: (d, i) => _files_isUint(d[0][i], 65535) && _files_isUint(d[1][i], 65535) && [2, 3, 4, 5].every((c) => _files_isF32(d[c][i])),
         write: (w, d, i) => { w.u16(d[0][i]).u16(d[1][i]); for(let c = 2; c < 6; c++) w.f32(d[c][i]); }
@@ -333,6 +343,8 @@ TELEPLOT.files.exportBinary = function(options = {}) {
         let shape = telem.getAttribute(P.TELEM_ATTR_SHAPE);
         if(shape && _files_isUint(shape.type, 255)) attributes.push(() => { w.u8(P.TELEM_ATTR_SHAPE).u8(shape.type); if(shape.type === P.TELEM_ATTR_SHAPE_TYPE_STL) w.str(String(shape.data || "")); });
         text(P.TELEM_ATTR_VIEW_LABEL); flag(P.TELEM_ATTR_LOG);
+        let frame = telem.getAttribute(P.TELEM_ATTR_FRAME);
+        if(frame && typeof frame.name === "string" && frame.name !== "" && !_files_NUL.test(frame.name)) attributes.push(() => w.u8(P.TELEM_ATTR_FRAME).u8(frame.type === P.FRAME_TYPE_PIXELS ? P.FRAME_TYPE_PIXELS : P.FRAME_TYPE_POSE).str(frame.name));
         if(attributes.length) {
             w.u8(P.SECTION_TYPE_TELEM_ATTR).u16(telemId).u8(attributes.length);
             attributes.forEach((write) => write());
@@ -578,7 +590,7 @@ TELEPLOT.files.estimate = function(format, options = {}) {
                 per = format === "binary" ? points * (12 + (entry.data[1][start] ? 4 : 0) + (entry.data[2][start] ? 3 : 0)) + 24 : points * 24 + nameLength + timeLength;
             }
             else if(format === "binary") {
-                let strings = [P.SECTION_TYPE_TELEM_DATA_TEXT, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE].includes(dataType);
+                let strings = [P.SECTION_TYPE_TELEM_DATA_TEXT, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT].includes(dataType);
                 if(strings) per = 4.1 + average(entry.data[entry.data.length - 1], start, end, textLength) + 1;
                 else {
                     let exact = entry.data.every((channel) => _files_isF32(channel[start]) && _files_isF32(channel[end - 1]));

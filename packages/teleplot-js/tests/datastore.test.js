@@ -339,3 +339,18 @@ test('point clouds: their memory is counted, and thinning keeps whole clouds (th
     assert.ok(e.data[0][0] instanceof Float32Array && e.data[0][0][0] === 3 && e.data[0][0].length === 300, 'a cloud that stays is untouched');
     assert.equal(e.data.__v_skip || telem.data.__v_skip, true, 'never proxied');
 });
+
+test('telemetries dated from the start of a device (small timestamps) are not pruned before the window is full', () => {
+    const T = loadTeleplot();
+    const telem = T.datastore.getOrCreateTelemetry('boot');
+    const N = T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER;
+    telem.addData(N, Array.from({ length: 50 }, (v, i) => 1 + i), [Array.from({ length: 50 }, (v, i) => i)]);
+    T.datastore.__deleteTimedOutData();
+    assert.equal(telem.data[N].timestamps.length, 50, 'regression: every sample but the last one was removed');
+    telem.addData(N, [400], [[99]]);
+    T.datastore.__deleteTimedOutData();
+    assert.deepEqual(telem.data[N].timestamps, [400], 'once the window (300 s) is exceeded, what is older than it goes');
+    telem.addData(N, [100.5, 450], [[1, 2]]);
+    T.datastore.__deleteTimedOutData();
+    assert.deepEqual(telem.data[N].timestamps, [400, 450]);
+});

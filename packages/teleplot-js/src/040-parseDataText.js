@@ -30,7 +30,10 @@ TELEPLOT.parseDataText = function(msgIn){
             else if (msg.substring(0,5) == "DASH|") { if(!TELEPLOT.dashboards.receiveLine(msg)) problems++; }
             // 3D
             else if (msg.substring(0,3) == "3D|")
-                _parseDataText_parse3D(msg, now);
+                _parseDataText_parse3D(msg, now, false);
+            // 2D: the same shapes, written flat (x:y positions, one angle)
+            else if (msg.substring(0,3) == "2D|")
+                _parseDataText_parse3D(msg, now, true);
             // JPG
             else if (msg.substring(0,4) == "JPG|" || msg.substring(0,4) == "PNG|")
                 _parseDataText_parseImage(msg, now);
@@ -372,6 +375,14 @@ function _parseDataText_parseImage(msg, now)
  *   width/W (x), depth/D (y), height/H (z)   radius/RA (sphere, cylinder)   precision/PR (accepted, unused)
  * Camera of an image telemetry (the line is addressed to the name of the image telemetry; P and R/Q give where the camera is):
  *   intrinsics/K fx:fy:cx:cy:width:height (pinhole model, pixels)   distortion/DC k1:k2:p1:p2:k3
+ * Flat shapes and what they need:
+ *   shape/S also takes rect, circle, line, polygon, arrow, text
+ *   points/PT x:y:z:x:y:z... (line, polygon: as many as needed, in the frame of the shape)   vector/V x:y:z (arrow, from its position)
+ *   text/TX   linewidth/LW (in the units of the frame; not given: as thin as the screen draws)   textsize/TS (height of a text, same)
+ * Frames: frame/F name (positions are relative to the pose of that telemetry)   pixels/FPX name (positions are pixels of the pictures
+ *   of that image telemetry: u to the right, v down)
+ * "2D|name:..." lines are the same, written flat: position/P x:y, rotation/R angle (around z), width/W (x) and height/H (y),
+ * points/PT x:y:x:y..., vector/V x:y. They give the same telemetries with z = 0 (a rect by default instead of a cube).
  * A shape is a telemetry: each property goes to the data type (or attribute) the binary protocol has for it, so both protocols give the same thing.
  */
 const _parseDataText_3DProperties = {
@@ -380,8 +391,13 @@ const _parseDataText_3DProperties = {
     color: ["color", 1], C: ["color", 1], opacity: ["opacity", 1], O: ["opacity", 1], texture: ["texture", 2], T: ["texture", 2],
     width: ["width", 1], W: ["width", 1], depth: ["depth", 1], D: ["depth", 1], height: ["height", 1], H: ["height", 1],
     radius: ["radius", 1], RA: ["radius", 1], precision: ["precision", 1], PR: ["precision", 1],
-    intrinsics: ["intrinsics", 6], K: ["intrinsics", 6], distortion: ["distortion", 5], DC: ["distortion", 5]
+    intrinsics: ["intrinsics", 6], K: ["intrinsics", 6], distortion: ["distortion", 5], DC: ["distortion", 5],
+    points: ["points", "*"], PT: ["points", "*"], vector: ["vector", 3], V: ["vector", 3], text: ["text", 1], TX: ["text", 1],
+    linewidth: ["lineWidth", 1], LW: ["lineWidth", 1], textsize: ["textSize", 1], TS: ["textSize", 1],
+    frame: ["frame", 1], F: ["frame", 1], pixels: ["pixels", 1], FPX: ["pixels", 1]
 };
+const _parseDataText_2DCounts = { position: 2, rotation: 1, vector: 2 }; // In a "2D|" line these take fewer values
+const _parseDataText_shapeTypes = { cube: 0, sphere: 1, cylinder: 2, rect: 3, circle: 4, line: 5, polygon: 6, arrow: 7, text: 8, stl: 10 };
 
 // Split on a separator character, except inside quotes ("..." or '...'). keepQuotes: leave the quotes in the parts (to split them again).
 function _parseDataText_splitOutsideQuotes(text, separator, keepQuotes=false) {
@@ -399,7 +415,7 @@ function _parseDataText_splitOutsideQuotes(text, separator, keepQuotes=false) {
 }
 
 // "S:cube:P:1::3" -> {type: ["cube"], position: ["1", undefined, "3"]} (undefined: value not given). Throws on an unknown property.
-function _parseDataText_parse3DProperties(tokens) {
+function _parseDataText_parse3DProperties(tokens, flat=false) {
     let properties = {};
     for(let i = 0; i < tokens.length;) {
         let name = tokens[i++];
@@ -407,13 +423,17 @@ function _parseDataText_parse3DProperties(tokens) {
         let info = _parseDataText_3DProperties[name];
         if(info === undefined) throw new Error("Invalid shape property : " + name);
         let values = [];
-        for(let n = 0; n < info[1]; n++, i++) values.push(i < tokens.length && tokens[i] !== "" ? tokens[i] : undefined);
+        let count = flat && _parseDataText_2DCounts[info[0]] !== undefined ? _parseDataText_2DCounts[info[0]] : info[1];
+        if(count === "*") { // As many values as there are, up to the next property
+            while(i < tokens.length && _parseDataText_3DProperties[tokens[i]] === undefined) { values.push(tokens[i] !== "" ? tokens[i] : undefined); i++; }
+        }
+        else for(let n = 0; n < count; n++, i++) values.push(i < tokens.length && tokens[i] !== "" ? tokens[i] : undefined);
         properties[info[0]] = values;
     }
     return properties;
 }
 
-function _parseDataText_parse3D(msg, now)
+function _parseDataText_parse3D(msg, now, flat=false)
 {
     const P = TELEPLOT.protocol;
     let parts = _parseDataText_splitOutsideQuotes(msg.substring(3), "|", true); // [name:values, flags]
@@ -448,17 +468,50 @@ function _parseDataText_parse3D(msg, now)
             let t = parseFloat(tokens.shift()) / 1000;
             if(!isNaN(t) && isFinite(t)) timestamp = t;
         }
-        let properties = _parseDataText_parse3DProperties(tokens);
+        let properties = _parseDataText_parse3DProperties(tokens, flat);
+        if(flat) { // Written flat: the same properties, with z left as it is
+            if(properties.position !== undefined) properties.position = [properties.position[0], properties.position[1], undefined];
+            if(properties.rotation !== undefined) properties.rotation = [undefined, undefined, properties.rotation[0]];
+            if(properties.vector !== undefined) properties.vector = [properties.vector[0], properties.vector[1], undefined];
+            if(properties.height !== undefined) { properties.depth = properties.height; delete properties.height; } // H is the extent along y
+            // A shape that was never described is a rectangle (a cube in a "3D|" line)
+            let describes = Object.keys(properties).some((name) => name !== "frame" && name !== "pixels"); // (a line that only gives a frame may be about a point or a cloud)
+            if(describes && properties.type === undefined && telemetry.getAttribute(P.TELEM_ATTR_SHAPE) === undefined) telemetry.setAttribute(P.TELEM_ATTR_SHAPE, { type: P.TELEM_ATTR_SHAPE_TYPE_RECT, data: "" });
+        }
 
         if(properties.type !== undefined || properties.url !== undefined) {
-            let shape = Object.assign({ type: P.TELEM_ATTR_SHAPE_TYPE_CUBE, data: "" }, telemetry.getAttribute(P.TELEM_ATTR_SHAPE));
+            let shape = Object.assign({ type: flat ? P.TELEM_ATTR_SHAPE_TYPE_RECT : P.TELEM_ATTR_SHAPE_TYPE_CUBE, data: "" }, telemetry.getAttribute(P.TELEM_ATTR_SHAPE));
             if(properties.type !== undefined && properties.type[0] !== undefined) {
-                let type = { cube: P.TELEM_ATTR_SHAPE_TYPE_CUBE, sphere: P.TELEM_ATTR_SHAPE_TYPE_SPHERE, cylinder: P.TELEM_ATTR_SHAPE_TYPE_CYLINDER, stl: P.TELEM_ATTR_SHAPE_TYPE_STL }[properties.type[0].toLowerCase()];
+                let type = _parseDataText_shapeTypes[properties.type[0].toLowerCase()];
                 if(type === undefined) throw new Error("Invalid shape type : " + properties.type[0]);
                 shape.type = type;
             }
             if(properties.url !== undefined && properties.url[0] !== undefined) shape.data = properties.url[0];
             telemetry.setAttribute(P.TELEM_ATTR_SHAPE, shape);
+        }
+        // Frame: what the positions are relative to (given empty: back to the scene)
+        if(properties.frame !== undefined || properties.pixels !== undefined) {
+            let name = properties.pixels !== undefined ? properties.pixels[0] : properties.frame[0];
+            telemetry.setAttribute(P.TELEM_ATTR_FRAME, name === undefined ? undefined : { type: properties.pixels !== undefined ? P.FRAME_TYPE_PIXELS : P.FRAME_TYPE_POSE, name: name });
+        }
+        if(properties.points !== undefined) { // The points of a line or a polygon: one sample holds them all, as a point cloud does
+            let width = flat ? 2 : 3, values = properties.points.map((v) => v === undefined ? NaN : parseFloat(v));
+            if(values.length % width !== 0 || values.some((v) => isNaN(v))) throw new Error("Points need " + (flat ? "x:y" : "x:y:z") + " for each of them");
+            let positions = new Float32Array(values.length / width * 3);
+            for(let i = 0; i < values.length / width; i++) { positions[i*3] = values[i*width]; positions[i*3+1] = values[i*width+1]; positions[i*3+2] = flat ? 0 : values[i*width+2]; }
+            telemetry.addData(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [timestamp], [[positions], [null], [null]]);
+        }
+        if(properties.vector !== undefined) {
+            put(P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR, timestamp, merge(latest(P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR, [0, 0, 0]), properties.vector));
+        }
+        if(properties.text !== undefined) put(P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, timestamp, [properties.text[0] === undefined ? "" : properties.text[0]]);
+        if(properties.lineWidth !== undefined) {
+            let width = parseFloat(properties.lineWidth[0]);
+            if(!isNaN(width)) put(P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH, timestamp, [Math.max(0, width)]);
+        }
+        if(properties.textSize !== undefined) { // The height of a text is its size
+            let size = parseFloat(properties.textSize[0]);
+            if(!isNaN(size)) put(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, timestamp, [size, size, size]);
         }
         if(properties.position !== undefined) {
             put(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, timestamp, merge(latest(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, [0, 0, 0]), properties.position));

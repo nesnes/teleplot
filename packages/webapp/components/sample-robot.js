@@ -4,6 +4,9 @@
  * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, and one log per subsystem merged in a Log view), image (camera),
  * 3D (the robot in its arena: shapes for the floor, the walls, the body, the wheels, a screen showing the camera, what the distance sensor hits; a 3D point for its path).
  * Frame of the 3D telemetries: x forward, y left, z up, in meters.
+ * Frames: what the robot carries (wheels, screen, camera, lidar, an arrow for its heading, the circle of how far it looks) is described
+ * once, in the frame of its body: only the body is moved. 2D: flat shapes (a zone, texts, the arrow, the circle) and a map, a 2D view
+ * of the same telemetries as the 3D scene. Pixels: what the robot "detects" is drawn in the pixels of the camera pictures.
  * The camera is a real one: a wide angle lens with distortion, whose pictures are computed pixel by pixel from the arena. It publishes its
  * intrinsics, its distortion and where it is, so that an image view can draw the 3D telemetries over its pictures.
  *
@@ -85,9 +88,20 @@ function createRobotSample(TP) {
     // View labels: what makes the robot and what makes its environment. Telemetries of a label are displayed together by default, and the
     // Telemetries panel has a card per label to drag them all at once.
     const ROBOT = "robot", ENVIRONMENT = "environment";
+    // In the frame of another telemetry: positions are relative to it, and follow it
+    const inFrame = (name, parent, position, quaternion) => {
+        if (position) put(name, POSITION, position);
+        if (quaternion) put(name, QUATERNION, quaternion);
+        TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_FRAME, { type: P.FRAME_TYPE_POSE, name: parent });
+    };
+    const BODY = "robot.3d.body", BODY_Z = 0.09;
+    function publishBody() { // The only thing that moves the robot: everything it carries is in its frame
+        put(BODY, POSITION, [bot.x, bot.y, BODY_Z]);
+        put(BODY, QUATERNION, [Math.cos(bot.a / 2), 0, 0, Math.sin(bot.a / 2)]); // (w, x, y, z): the heading is a rotation around z
+    }
     const shape = (name, label, type, size, color, opacity = 255) => { // What does not change is sent once
         if (TP.datastore.getTelemetry(name)) return;
-        put(name, SIZE, size);
+        if (size) put(name, SIZE, size);
         put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, [color]);
         if (opacity < 255) put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, [opacity]);
         TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_SHAPE, { type, data: "" });
@@ -106,36 +120,47 @@ function createRobotSample(TP) {
                 put("robot.3d.wall." + name, POSITION, [x, y, TALL / 2]);
             });
         }
-        shape("robot.3d.body", ROBOT, CUBE, [0.3, WHEEL_BASE - 0.06, 0.1], "#2980b9");
-        shape("robot.3d.wheel.left", ROBOT, CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
-        shape("robot.3d.wheel.right", ROBOT, CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
-        shape("robot.3d.screen", ROBOT, CUBE, [0.01, 0.24, 0.18], "white");
-        shape("robot.3d.obstacle", ENVIRONMENT, SPHERE, [0.1, 0.1, 0.1], "#e74c3c", 170);
-        if (!TP.datastore.getTelemetry("robot.3d.screen").data[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE]) {
+        shape(BODY, ROBOT, CUBE, [0.3, WHEEL_BASE - 0.06, 0.1], "#2980b9");
+        if (!TP.datastore.getTelemetry("robot.3d.screen")) {
+            // What the robot carries, once: placed in the frame of its body (wheels are cylinders laid on their side: turned around x)
+            const h = Math.SQRT1_2;
+            for (const [name, side] of [["robot.3d.wheel.left", 1], ["robot.3d.wheel.right", -1]]) {
+                shape(name, ROBOT, CYLINDER, [0.12, 0.12, 0.04], "#2c3e50");
+                inFrame(name, BODY, [0, side * WHEEL_BASE / 2, -0.03], [h, h, 0, 0]);
+            }
+            shape("robot.3d.screen", ROBOT, CUBE, [0.01, 0.24, 0.18], "white");
+            inFrame("robot.3d.screen", BODY, [-0.1, 0, 0.15]);
             put("robot.3d.screen", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, [P.TEXTURE_TYPE_IMAGE, "robot.camera"]); // Shows the image telemetry
+            // Flat shapes, in the frame of the body too: an arrow for where it looks, the circle of how close a wall can get before it turns
+            shape("robot.map.heading", ROBOT, P.TELEM_ATTR_SHAPE_TYPE_ARROW, [1, 1, 1], "#f39c12");
+            put("robot.map.heading", P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR, [0.35, 0, 0]);
+            put("robot.map.heading", P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH, [0.025]);
+            inFrame("robot.map.heading", BODY, [0, 0, 0.06]);
+            shape("robot.map.reach", ROBOT, P.TELEM_ATTR_SHAPE_TYPE_CIRCLE, [1, 1, 1], "#e74c3c", 28);
+            inFrame("robot.map.reach", BODY, [0, 0, -BODY_Z + 0.004]);
+            // Flat shapes of the arena: a zone (a polygon is the surface inside its points) and its name
+            shape("robot.map.dock", ENVIRONMENT, P.TELEM_ATTR_SHAPE_TYPE_POLYGON, [1, 1, 1], "#27ae60", 90);
+            put("robot.map.dock", P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [Float32Array.from([0.15, 0.15, 0.003, 0.95, 0.15, 0.003, 0.95, 0.7, 0.003, 0.15, 0.7, 0.003]), null, null]);
+            shape("robot.map.dock.name", ENVIRONMENT, P.TELEM_ATTR_SHAPE_TYPE_TEXT, [0.13, 0.13, 0.13], "#1e8449"); // (its size is its height)
+            put("robot.map.dock.name", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, ["Dock"]);
+            put("robot.map.dock.name", POSITION, [0.2, 0.82, 0.003]);
+            // What the distance sensor hits, and a text that follows it (in its frame)
+            shape("robot.3d.obstacle", ENVIRONMENT, SPHERE, [0.1, 0.1, 0.1], "#e74c3c", 170);
+            shape("robot.map.obstacle.name", ENVIRONMENT, P.TELEM_ATTR_SHAPE_TYPE_TEXT, null, "#c0392b"); // No size: a steady size on screen
+            inFrame("robot.map.obstacle.name", "robot.3d.obstacle", [0.07, 0.07, 0.08]);
         }
 
-        // Orientation as quaternions (w, x, y, z): the heading is a rotation around z; wheels are cylinders laid on their side first (around x)
-        const c = Math.cos(bot.a / 2), s = Math.sin(bot.a / 2), h = Math.SQRT1_2;
-        const yaw = [c, 0, 0, s], wheel = [c * h, c * h, s * h, s * h];
-        const left = [-Math.sin(bot.a), Math.cos(bot.a)]; // unit vector to the left of the robot
-        put("robot.3d.body", POSITION, [bot.x, bot.y, 0.09]);
-        put("robot.3d.body", QUATERNION, yaw);
-        for (const [name, side] of [["robot.3d.wheel.left", 1], ["robot.3d.wheel.right", -1]]) {
-            put(name, POSITION, [bot.x + left[0] * side * WHEEL_BASE / 2, bot.y + left[1] * side * WHEEL_BASE / 2, 0.06]);
-            put(name, QUATERNION, wheel);
-        }
-        put("robot.3d.screen", POSITION, [bot.x - Math.cos(bot.a) * 0.1, bot.y - Math.sin(bot.a) * 0.1, 0.24]);
-        put("robot.3d.screen", QUATERNION, yaw);
+        publishBody();
         const d = ray(bot.a).d;
         put("robot.3d.obstacle", POSITION, [bot.x + Math.cos(bot.a) * d, bot.y + Math.sin(bot.a) * d, 0.09]);
+        put("robot.map.obstacle.name", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, [d.toFixed(2) + " m"]);
         put("robot.path", P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, [bot.x, bot.y, 0.005], "m");
         TP.datastore.getTelemetry("robot.path").setAttribute(P.TELEM_ATTR_VIEW_LABEL, ROBOT);
     }
 
     // A 2D lidar on top of the robot: one turn of 240 rays, 10 times per second. A point cloud telemetry: the points are in the frame
     // of the sensor (x forward, y left, z = 0 for a flat scan), each with an intensity (how well its wall reflects, weaker with the
-    // distance); the pose of the sensor is sent like the one of a shape, so that the scan lands where the robot is.
+    // distance). The sensor is in the frame of the body (sent once): each scan lands where the robot was when it was taken.
     const LIDAR = { rays: 240, up: 0.16, reflectivity: [0.9, 0.55, 0.75, 0.35] };
     function publishLidar() {
         const positions = new Float32Array(LIDAR.rays * 3), intensities = new Float32Array(LIDAR.rays);
@@ -146,10 +171,12 @@ function createRobotSample(TP) {
             positions[i * 3 + 1] = Math.sin(angle) * d;
             intensities[i] = LIDAR.reflectivity[hit.wall] / (1 + 0.15 * d * d) + noise(0.02);
         }
-        put("robot.lidar", POSITION, [bot.x, bot.y, LIDAR.up]);
-        put("robot.lidar", QUATERNION, [Math.cos(bot.a / 2), 0, 0, Math.sin(bot.a / 2)]);
+        publishBody(); // Where the robot is now: what the scan is placed with
         put("robot.lidar", P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [positions, intensities, null]);
-        TP.datastore.getTelemetry("robot.lidar").setAttribute(P.TELEM_ATTR_VIEW_LABEL, ROBOT);
+        if (!TP.datastore.getTelemetry("robot.lidar").getAttribute(P.TELEM_ATTR_FRAME)) {
+            inFrame("robot.lidar", BODY, [0, 0, LIDAR.up - BODY_Z]);
+            TP.datastore.getTelemetry("robot.lidar").setAttribute(P.TELEM_ATTR_VIEW_LABEL, ROBOT);
+        }
     }
 
     function publishFast() { // every step
@@ -165,13 +192,38 @@ function createRobotSample(TP) {
         put("robot.heading", NUMBER, [(bot.a * 180 / Math.PI % 360 + 360) % 360], "°");
         put("robot.battery", NUMBER, [bot.battery - 0.1 * (bot.il + bot.ir) + noise(0.01)], "V");
         put("robot.state", TEXT, [bot.state]);
-        // The camera: its parameters and where it is when the picture is taken, then the picture
+        // The camera: its parameters and where it is on the robot (once: it is in the frame of the body, looking along its x), then
+        // where the robot is when the picture is taken, and the picture
         const eye = [bot.x + Math.cos(bot.a) * CAMERA.forward, bot.y + Math.sin(bot.a) * CAMERA.forward, CAMERA.up];
-        put("robot.camera", P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, [CAMERA.width, CAMERA.height, CAMERA.fx, CAMERA.fy, CAMERA.cx, CAMERA.cy]);
-        put("robot.camera", P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, CAMERA.distortion);
-        put("robot.camera", POSITION, eye);
-        put("robot.camera", QUATERNION, [Math.cos(bot.a / 2), 0, 0, Math.sin(bot.a / 2)]); // looks along the x of the robot
-        put("robot.camera", SIZE, [0.35, 1, 1]); // how far its pyramid is drawn in 3D views
+        if (!TP.datastore.getTelemetry("robot.camera")) {
+            put("robot.camera", P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, [CAMERA.width, CAMERA.height, CAMERA.fx, CAMERA.fy, CAMERA.cx, CAMERA.cy]);
+            put("robot.camera", P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, CAMERA.distortion);
+            put("robot.camera", SIZE, [0.35, 1, 1]); // how far its pyramid is drawn in 3D views
+            inFrame("robot.camera", BODY, [CAMERA.forward, 0, CAMERA.up - BODY_Z]);
+        }
+        publishBody();
+        // What the robot "detects": a box around the obstacle, drawn in the pixels of the picture (no camera model is needed to show
+        // it: only the pixels). Here they are computed with the model of the camera, as a detector would find them in the picture.
+        const depth = ray(bot.a).d - CAMERA.forward;
+        const pixel = TP.view.ViewImage.projectPoint(CAMERA, [depth, 0, BODY_Z - CAMERA.up]);
+        const found = "robot.camera.found", radius = Math.max(3, CAMERA.fx * 0.05 / Math.max(depth, 0.05) * 1.4);
+        if (!TP.datastore.getTelemetry(found)) {
+            for (const [name, type] of [[found, P.TELEM_ATTR_SHAPE_TYPE_RECT], [found + ".name", P.TELEM_ATTR_SHAPE_TYPE_TEXT]]) {
+                put(name, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, ["#f1c40f"]);
+                TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_SHAPE, { type, data: "" });
+                TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_FRAME, { type: P.FRAME_TYPE_PIXELS, name: "robot.camera" });
+            }
+            put(found, P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH, [1.5]); // (pixels of the picture)
+        }
+        const seen = pixel !== undefined && pixel[0] > 0 && pixel[0] < CAMERA.width && pixel[1] > 0 && pixel[1] < CAMERA.height;
+        put(found, P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, [seen ? 60 : 0]);
+        put(found + ".name", P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, [seen ? 255 : 0]);
+        if (seen) {
+            put(found, POSITION, [pixel[0], pixel[1], 0]);
+            put(found, SIZE, [radius * 2, radius * 2, 1]);
+            put(found + ".name", POSITION, [Math.max(2, pixel[0] - radius), Math.max(8, pixel[1] - radius - 8), 0]);
+            put(found + ".name", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, ["obstacle " + (depth + CAMERA.forward).toFixed(2) + " m"]);
+        }
         put("robot.camera", IMAGE, [P.IMAGE_TYPE_PNG, camera(eye)]);
     }
 
@@ -221,24 +273,33 @@ function createRobotSample(TP) {
         const stack = (w, h) => { const s = new TP.view.ViewStack("", group); s.setSize(w, h); return s; };
         const timeGroup = (view, name) => { view.setOption("timeGroup", "custom"); view.setOption("timeGroupName", name); return view; };
 
-        // On top, where the robot is: the 3D scene, what its camera sees, its state and the merged logs of all subsystems.
+        // On top, where the robot is: the 3D scene, the same telemetries on a map (a 2D view), what its camera sees, its state and the
+        // merged logs of all subsystems.
         // Under it, the motion charts. The plain camera picture is alone in a time group of its own ("Live"): nothing moves its
         // cursor, so it keeps showing the latest picture while the rest of the dashboard is zoomed or follows the pointer.
         const main = layout("column"), top = layout("row"), bottom = layout("row");
-        const cameras = layout("column", 2, 7), state = layout("column", 4, 7), tabs = stack(2, 5);
+        const cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(2, 5);
         dashboard.setView(main);
         main.addView(top);
         main.addView(bottom);
 
-        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path", "robot.lidar"], group);
-        scene.setSize(5, 7);
+        const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path", "robot.lidar", "robot.map.dock", "robot.map.dock.name", "robot.map.heading", "robot.map.reach", "robot.map.obstacle.name"], group);
+        scene.setSize(4, 7);
         scene.setOption("trailLength", 500);
         top.addView(scene);
+        // The map: the same telemetries seen from above (solids are drawn as what they cover on the ground). Nothing is sent twice.
+        const map = new TP.view.ViewScene2D("", ["robot.3d.floor", "robot.map.dock", "robot.map.dock.name", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.map.reach", "robot.path", "robot.lidar", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.camera", "robot.map.heading", "robot.3d.obstacle", "robot.map.obstacle.name"], group);
+        map.setSize(3, 7);
+        map.setOption("trailLength", 500);
+        map.setOption("displayLegend", false);
+        map.setOption("title", "Map"); // (seen from above: x to the right, y up. axisRight / axisUp choose another way to look at it)
+        top.addView(map);
         top.addView(cameras);
         top.addView(state);
 
         const rawView = timeGroup(new TP.view.ViewImage("", ["robot.camera"], group), "Live"); // The pictures, with nothing over them
         rawView.setSize(2, 3);
+        rawView.setOption("pixelDrawings", false); // (the other camera view takes what is drawn in the pixels of the picture)
         rawView.setOption("title", "Camera");
         cameras.addView(rawView);
         // The same pictures with what the 3D telemetries say drawn over them: the walls must fall on the walls of the picture
@@ -249,9 +310,9 @@ function createRobotSample(TP) {
         cameraView.setOption("title", "Camera + 3D");
         cameras.addView(cameraView);
 
-        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 4, 2));
+        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 3, 2));
         const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log"], group);
-        logView.setSize(4, 5);
+        logView.setSize(3, 5);
         state.addView(logView);
 
         bottom.addView(chart(["robot.current.left", "robot.current.right"], 3, 5));

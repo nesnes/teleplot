@@ -70,3 +70,34 @@ Thinning removes stored samples for good. It never makes any up: every sample ke
 
 Clearing: `TELEPLOT.datastore.clearData(keep)` empties the telemetries (all, or all but the ones `keep(telemetry)` accepts), `telemetry.clearData()` one of them, `TELEPLOT.datastore.forgetTelemetries()` forgets the telemetries themselves (names keep their ids, so views find them again when they come back).
 
+## Scenes: 2D and 3D views, frames, many telemetries (measured on 2026-10-12)
+
+Measured in the webapp (the library wrapped in Vue proxies, which is where problems show), Chromium, one view displayed, the whole update of the page (`TELEPLOT.updates.update()`, 30 times per second: 33 ms is the budget). 3D figures are the update only: the WebGL drawing itself happens on the next animation frame and is not in them.
+
+| What changes on every update | 2D view | 3D view |
+|---|---|---|
+| The robot sample (16 views, 31 telemetries, ~500 samples/s) | 3 ms for the whole dashboard, steady over time | |
+| 100 / 500 / 2000 flat shapes, all moving | 3 / 7 / 20 ms | 2 / 5 / 23 ms |
+| 500 shapes in the frame of one moving parent | 8 ms | 6 ms |
+| 500 shapes, frames 8 deep | 9 ms | 6 ms |
+| A trail of 500 / 5000 positions | 2 / 5 ms | under 1 ms |
+| The same trail, the point being in a moving frame | 5 / 28 ms | 4 / 26 ms |
+| A new cloud of 1000 / 10 000 / 100 000 points | 3 / 7 / 19 ms | 1 / 2 / 3 ms |
+| 4000 telemetries stored, none displayed | 0.1 ms (7 ms four times per second, when old data is looked for) | |
+
+What these say:
+
+- **Shapes cost about 10 microseconds each** per update when they move; what does not change costs nothing (a view only redraws when its key changes). A thousand moving shapes is comfortable, a few thousand is the limit.
+- **Frames are almost free**: the pose of a frame is computed once per update for everything that is in it (`ViewScene3D.poseOf`, cached during the update), however deep the frames go.
+- **A trail in a moving frame is the expensive case**: each of its positions is placed with the frame as it was at that time, about 5 microseconds per position. The default trail (200) costs 1 ms; 5000 uses most of the budget.
+- **Large clouds belong in the 3D view**, which hands the arrays to the GPU. The 2D view draws them pixel by pixel above 3000 points: fine up to tens of thousands, heavy at 100 000 per update.
+- **Stored telemetries cost nothing while idle**: old data is looked for four times per second, not on every update, and a telemetry that has nothing too old is skipped at once.
+
+Found and fixed while measuring:
+
+- The legend of a 2D or 3D view created a number formatter for every value on every update (24 microseconds per telemetry, more than drawing it). The formatter is kept, and a hidden legend is not computed.
+- Old data was looked for in every telemetry on every update: 12 ms with 3600 telemetries. Now four times per second, with an early exit.
+- What the 2D view draws (`items`) was wrapped in Vue proxies by the webapp: twice the time for large scenes. It is `markRaw` now, like the sample storage and the chart decimators: **anything a view reads on every update must be raw**.
+- Telemetries whose times start near zero (a device that counts from its start) lost all their samples but the last one at the first update: the limit of the data window became negative, which the search understood as "the latest sample". Not a speed problem, but it was found by a benchmark whose numbers looked too good.
+
+Not measured: the WebGL drawing time of the 3D view, other browsers, and long sessions with these new views (the robot sample was watched for one minute only).

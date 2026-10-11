@@ -25,6 +25,7 @@ class PacketBuilder {
             this.u8(code);
             if (code === P.AUTOPLOT || code === 7) this.u8(value ? 1 : 0); // (7: TELEM_ATTR_LOG)
             else if (code === P.TIMEOUT) this.u64(value); // nanoseconds
+            else if (code === 8) this.u8(value.type).str(value.name); // (8: TELEM_ATTR_FRAME) {type: 0 pose | 1 pixels, name}
             else if (code === P.SHAPE) { this.u8(value.type); if (value.type === 10) this.str(value.url); } // {type, url}: the url only for an STL file
             else this.str(value);
         }
@@ -44,6 +45,10 @@ class PacketBuilder {
     shapeColorStr(telemId, refNs, samples) { return this._data(SECTION.SHAPE_COLOR_STR, telemId, refNs, samples, v => this.str(v[0])); }
     shapeColorRGB(telemId, refNs, samples) { return this._data(SECTION.SHAPE_COLOR_RGB, telemId, refNs, samples, v => v.forEach(x => this.u8(x))); }
     shapeOpacity(telemId, refNs, samples) { return this._data(SECTION.SHAPE_OPACITY, telemId, refNs, samples, v => this.u8(v[0])); }
+    // Flat shapes: the vector of an arrow (x, y, z), a line width, a text
+    shapeVector(telemId, refNs, samples) { return this._data(37, telemId, refNs, samples, v => v.forEach(x => this.f32(x))); }
+    shapeText(telemId, refNs, samples) { return this._data(38, telemId, refNs, samples, v => this.str(v[0])); }
+    shapeLineWidth(telemId, refNs, samples) { return this._data(39, telemId, refNs, samples, v => this.f32(v[0])); }
     shapeTexture(telemId, refNs, samples) { return this._data(SECTION.SHAPE_TEXTURE, telemId, refNs, samples, v => this.u8(v[0]).str(v[1])); }
     // Cameras. intrinsics: width, height (uint16), fx, fy, cx, cy; distortion: k1, k2, p1, p2, k3
     cameraIntrinsics(telemId, refNs, samples) { return this._data(SECTION.CAMERA_INTRINSICS, telemId, refNs, samples, v => { this.u16(v[0]).u16(v[1]); v.slice(2).forEach(x => this.f32(x)); }); }

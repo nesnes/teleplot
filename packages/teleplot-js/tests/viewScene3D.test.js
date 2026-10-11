@@ -32,7 +32,8 @@ test('shapeState: defaults, then what was sent (text protocol)', () => {
     const a = T.datastore.getTelemetry('a');
     assert.deepEqual(S.shapeState(a, -1, 'teal'), {
         type: P.TELEM_ATTR_SHAPE_TYPE_SPHERE, url: '', position: [0, 0, 0], quaternion: [1, 0, 0, 0], size: [1, 1, 1],
-        color: 'teal', opacity: 1, texture: { type: P.TEXTURE_TYPE_NONE, value: '' }
+        color: 'teal', opacity: 1, texture: { type: P.TEXTURE_TYPE_NONE, value: '' },
+        colored: false, sized: false, vector: [0, 0, 0], text: '', lineWidth: undefined, pointsKey: '', framed: false
     });
     a.setAttribute(P.TELEM_ATTR_COLOR, 'orange');
     assert.equal(S.shapeState(a, -1, 'teal').color, 'orange', 'the color of the telemetry comes before the palette');

@@ -160,3 +160,4 @@ body.tp-dragging .tp-slots { display: none; }
 .edit-tg-item.on { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 .edit-tg-item .edit-muted { margin-left: auto; }
 .edit-tg-new { color: var(--color-text-muted); }
+.edit-field > .edit-select.edit-input { flex: none; width: 5.5em; max-width: none; text-align: left; padding: 2px 2px; }

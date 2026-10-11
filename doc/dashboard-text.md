@@ -25,7 +25,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 
 - **Path**: the name of the dashboard, then the names of the views down to the one the line describes. Layouts that are missing on the way are created (as grids), so lines can be sent **in any order**, and each line stands alone. The dashboard alone (`DASH|Robot:row`) is its top layout.
 - **Name of a view** (the last name of the path): its key among its siblings, and for a view that shows telemetries, its title. A name that starts with `#` (`#1`) is only a key: the view has no title.
-- **Type**: `row`, `column`, `grid`, `stack` (layouts), `chart`, `values`, `log`, `3d`, `image`, or `none`, which removes the view (or the whole dashboard). Without a type, a view that exists keeps its own and a new one gets what suits its first telemetry (a grid when it has none): `DASH|Robot/top/Motion|h=6` only changes a height.
+- **Type**: `row`, `column`, `grid`, `stack` (layouts), `chart`, `values`, `log`, `2d`, `3d`, `image`, or `none`, which removes the view (or the whole dashboard). Without a type, a view that exists keeps its own and a new one gets what suits its first telemetry (a grid when it has none): `DASH|Robot/top/Motion|h=6` only changes a height.
 - **Telemetries**: by name, separated by commas. They do not have to exist yet: the view waits for them ("Waiting for data").
 - **Options**: only what is written changes.
 

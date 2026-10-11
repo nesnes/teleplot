@@ -11,6 +11,7 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 |---|---|
 | `datastore.test.js` | ordered/late insertion, pruning, timeouts, `getDataPoint`, naming |
 | `parseDataText.test.js` | V1 text protocol (retro-compatibility) |
+| `viewScene2D.test.js` | `2D|` lines, flat shapes, frames and pixel frames (text and binary), what the 2D view draws, default view of flat telemetries |
 | `files.test.js` | data files: text and binary export, read back and compared with what was stored; import in pieces, options |
 | `dashboardText.test.js` | dashboards as text: `DASH|` lines received (text and binary), export, import, labels that are paths |
 | `parseDataBinary.test.js` | binary protocol decoding (packets built by `helpers/packet.js`, independent of the parser) |

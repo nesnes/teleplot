@@ -121,6 +121,15 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD:
                     offset = _parseDataBinary_parseTELEM_DATA_POINT_CLOUD(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR:
+                    offset = _parseDataBinary_parseFloats(view, offset, clientId, sectionType, 3);
+                    break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH:
+                    offset = _parseDataBinary_parseFloats(view, offset, clientId, sectionType, 1);
+                    break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT:
+                    offset = _parseDataBinary_parseStrings(view, offset, clientId, sectionType);
+                    break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
                     offset = _parseDataBinary_parseTELEM_DATA_FLOAT64(view, offset, clientId);
                     break;
@@ -259,6 +268,13 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 offset = newOffset;
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_FRAME: { // {FRAME_TYPE[8]} {NAME[null terminated string]}
+                let frameType = view.getUint8(offset);
+                let [frameName, newOffset] = _parseDataBinary_readString(view, offset + 1);
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_FRAME, {type: frameType, name: frameName});
+                offset = newOffset;
+                break;
+            }
             case TELEPLOT.protocol.TELEM_ATTR_LOG: {
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, view.getUint8(offset) !== 0);
                 offset++;
@@ -273,7 +289,37 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
 }
 
 // Data types whose samples are only numbers: they can also be written as float64 (TELEM_DATA_FLOAT64)
-const _parseDataBinary_NUMERIC_TYPES = [20, 21, 22, 25, 26, 27, 29, 30, 31, 33, 34];
+const _parseDataBinary_NUMERIC_TYPES = [20, 21, 22, 25, 26, 27, 29, 30, 31, 33, 34, 37, 39];
+
+// A data section whose samples are "count" float32: {TELEM_DATA_HEADER} then for each sample {TIMEDIFF[32]} and the floats
+function _parseDataBinary_parseFloats(view, offset, clientId, dataType, count) {
+    let [telemId, timeRef, samples, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+    let timestamps = [], channels = [];
+    for(let c = 0; c < count; c++) channels.push([]);
+    for(let i = 0; i < samples; i++) {
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN)));
+        offset += 4;
+        for(let c = 0; c < count; c++) { channels[c].push(view.getFloat32(offset, _parseDataBinary_LITTLE_ENDIAN)); offset += 4; }
+    }
+    TELEPLOT.datastore.getOrCreateTelemetry(telemId).addData(dataType, timestamps, channels);
+    return offset;
+}
+
+// A data section whose samples are one string: {TELEM_DATA_HEADER} then for each sample {TIMEDIFF[32]} {TEXT[null terminated string]}
+function _parseDataBinary_parseStrings(view, offset, clientId, dataType) {
+    let [telemId, timeRef, samples, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+    let timestamps = [], texts = [];
+    for(let i = 0; i < samples; i++) {
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN)));
+        let [text, next] = _parseDataBinary_readString(view, offset + 4);
+        texts.push(text);
+        offset = next;
+    }
+    TELEPLOT.datastore.getOrCreateTelemetry(telemId).addData(dataType, timestamps, [texts]);
+    return offset;
+}
 
 // {TELEM_ID[16]} {TIME_REFERENCE[64]} {COUNT[8]} {DATA_TYPE[8]} then for each sample {TIMEDIFF[32]} and a float64 for each number of
 // a sample of the data type (in the order of its own section).

@@ -154,6 +154,11 @@ function initComponent_panel_edit(vue) {
                     <label v-if="o.type == 'bool'" class="edit-field">{{ o.label }}
                       <input type="checkbox" class="edit-check" :checked="selected.options[o.key]" @change="selected.options[o.key] = $event.target.checked">
                     </label>
+                    <label v-else-if="o.type == 'choice'" class="edit-field">{{ o.label }}
+                      <select class="edit-input edit-select" :value="selected.options[o.key]" @change="selected.options[o.key] = $event.target.value">
+                        <option v-for="c in o.choices" :key="c[0]" :value="c[0]">{{ c[1] }}</option>
+                      </select>
+                    </label>
                     <div v-else class="edit-field">{{ o.label }}
                       <input type="number" class="edit-input edit-number" :min="o.min" :max="o.max" :step="o.step || 1" v-value="selected.options[o.key]"
                         @change="setNumber(o, $event.target.value)">
@@ -208,7 +213,7 @@ function initComponent_panel_edit(vue) {
                 return Math.max(0, count(this.dashboard.view) - 1); // the dashboard layout itself doesn't count
             },
             viewIcon() {
-                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
+                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-2d": "icofont-map", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
             },
             // Time group of the selected element: its choice, what it comes down to, and the custom groups of the dashboard
             timeGroup() {

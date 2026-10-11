@@ -1,10 +1,20 @@
+let _updates_lastPrune = 0;
 TELEPLOT.updates = {};
 
 TELEPLOT.updates.onUpdateHooks = [
-    TELEPLOT.datastore.__deleteTimedOutData,
+    () => { // Old data is removed a few times per second: going through every telemetry 30 times per second costs more than it frees
+        let now = Date.now();
+        if(now - _updates_lastPrune < 250) return;
+        _updates_lastPrune = now;
+        TELEPLOT.datastore.__deleteTimedOutData();
+    },
     () => TELEPLOT.datastore.checkMemory(), // (does its work once per second)
     () => TELEPLOT.dashboards.resolveTimeGroups(), // Views follow the time group of their layout (or their own)
-    TELEPLOT.view.updateViews,
+    () => { // (poses of frames are shared by the views during the update: see ViewScene3D.poseOf)
+        TELEPLOT.view.ViewScene3D.__poseCache = new Map();
+        try { TELEPLOT.view.updateViews(); }
+        finally { TELEPLOT.view.ViewScene3D.__poseCache = undefined; }
+    },
 ]
 
 TELEPLOT.updates.update = function() {

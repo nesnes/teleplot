@@ -62,14 +62,14 @@ test('removeDashboard forgets the dashboard and its views, and leaves the auto d
     assert.equal(T.dashboards.createDashboard('A').name, 'A', 'the name is free again');
 });
 
-test('suggestViewType: numbers are plotted, everything else is shown as values, unknown or empty telemetries default to a chart', () => {
+test('suggestViewType: numbers are plotted, positions go on a map, everything else is shown as values, unknown or empty telemetries default to a chart', () => {
     const T = loadTeleplot();
     const now = Date.now() / 1000;
     T.datastore.addTelemetry('n').addData(T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, [now], [[1]]);
     T.datastore.addTelemetry('t').addData(T.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [now], [['hi']]);
     T.datastore.addTelemetry('p').addData(T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D, [now], [[1], [2]]);
     T.datastore.addTelemetry('empty');
-    assert.deepEqual(['n', 't', 'p', 'empty', 'unknown'].map(T.view.suggestViewType), ['chart', 'values', 'values', 'chart', 'chart']);
+    assert.deepEqual(['n', 't', 'p', 'empty', 'unknown'].map(T.view.suggestViewType), ['chart', 'values', '2d', 'chart', 'chart']);
     assert.equal(T.view.suggestViewType(T.datastore.getTelemetry('t').id), 'values', 'ids work like names');
 });
 
@@ -85,7 +85,8 @@ test('createView builds a view of a known type with its telemetries and a size t
     assert.equal(T.view.createView('nope'), undefined);
     assert.ok(T.view.createView('3d', ['a']) instanceof T.view.ViewScene3D);
     assert.ok(T.view.createView('image', ['a']) instanceof T.view.ViewImage);
-    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', '3d', 'image']);
+    assert.ok(T.view.createView('2d', ['a']) instanceof T.view.ViewScene2D);
+    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', '2d', '3d', 'image']);
 });
 
 test('auto dashboard: telemetries with the same view label share a view per kind of view, titled with the label', () => {
@@ -219,4 +220,26 @@ test('auto dashboard: a label ties a camera to its scene, whichever comes first'
     T.dashboards.enableAutoDashboard('Live');
     T.parseDataText({ data: '3D|box:S:cube\nPNG|camera:AAAA', timestamp: 0 }); T.__timers.run();
     assert.deepEqual(T.dashboards.getDashboard('Live').getView().views.map(v => v.telemetryIdOrNameList.length), [1, 1]);
+});
+
+test('clearDashboard empties a dashboard and keeps it; the auto dashboard goes on with what shows up next', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText('a:1\nb,pair:1\nc,pair:2\n3D|box:P:1:2:3');
+    T.__timers.run();
+    const live = T.dashboards.getDashboard('Live');
+    const mine = T.dashboards.createDashboard('Mine');
+    const row = new T.view.ViewLayout('', 'Mine');
+    row.addView(T.view.createView('chart', ['a'], 'Mine'));
+    mine.getView().addView(row);
+    const registered = T.view.views.length;
+    assert.equal(T.dashboards.clearDashboard('Mine'), 1);
+    assert.deepEqual([mine.getView().views.length, T.dashboards.getDashboard('Mine') === mine, T.view.views.length], [0, true, registered - 2], 'the layout stays, what was in it (and inside that) is forgotten');
+    assert.equal(T.dashboards.clearDashboard('Live'), 3);
+    assert.deepEqual([live.getView().views.length, live.isAuto], [0, true]);
+    assert.equal(Object.keys(T.datastore.telemetries).length, 4, 'data and telemetries are not concerned');
+    T.parseDataText('d,pair:3\n3D|ball:S:sphere');
+    T.__timers.run();
+    assert.deepEqual(live.getView().views.map((v) => v.type + ':' + v.telemetryIdOrNameList.length), ['teleplot-chart:1', 'teleplot-3d:1'], 'new telemetries get new views');
+    assert.equal(T.dashboards.clearDashboard('Nope'), 0);
 });

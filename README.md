@@ -80,7 +80,7 @@ Examples:
 
 ### Plot XY rather than time-based
 
-Using the `xy` flag, and providing a value in both **B** and **C** field, teleplot will display an YX line chart. 
+Using the `xy` flag, and providing a value in both **B** and **C** field, teleplot will display the position on a map (a 2D view), with the trail of where it went: an XY line chart.
 
 - `trajectory:12.3:45.67|xy`
 
@@ -88,7 +88,7 @@ A timestamp can be associated with the xy point by adding an extra `:16275518924
 
 - `trajectoryTimestamped:1:1:1627551892437;2:2:1627551892448;3:3:1627551892459|xy`
 
-The YX line chart will only be displayed when at least two values have been received.
+The line shows as soon as two values have been received (a single one is a dot).
 
 > Using `clr` flag when sending a telemetry will clear the previous values. This is useful when streaming cyclic data like lidar points.
 
@@ -318,6 +318,26 @@ Therefore, it will have to use default values, or may not display anything at al
 
 /!\ Views are drawn 30 times per second: sending a shape more often than that is not visible live (every update is stored though, and
 can be seen again by hovering a chart of the same dashboard: the 3D view shows the shapes as they were at that time).
+
+### 2D drawings, frames
+
+A line starting with `2D|` is a `3D|` line written flat: `x:y` positions, one angle. Flat shapes (`rect`, `circle`, `line`, `polygon`, `arrow`, `text`)
+are seen from above in a 2D view, and lie on the ground of a 3D view; 3D shapes show in a 2D view as what they cover. Nothing is sent twice.
+
+- `2D|robot,field:S:rect:P:1.2:0.8:R:1.57:W:0.3:H:0.2:C:blue`
+- `2D|route,field:S:line:PT:0:0:1:0.5:2:2:C:green` (add `LW:0.2` for a real width, in your units)
+- `2D|zone,field:S:polygon:PT:0:0:1:0:1:1:0:1:C:red:O:0.3`
+- `2D|goal,field:S:text:P:3:1:TX:"Goal A"`
+
+With a frame, positions are relative to another telemetry, which carries them along; it works for shapes, cameras, points and point clouds, in 2D and in 3D lines:
+
+- `2D|heading,field:S:arrow:V:0.4:0:F:robot`
+
+A pixel frame draws in the pixels of the pictures of an image telemetry, without knowing anything about its camera (a box around what a detector found):
+
+- `2D|det1:S:rect:P:120:80:W:40:H:60:C:red:FPX:camera`
+
+Everything is described in `doc/2d.md`.
 
 # Publish telemetries
 

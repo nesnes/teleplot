@@ -155,16 +155,21 @@ function initComponent_top_menu(vue) {
                             </div>
 
                             <h5>Clear</h5>
-                            <div v-if="confirmForget" class="tm-line tm-row-confirm" role="alertdialog" aria-label="Forget every telemetry ?" @keydown.esc.stop="confirmForget = false">
-                                <span class="tm-row-question">Forget every telemetry and its data?</span>
-                                <button class="tm-row-cancel" ref="forgetCancel" @click="confirmForget = false">Cancel</button>
-                                <button class="tm-row-confirm-delete" @click="forgetEverything()">Forget</button>
+                            <div v-if="confirmForget" class="tm-line tm-row-confirm" role="alertdialog" :aria-label="clearQuestion.text" @keydown.esc.stop="confirmForget = ''">
+                                <span class="tm-row-question">{{clearQuestion.text}}</span>
+                                <button class="tm-row-cancel" ref="forgetCancel" @click="confirmForget = ''">Cancel</button>
+                                <button class="tm-row-confirm-delete" @click="confirmClear()">{{clearQuestion.action}}</button>
                             </div>
                             <div v-else class="tm-line tm-clear">
                                 <button class="tm-action" title="Empties every telemetry. Telemetries, dashboards and views stay." @click="clearAll()">Clear all data</button>
                                 <button class="tm-action" :disabled="!ctx.activeDashboard" title="Empties the telemetries that the displayed dashboard does not show" @click="clearOffScreen()">Clear what is off screen</button>
                                 <span class="tm-grow"></span>
-                                <button class="tm-action tm-danger" title="Data and telemetries: a fresh start. Dashboards are kept." @click="askForget()">Forget everything</button>
+                                <button class="tm-action tm-danger" title="Data and telemetries: a fresh start. Dashboards are kept." @click="askForget('forget')">Forget everything</button>
+                                <span class="tm-clear-break"></span>
+                                <span class="tm-sub tm-clear-label">Dashboards</span>
+                                <button class="tm-action" :disabled="!ctx.activeDashboard || !activeViewCount" :title="ctx.activeDashboard && ctx.activeDashboard.isAuto ? 'Removes every view of the displayed dashboard. Telemetries that show up afterwards are displayed again; data is kept.' : 'Removes every view of the displayed dashboard: an empty dashboard to arrange again. Data is kept.'" @click="askForget('layout')">Empty this dashboard</button>
+                                <span class="tm-grow"></span>
+                                <button class="tm-action tm-danger" :disabled="!dashboardList().length" title="Deletes every dashboard (the Live dashboard is emptied: it goes on displaying what arrives). Data is kept." @click="askForget('dashboards')">Delete all dashboards</button>
                             </div>
                         </div>
                     </template>
@@ -455,6 +460,8 @@ function initComponent_top_menu(vue) {
         .tm-popup .tm-x { flex: none; padding: 0.1rem 0.35rem; border-radius: 0.4rem; color: var(--color-text-muted); }
         .tm-popup .tm-x:hover { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
         .tm-clear { flex-wrap: wrap; row-gap: 0.35rem; }
+        .tm-clear-break { flex-basis: 100%; height: 0; }
+        .tm-clear-label { align-self: center; margin-right: 0.2rem; }
         .tm-popup .tm-action { padding: 0.2rem 0.65rem; border-radius: 0.5rem; border: 1px solid var(--color-bg-dark); font-weight: 600; font-size: 0.92rem; white-space: nowrap; }
         .tm-popup .tm-action:hover { border-color: var(--color-primary); }
         .tm-popup .tm-action:disabled { opacity: 0.5; cursor: default; border-color: var(--color-bg-dark); }
@@ -535,7 +542,7 @@ function initComponent_top_menu(vue) {
                 totalRate: 0, // Hz, refreshed by a timer
                 streams: 0,   // data streams seen (a telemetry has one per data type)
                 confirmDelete: "", // Name of the dashboard whose deletion is being confirmed in the list
-                confirmForget: false, // "Forget everything" is being confirmed in the data menu
+                confirmForget: "", // What is being confirmed in the data menu: "forget" (every telemetry), "layout" (empty the displayed dashboard), "dashboards" (delete them all), or ""
                 usage: { bytes: 0, samples: 0, telemetries: [] }, // Memory taken by the data (TP.datastore.memory, refreshed by the timer)
                 memoryEvent: { action: "", actedAt: 0, actedOn: [] }, // What the library last did about a full memory
                 timeSpan: null, // How far back the data goes (TP.datastore.memory.span: the telemetry that covers the longest time)
@@ -619,6 +626,14 @@ function initComponent_top_menu(vue) {
                     title: span ? `"${span.name}" goes the furthest back: ${time(kept)}` + (window > 0 ? ` of the ${time(window)} kept` : "") + (thinnedFor > 0 ? `. Hatched: ${names} thinned out to save memory (real samples, fewer of them)` : "") : "How much of the data window is filled",
                 };
             },
+            // What the confirmation in the data menu asks, and the word of its button
+            clearQuestion() {
+                const name = this.ctx.activeDashboard ? this.ctx.activeDashboard.name : "";
+                if (this.confirmForget == "layout") return { text: 'Remove every view of "' + name + '"?', action: "Empty" };
+                if (this.confirmForget == "dashboards") { const n = this.dashboardList().filter(d => !d.isAuto).length; return { text: "Delete " + (n == 1 ? "the dashboard" : "the " + n + " dashboards") + " you arranged" + (this.dashboardList().some(d => d.isAuto) ? ", and empty Live?" : "?"), action: "Delete" }; }
+                return { text: "Forget every telemetry and its data?", action: "Forget" };
+            },
+            activeViewCount() { const d = this.ctx.activeDashboard; return d ? d.getStats().viewCount + (d.getView() && d.getView().views ? d.getView().views.length : 0) : 0; },
             leftPanels() { return this.panels.filter(p => p.name != "help"); }, // The group of buttons: Help has its own, after Edit
             telemetryCount() { return Object.keys(this.TP.datastore.telemetries).length; },
             sourceCount() { return this.TP.connection.connections.length; },
@@ -635,7 +650,7 @@ function initComponent_top_menu(vue) {
             // When a reason to stay goes away, the island lingers for a moment
             pinned(value) { if (!value) this.wake(); },
             // A pending delete confirmation does not survive the list being closed
-            "ctx.topPanel"() { this.confirmDelete = ""; this.confirmForget = false; },
+            "ctx.topPanel"() { this.confirmDelete = ""; this.confirmForget = ""; },
         },
         methods: {
             // Activity: show the island, and hide it again after IDLE_MS without any
@@ -780,7 +795,8 @@ function initComponent_top_menu(vue) {
                 if (megabytes >= 0) { this.TP.state.memoryLimit = megabytes * 1e6; this.measureNow(); }
             },
             measureNow() { this.TP.datastore.checkMemory(true); this.refreshMemory(); },
-            // Clearing. Telemetries, dashboards and views stay (but for "Forget everything", which also forgets the telemetries).
+            // Clearing data. Telemetries, dashboards and views stay (but for "Forget everything", which also forgets the telemetries);
+            // dashboards have their own two buttons (see confirmClear).
             clearAll() { this.TP.datastore.clearData(); this.measureNow(); },
             clearTelemetry(id) {
                 const telem = this.TP.datastore.telemetries[id];
@@ -803,13 +819,26 @@ function initComponent_top_menu(vue) {
                 this.TP.datastore.clearData((telem) => shown.has(telem.id));
                 this.measureNow();
             },
-            askForget() {
-                this.confirmForget = true;
+            askForget(what) {
+                this.confirmForget = what;
                 this.$nextTick(() => { if (this.$refs.forgetCancel) this.$refs.forgetCancel.focus(); }); // A stray Enter or Space is harmless
             },
-            forgetEverything() {
-                this.confirmForget = false;
-                this.TP.datastore.forgetTelemetries();
+            // What was asked is done: forgetting the telemetries, emptying the displayed dashboard, or deleting the dashboards (the auto
+            // dashboard cannot be deleted: it is emptied, and goes on displaying what arrives)
+            confirmClear() {
+                const what = this.confirmForget;
+                this.confirmForget = "";
+                if (what == "forget") this.TP.datastore.forgetTelemetries();
+                else if (what == "layout" && this.ctx.activeDashboard) this.TP.dashboards.clearDashboard(this.ctx.activeDashboard.name);
+                else if (what == "dashboards") {
+                    this.editor.setEnabled(false);
+                    for (const dashboard of this.dashboardList()) {
+                        if (dashboard.isAuto) this.TP.dashboards.clearDashboard(dashboard.name);
+                        else this.TP.dashboards.removeDashboard(dashboard.name);
+                    }
+                    this.ctx.activeDashboard = this.dashboardList()[0] || null;
+                }
+                this.editor.refresh();
                 this.measureNow();
             },
             // A click anywhere else closes the open popup (the buttons of the menu toggle it themselves)

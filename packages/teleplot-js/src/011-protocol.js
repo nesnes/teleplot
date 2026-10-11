@@ -11,10 +11,19 @@ TELEPLOT.protocol = {
     TELEM_ATTR_SHAPE: 5,
     TELEM_ATTR_VIEW_LABEL: 6, // Telemetries with the same label are displayed in the same view when nobody arranged them ("name,label" in text)
     TELEM_ATTR_LOG: 7,        // A text telemetry is emitted as a log (lines to read one after the other: "log" flag in text) and not as a state (the default: its latest value matters, "t" flag). It only decides the view it gets by default.
+    TELEM_ATTR_FRAME: 8,      // What the positions of a shape are relative to: {type, name}. FRAME_TYPE_POSE: the pose of the telemetry of that name (a shape, a camera, a point...); FRAME_TYPE_PIXELS: the pixels of the pictures of the image telemetry of that name
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,
+    TELEM_ATTR_SHAPE_TYPE_RECT: 3,    // Flat shapes (2D): a rectangle and a disc in the xy plane of the shape,
+    TELEM_ATTR_SHAPE_TYPE_CIRCLE: 4,
+    TELEM_ATTR_SHAPE_TYPE_LINE: 5,    // a line through points (the points are point cloud samples: TELEM_DATA_POINT_CLOUD),
+    TELEM_ATTR_SHAPE_TYPE_POLYGON: 6, // the surface inside such points,
+    TELEM_ATTR_SHAPE_TYPE_ARROW: 7,   // an arrow from the position along a vector (TELEM_DATA_SHAPE_VECTOR),
+    TELEM_ATTR_SHAPE_TYPE_TEXT: 8,    // a text at the position (TELEM_DATA_SHAPE_TEXT)
     TELEM_ATTR_SHAPE_TYPE_STL: 10,
+    FRAME_TYPE_POSE: 0,
+    FRAME_TYPE_PIXELS: 1,
     SECTION_TYPE_RESERVED: 0,
     SECTION_TYPE_CLIENT_NAME: 1,
     SECTION_TYPE_DASHBOARD: 2, // Dashboard lines, as in the text protocol ("DASH|Robot/Motion:chart:speed"), one or several separated by line feeds
@@ -35,7 +44,10 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS: 33,
     SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION: 34,
     SECTION_TYPE_TELEM_DATA_POINT_CLOUD: 35,
-    SECTION_TYPE_TELEM_DATA_FLOAT64: 36, // Samples of a data type made of numbers, each number as a float64: for values that the float32 (or integer) section of the data type would round
+    SECTION_TYPE_TELEM_DATA_FLOAT64: 36,
+    SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR: 37,     // x, y, z: the vector of an arrow
+    SECTION_TYPE_TELEM_DATA_SHAPE_TEXT: 38,       // The text of a text shape
+    SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH: 39, // Width of the lines of a shape, in the units of its frame (never sent: as thin as the screen draws) // Samples of a data type made of numbers, each number as a float64: for values that the float32 (or integer) section of the data type would round
     POINT_CLOUD_INTENSITY: 1, // Flags of a point cloud: each point has an intensity (float32)
     POINT_CLOUD_RGB: 2,       //                          each point has a color (r, g, b bytes)
     IMAGE_TYPE_JPEG: 0,
@@ -54,8 +66,13 @@ TELEPLOT.protocol.SHAPE_DATA_TYPES = [
     TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB,
     TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY,
     TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE,
-    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH
 ];
+// Shape types that are flat: what a telemetry of these types is drawn in by default is a 2D view
+TELEPLOT.protocol.FLAT_SHAPE_TYPES = [3, 4, 5, 6, 7, 8];
 
 TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
     switch(sectionType) {
@@ -91,6 +108,12 @@ TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
             return 5; // k1, k2, p1, p2, k3
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD:
             return 3; // A sample is a whole cloud: positions (Float32Array x, y, z...), intensities (Float32Array or null), colors (Uint8Array r, g, b... or null)
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR:
+            return 3; // x, y, z
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT:
+            return 1;
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH:
+            return 1;
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
             return 0; // Not a data type: a way to write the others
     }

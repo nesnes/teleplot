@@ -55,10 +55,19 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - `4` **TELEM_ATTR_DATA_TIMEOUT**(uint64, default=0): the validity-duration in nanoseconds associated to a telemetry data. Allows data to disappear from the UI automatically after a given duration. 0 means no timeout.
         - `6` **TELEM_ATTR_VIEW_LABEL**(null terminated string): a label shared by telemetries that should be displayed together (ex: `motors`). When the viewer displays telemetries by itself, the ones with the same label go to the same view (per kind of view: numbers in a chart, shapes in a 3D view...). Same as `name,label` in the text protocol.
         - `7` **TELEM_ATTR_LOG**(uint8, 0 or 1): for a text telemetry, 1 tells that it is emitted as a log (lines to read one after the other) and not as a state (its latest value matters: the default). It only chooses the view the telemetry gets by default (a log view, or a value); both views display any text telemetry. `log` flag of the text protocol.
+        - `8` **TELEM_ATTR_FRAME** `{FRAME_TYPE[8] - NAME[null terminated string]}`: what the positions of the telemetry are relative to (see `2d.md`). **NAME** is the name (`TELEM_ATTR_NAME`) of another telemetry.
+          - `0` **FRAME_TYPE_POSE**: the pose of that telemetry (a shape, a camera, the sensor of a point cloud, a point): positions, orientations, vectors and points are in its frame and follow it.
+          - `1` **FRAME_TYPE_PIXELS**: the pixels of the pictures of that image telemetry (u to the right, v down): the telemetry is drawn on those pictures, without any camera model.
         - `5` **TELEM_ATTR_SHAPE** `{TELEM_ATTR_SHAPE_TYPE[8] - TELEM_ATTR_SHAPE_DATA[x]}`:
           - `0` **TELEM_ATTR_SHAPE_TYPE_CUBE**: the 2D object is a square, and the 3D object is a cube. (no **TELEM_ATTR_SHAPE_DATA**)
           - `1` **TELEM_ATTR_SHAPE_TYPE_SPHERE**: the 2D object is a circle, and the 3D object is a sphere. (no **TELEM_ATTR_SHAPE_DATA**)
           - `2` **TELEM_ATTR_SHAPE_TYPE_CYLINDER**: the 3D object is a cylinder. (no **TELEM_ATTR_SHAPE_DATA**)
+          - `3` **TELEM_ATTR_SHAPE_TYPE_RECT**: a flat rectangle, in the xy plane of the shape (sections `25`, `26`/`27`, `31` place and size it; its size along z is ignored). (no **TELEM_ATTR_SHAPE_DATA**)
+          - `4` **TELEM_ATTR_SHAPE_TYPE_CIRCLE**: a flat disc, same.
+          - `5` **TELEM_ATTR_SHAPE_TYPE_LINE**: a line through points. The points are sent as point cloud samples (section `35`, without intensity nor color), in the frame of the shape: one sample is the whole line.
+          - `6` **TELEM_ATTR_SHAPE_TYPE_POLYGON**: the surface inside such points.
+          - `7` **TELEM_ATTR_SHAPE_TYPE_ARROW**: an arrow from the position of the shape along a vector (section `37`).
+          - `8` **TELEM_ATTR_SHAPE_TYPE_TEXT**: a text (section `38`) at the position of the shape; its height is the size of the shape along y (section `31`), a steady size on screen when no size was sent.
           - `10` **TELEM_ATTR_SHAPE_TYPE_STL**: the 3D object is defined by an STL file. **TELEM_ATTR_SHAPE_DATA**(null terminated string): the URL to the STL file. *NOTE: urls needs to be accessible by the viewer (so online or locally served with proper CORS policies)*
 
   - `/not a section type/` **TELEM_DATA_HEADER**: Contains generic info about a telemetry update. Unspecialized header:
@@ -190,9 +199,18 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - Brown-Conrady model, in the order of OpenCV. With `x = X / Z`, `y = Y / Z` and `r² = x² + y²`: `x' = x (1 + K1 r² + K2 r⁴ + K3 r⁶) + 2 P1 x y + P2 (r² + 2 x²)`, `y' = y (1 + K1 r² + K2 r⁴ + K3 r⁶) + P1 (r² + 2 y²) + 2 P2 x y`, then `u = FX * x' + CX`, `v = FY * y' + CY`.
         - The images are displayed as they are received (never undistorted): what is drawn over them is distorted like the lens does.
 
+  - `37` **TELEM_DATA_SHAPE_VECTOR**: the vector of an arrow, from its position, in the frame of the shape.
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - ({TIMEDIFF[32]} - {X[32]} - {Y[32]} - {Z[32]})...` (float32)
+
+  - `38` **TELEM_DATA_SHAPE_TEXT**: the text of a text shape.
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - ({TIMEDIFF[32]} - {TEXT[null terminated string]})...`
+
+  - `39` **TELEM_DATA_SHAPE_LINE_WIDTH**: width of the lines of a shape (a line, the outline of a polygon, an arrow), in the units of its frame. Never sent: as thin as the screen draws.
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - ({TIMEDIFF[32]} - {WIDTH[32]})...` (float32)
+
   - `36` **TELEM_DATA_FLOAT64**: Samples of a data type made of numbers, each number as a float64. For values that the section of the data type would round (its float32, or its integers): what Teleplot writes to a binary file uses it when needed, a device can use it too.
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - {DATA_TYPE[8]} - ({TIMEDIFF[32]} - {VALUE[64]}...)...`
-      - **DATA_TYPE**(uint8): the section type of the data: `20`, `21`, `22` (numbers), `25`, `26`, `27`, `29`, `30`, `31` (shapes), `33`, `34` (cameras).
+      - **DATA_TYPE**(uint8): the section type of the data: `20`, `21`, `22` (numbers), `25`, `26`, `27`, `29`, `30`, `31`, `37`, `39` (shapes), `33`, `34` (cameras).
       - **VALUE**(float64): as many as a sample of the data type has numbers, in the order of its own section (`22`: x, y, z; `33`: width, height, fx, fy, cx, cy...).
 
 ### Telemetries identified by their name
@@ -203,4 +221,4 @@ The client id `0xFFFF` is reserved: its telemetries are identified by their **na
 
 A binary data file is `54 50 4C 54 0A 01 00 00` ("TPLT", a line feed, the file version, two reserved bytes), then packets, each after its length (uint32, little-endian). See `files.md`.
 
-- TODO 2D shapes
+2D: there is no separate family of 2D sections. A flat telemetry is a 3D one with z = 0 (the shape types `3` to `8` above, 2D numbers, a point cloud whose points have z = 0); the viewer shows it in a 2D view by default, and in 3D views too. See `2d.md`.

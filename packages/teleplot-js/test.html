@@ -601,6 +601,77 @@
       Teleplot.view.addView(view);
     });
 
+    // ====================================================================================================================== 2D
+    section("2D drawings and frames", "ViewScene2D: the scene seen from above, without perspective (a map: pan, zoom, grid with units). 2D is 3D with z = 0: \"2D|\" lines are \"3D|\" lines written flat, the same telemetries show in both views, and nothing is sent twice. New flat shapes (rect, circle, line, polygon, arrow, text) also exist in 3D. A frame (F) makes the positions of a telemetry relative to another one; a pixel frame (FPX) draws it in the pixels of a picture.");
+
+    data("A small field: flat shapes, a position, a scan, a solid, frames", "2D| lines: P x:y, R one angle, W and H (x and y). PT: the points of a line or a polygon. LW: a width in the units of the frame (without: as thin as the screen draws). V: the vector of an arrow. TX: a text. F:d2.robot puts the arrow, the wheel and the scan in the frame of the robot: they follow it without being sent again. d2.pos is a plain xy position (its trail is an XY plot); d2.box is a 3D cube.", () => {
+      Teleplot.parseDataText([
+        `2D|d2.field:S:rect:P:1.5:1:W:3:H:2:C:#2e7d32:O:0.2`,
+        `2D|d2.zone:S:polygon:PT:0.2:0.2:1:0.2:0.8:0.8:0.2:0.7:C:red:O:0.3`,
+        `2D|d2.lane:S:line:PT:0.3:1.6:1.5:1.8:2.7:1.5:LW:0.18:C:gray:O:0.5`,
+        `2D|d2.route:S:line:PT:0.3:1.6:1.5:1.8:2.7:1.5:C:green`,
+        `2D|d2.ball:S:circle:P:2:0.4:RA:0.11:C:orange`,
+        `2D|d2.goal:S:text:P:2.5:1.75:TX:"Goal A":C:#333`,
+        `2D|d2.label:S:text:P:0.25:0.1:TX:"keep out":TS:0.12:C:red`,
+        `3D|d2.box:S:cube:P:0.6:1.2:0.15:W:0.3:D:0.3:H:0.3:R:0:0:0.5:C:purple`,
+        `2D|d2.robot:S:rect:W:0.34:H:0.24:C:#1565c0`,
+        `2D|d2.heading:S:arrow:V:0.4:0:LW:0.03:C:black:F:d2.robot`,
+        `2D|d2.wheel:S:rect:P:0:0.14:W:0.12:H:0.04:C:black:F:d2.robot`,
+        `2D|d2.scan:F:d2.robot`,
+      ].join("\n"));
+      setInterval(() => {
+        const t = Date.now() / 1000, x = 1.5 + 0.9 * Math.cos(t / 2), y = 1 + 0.5 * Math.sin(t / 2), heading = Math.atan2(0.5 * Math.cos(t / 2), -0.9 * Math.sin(t / 2));
+        const points = Array.from({ length: 60 }, (v, i) => { const a = -1 + i / 30, r = 0.5 + 0.1 * Math.sin(i / 4 + t); return `${(r * Math.cos(a)).toFixed(3)}:${(r * Math.sin(a)).toFixed(3)}:0:${(r).toFixed(2)}`; });
+        Teleplot.parseDataText(`2D|d2.robot:P:${x.toFixed(3)}:${y.toFixed(3)}:R:${heading.toFixed(3)}\nd2.pos:${x.toFixed(3)}:${y.toFixed(3)}|xy\nd2.scan:${points.join(";")}|pc`);
+      }, 50);
+    });
+    const d2All = ["d2.field", "d2.zone", "d2.lane", "d2.route", "d2.ball", "d2.goal", "d2.label", "d2.box", "d2.pos", "d2.robot", "d2.heading", "d2.wheel", "d2.scan"];
+    demo("The field in a 2D view", "Drag to move, wheel to zoom, double click to frame everything. The lane keeps its width when zooming, the route stays thin; \"keep out\" has a height (TS), \"Goal A\" a steady size. The cube is drawn as what it covers on the ground.", [560, 400], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewScene2D(id, d2All));
+    });
+    demo("The same telemetries in a 3D view", "Flat shapes lie on the ground, texts face the viewer, the cube is a cube.", [560, 400], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(id, d2All));
+    });
+    demo("Seen another way: x to the top", "axisRight and axisUp choose the axis of the scene that points to the right and the one that points up (x, y, z, or -x, -y, -z). Here -y and x: what is in front (x) is at the top, y to the left. No grid.", [340, 400], (id) => {
+      const view = new Teleplot.view.ViewScene2D(id, ["d2.field", "d2.robot", "d2.heading", "d2.scan", "d2.pos"]);
+      view.setOption("axisRight", "-y"); view.setOption("axisUp", "x"); view.setOption("displayGrid", false);
+      Teleplot.view.addView(view);
+    });
+    demo("From the side, and mirrored", "Left: axisRight x, axisUp z: a side view of the 3D section (what is nearer, towards -y, is drawn over the rest). Right: axisRight y, axisUp x: north up, east to the right, as on a compass.", ["100%", 300], (id) => {
+      const host = document.getElementById(id);
+      host.style.cssText += "display: flex; gap: 12px;";
+      const shapes = ["text3d.floor", "text3d.cube", "text3d.sphere", "text3d.cylinder"];
+      [["x", "z", shapes], ["y", "x", ["d2.field", "d2.robot", "d2.heading", "d2.zone", "d2.goal"]]].forEach(([right, up, names], i) => {
+        const cell = document.createElement("div");
+        cell.id = id + "-" + i; cell.style.cssText = "flex: 1; min-width: 0; height: 100%;";
+        host.appendChild(cell);
+        const view = new Teleplot.view.ViewScene2D(cell.id, names);
+        view.setOption("axisRight", right); view.setOption("axisUp", up);
+        Teleplot.view.addView(view);
+      });
+    });
+    demo("Pictures on a map", "Two ways. d2.plan is a rectangle with a texture (T:telem:img1): a background. img.map is an image telemetry that was given a place and a size itself (2D|img.map:P:..:W:..:H:..): it shows its own pictures there, like a map that a robot builds and sends. Both follow their image telemetry; in a 3D view they stand in the scene the same way.", ["100%", 320], (id) => {
+      Teleplot.parseDataText(`2D|d2.plan:S:rect:P:-1.2:1:W:2:H:1.5:T:telem:img1\n2D|img1.placed:S:text:P:-2.2:1.9:TX:"T:telem:img1"`);
+      const copy = () => { const telem = Teleplot.datastore.getTelemetry("img1"), entry = telem && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE]; if (entry) Teleplot.parseDataText(`${entry.data[0].at(-1) == P.IMAGE_TYPE_PNG ? "PNG" : "JPG"}|img.map:${entry.data[1].at(-1)}`); };
+      copy(); setInterval(copy, 2000);
+      Teleplot.parseDataText(`2D|img.map:P:1.2:1:W:2:H:1.5:R:0.3`);
+      const host = document.getElementById(id);
+      host.style.cssText += "display: flex; gap: 12px;";
+      [Teleplot.view.ViewScene2D, Teleplot.view.ViewScene3D].forEach((View, i) => {
+        const cell = document.createElement("div");
+        cell.id = id + "-" + i; cell.style.cssText = "flex: 1; min-width: 0; height: 100%;";
+        host.appendChild(cell);
+        Teleplot.view.addView(new View(cell.id, ["d2.plan", "img1.placed", "img.map", "d2.robot"]));
+      });
+    });
+    demo("3D telemetries in a 2D view", "The shapes of the 3D section, seen from above: nothing was sent again.", [340, 400], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewScene2D(id, ["text3d.floor", "text3d.cube", "text3d.sphere", "text3d.cylinder"].filter((name) => Teleplot.datastore.getTelemetry(name) !== undefined).concat(["bin3d.body", "bin3d.beacon", "bin3d.mast"].map((name) => Teleplot.datastore.findByName(name)).filter(Boolean).map((telem) => telem.id))));
+    });
+    demo("In the pixels of a picture", "FPX:img1 puts a shape in the pixels of the pictures of img1 (u to the right, v down): no camera is needed. The image view of img1 takes those telemetries by itself.", [340, 300], (id) => {
+      Teleplot.parseDataText(`2D|d2.det:S:rect:P:60:40:W:50:H:36:C:red:O:0.25:LW:2:FPX:img1\n2D|d2.det.name:S:text:P:36:16:TX:"object 0.92":C:red:FPX:img1\n2D|d2.track:S:line:PT:10:70:40:60:60:40:C:yellow:FPX:img1`);
+      Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["img1"]));
+    });
+
     section("Images and cameras", "ViewImage: the pictures of an image telemetry, with 3D telemetries drawn over them as its camera saw them. The camera is described by intrinsics (and optionally lens distortion) in the usual image convention, and by a pose in the frame of the scene. Pictures are shown as received, never undistorted; nothing is interpolated: each picture is shown with the samples in effect when it was taken.");
 
     data("Two cameras turning around a cube", "The pictures are drawn here, point by point, with ViewImage.projectPoint (the camera model, lens distortion included): white lines for the edges of a cube and of a square on the ground. The views below draw the cube and the square themselves over the pictures: they must fit the white lines, whatever the cameras do. Camera 1 uses the text protocol (K, P, Q); camera 2 the binary protocol, with distortion.", () => {

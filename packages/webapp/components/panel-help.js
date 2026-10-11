@@ -2,7 +2,7 @@
  * Help panel (left): how to send data, the shortcuts, the sample data.
  * The first screen a newcomer sees (nothing displayed yet) is welcome.js.
  *
- * Sending data is a ladder: numbered steps from one number to images, each with the line to send written for the way the user sends
+ * Sending data is a ladder: numbered steps from one number to images (shapes in 3D and in 2D, frames, point clouds on the way), each with the line to send written for the way the user sends
  * data (a terminal, Python, C++, an Arduino: chosen once with the tiles, remembered). In every line the parts of the message keep
  * their color (name, value, time, unit, flags). A field at the top sends a message to the page itself, to try without a device: it
  * is one quiet line until it is used. Design study: doc/help-panel-mockups.html, -2 and -3.
@@ -35,7 +35,7 @@ const HELP_STEPS = [
         { code: ">:Motors armed", note: "A line starting with > goes to the general log, without a name.", expect: { log: true } },
     ] },
     { title: "A position", intro: "Two or three numbers at once make a point instead of a curve.", examples: [
-        { code: "position:12.5:4.2|xy", note: "Two numbers and the xy flag: a position, shown as a value.", expect: { name: "position", type: "2d" } },
+        { code: "position:12.5:4.2|xy", note: "Two numbers and the xy flag: a position, shown on a map (a 2D view) with the trail of where it went.", expect: { name: "position", type: "2d", view: "2d" } },
         { code: "position:12.5:4.2:1627551892437|xy", note: "The time, when there is one, comes after the coordinates.", expect: { name: "position", type: "2d", timestamp: 1627551892.437 } },
         { code: "drone:1.5:0.2:3|xyz", note: "Three numbers and xyz: a point in space, shown in a 3D view with the trail of its last positions.", expect: { name: "drone", type: "3d" } },
     ] },
@@ -44,14 +44,27 @@ const HELP_STEPS = [
         { code: "3D|ball,scene:S:sphere:P:0:1:0.3:RA:0.3:C:red:O:0.5", note: "RA: radius. O: opacity, from 0 to 1. The same label puts both shapes in one scene.", expect: { name: "ball", shape: "sphere", position: [0, 1, 0.3], label: "scene" } },
         { code: "3D|box:P:2:0:0.5:R:0:0:1.57", note: "Later: only the position and the rotation (R: roll, pitch, yaw in radians; or Q: a quaternion w, x, y, z).", expect: { name: "box", shape: "cube", position: [2, 0, 0.5] } },
     ] },
+    { title: "2D drawings", intro: "A line starting with 2D| is a 3D| line written flat: x:y positions, one angle. Flat shapes are seen from above in a 2D view, and lie on the ground of a 3D view: nothing is sent twice.", examples: [
+        { code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:W:0.3:H:0.2:C:blue", note: "S: rect, circle, line, polygon, arrow or text. P: x:y. R: one angle, in radians. W, H: width (x) and height (y). C, O: color and opacity, as in 3D.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
+        { code: "2D|route,field:S:line:PT:0:0:1:0.5:2:2:3:2:C:green", note: "PT: the points of a line, as many x:y as needed. It is as thin as the screen draws; add LW:0.2 for a real width, in your units.", expect: { name: "route", shape: "line", label: "field", view: "2d" } },
+        { code: "2D|zone,field:S:polygon:PT:0:0:1:0:1:1:0:1:C:red:O:0.3", note: "A polygon is the surface inside its points.", expect: { name: "zone", shape: "polygon", label: "field", view: "2d" } },
+        { code: "2D|goal,field:S:text:P:3:2:TX:\"Goal A\"", note: "TX: a text, at a position. TS:0.2 gives it a height in your units; without, it keeps a readable size.", expect: { name: "goal", shape: "text", position: [3, 2, 0], label: "field", view: "2d" } },
+        { code: "2D|robot:P:1.5:1:R:0.8", note: "Later: only what changes.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
+    ] },
+    { title: "Frames: relative to something", intro: "With a frame, the positions of a shape are relative to another telemetry: when that one moves or turns, what is in its frame follows, without being sent again.", examples: [
+        { code: "2D|heading,field:S:arrow:V:0.4:0:F:robot", note: "F: the name of the frame. V: the vector of an arrow. This one starts at the robot and points where it looks, wherever it goes.", expect: { name: "heading", shape: "arrow", label: "field", frame: "robot", view: "2d" } },
+        { code: "2D|bumper,field:S:rect:P:0.2:0:W:0.05:H:0.25:C:black:F:robot", note: "Its position is in the frame: 0.2 in front of the robot. A frame can be in a frame; it works the same in 3D| lines, for points and for point clouds.", expect: { name: "bumper", shape: "rect", label: "field", frame: "robot", view: "2d" } },
+    ] },
     { title: "A point cloud", intro: "A lidar scan or the points of a depth camera: all the points of the line are one sample, in the frame of the sensor.", examples: [
-        { code: "lidar:1:0:0;0.7:0.7:0;0:1:0|pc", note: "x:y:z for each point, separated by semicolons, and the pc flag. A flat scan sets z to 0.", expect: { name: "lidar", cloud: 3 } },
-        { code: "lidar:1:0:0:0.9;0.7:0.7:0:0.4;0:1:0:0.1|pc", note: "A fourth value is an intensity: points are colored from the lowest to the highest. Or a color: x:y:z:r:g:b.", expect: { name: "lidar", cloud: 3, intensity: true } },
+        { code: "lidar:1:0:0;0.7:0.7:0;0:1:0|pc", note: "x:y:z for each point, separated by semicolons, and the pc flag. A flat scan sets z to 0: it is shown in a 2D view.", expect: { name: "lidar", cloud: 3, view: "2d" } },
+        { code: "lidar:1:0:0:0.9;0.7:0.7:0:0.4;0:1:0:0.1|pc", note: "A fourth value is an intensity: points are colored from the lowest to the highest. Or a color: x:y:z:r:g:b.", expect: { name: "lidar", cloud: 3, intensity: true, view: "2d" } },
         { code: "3D|lidar:P:1:2:0.2:R:0:0:1.57", note: "Where the sensor is, sent like the position of a shape under the same name: each scan is drawn where the sensor was.", expect: { name: "lidar", position: [1, 2, 0.2] } },
     ] },
-    { title: "An image and its camera", intro: "A picture is sent as text too. With the parameters of its camera and the label of a scene, the camera shows in that scene and its shapes are drawn over the picture.", examples: [
-        { code: "PNG|camera,scene:iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", note: "PNG| or JPG|, a name, and the file in base64 (here a picture of one pixel). The label is the one of the 3D shapes: the camera joins their scene.", expect: { name: "camera", image: true, label: "scene" } },
-        { code: "3D|camera:K:554:554:320:240:640:480:P:0:0:1", note: "Sent to the same name as the image above: its camera. K: fx, fy, cx, cy, width, height in pixels. P (and R or Q): where the camera is.", expect: { name: "camera", camera: true } },
+    { title: "An image and its camera", intro: "A picture is sent as text too. Boxes and texts can be drawn on it, in its pixels. With the parameters of its camera and the label of a scene, the camera shows in that scene and its shapes are drawn over the picture.", examples: [
+        { code: "PNG|camera,scene:iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAMAAACWlYwtAAAAD1BMVEXP6P+Kj5jmfiLAOSv///9A9kpQAAAAVElEQVR42u3MQQrAIBBDUfud+5+5uChF6BQhIgTmb0Nea1VVGYY9AJgDIAoyECP1rwgqECEKPG0HrrV4mwcbADLBBYBUOANALiwA/aujwH8FFDC6AfBCBoyP9FOtAAAAAElFTkSuQmCC", note: "PNG| or JPG|, a name, and the file in base64 (here a small picture, 64 x 48 pixels: a cone on a floor). The label is the one of the 3D shapes: the camera joins their scene.", expect: { name: "camera", image: true, label: "scene" } },
+        { code: "2D|found:S:rect:P:44:26:W:22:H:28:C:red:O:0.25:LW:1:FPX:camera", note: "FPX: a frame, the pixels of the pictures of an image telemetry (u to the right, v down). A box around the cone: its center at pixel 44, 26, 22 pixels wide and 28 high. What a detector finds is drawn on the picture without knowing anything about the camera.", expect: { name: "found", shape: "rect", pixels: "camera" } },
+        { code: "2D|found.name:S:text:P:33:8:TX:\"cone 0.92\":C:red:FPX:camera", note: "A text on the picture, the same way: where it starts, in pixels. It keeps a readable size; TS:6 would make it 6 pixels of the picture high.", expect: { name: "found.name", shape: "text", pixels: "camera" } },
+        { code: "3D|camera:K:55:55:32:24:64:48:P:0:0:1", note: "With the camera of the picture, what is in the scene can be drawn over it too. Sent to the name of the image. K: fx, fy, cx, cy, width, height in pixels. P (and R or Q): where the camera is.", expect: { name: "camera", camera: true } },
         { code: "3D|camera:DC:-0.26:0.07:0:0:0", note: "DC: the distortion of its lens (k1, k2, p1, p2, k3), so that what is drawn follows the curves of the picture.", expect: { name: "camera", distortion: [-0.26, 0.07, 0, 0, 0] } },
     ] },
     { title: "Your own dashboard", intro: "A device can say where its telemetries go, and describe whole dashboards, with the same kind of lines. The dashboard menu exports any dashboard as such lines, and imports them.", examples: [
@@ -107,7 +120,7 @@ function helpColorize(message) {
         if (options >= 0) { add("|"); add(rest.slice(options + 1), "flags"); }
         return parts;
     }
-    const prefix = /^(3D|JPG|PNG)\|/.exec(rest);
+    const prefix = /^(3D|2D|JPG|PNG)\|/.exec(rest);
     if (prefix) { add(prefix[0], "flags"); rest = rest.slice(prefix[0].length); }
     let flags = "", unit = "";
     const bar = rest.lastIndexOf("|");
@@ -163,18 +176,20 @@ function helpDescribe(TP, message, problems) {
     }
     if (problems > 0 || !message.includes(":")) return { ok: false, text: "Teleplot did not understand this line. A message is name:value, for example temperature:25.3" };
     if (message.startsWith(">")) return { ok: true, text: "Received: a log line. Text telemetries are shown by a Log view." };
-    const prefix = /^(3D|JPG|PNG)\|/.exec(message);
+    const prefix = /^(3D|2D|JPG|PNG)\|/.exec(message);
     const body = prefix ? message.slice(prefix[0].length) : message;
     const bar = body.lastIndexOf("|");
     const flags = bar >= 0 ? body.slice(bar + 1) : "";
     const name = body.slice(0, body.indexOf(":")).split(",")[0];
     const telem = TP.datastore.getTelemetry(name);
-    if (!telem || !Object.keys(telem.data).length) return { ok: false, text: "Nothing was stored for \"" + name + "\": check the values of the line." };
+    const P0 = TP.protocol;
+    const described = telem && (telem.getAttribute(P0.TELEM_ATTR_SHAPE) !== undefined || telem.getAttribute(P0.TELEM_ATTR_FRAME) !== undefined); // (a shape can be nothing but its kind)
+    if (!telem || (!Object.keys(telem.data).length && !described)) return { ok: false, text: "Nothing was stored for \"" + name + "\": check the values of the line." };
     const P = TP.protocol;
     let what = "a number";
-    if (prefix && prefix[1] == "3D") {
+    if (prefix && (prefix[1] == "3D" || prefix[1] == "2D")) {
         const isCamera = telem.data[P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS] || telem.data[P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION];
-        what = isCamera ? "the camera of the image" : (telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD] ? "the pose of the sensor of the point cloud" : "a 3D shape");
+        what = isCamera ? "the camera of the image" : (TP.view.ViewScene3D.isCloud(telem) ? "the pose of the sensor of the point cloud" : (TP.view.ViewScene3D.isPoint(telem) ? "the frame of the point" : (prefix[1] == "2D" ? "a 2D shape" : "a 3D shape")));
     }
     else if (prefix) what = "an image";
     else if (flags.includes("pc")) { const cloud = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD]; what = "a point cloud of " + (cloud ? cloud.data[0][cloud.data[0].length - 1].length / 3 : 0) + " points"; }

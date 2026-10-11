@@ -274,6 +274,10 @@ class Telemetry {
         for (let dataType in this.data) {
             if(!this.data[dataType].timestamps.length) continue;
             let oldestTimestampAllowed = this.data[dataType].timestamps.at(-1) - dataTimeout;
+            // Times that start near zero (a device that counts from its start): nothing can be older than the window yet.
+            // (A negative time must not reach getDataPoint, where it means "the latest sample": everything before it would go.)
+            if (oldestTimestampAllowed <= 0) continue;
+            if (this.data[dataType].timestamps[0] >= oldestTimestampAllowed) continue; // Nothing is too old (the usual case: no search needed)
             // Get closest to allowed timestamp
             let closestDataPoint = this.getDataPoint(dataType, oldestTimestampAllowed);
             if (closestDataPoint.index === undefined) continue;
@@ -482,6 +486,26 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
         }, 100);
     }
     return telem;
+}
+
+// The telemetry of a name, whichever protocol it came from: telemetries of the text protocol are known by their name, the others have
+// it as an attribute (the first one found when several clients use the name; "near" is a telemetry whose client is preferred).
+let _datastore_names = { count: -1, at: 0, map: {} };
+TELEPLOT.datastore.findByName = function(name, near) {
+    let known = TELEPLOT.datastore.getTelemetry(name);
+    if(known !== undefined || typeof name !== "string") return known;
+    let ids = Object.keys(TELEPLOT.datastore.telemetries);
+    if(_datastore_names.count !== ids.length || Date.now() - _datastore_names.at > 1000) { // (telemetries came or went, or got their name, since the last search)
+        _datastore_names = { count: ids.length, at: Date.now(), map: {} };
+        for(let id of ids) {
+            let telem = TELEPLOT.datastore.telemetries[id];
+            let own = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
+            if(typeof own === "string" && own !== "") (_datastore_names.map[own] = _datastore_names.map[own] || []).push(telem.id);
+        }
+    }
+    let found = (_datastore_names.map[name] || []).map((id) => TELEPLOT.datastore.telemetries[id]).filter((telem) => telem !== undefined);
+    if(near !== undefined) { let same = found.find((telem) => telem.clientId === near.clientId); if(same) return same; }
+    return found[0];
 }
 
 TELEPLOT.datastore.getTelemetry = function(idOrName) {

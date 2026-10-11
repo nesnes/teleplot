@@ -33,7 +33,7 @@ for (const example of HELP_EXAMPLES) {
         if (e.position) assert.deepEqual(S.shapeState(telem).position, e.position);
         if (e.camera) {
             const camera = S.cameraState(telem);
-            assert.deepEqual([camera.fx, camera.fy, camera.cx, camera.cy, camera.width, camera.height, camera.position], [554, 554, 320, 240, 640, 480, [0, 0, 1]]);
+            assert.deepEqual([camera.fx, camera.fy, camera.cx, camera.cy, camera.width, camera.height, camera.position], [55, 55, 32, 24, 64, 48, [0, 0, 1]]);
             return;
         }
         if (e.distortion) { // (alone it is not a camera yet: the intrinsics come with the K line)
@@ -49,13 +49,17 @@ for (const example of HELP_EXAMPLES) {
         if (e.cloud) { // A point cloud: one sample holding that many points, displayed in a 3D view
             const entry = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];
             assert.deepEqual([entry.timestamps.length, entry.data[0][0].length / 3, !!entry.data[1][0]], [1, e.cloud, !!e.intensity]);
-            assert.equal(T.view.suggestViewType(telem.id), '3d');
+            assert.equal(T.view.suggestViewType(telem.id), e.view || '3d');
             return;
         }
         if (e.shape) {
-            const types = { cube: P.TELEM_ATTR_SHAPE_TYPE_CUBE, sphere: P.TELEM_ATTR_SHAPE_TYPE_SPHERE };
+            const types = { cube: P.TELEM_ATTR_SHAPE_TYPE_CUBE, sphere: P.TELEM_ATTR_SHAPE_TYPE_SPHERE, rect: P.TELEM_ATTR_SHAPE_TYPE_RECT, line: P.TELEM_ATTR_SHAPE_TYPE_LINE,
+                polygon: P.TELEM_ATTR_SHAPE_TYPE_POLYGON, arrow: P.TELEM_ATTR_SHAPE_TYPE_ARROW, text: P.TELEM_ATTR_SHAPE_TYPE_TEXT };
+            if (e.position) return; // (a line that only moves a shape described before: its place was checked above)
             assert.equal(S.shapeState(telem).type, types[e.shape]);
-            assert.equal(T.view.suggestViewType(telem.id), '3d');
+            if (e.frame) assert.deepEqual(telem.attributes[P.TELEM_ATTR_FRAME], { type: P.FRAME_TYPE_POSE, name: e.frame });
+            if (e.pixels) { assert.equal(S.pixelFrame(telem), e.pixels); return; }
+            assert.equal(T.view.suggestViewType(telem.id), e.view || '3d');
             return;
         }
         if (!e.type) return; // (a line that only moves something: checked above)
@@ -75,6 +79,13 @@ test('examples of a step build on each other: sent in order, a step gives what i
     const views = (T) => T.dashboards.getDashboard('Live').getView().views.map(v => v.type.replace('teleplot-', '') + ':' + (v.getOption('title') || '') + ':' + v.telemetryIdOrNameList.length);
     assert.deepEqual(views(run('Shown together: labels')), ['chart:motors:2'], 'the two motors share a chart, debug is left out');
     assert.deepEqual(views(run('3D shapes')), ['3d:scene:2'], 'both shapes in one scene');
+    assert.deepEqual(views(run('2D drawings')), ['2d:field:4'], 'the four drawings on one map');
+    let field = run('2D drawings');
+    assert.deepEqual(field.view.ViewScene3D.shapeState(find(field, 'robot')).position, [1.5, 1, 0], 'the robot moved');
+    field.parseDataText(HELP_STEPS.find(s => s.title == 'Frames: relative to something').examples.map(e => e.code).join('\n'));
+    field.__timers.run();
+    assert.deepEqual(views(field), ['2d:field:6']);
+    assert.deepEqual(field.view.ViewScene3D.shapeState(find(field, 'bumper')).position.map(v => Math.round(v * 1000) / 1000), [1.639, 1.143, 0], 'in front of the robot, where it looks');
     let T = run('3D shapes');
     const S = T.view.ViewScene3D;
     assert.deepEqual([S.shapeState(find(T, 'box')).position, S.shapeState(find(T, 'box')).type, Math.round(S.shapeState(find(T, 'ball')).opacity * 10) / 10], [[2, 0, 0.5], T.protocol.TELEM_ATTR_SHAPE_TYPE_CUBE, 0.5], 'the box moved and is still a cube');
@@ -121,6 +132,7 @@ test('helpColorize cuts a message in its parts without changing it', () => {
     assert.deepEqual(kinds('events:1000:Motors armed|log'), ['name=events', 'value=1000:Motors armed', 'flags=log']);
     assert.deepEqual(kinds('lidar:9000;1:0:0;0:1:0|pc'), ['name=lidar', 'time=9000', 'value=1:0:0', 'value=0:1:0', 'flags=pc']);
     assert.deepEqual(kinds('3D|box:S:cube:P:1:0:0.5'), ['flags=3D|', 'name=box', 'value=S:cube:P:1:0:0.5']);
+    assert.deepEqual(kinds('2D|robot,field:S:rect:P:1:2'), ['flags=2D|', 'name=robot,field', 'value=S:rect:P:1:2']);
     assert.deepEqual(kinds('>:Motors armed'), ['flags=>', 'value=Motors armed']);
     assert.deepEqual(kinds('DASH|Robot/Motion:chart:speed,accel|w=2|h=3'), ['flags=DASH|', 'name=Robot/Motion', 'value=chart:speed,accel', 'flags=w=2|h=3']);
     assert.deepEqual(kinds('DASH|Robot'), ['flags=DASH|', 'name=Robot']);
@@ -165,6 +177,8 @@ test('helpDescribe tells what Teleplot made of a message sent from the panel', (
     assert.match(say('events:Motors armed|log'), /a log line named events/);
     assert.match(say('lidar:1:0:0;0.7:0.7:0;0:1:0|pc'), /a point cloud of 3 points named lidar/);
     assert.match(say('3D|box:S:cube:P:1:0:0.5'), /a 3D shape named box/);
+    assert.match(say('2D|robot:S:rect:P:1:2'), /a 2D shape named robot/);
+    assert.match(say('2D|only:S:circle'), /a 2D shape named only/);
     assert.match(say('left,motors:0.4'), /named left\./);
     assert.match(say('debug:42|np'), /not charted automatically/);
     assert.match(say('>:Motors armed'), /a log line/);

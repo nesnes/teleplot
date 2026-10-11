@@ -21,7 +21,7 @@ class ViewScene3D extends ViewTelemetries {
         this.name = "3d";
         this.type = "teleplot-3d";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
-        this.supportedDataTypes = [TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D, TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD].concat(TELEPLOT.protocol.SHAPE_DATA_TYPES).map(String);
+        this.supportedDataTypes = [TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D, TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D, TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD].concat(TELEPLOT.protocol.SHAPE_DATA_TYPES).map(String);
         this.supportedLabel = "3D";
 
         this.options.displayGrid = true;    // Ground grid (z = 0)
@@ -58,16 +58,113 @@ class ViewScene3D extends ViewTelemetries {
 
     static isShape(telem) {
         if(ViewScene3D.isCamera(telem)) return false; // Its position and orientation are those of a camera
-        if(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) !== undefined) return true;
-        return TELEPLOT.protocol.SHAPE_DATA_TYPES.some((type) => telem.data[type] !== undefined);
+        if(TELEPLOT.protocol.SHAPE_DATA_TYPES.some((type) => telem.data[type] !== undefined)) return true;
+        // Only the attribute: a shape that has nothing but its kind... unless it has positions of its own (a point that was given a frame)
+        return telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) !== undefined && ViewScene3D.pointEntry(telem) === undefined;
     }
 
+    // A point: 3D numbers, or 2D numbers (a position on the ground: z = 0)
     static isPoint(telem) {
-        return !ViewScene3D.isCamera(telem) && !ViewScene3D.isShape(telem) && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D] !== undefined;
+        return !ViewScene3D.isCamera(telem) && !ViewScene3D.isShape(telem) && ViewScene3D.pointEntry(telem) !== undefined;
+    }
+    static pointEntry(telem) {
+        return telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D] || telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D];
     }
 
+    // A point cloud. (The points of a line or of a polygon are stored the same way: those are shapes.)
     static isCloud(telem) {
-        return telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD] !== undefined;
+        if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD] === undefined) return false;
+        let attr = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE);
+        return !(attr && (attr.type === TELEPLOT.protocol.TELEM_ATTR_SHAPE_TYPE_LINE || attr.type === TELEPLOT.protocol.TELEM_ATTR_SHAPE_TYPE_POLYGON));
+    }
+
+    // The image telemetry whose pixels a telemetry is drawn in (its frame is FRAME_TYPE_PIXELS), by name; undefined for a telemetry of the scene
+    static pixelFrame(telem) {
+        let frame = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_FRAME);
+        return frame && frame.type === TELEPLOT.protocol.FRAME_TYPE_PIXELS && frame.name ? String(frame.name) : undefined;
+    }
+
+    // Is a telemetry flat by nature (what a 2D view is the natural display of) ? 2D numbers, flat shapes, shapes drawn in the pixels of
+    // a picture, and point clouds whose points all have z = 0 (a 2D scan).
+    static isFlat(telem) {
+        const P = TELEPLOT.protocol;
+        if(ViewScene3D.isCamera(telem)) return false;
+        let attr = telem.getAttribute(P.TELEM_ATTR_SHAPE);
+        if(attr && P.FLAT_SHAPE_TYPES.includes(attr.type)) return true;
+        if(ViewScene3D.isCloud(telem)) {
+            let positions = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD].data[0][0];
+            if(!positions || !positions.length) return false;
+            for(let i = 2; i < positions.length && i < 3000; i += 3) if(positions[i] !== 0) return false;
+            return true;
+        }
+        if(ViewScene3D.isShape(telem)) return false;
+        return telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER_3D] === undefined && telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER_2D] !== undefined;
+    }
+
+    // ---- Poses. A quaternion is [w, x, y, z].
+    static multiplyQuaternions(a, b) {
+        return [a[0]*b[0] - a[1]*b[1] - a[2]*b[2] - a[3]*b[3], a[0]*b[1] + a[1]*b[0] + a[2]*b[3] - a[3]*b[2],
+                a[0]*b[2] - a[1]*b[3] + a[2]*b[0] + a[3]*b[1], a[0]*b[3] + a[1]*b[2] - a[2]*b[1] + a[3]*b[0]];
+    }
+    static rotateVector(q, v) {
+        let [w, x, y, z] = q;
+        let tx = 2 * (y * v[2] - z * v[1]), ty = 2 * (z * v[0] - x * v[2]), tz = 2 * (x * v[1] - y * v[0]); // t = 2 q x v
+        return [v[0] + w * tx + (y * tz - z * ty), v[1] + w * ty + (z * tx - x * tz), v[2] + w * tz + (x * ty - y * tx)];
+    }
+    // A pose given in a frame, in the frame that frame is in
+    static composePose(frame, pose) {
+        let turned = ViewScene3D.rotateVector(frame.quaternion, pose.position);
+        return { position: [frame.position[0] + turned[0], frame.position[1] + turned[1], frame.position[2] + turned[2]], quaternion: ViewScene3D.multiplyQuaternions(frame.quaternion, pose.quaternion) };
+    }
+
+    // Frame of a telemetry at a time: the pose, in the scene, of the telemetry its positions are relative to (TELEM_ATTR_FRAME with
+    // FRAME_TYPE_POSE: a shape, a camera, the sensor of a cloud, a point), which may itself be in the frame of another one.
+    // Undefined when its positions are those of the scene (no frame, an unknown name, or frames that go in circles).
+    static frameOf(telem, timestamp=-1, depth=0) {
+        const P = TELEPLOT.protocol;
+        let frame = telem.getAttribute(P.TELEM_ATTR_FRAME);
+        if(!frame || frame.type !== P.FRAME_TYPE_POSE || !frame.name || depth >= ViewScene3D.FRAME_DEPTH_MAX) return undefined;
+        let parent = TELEPLOT.datastore.findByName(String(frame.name), telem);
+        if(parent === undefined || parent.id === telem.id) return undefined;
+        return ViewScene3D.poseOf(parent, timestamp, depth + 1);
+    }
+    static FRAME_DEPTH_MAX = 16;
+
+    // Where a telemetry is in the scene at a time, as a frame for others: {position, quaternion}
+    static poseOf(telem, timestamp=-1, depth=0) {
+        // While the views update, data does not change: the pose of a frame is computed once for everything that is in it
+        let cache = ViewScene3D.__poseCache, key = cache ? telem.id + "|" + timestamp : undefined;
+        if(cache) { let known = cache.get(key); if(known !== undefined) return known; }
+        let pose = ViewScene3D.__poseOf(telem, timestamp, depth);
+        if(cache) cache.set(key, pose);
+        return pose;
+    }
+    static __poseCache = undefined; // A Map during an update of the views (see 998-update.js), undefined otherwise
+    static __poseOf(telem, timestamp, depth) {
+        if(ViewScene3D.isPoint(telem)) { // A point has a position, and the orientation of its own frame
+            let entry = ViewScene3D.pointEntry(telem);
+            let index = ViewScene3D.sampleIndex(entry, timestamp);
+            let local = { position: index < 0 ? [0, 0, 0] : [entry.data[0][index] || 0, entry.data[1][index] || 0, entry.data[2] ? (entry.data[2][index] || 0) : 0], quaternion: [1, 0, 0, 0] };
+            let frame = ViewScene3D.frameOf(telem, index < 0 ? timestamp : entry.timestamps[index], depth);
+            return frame ? ViewScene3D.composePose(frame, local) : local;
+        }
+        let state = ViewScene3D.shapeState(telem, timestamp, "gray", depth);
+        return { position: state.position, quaternion: state.quaternion };
+    }
+
+    // Positions of the samples "from" to "to" (included) of a point telemetry, in the scene: a Float32Array x, y, z... Each sample is
+    // placed with the frame as it was at the time of the sample: the trail of a point carried by something is where the point went.
+    static pointPositions(telem, entry, from, to) {
+        let count = Math.max(0, to - from + 1), out = new Float32Array(count * 3);
+        let [xs, ys, zs] = entry.data;
+        let framed = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_FRAME) !== undefined;
+        for(let i = 0; i < count; i++) {
+            let p = [xs[from + i] || 0, ys[from + i] || 0, zs ? (zs[from + i] || 0) : 0];
+            let frame = framed ? ViewScene3D.frameOf(telem, entry.timestamps[from + i]) : undefined;
+            if(frame) p = ViewScene3D.composePose(frame, { position: p, quaternion: [1, 0, 0, 0] }).position;
+            out[i*3] = p[0]; out[i*3+1] = p[1]; out[i*3+2] = p[2];
+        }
+        return out;
     }
 
     // Samples of a point cloud telemetry to draw at a time (negative: now): indexes, the current cloud first, then at most count - 1
@@ -197,8 +294,11 @@ class ViewScene3D extends ViewTelemetries {
     }
 
     // Everything needed to draw a shape telemetry at a time (negative: now). fallbackColor is used when the shape has no color of its own.
-    //   {type, url, position: [x, y, z], quaternion: [w, x, y, z], size: [x, y, z], color, opacity (0 to 1), texture: {type, value}}
-    static shapeState(telem, timestamp=-1, fallbackColor="gray") {
+    //   {type, url, position: [x, y, z], quaternion: [w, x, y, z], size: [x, y, z], color, opacity (0 to 1), texture: {type, value},
+    //    sized (a size was sent), vector: [x, y, z] (arrow, in the scene), text, lineWidth (undefined: never sent), pointsKey, framed}
+    // and "points" (not listed with the others: a Float32Array x, y, z... in the frame of the shape, for a line or a polygon).
+    // Position and orientation are those in the scene: a shape in the frame of another telemetry (TELEM_ATTR_FRAME) is placed by it.
+    static shapeState(telem, timestamp=-1, fallbackColor="gray", depth=0) {
         const P = TELEPLOT.protocol;
         let sample = (dataType) => {
             let entry = telem.data[dataType];
@@ -233,16 +333,46 @@ class ViewScene3D extends ViewTelemetries {
 
         let size = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE);
         if(size) state.size = finite(size.values, state.size);
+        state.sized = size !== undefined;
+
+        // What flat shapes are made of
+        let vector = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR);
+        state.vector = vector ? finite(vector.values, [0, 0, 0]) : [0, 0, 0];
+        let text = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT);
+        state.text = text && text.values[0] !== undefined && text.values[0] !== null ? String(text.values[0]) : "";
+        let lineWidth = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH);
+        state.lineWidth = lineWidth && Number.isFinite(lineWidth.values[0]) && lineWidth.values[0] > 0 ? lineWidth.values[0] : undefined;
+        let points = undefined;
+        state.pointsKey = "";
+        if(state.type === P.TELEM_ATTR_SHAPE_TYPE_LINE || state.type === P.TELEM_ATTR_SHAPE_TYPE_POLYGON) {
+            let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];
+            let index = ViewScene3D.sampleIndex(entry, timestamp);
+            if(index >= 0) { points = entry.data[0][index]; state.pointsKey = entry.timestamps[index] + ":" + (points ? points.length : 0) + ":" + entry.lateInsertions; }
+        }
+        Object.defineProperty(state, "points", { value: points, enumerable: false }); // (not in what tells a change: pointsKey is)
+
+        // In the frame of another telemetry: placed (and turned) by it
+        let frame = ViewScene3D.frameOf(telem, timestamp, depth);
+        state.framed = frame !== undefined;
+        if(frame) {
+            let world = ViewScene3D.composePose(frame, state);
+            state.position = world.position;
+            state.quaternion = world.quaternion;
+        }
+        state.vector = ViewScene3D.rotateVector(state.quaternion, state.vector);
 
         let colorStr = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR), colorRgb = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB);
         if(colorRgb && (!colorStr || colorRgb.t >= colorStr.t)) state.color = `rgb(${colorRgb.values.map((v) => Math.max(0, Math.min(255, Math.round(v) || 0))).join(",")})`;
         else if(colorStr && colorStr.values[0]) state.color = String(colorStr.values[0]);
+        state.colored = !!(colorRgb || (colorStr && colorStr.values[0]) || telem.getAttribute(P.TELEM_ATTR_COLOR)); // A color of its own (not the one it was lent)
 
         let opacity = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY);
         if(opacity && Number.isFinite(opacity.values[0])) state.opacity = Math.max(0, Math.min(255, opacity.values[0])) / 255;
 
         let texture = sample(P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE);
         if(texture && texture.values[0] !== P.TEXTURE_TYPE_NONE && texture.values[1]) state.texture = { type: texture.values[0], value: String(texture.values[1]) };
+        // An image telemetry that was given a place (and is not a camera) shows its own pictures there
+        else if(telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined && telem.getAttribute(P.TELEM_ATTR_NAME)) state.texture = { type: P.TEXTURE_TYPE_IMAGE, value: String(telem.getAttribute(P.TELEM_ATTR_NAME)), own: true };
         return state;
     }
 
@@ -296,9 +426,12 @@ class ViewScene3D extends ViewTelemetries {
 
     // "1.5, 0.25, 3": a position as written in the legend
     static formatPosition(position, decimals=2) {
-        let formatter = new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: decimals });
+        let formatter = ViewScene3D.__formatters[decimals]; // (creating one is slow: kept, a legend has many values)
+        if(!formatter) formatter = ViewScene3D.__formatters[decimals] = new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: decimals });
         return position.map((v) => formatter.format(Number.isFinite(v) ? v : 0)).join(", ");
     }
+
+    static __formatters = {};
 
     // A shape that only has its attribute (nothing sent about its position...) is drawn at the origin: that is something to show
     getEmptyState() {
@@ -447,7 +580,9 @@ class ViewScene3D extends ViewTelemetries {
             geometries: {       // Shared, of size 1: shapes are scaled to their size
                 cube: new THREE.BoxGeometry(1, 1, 1).rotateX(Math.PI / 2),                  // textures upright on the sides (image top towards z)
                 sphere: new THREE.SphereGeometry(0.5, 32, 16).rotateX(Math.PI / 2),         // poles on z
-                cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 32).rotateX(Math.PI / 2)  // axis on z
+                cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 32).rotateX(Math.PI / 2), // axis on z
+                rect: new THREE.PlaneGeometry(1, 1),                                        // flat, in the xy plane of the shape
+                circle: new THREE.CircleGeometry(0.5, 48)
             },
             stl: new Map(),     // url -> {geometry} (undefined while loading or after a failure)
             helpers: undefined, helpersKey: "", unit: 1,
@@ -587,6 +722,7 @@ class ViewScene3D extends ViewTelemetries {
             if(exclude !== undefined && telem.id == exclude.id) continue;
             let kind = ViewScene3D.kindOf(telem);
             if(kind === undefined) continue;
+            if(!this.__takesFrame(ViewScene3D.pixelFrame(telem))) continue; // Drawn in the pixels of a picture: not something of this scene
             let shape = kind == "shape";
             let color = telem.getAttribute(P.TELEM_ATTR_COLOR) || TELEPLOT.colors.getColor(serieIdx).toStrRGB();
             let source = { telem, kind, shape, color, state: undefined, camera: undefined, image: undefined, position: undefined,
@@ -611,21 +747,30 @@ class ViewScene3D extends ViewTelemetries {
                 source.state = ViewScene3D.shapeState(telem, timestamp, color);
                 key += ":" + JSON.stringify(source.state);
                 if(source.state.texture.type == P.TEXTURE_TYPE_IMAGE) { // The image of another telemetry: follows it
-                    source.image = ViewScene3D.imageAt(TELEPLOT.datastore.getTelemetry(source.state.texture.value), timestamp);
+                    source.image = ViewScene3D.imageAt(source.state.texture.own ? telem : TELEPLOT.datastore.findByName(source.state.texture.value, telem), timestamp);
                     key += ":" + (source.image ? source.image.t : "");
                 }
                 if(source.state.type == P.TELEM_ATTR_SHAPE_TYPE_STL) key += ":" + this.__stlStatus(source.state.url);
+                if(ViewScene3D.DRAWN_TYPES.includes(source.state.type)) source.kind = "flat"; // Lines, polygons, arrows, texts: drawn, not modelled
             }
             else {
-                let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER_3D];
+                let entry = ViewScene3D.pointEntry(telem);
                 key += `:${entry.lastUpdate}:${entry.timestamps.length}:${entry.lateInsertions}`;
                 let index = ViewScene3D.sampleIndex(entry, timestamp);
-                if(index >= 0) source.position = entry.data.map((channel) => channel[index]);
+                if(index >= 0) source.position = Array.from(ViewScene3D.pointPositions(telem, entry, index, index));
+                if(telem.getAttribute(P.TELEM_ATTR_FRAME) !== undefined) key += ":" + JSON.stringify(ViewScene3D.frameOf(telem, timestamp)); // Its frame moves it
             }
             sources.push(source);
         }
         return { sources, key };
     }
+
+    // Shape types that are drawn (lines, a surface, a text) instead of being a solid
+    static DRAWN_TYPES = [5, 6, 7, 8];
+
+    // Does the view draw telemetries of a frame ? "pixels" is the image telemetry whose pixels they are in (undefined: the scene).
+    // A scene has no place for what is drawn in the pixels of a picture.
+    __takesFrame(pixels) { return pixels === undefined; }
 
     // Objects of the telemetries on display, without the ones that left
     __syncObjects(three, sources, timestamp, since) {
@@ -638,6 +783,7 @@ class ViewScene3D extends ViewTelemetries {
         for(let source of sources) {
             if(source.kind == "camera") this.__updateCamera(three, source);
             else if(source.kind == "cloud") this.__updateCloud(three, source);
+            else if(source.kind == "flat") this.__updateFlat(three, source);
             else if(source.shape) this.__updateShape(three, source);
             else this.__updatePoint(three, source, timestamp, since);
         }
@@ -646,6 +792,11 @@ class ViewScene3D extends ViewTelemetries {
     // Legend: where each telemetry is, in value slots that only grow (entries do not shake when digits come and go)
     __updateLegend(sources, element) {
         const P = TELEPLOT.protocol;
+        if(!this.options.displayLegend) { // Not shown: nothing to work out
+            if(this.state.legend.length) this.state.legend = [];
+            this.legendKey = "";
+            return;
+        }
         let legend = sources.map((source) => {
             let id = source.telem.id;
             let position = source.shape ? source.state.position : source.position;
@@ -707,7 +858,11 @@ class ViewScene3D extends ViewTelemetries {
 
         // Geometry: an STL file is hidden until it is loaded (and stays hidden when it can't be)
         let geometry = three.geometries.cube;
-        if(state.type == P.TELEM_ATTR_SHAPE_TYPE_SPHERE) geometry = three.geometries.sphere;
+        let flat = state.type == P.TELEM_ATTR_SHAPE_TYPE_RECT || state.type == P.TELEM_ATTR_SHAPE_TYPE_CIRCLE; // No thickness: seen from both sides
+        if(mesh.material.side !== (flat ? THREE.DoubleSide : THREE.FrontSide)) { mesh.material.side = flat ? THREE.DoubleSide : THREE.FrontSide; mesh.material.needsUpdate = true; }
+        if(state.type == P.TELEM_ATTR_SHAPE_TYPE_RECT) geometry = three.geometries.rect;
+        else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_CIRCLE) geometry = three.geometries.circle;
+        else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_SPHERE) geometry = three.geometries.sphere;
         else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_CYLINDER) geometry = three.geometries.cylinder;
         else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_STL) geometry = this.__stlGeometry(three, state.url);
         mesh.visible = geometry !== undefined && !source.hidden;
@@ -715,11 +870,14 @@ class ViewScene3D extends ViewTelemetries {
 
         mesh.position.set(state.position[0], state.position[1], state.position[2]);
         mesh.quaternion.set(state.quaternion[1], state.quaternion[2], state.quaternion[3], state.quaternion[0]);
-        mesh.scale.set(state.size[0], state.size[1], state.size[2]);
+        mesh.scale.set(state.size[0], state.size[1], flat ? 1 : state.size[2]);
 
-        if(object.color != state.color) {
-            object.color = state.color;
-            ViewScene3D.setColor(mesh.material.color, state.color);
+        // A picture is shown in its own colors, unless the shape was given one (which then tints it)
+        let pictured = state.texture.type != P.TEXTURE_TYPE_NONE && !state.colored;
+        let tint = pictured ? "#ffffff" : state.color;
+        if(object.color != tint) {
+            object.color = tint;
+            ViewScene3D.setColor(mesh.material.color, tint);
         }
         let opacity = state.opacity * (source.faded ? 0.15 : 1);
         let transparent = opacity < 1;
@@ -780,7 +938,7 @@ class ViewScene3D extends ViewTelemetries {
 
     __updatePoint(three, source, timestamp, since) {
         const THREE = TELEPLOT.THREE;
-        let entry = source.telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D];
+        let entry = ViewScene3D.pointEntry(source.telem);
         let object = three.objects.get(source.telem.id);
         if(!object) {
             // The point is a dot of a fixed size on screen (the scale of the scene is unknown), the trail a line behind it
@@ -809,14 +967,131 @@ class ViewScene3D extends ViewTelemetries {
             object.line.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(object.capacity * 3), 3));
         }
         let positions = object.line.geometry.getAttribute("position");
-        let [xs, ys, zs] = entry.data;
-        for(let i = 0; i < count; i++) positions.setXYZ(i, xs[range.from + i] || 0, ys[range.from + i] || 0, zs[range.from + i] || 0);
+        let world = ViewScene3D.pointPositions(source.telem, entry, range.from, range.to); // (2D numbers: z = 0; in a frame: placed by it)
+        positions.array.set(world);
         positions.needsUpdate = true;
         object.line.geometry.setDrawRange(0, count);
         object.line.visible = count > 1;
         let current = object.dot.geometry.getAttribute("position");
-        current.setXYZ(0, xs[range.to] || 0, ys[range.to] || 0, zs[range.to] || 0);
+        current.setXYZ(0, world[(count - 1) * 3], world[(count - 1) * 3 + 1], world[(count - 1) * 3 + 2]);
         current.needsUpdate = true;
+    }
+
+    // Segments of an arrow from the origin along a vector, in the plane it shares with z (or with x for a vertical one): the shaft, then
+    // the two sides of the head. [[from, to], ...] with points [x, y, z]. Empty for a null vector.
+    static arrowSegments(vector, head=0.25, spread=0.45) {
+        let length = Math.hypot(vector[0], vector[1], vector[2]);
+        if(!(length > 0)) return [];
+        let d = vector.map((v) => v / length);
+        let side = Math.hypot(d[0], d[1]) > 1e-9 ? [-d[1], d[0], 0] : [1, 0, 0]; // Across the arrow, on the ground when it can
+        let norm = Math.hypot(side[0], side[1], side[2]);
+        side = side.map((v) => v / norm);
+        let back = length * head, wide = back * spread;
+        let barb = (sign) => [0, 1, 2].map((i) => vector[i] - d[i] * back + sign * side[i] * wide);
+        return [[[0, 0, 0], vector.slice()], [vector.slice(), barb(1)], [vector.slice(), barb(-1)]];
+    }
+
+    // Triangles of a band of a width along points ([[x, y, z], ...], closed: back to the first), flat in the xy plane of the shape:
+    // a Float32Array of positions, 6 per segment. What a line with a width is, in a scene.
+    static ribbon(points, width, closed=false) {
+        let list = closed && points.length > 2 ? points.concat([points[0]]) : points;
+        let out = [];
+        for(let i = 0; i + 1 < list.length; i++) {
+            let a = list[i], b = list[i + 1];
+            let dx = b[0] - a[0], dy = b[1] - a[1], length = Math.hypot(dx, dy);
+            let nx = length > 1e-12 ? -dy / length * width / 2 : width / 2, ny = length > 1e-12 ? dx / length * width / 2 : 0; // (a vertical segment: across x)
+            let corners = [[a[0] + nx, a[1] + ny, a[2]], [a[0] - nx, a[1] - ny, a[2]], [b[0] - nx, b[1] - ny, b[2]], [b[0] + nx, b[1] + ny, b[2]]];
+            for(let k of [0, 1, 2, 0, 2, 3]) out.push(...corners[k]);
+        }
+        return new Float32Array(out);
+    }
+
+    // [[x, y, z], ...] from a Float32Array x, y, z...
+    static pointList(positions) {
+        let list = [];
+        for(let i = 0; positions && i + 2 < positions.length; i += 3) list.push([positions[i], positions[i+1], positions[i+2]]);
+        return list;
+    }
+
+    // Lines, polygons, arrows and texts: built again when what they are made of changes (not when they only move)
+    __updateFlat(three, source) {
+        const THREE = TELEPLOT.THREE, P = TELEPLOT.protocol;
+        let state = source.state;
+        let object = three.objects.get(source.telem.id);
+        if(!object) {
+            object = { kind: "flat", group: new THREE.Group(), key: "" };
+            three.objects.set(source.telem.id, object);
+            three.scene.add(object.group);
+        }
+        let group = object.group;
+        let opacity = state.opacity * (source.faded ? 0.15 : 1);
+        let local = ViewScene3D.rotateVector([state.quaternion[0], -state.quaternion[1], -state.quaternion[2], -state.quaternion[3]], state.vector); // The vector in the frame of the group
+        let key = [state.type, state.pointsKey, local.join(","), state.text, state.lineWidth, state.color, opacity, state.sized ? state.size[1] : "", TELEPLOT.theme.key()].join("|");
+        if(key != object.key) {
+            object.key = key;
+            this.__clearGroup(group);
+            let color = new THREE.Color();
+            ViewScene3D.setColor(color, state.color);
+            let lineMaterial = () => new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+            let fillMaterial = (alpha) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha, side: THREE.DoubleSide, depthWrite: alpha >= 1 });
+            let line = (points, closed) => { // As thin as the screen draws, or a band of the width that was given
+                if(points.length < 2) return;
+                if(state.lineWidth !== undefined) {
+                    let geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute("position", new THREE.BufferAttribute(ViewScene3D.ribbon(points, state.lineWidth, closed), 3));
+                    group.add(new THREE.Mesh(geometry, fillMaterial(opacity)));
+                }
+                else {
+                    let geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute("position", new THREE.Float32BufferAttribute((closed ? points.concat([points[0]]) : points).flat(), 3));
+                    group.add(new THREE.Line(geometry, lineMaterial()));
+                }
+            };
+            if(state.type == P.TELEM_ATTR_SHAPE_TYPE_LINE) line(ViewScene3D.pointList(state.points), false);
+            else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_POLYGON) {
+                let points = ViewScene3D.pointList(state.points);
+                if(points.length >= 3) {
+                    let triangles = THREE.ShapeUtils.triangulateShape(points.map((p) => new THREE.Vector2(p[0], p[1])), []);
+                    let geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points.flat(), 3));
+                    geometry.setIndex(triangles.flat());
+                    group.add(new THREE.Mesh(geometry, fillMaterial(opacity)));
+                }
+                line(points, true);
+            }
+            else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_ARROW) {
+                for(let segment of ViewScene3D.arrowSegments(local)) line(segment, false);
+            }
+            else if(state.type == P.TELEM_ATTR_SHAPE_TYPE_TEXT && state.text !== "") {
+                // A text faces the viewer. With a size it has that height in the scene; without, a steady size on the screen.
+                let canvas = document.createElement("canvas"), context = canvas.getContext("2d");
+                let font = "600 48px system-ui, sans-serif";
+                context.font = font;
+                canvas.width = Math.max(2, Math.ceil(context.measureText(state.text).width) + 8);
+                canvas.height = 64;
+                context.font = font; context.textBaseline = "middle"; context.fillStyle = state.color;
+                context.fillText(state.text, 4, 32);
+                let texture = new THREE.CanvasTexture(canvas);
+                texture.colorSpace = THREE.SRGBColorSpace;
+                let sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity, depthTest: false, sizeAttenuation: state.sized }));
+                let height = state.sized ? state.size[1] * 1.33 : 0.03; // (the canvas is a little taller than its letters)
+                sprite.scale.set(height * canvas.width / canvas.height, height, 1);
+                sprite.center.set(0, 0.5); // Starts at its position
+                sprite.renderOrder = 2;
+                group.add(sprite);
+            }
+        }
+        group.position.set(state.position[0], state.position[1], state.position[2]);
+        group.quaternion.set(state.quaternion[1], state.quaternion[2], state.quaternion[3], state.quaternion[0]);
+        group.visible = !source.hidden;
+    }
+
+    __clearGroup(group) {
+        for(let child of group.children.slice()) {
+            group.remove(child);
+            if(child.geometry) child.geometry.dispose();
+            if(child.material) { if(child.material.map) child.material.map.dispose(); child.material.dispose(); }
+        }
     }
 
     // A point cloud: the points of each cloud to draw (see cloudSamples), placed where their sensor was. The arrays that were received
@@ -886,6 +1161,11 @@ class ViewScene3D extends ViewTelemetries {
             object.clouds = [];
             return;
         }
+        if(object.kind == "flat") {
+            three.scene.remove(object.group);
+            this.__clearGroup(object.group);
+            return;
+        }
         if(object.kind == "camera") {
             three.scene.remove(object.lines);
             object.lines.geometry.dispose();
@@ -910,6 +1190,13 @@ class ViewScene3D extends ViewTelemetries {
         for(let object of this.three.objects.values()) {
             if(object.kind == "cloud") { for(let cloud of object.clouds) { if(cloud.points.visible && !cloud.box.isEmpty()) box.union(cloud.box); } }
             else if(object.kind == "camera") { if(object.lines.visible) box.expandByObject(object.lines); }
+            else if(object.kind == "flat") {
+                if(!object.group.visible) continue;
+                object.group.updateMatrixWorld(true);
+                let drawn = object.group.children.filter((child) => !child.isSprite);
+                for(let child of drawn) box.expandByObject(child);
+                if(!drawn.length) box.expandByPoint(object.group.position); // A text: where it is
+            }
             else if(object.kind == "shape") { if(object.mesh.visible) box.expandByObject(object.mesh); }
             else if(object.line.visible || object.dot.visible) {
                 let positions = object.line.geometry.getAttribute("position");

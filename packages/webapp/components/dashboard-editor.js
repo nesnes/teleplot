@@ -63,6 +63,7 @@ function initDashboardEditor(TP) {
             case "teleplot-chart": return "Chart";
             case "teleplot-current-value": return "Values";
             case "teleplot-log": return "Log";
+            case "teleplot-2d": return "2D";
             case "teleplot-3d": return "3D";
             case "teleplot-image": return "Image";
         }
@@ -263,8 +264,8 @@ function initDashboardEditor(TP) {
 
     // ------------------------------------------------------------------ Adding views
 
-    E.ADD_TYPES = ["chart", "values", "log", "3d", "image", "row", "column", "grid", "stack"]; // What the "+" menu offers
-    E.ADD_LABELS = { chart: "Chart", values: "Values", log: "Log", "3d": "3D", image: "Image", row: "Row", column: "Column", grid: "Grid", stack: "Stack" };
+    E.ADD_TYPES = ["chart", "values", "log", "2d", "3d", "image", "row", "column", "grid", "stack"]; // What the "+" menu offers
+    E.ADD_LABELS = { chart: "Chart", values: "Values", log: "Log", "2d": "2D", "3d": "3D", image: "Image", row: "Row", column: "Column", grid: "Grid", stack: "Stack" };
 
     // New element in a container at an index (default: the end): a view ("chart", "values", "log", "3d", "image", optionally showing telemetries)
     // or an empty container ("row", "column", "grid", "stack"). Selected while editing. Returns it (undefined for an unknown type or container).
@@ -699,7 +700,7 @@ function initDashboardEditor(TP) {
         menu = document.createElement("div");
         menu.className = "tp-menu";
         menu.setAttribute("role", "menu");
-        menu.innerHTML = '<div class="tp-menu-title">Add</div>' + ["chart", "values", "log", "3d", "image"].map(item).join("") + '<hr><div class="tp-menu-title">Container</div>' + ["row", "column", "grid", "stack"].map(item).join("");
+        menu.innerHTML = '<div class="tp-menu-title">Add</div>' + ["chart", "values", "log", "2d", "3d", "image"].map(item).join("") + '<hr><div class="tp-menu-title">Container</div>' + ["row", "column", "grid", "stack"].map(item).join("");
         menu.__slot = slotEl;
         let spec = slotEl.__slot;
         menu.addEventListener("click", (e) => {

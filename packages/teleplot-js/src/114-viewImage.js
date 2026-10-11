@@ -30,6 +30,7 @@ class ViewImage extends ViewScene3D {
         this.options.overlayOpacity = 70; // Percent: how much what is drawn over the picture hides it
         this.options.outline = true;      // Only the outlines of the objects (the picture stays visible inside them), not the objects themselves
         this.options.outlineWidth = 3;    // Width of those outlines, in pixels of the page
+        this.options.pixelDrawings = true; // The view takes by itself the telemetries drawn in the pixels of its picture (frame FRAME_TYPE_PIXELS)
 
         this.layout.width = 2;
         this.layout.height = 6;
@@ -40,6 +41,50 @@ class ViewImage extends ViewScene3D {
         this.state.note = "";      // Why nothing is drawn over the picture, when something should be
         this.imageKey = "";
         this.natural = undefined;  // {width, height} of the picture, in its own pixels
+        this.pixelsKnown = TELEPLOT.Vue.markRaw({ count: -1, taken: new Set() }); // Telemetries drawn in the pixels of the picture that the view took by itself
+    }
+
+    // Besides the scene, the view draws what is in the pixels of its picture (frame FRAME_TYPE_PIXELS, named after its image telemetry)
+    __takesFrame(pixels) {
+        if(pixels === undefined) return true;
+        let telem = this.getImageTelemetry();
+        return telem !== undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) === pixels;
+    }
+
+    // What is drawn in the pixels of the picture belongs on it: the view takes those telemetries by itself (once each: one that was
+    // removed from the view is not taken again)
+    __takePixelTelemetries(imageTelem) {
+        let ids = Object.keys(TELEPLOT.datastore.telemetries);
+        let name = imageTelem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
+        let key = ids.length + ":" + name;
+        if(this.pixelsKnown.count === key || !name) return;
+        this.pixelsKnown.count = key;
+        for(let id of ids) {
+            let telem = TELEPLOT.datastore.telemetries[id];
+            if(ViewScene3D.pixelFrame(telem) !== name || this.pixelsKnown.taken.has(telem.id)) continue;
+            this.pixelsKnown.taken.add(telem.id);
+            this.addTelemetry(telem.id);
+        }
+    }
+
+    // Draws, over the picture, what is given in its pixels: no camera is needed for that. The canvas has the size of the picture on the page.
+    __drawPixels(element, sources, timestamp, since) {
+        let canvas = element && element.querySelector(".teleplot-js-image-pixels");
+        if(!canvas) return;
+        let width = this.state.frameWidth, height = this.state.frameHeight;
+        let ratio = Math.min(window.devicePixelRatio || 1, 2);
+        if(canvas.width !== Math.max(1, Math.floor(width * ratio)) || canvas.height !== Math.max(1, Math.floor(height * ratio))) {
+            canvas.width = Math.max(1, Math.floor(width * ratio)); canvas.height = Math.max(1, Math.floor(height * ratio));
+        }
+        let context = canvas.getContext("2d");
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        context.clearRect(0, 0, width, height);
+        if(!sources.length || !this.natural || !width || !height) return;
+        const View2D = TELEPLOT.view.ViewScene2D;
+        let items = View2D.buildItems(sources, { pixels: true, timestamp, since, trailLength: this.options.trailLength });
+        // Pixel (0, 0) is the center of the top left pixel: the picture goes from -0.5 to its size - 0.5
+        let scale = width / this.natural.width;
+        View2D.draw(context, items, { width, height, u: this.natural.width / 2 - 0.5, v: this.natural.height / 2 - 0.5, scale, down: true }, undefined, Math.max(1, Number(this.options.pointSize) || 3));
     }
 
     // ------------------------------------------------------------------ Camera model (no three.js here)
@@ -127,6 +172,7 @@ class ViewImage extends ViewScene3D {
             { key: "outline", label: "Outlines only", type: "bool" },
             { key: "outlineWidth", label: "Outline width (px)", type: "int", min: 1, max: 20, step: 1 },
             { key: "overlayOpacity", label: "Overlay opacity (%)", type: "int", min: 0, max: 100, step: 10 },
+            { key: "pixelDrawings", label: "Takes what is drawn in its pixels", type: "bool" },
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
@@ -204,7 +250,10 @@ class ViewImage extends ViewScene3D {
         // What to draw over it: the scene as it was when the picture was taken, seen by its camera
         let timestamp = image ? image.t : cursor;
         let camera = image ? ViewScene3D.cameraState(imageTelem, timestamp) : undefined;
-        let { sources, key } = this.__collectSources(timestamp, imageTelem);
+        if(imageTelem && this.options.pixelDrawings) this.__takePixelTelemetries(imageTelem);
+        let collected = this.__collectSources(timestamp, imageTelem), key = collected.key;
+        let pixelSources = collected.sources.filter((source) => ViewScene3D.pixelFrame(source.telem) !== undefined); // In the pixels of the picture
+        let sources = collected.sources.filter((source) => !pixelSources.includes(source));                           // In the scene: through the camera
         let note = (image && sources.length && !camera) ? "No camera parameters for this image: nothing can be drawn over it" : "";
         if(note != this.state.note) this.state.note = note;
         let draw = sources.length > 0 && camera !== undefined && this.state.frameWidth > 0 && this.state.frameHeight > 0;
@@ -214,7 +263,8 @@ class ViewImage extends ViewScene3D {
         if(key == this.lastKey) return;
         this.lastKey = key;
 
-        this.__updateLegend(sources, element);
+        this.__updateLegend(collected.sources, element);
+        this.__drawPixels(element, image ? pixelSources : [], timestamp, since);
         let three = this.three;
         if(!three) return;
         three.canvas.style.visibility = draw ? "" : "hidden";
@@ -399,6 +449,7 @@ class ViewImage extends ViewScene3D {
               <div class="teleplot-js-image-frame" v-bind:style="state.frameWidth ? {width: state.frameWidth + 'px', height: state.frameHeight + 'px'} : {}">
                   <img v-if="state.imageUrl" v-bind:src="state.imageUrl" draggable="false" alt="" v-on:load="onImageLoad($event)"/>
                   <div class="teleplot-js-image-overlay" v-bind:style="{opacity: Math.max(0, Math.min(100, options.overlayOpacity)) / 100}"></div>
+                  <canvas class="teleplot-js-image-pixels"></canvas>
               </div>
           </div>
           ${ViewScene3D.legendHTML}
@@ -440,6 +491,7 @@ class ViewImage extends ViewScene3D {
             .teleplot-js-image-frame:not([style]) img { width: auto; height: auto; max-width: 100%; visibility: hidden; } /* Until its size is known */
             .teleplot-js-image-overlay { position: absolute; inset: 0; pointer-events: none; }
             .teleplot-js-image-overlay canvas { display: block; }
+            .teleplot-js-image-pixels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; } /* What is given in the pixels of the picture */
             /* The legend is over the picture: its entries get a background to stay readable on anything */
             .teleplot-js-image-container .teleplot-js-scene3d-legend .teleplot-js-chart-legend { gap: 0.5em; }
             .teleplot-js-image-container .teleplot-js-scene3d-legend > .teleplot-js-chart-legend > .teleplot-js-chart-legend-block {

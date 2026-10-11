@@ -201,7 +201,7 @@ function initComponent_panel_telemetries(vue) {
                     { code: "log",                               badge: "LOG", label: "Text emitted as a log (a Log view by default)" }, // Not a data type: a text telemetry with the log attribute
                     { code: P.SECTION_TYPE_TELEM_DATA_IMAGE,     badge: "IMG", label: "Image" },
                     { code: P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, badge: "CLOUD", label: "Point cloud" },
-                    { code: "shape",                             badge: "SHAPE", label: "3D shape" }, // Not one data type: a shape is made of several (position, color...)
+                    { code: "shape",                             badge: "SHAPE", label: "Shape (2D or 3D)" }, // Not one data type: a shape is made of several (position, color...)
                     { code: "camera",                            badge: "CAM", label: "Camera (intrinsics, to draw 3D telemetries over its images)" },
                 ],
             }
@@ -225,7 +225,11 @@ function initComponent_panel_telemetries(vue) {
                     const isCloud = this.TP.view.ViewScene3D.isCloud(telem); // (its position and orientation are the pose of its sensor, not a shape)
                     const isLog = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && telem.attributes[P.TELEM_ATTR_LOG] === true;
                     if (isLog) types.push("log");
-                    if (!isCloud && this.TP.view.ViewScene3D.isShape(telem)) types.push("shape");
+                    if (!isCloud && this.TP.view.ViewScene3D.isShape(telem)) {
+                        const points = types.indexOf(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD); // The points of a line or a polygon: part of the shape, not a cloud
+                        if (points >= 0) types.splice(points, 1);
+                        types.push("shape");
+                    }
                     if (this.TP.view.ViewScene3D.isCamera(telem)) types.push("camera");
                     const sep = name.startsWith("/") ? "/" : ".";
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
@@ -291,8 +295,9 @@ function initComponent_panel_telemetries(vue) {
                 if (!types.length) return "—";
                 const type = types[0];
                 if (type == "shape") { // Where it is: what changes the most often
-                    const SHAPES = { [P.TELEM_ATTR_SHAPE_TYPE_CUBE]: "cube", [P.TELEM_ATTR_SHAPE_TYPE_SPHERE]: "sphere", [P.TELEM_ATTR_SHAPE_TYPE_CYLINDER]: "cylinder", [P.TELEM_ATTR_SHAPE_TYPE_STL]: "STL" };
+                    const SHAPES = ["cube", "sphere", "cylinder", "rect", "circle", "line", "polygon", "arrow", "text", , "STL"];
                     const state = this.TP.view.ViewScene3D.shapeState(telem);
+                    if (state.type == P.TELEM_ATTR_SHAPE_TYPE_TEXT && state.text) return "text \"" + state.text + "\"";
                     return (SHAPES[state.type] || "shape") + " at " + state.position.map(v => +v.toFixed(Math.abs(v) >= 1000 ? 0 : 2)).join(", ");
                 }
                 const entry = telem.data[type];
