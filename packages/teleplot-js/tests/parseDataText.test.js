@@ -7,11 +7,14 @@ const NUMBER = 20, NUMBER_2D = 21, TEXT = 23;
 const parse = (T, data, extra = {}) => T.parseDataText({ data, timestamp: 1000000, ...extra });
 const entry = (T, name, type = NUMBER) => T.datastore.getTelemetry(name).data[type];
 
-test('name:value uses the reception time (ms to seconds)', () => {
+test('name:value uses the reception time (ms to seconds): the one given with the message, or now', () => {
     const T = loadTeleplot();
     parse(T, 'a:12.5');
     assert.deepEqual(entry(T, 'a').data[0], [12.5]);
-    assert.ok(Math.abs(entry(T, 'a').timestamps[0] - Date.now() / 1000) < 5);
+    assert.deepEqual(entry(T, 'a').timestamps, [1000]);
+    T.parseDataText('b:1');
+    T.parseDataText({ data: 'c:1' });
+    for (const name of ['b', 'c']) assert.ok(Math.abs(entry(T, name).timestamps[0] - Date.now() / 1000) < 5, name);
 });
 
 test('name:timestamp:value uses the given timestamp in ms', () => {
@@ -115,7 +118,7 @@ test('xyz flag stores 3D samples, with and without timestamp', () => {
     parse(T, 'p:8:9:10:5000;5:6:7|xyz,np');
     assert.deepEqual(entry(T, 'p', 22).data, [[1, 8, 5], [2, 9, 6], [3, 10, 7]]);
     assert.equal(entry(T, 'p', 22).timestamps[1], 5);
-    assert.ok(Math.abs(entry(T, 'p', 22).timestamps[2] - Date.now() / 1000) < 5, 'no timestamp: the reception time');
+    assert.equal(entry(T, 'p', 22).timestamps[2], 1000, 'no timestamp: the reception time');
     assert.equal(T.datastore.getTelemetry('p').getAttribute(T.protocol.TELEM_ATTR_AUTOPLOT), false);
     assert.equal(entry(T, 'p', NUMBER_2D), undefined, 'xyz is not xy');
 });

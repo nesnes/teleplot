@@ -514,6 +514,7 @@ Teleplot shall offer at least 2 communication protocol:
 
 - `packages/server/`
   - Hosts the `webapp` and forward incoming telemetry and remote commands to it
+  - Options (ports, who can connect...) and messages: [doc/server.md](doc/server.md)
 
 - `clients/{{programming_language}}` (like `bash`, `cpp`, `python`)
   - `/lib`

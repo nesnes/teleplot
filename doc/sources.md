@@ -6,14 +6,16 @@ Where the data comes from, and whether it is arriving. Connections are a library
 
 | Source | How | Library |
 |---|---|---|
-| Teleplot server | UDP packets (port 47269) received by `packages/server` and relayed to the page through a WebSocket. Text and binary protocols. | `TELEPLOT.connection.addConnectionTeleplotServer(address, port)` |
+| Teleplot server | UDP packets (port 47269) received by `packages/server` and relayed to the page through a WebSocket (see `doc/server.md`). Text and binary protocols. | `TELEPLOT.connection.addConnectionTeleplotServer(address, port)` |
 | Serial port | Opened by the browser itself with the Web Serial API: no server. Chrome, Edge and Opera on a computer. Text protocol. | `TELEPLOT.connection.requestSerialPort(baudRate)`, `addConnectionSerial(port, baudRate)` |
 
 Every connection is in `TELEPLOT.connection.connections` and has `type`, `name`, `connected`, and:
 
-- `stats` (not reactive): `messages` received, `problems` (packets and lines that could not be read), `bytes` received, `lastMessage` (when the last one came). `bytes` is what the page received: the content of the packets and lines, exact for serial ports and binary packets; for text relayed by the server it is the size of the text (the server groups the lines of several packets). Network and serial framing are not in it, so it is lower than what travels on the wire.
+- `stats` (not reactive): `messages` received (packets and lines: the server sends packets in batches, each packet counts), `problems` (packets and lines that could not be read), `dropped` (packets a Teleplot server did not send because this page was too slow to receive them), `bytes` received, `lastMessage` (when the last one came). `bytes` is what the page received: the content of the packets and lines. Network, serial and batch framing are not in it, so it is lower than what travels on the wire.
 - the telemetries and clients it created know it: `telemetry.sourceId`, `client.sourceId` are the `id` of the connection that first sent them (`undefined` for what the application created itself). `TELEPLOT.datastore.withSource(id, fn)` is how a connection tells so while it parses.
 - `TELEPLOT.connection.removeConnection(connection)` closes it and forgets it; its telemetries stay.
+
+Text samples that have no timestamp are dated when the server received their packet (`doc/server.md` "Messages"), not when the page got the batch they came in.
 
 A server that cannot be reached, or that closes, is tried again every 2 seconds (`nextRetryAt`); `retry()` tries now, `disconnect()` stops for good. `everConnected` tells "lost" from "never reached".
 
@@ -30,13 +32,13 @@ The parsers report what they could not read: `TELEPLOT.parseDataText()` returns 
 - **Lost port**: when the device is unplugged, `connected` goes false and `error` says why; the connection stays in the list and `connect()` opens it again once it is back. Reloading the page closes every port: the browser remembers the permission, not the open port.
 - While the display is paused, lines still show in the console but are not stored (like any incoming data).
 
-The older server-side serial input (`src/032-dataInputSerial.js`, commands sent to the server) is still in the library, but the V2 server does not implement it and the webapp does not use it.
+The older server-side serial input (`src/032-dataInputSerial.js`, commands sent to the server) is still in the library, but the V2 server does not implement it (it ignores those commands) and the webapp does not use it.
 
 ## The Sources panel
 
 - **Summary**: the total rate (samples per second, as in the top menu) and its last minute, the bytes received per second (also on each card: how much `stats.bytes` grew over the last second), the number of telemetries, the age of the last data, and what is wrong (sources down, lines or packets not understood). Its state is Receiving, Idle, Paused or No data yet (with a link to the Help panel).
 - **A card per source**, colored by its state (green: connected, amber: silent for more than 5 s, red: down, grey: disconnected on purpose), with its own rate. Click a card for its details.
-    - *Server*: what it receives, the clients seen on it, its telemetries, its problems; Retry now, Remove.
+    - *Server*: what it receives, the clients seen on it, its telemetries, its problems, the packets the server dropped for this page; Retry now, Remove.
     - *Serial port*: baud rate, Disconnect / Reconnect, Remove, and its console with a box to send text and a choice of line ending. **Telemetry lines are hidden in the console by default** (they are on the dashboards); the "Telemetry lines" switch shows them, and a telemetry line that could not be understood is always shown, in red. Follow keeps the newest line in view (scrolling up stops it), Timestamps shows when each line came, Clear empties the console.
     - *Robot sample*: start and stop.
 - **Add a source**: a Teleplot server (address and port), or a serial port (baud rate, then the browser's dialog; ports used before are offered directly). In a browser without Web Serial the serial tile explains it.

@@ -109,6 +109,7 @@ function initComponent_panel_sources(vue) {
                   <dt>Clients</dt><dd>{{s.clients.length ? s.clients.join(', ') : 'none seen (clients name themselves with the binary protocol)'}}</dd>
                   <dt>Telemetries</dt><dd>{{s.telemetryCount}}</dd>
                   <dt>Problems</dt><dd :class="{'sources-danger': s.problems > 0}">{{s.problems ? s.problems + ' packets or lines not understood' : 'none'}}</dd>
+                  <template v-if="s.dropped"><dt>Dropped</dt><dd class="sources-danger">{{s.dropped}} packets not sent by the server: this page was too slow to receive them</dd></template>
                 </dl>
                 <div class="sources-line sources-actions">
                   <span class="sources-grow"></span>
@@ -320,7 +321,7 @@ function initComponent_panel_sources(vue) {
                     const silent = conn.stats.lastMessage > 0 && now - conn.stats.lastMessage > 5000;
                     const source = {
                         id: conn.id, conn, kind: serial ? "serial" : "server", badge: serial ? "SERIAL" : "SERVER", name: conn.name,
-                        connected: conn.connected, rateText: sourcesFormatRate(rate), problems: conn.stats.problems,
+                        connected: conn.connected, rateText: sourcesFormatRate(rate), problems: conn.stats.problems, dropped: conn.stats.dropped || 0,
                         bytesText: conn.id in sourcesMonitor.byteRates ? sourcesFormatBytes(sourcesMonitor.byteRates[conn.id]) : "",
                         state: conn.connected ? (silent ? "warn" : "ok") : "bad", summary: "", lines: [], hidden: 0, clients: [], telemetryCount: 0,
                     };
@@ -359,6 +360,8 @@ function initComponent_panel_sources(vue) {
                 const issues = [];
                 if (down) issues.push(down + (down == 1 ? " source down" : " sources down"));
                 if (problems) issues.push(problems + (problems == 1 ? " line or packet not understood" : " lines or packets not understood"));
+                const dropped = this.sources.reduce((sum, s) => sum + s.dropped, 0);
+                if (dropped) issues.push(dropped + (dropped == 1 ? " packet dropped (page too slow)" : " packets dropped (page too slow)"));
                 const paused = !!this.TP.state.isPaused;
                 const state = paused ? "paused" : (rate > 0 ? "ok" : (count ? "idle" : "none"));
                 return {

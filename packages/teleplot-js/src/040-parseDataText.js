@@ -8,7 +8,7 @@ TELEPLOT.parseDataText = function(msgIn){
     if(typeof msgIn == "string") msgIn = {data: msgIn, timestamp: now};// if msgIn is a string, we convert it to an object
 
     let fromSerial = msgIn.fromSerial || (msgIn.input && msgIn.input.type=="serial");
-    if(fromSerial && "timestamp" in msgIn) now = msgIn.timestamp;
+    if(typeof msgIn.timestamp == "number") now = msgIn.timestamp; // when the message was received (ms): the time of what has no timestamp
 
     now/=1000; // we convert timestamp from ms to seconds in datastore (for uPlot to work)
 

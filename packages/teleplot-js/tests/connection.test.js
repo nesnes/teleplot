@@ -27,13 +27,13 @@ test('connects a WebSocket with ordered binary messages', () => {
     assert.equal(conn.connected, false);
 });
 
-test('once open: connected, and serial ports are requested', () => {
+test('once open: connected, and nothing is sent to the server (what a page sends is a command for the device)', () => {
     const { T, conn, ws } = connect();
     ws.onopen();
     T.__timers.run();
     assert.equal(conn.connected, true);
     assert.equal(conn.udp.connected, true);
-    assert.deepEqual(ws.sent.map(s => JSON.parse(s)), [{ cmd: 'listSerialPorts' }]);
+    assert.deepEqual(ws.sent, []);
 });
 
 test('binary WebSocket messages are decoded as binary packets', () => {
@@ -46,6 +46,66 @@ test('text WebSocket messages (json from the server) are decoded as V1 text', ()
     const { T, ws } = connect();
     ws.onmessage({ data: JSON.stringify({ data: 'a:1000:5', fromSerial: false, timestamp: 1 }) });
     assert.deepEqual(T.datastore.getTelemetry('a').data[20].data[0], [5]);
+});
+
+test('text packets of the server: each one is dated when the server received it, on the clock of the page', () => {
+    const { T, conn } = connect();
+    const times = (name) => T.datastore.getTelemetry(name).data[20].timestamps.map(t => Math.round(t * 1e6) / 1e3); // ms
+    // The clock of the server only counts (5000 ms here); the message took 20 ms to come
+    conn.__receivePackets({ time: 5050, packets: [[5001, 'a:1'], [5002.5, 'a:2\nb:7'], [5049, 'a:3']] }, 1_000_000_020);
+    assert.deepEqual(times('a'), [999_999_971, 999_999_972.5, 1_000_000_019], 'as far apart as the server received them');
+    assert.deepEqual(times('b'), [999_999_972.5]);
+    assert.equal(conn.stats.messages, 3, 'counted as packets');
+    assert.equal(conn.stats.bytes, 3 + 7 + 3);
+    // The next message takes 60 ms more: its samples are not pushed 60 ms later
+    conn.__receivePackets({ time: 5100, packets: [[5051, 'a:4']] }, 1_000_000_130);
+    assert.ok(Math.abs(times('a')[3] - 1_000_000_021) < 0.1, String(times('a')[3]));
+    // A faster one than ever: the estimate improves, samples are never in the future
+    conn.__receivePackets({ time: 5150, packets: [[5150, 'a:5']] }, 1_000_000_110);
+    assert.equal(times('a')[4], 1_000_000_110);
+    // A sample that has its own timestamp keeps it
+    conn.__receivePackets({ time: 5200, packets: [[5199, 'c:1234:5']] }, 1_000_000_160);
+    assert.deepEqual(times('c'), [1234]);
+    // A clock that stopped for long (the computer slept): started again from that message
+    conn.__receivePackets({ time: 5250, packets: [[5250, 'a:6']] }, 1_000_600_000);
+    assert.equal(times('a')[5], 1_000_600_000);
+    // A new connection (the server may have restarted: its clock too)
+    conn.connect('localhost', 8080);
+    conn.__receivePackets({ time: 10, packets: [[10, 'a:7']] }, 1_000_700_000);
+    assert.equal(times('a')[6], 1_000_700_000);
+});
+
+test('text packets of the server through the WebSocket; packets the server dropped are counted', () => {
+    const { T, conn, ws } = connect();
+    ws.onmessage({ data: JSON.stringify({ time: 100, packets: [[90, 'a:1'], [95, 'nope']], dropped: 4 }) });
+    assert.ok(Math.abs(T.datastore.getTelemetry('a').data[20].timestamps[0] - (Date.now() - 10) / 1000) < 5);
+    ws.onmessage({ data: JSON.stringify({ time: 150, packets: [], dropped: 2 }) });
+    assert.deepEqual([conn.stats.messages, conn.stats.problems, conn.stats.dropped], [2, 1, 6]);
+});
+
+test('a Teleplot V1 server (one text per batch, dated on its own clock): the time of reception is used', () => {
+    const { T, ws } = connect();
+    ws.onmessage({ data: JSON.stringify({ data: 'a:5', fromSerial: false, timestamp: 1 }) });
+    assert.ok(Math.abs(T.datastore.getTelemetry('a').data[20].timestamps[0] - Date.now() / 1000) < 5);
+});
+
+test('several binary packets in one message, framed like a binary file; a cut one is a problem', () => {
+    const { T, conn, ws } = connect();
+    const packets = [1, 2, 3].map(v => new Uint8Array(new PacketBuilder(4).numbers(v, 1_000_000_000n, [[0, v * 1.5]]).build()));
+    const frame = (list, cut = 0) => {
+        const bytes = [...T.protocol.FILE_MAGIC];
+        for (const packet of list) bytes.push(packet.length & 0xff, packet.length >> 8, 0, 0, ...packet);
+        return Uint8Array.from(bytes.slice(0, bytes.length - cut)).buffer;
+    };
+    ws.onmessage({ data: frame(packets) });
+    assert.deepEqual([1, 2, 3].map(v => T.datastore.getTelemetry(0x40000 + v).data[20].data[0]), [[1.5], [3], [4.5]]);
+    assert.deepEqual([conn.stats.messages, conn.stats.problems], [3, 0]);
+    assert.equal(conn.stats.bytes, packets.reduce((sum, p) => sum + p.length, 0), 'the packets, not the framing');
+    ws.onmessage({ data: frame(packets.slice(0, 2), 3) });
+    assert.deepEqual(T.datastore.getTelemetry(0x40001).data[20].data[0], [1.5, 1.5], 'the whole packets before the cut are read');
+    assert.equal(conn.stats.problems, 1);
+    ws.onmessage({ data: frame([]) });
+    assert.equal(conn.stats.problems, 1, 'an empty batch is nothing');
 });
 
 test('messages with an input id are routed to that input', () => {

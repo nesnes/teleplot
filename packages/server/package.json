@@ -1,11 +1,11 @@
 {
   "name": "teleplot",
   "version": "0.1.0",
-  "description": "",
+  "description": "Teleplot server: relays telemetry received as UDP packets to the Teleplot web page through a WebSocket, and serves that page",
   "main": "main.js",
   "bin": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node tests/run.js",
     "start": "node main.js",
     "make": "npx --yes @yao-pkg/pkg@6.23.0 . --no-bytecode --public-packages \"*\" --public"
   },

@@ -37,6 +37,11 @@ jobs:
       - name: Test the webapp
         run: sh packages/webapp/test.sh
 
+      - name: Test the server
+        run: |
+          (cd packages/server && npm ci --no-audit --no-fund)
+          sh packages/server/test.sh
+
       - name: Package
         run: |
           mkdir -p dist/teleplot-webapp

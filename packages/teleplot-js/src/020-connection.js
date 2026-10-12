@@ -13,6 +13,7 @@ class Connection{
         this.stats = TELEPLOT.Vue.markRaw({
             messages: 0,    // Messages received (packets, lines, batches of lines)
             problems: 0,    // Packets and lines that could not be read
+            dropped: 0,     // Packets the source says it did not send: this page was too slow to receive them (Teleplot server)
             bytes: 0,       // Bytes of data received by the page: the content of packets and lines, without network or serial framing
             lastMessage: 0  // When the last one came (ms, Date.now())
         });
