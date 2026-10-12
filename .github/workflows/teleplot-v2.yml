@@ -22,8 +22,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -51,7 +51,7 @@ jobs:
           (cd dist && zip -qr teleplot-webapp.zip teleplot-webapp && zip -qr teleplot-server.zip teleplot-server && rm -r teleplot-webapp teleplot-server)
           ls -l dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: teleplot-v2
           path: dist/
@@ -63,11 +63,11 @@ jobs:
     needs: build
     runs-on: macos-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: teleplot-v2
           path: dist
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -79,7 +79,7 @@ jobs:
           npm run make
           ls -l build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: teleplot-v2-executables
           path: teleplot-server/build/
@@ -92,7 +92,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: teleplot-v2*
           merge-multiple: true
