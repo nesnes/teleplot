@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node main.js",
-    "make": "npm i -g pkg && pkg . && chmod -R 777 build"
+    "make": "npx --yes @yao-pkg/pkg@6.23.0 . --no-bytecode --public-packages \"*\" --public"
   },
   "author": "",
   "license": "MIT",
@@ -18,7 +18,7 @@
   "pkg": {
     "scripts": "main.js",
     "assets": "www/**",
-    "targets": ["node14-windows-x64", "node14-linux-x64", "node14-linux-armv7" ],
+    "targets": ["node22-linux-x64", "node22-linux-arm64", "node22-macos-x64", "node22-macos-arm64", "node22-win-x64"],
     "outputPath": "build"
   }
 }

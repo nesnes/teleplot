@@ -1,2 +1,7 @@
 # Built by packages/teleplot-js/build.sh
 teleplot-js.js
+
+# Server: dependencies, the copy of the webapp it embeds (made by the CI) and its executables
+packages/server/node_modules
+packages/server/www
+packages/server/build

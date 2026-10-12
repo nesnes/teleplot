@@ -1,0 +1,107 @@
+# Builds and tests Teleplot V2 (packages/), and packages it for third parties:
+#   teleplot-js.js       the library alone, one file with its dependencies inside
+#   teleplot-webapp.zip  the GUI, static files with the library inside: unzip and serve
+#   teleplot-server.zip  the server (UDP to WebSocket relay) with the GUI inside: npm ci && node main.js
+#   teleplot-<os>-<arch>  the same server as one executable, nothing to install (Linux, macOS, Windows)
+# Every run keeps them as a workflow artifact; pushing a tag "v2..." also publishes them
+# as a GitHub release (a pre-release when the tag has a suffix, ex: v2.0.0-beta.1).
+
+name: Teleplot V2
+
+on:
+  push:
+    branches: [ "teleplot2" ]
+    tags: [ "v2*" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build the library
+        working-directory: packages/teleplot-js
+        run: bash build.sh
+
+      - name: Test the library
+        run: sh packages/teleplot-js/test.sh
+
+      - name: Test the webapp
+        run: sh packages/webapp/test.sh
+
+      - name: Package
+        run: |
+          mkdir -p dist/teleplot-webapp
+          cp packages/teleplot-js/teleplot-js.js dist/
+          cp -r packages/webapp/. dist/teleplot-webapp/
+          rm -rf dist/teleplot-webapp/tests dist/teleplot-webapp/test.sh
+          cp LICENSE.txt dist/teleplot-webapp/
+          echo "${GITHUB_REF_NAME} (${GITHUB_SHA})" > dist/teleplot-webapp/VERSION
+          mkdir dist/teleplot-server
+          cp packages/server/main.js packages/server/package.json packages/server/package-lock.json LICENSE.txt dist/teleplot-server/
+          cp -r dist/teleplot-webapp dist/teleplot-server/www
+          (cd dist && zip -qr teleplot-webapp.zip teleplot-webapp && zip -qr teleplot-server.zip teleplot-server && rm -r teleplot-webapp teleplot-server)
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: teleplot-v2
+          path: dist/
+          if-no-files-found: error
+
+  # On macOS because the Apple silicon executable must be signed (ad hoc), which pkg does there.
+  # The others are cross-built: the script is embedded as is (no bytecode), nothing of the target runs.
+  executables:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: teleplot-v2
+          path: dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build the executables
+        run: |
+          unzip -q dist/teleplot-server.zip
+          cd teleplot-server
+          npm ci --omit=dev --no-audit --no-fund
+          npm run make
+          ls -l build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: teleplot-v2-executables
+          path: teleplot-server/build/
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [ build, executables ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: teleplot-v2*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Teleplot $GITHUB_REF_NAME" --generate-notes $flags
