@@ -25,6 +25,7 @@ mode:driving|t                       a state: it lasts from this message until t
 mode:1627551892437:parked|t          with its own time
 mode:|t                              an empty text is a state too: nothing (a hole in the timeline)
 mode:error: motor stalled|t          a text may hold colons
+task:loop/plan/search|stack          a stack: the path of what is running (see "Stacks")
 nav:Path clear|log                   a log line: an instant
 ```
 
@@ -32,6 +33,31 @@ nav:Path clear|log                   a log line: an instant
 - **An empty text** is a sample (`name:|t`, or an empty string in the binary protocol). It ends the state before it.
 - **Colons in a text.** The time of a text, when it has one, is a first field that is a number; the rest is the text. A text that itself
   starts with a number and a colon needs its time written: `clock:1627551892437:12:30|t`.
+
+### Stacks: `stack`
+
+A stack is a state whose text is **the path of what is running**, a `/` between levels: `loop/plan/search` says that `search` runs
+in `plan`, which runs in `loop`. Send it each time something starts or ends; an empty text says nothing runs.
+
+```
+task:loop|stack
+task:loop/plan|stack
+task:loop/plan/search|stack
+task:loop/plan|stack                       search is over
+task:1627551892437.25:loop/drive|stack     with the time of the device: milliseconds, decimals welcome
+task:|stack
+```
+
+- It is still a text telemetry: values, logs and marks show it as any state. Only the timeline reads the path.
+- **It gets a timeline by itself.** On the automatic dashboard, stacks without a label share one timeline (a lane each: what runs at
+  the same time is seen side by side), stacks with a label share the timeline of that label; a stack dropped on a dashboard in Edit
+  mode gets a timeline too (`suggestViewType` answers `"timeline"`).
+- The flag `stack` (the attribute `TELEM_ATTR_STACK`, 10, in the binary protocol) says the text is a path: a `/` in an ordinary
+  state ("N/A") is not a level.
+- **Time.** For function timing the device should date its messages: in text, the time before the path, in milliseconds with as
+  many decimals as it measures; in binary, the timestamp of the text sample (nanoseconds). Without a time a message is dated when
+  it is received, which is fine for slow things and too coarse for short calls.
+- One stack per telemetry: something that runs several things at once (threads, tasks) sends one telemetry for each.
 
 ### A range: `ATTR|`
 
@@ -76,12 +102,13 @@ A threshold has **a name**, **an operator** (`<`: past the limit when the teleme
 | Number + range | scale, when the option says so | a bar from min to max | no | the scale of its line |
 | Number + thresholds | dashed steps with their name | the name and the color of the one that is passed | no | a band where it is past a threshold |
 | Text, a state (`t`) | a mark where it changes | value | lines | bands |
+| Text, a stack (`stack`) | a mark where it changes | the path | lines | a row per level |
 | Text, a log (`log`) | a mark per line | latest line | lines | ticks |
 | Empty text | no mark | empty | an empty line | a hole |
 | Positions, shapes, clouds, images | not shown | as before | no | no |
 
-Which view a telemetry gets **by default** has not changed (a number: a chart, a state: a value, a log: a log view). A timeline, and a
-text in a chart, are asked for: in the Edit mode of the webapp, or with a line (`DASH|Robot/States:timeline:mode,nav`,
+Which view a telemetry gets **by default**: a number a chart, a state a value, a log a log view, and a stack a timeline. For the
+others a timeline, and a text in a chart, are asked for: in the Edit mode of the webapp, or with a line (`DASH|Robot/States:timeline:mode,nav`,
 `DASH|Robot/Motion:chart:speed,mode`).
 
 ## The timeline
@@ -93,7 +120,7 @@ text in a chart, are asked for: in the Edit mode of the webapp, or with a line (
 - **Too short to be drawn**: several states within a couple of pixels are one neutral block (half the height of the lane) that knows
   how many states it holds; several lines within a couple of pixels are one thicker tick. Zoom to see them.
 - **Colors**: the texts of a view take the colors of the palette in the order they show up, so the states of a telemetry are told
-  apart (the first 12 are all different). Texts that look like an error or a warning take the colors of the theme for them, as in the
+  apart (the first 11 are all different; none is red, which is kept for errors). Texts that look like an error or a warning take the colors of the theme for them, as in the
   Log view. Lines of logs have no color of their own.
 - **The period** is the zoom of the time group, or else what the numbers and texts shown by the views of the group cover: a state that
   is not sent again does not make time pass, the charts next to it do, and the timeline covers the same time as them. It never goes
@@ -103,6 +130,22 @@ text in a chart, are asked for: in the Edit mode of the webapp, or with a line (
   the state really started and how long it lasted (whatever the period shows of it). Drag to zoom (shared by the group, as on a
   chart), double click to go back to the latest data.
 - More lanes than fit: the view scrolls, its time axis stays at the bottom.
+
+### Stacks in a timeline
+
+A stack is a lane with **a row per level**. A band at a level lasts while that level and the ones above it do not change, whatever
+happens deeper: `loop` is one band while it runs `read`, then `plan`. A band is written with what runs at its level, and colored by
+that name (the same function has the same color wherever it is called from). Calls too short to be drawn are a block at their level.
+
+The height of the lane (option `stackDepth`, "Stack rows", 4 by default):
+
+1. the lane **opens with the stack**: a row of full height for each level reached in the period displayed, up to `stackDepth` rows;
+2. deeper than that, the lane keeps that height and **its rows get thinner**, down to 7 pixels (under 11 pixels the texts are not
+   written: the pointer tells them);
+3. deeper still, rows stay at 7 pixels and **the lane grows again**.
+
+`stackDepth` 0 means no limit: always full rows. The pointer tells what a band is, what it runs in, when it really started and how
+long it lasted.
 
 ### Numbers in a timeline
 
@@ -175,9 +218,11 @@ telem.getThresholdStatus(value, timestamp)// the threshold a value is past, or u
 telem.getThresholdSteps(from, to)         // [{name, operator, color, steps: [{from, to, value}]}] over a period
 telem.hasContent()                        // false for a telemetry that only has attributes or thresholds
 TELEPLOT.textRuns(entry)                  // {timestamps, data: [texts]}: a text entry with one item per run of the same text (cached)
+TELEPLOT.stackRuns(entry)                 // {levels: [{timestamps, data: [paths]}]}: for each depth of a stack, a run per path down to it (cached)
 
 new TELEPLOT.view.ViewTimeline(divId, telemetries, group)     // or TELEPLOT.view.createView("timeline", telemetries, group)
 ViewTimeline.buildLane(entry, isLog, from, to, minDuration)   // [{from, to, text, count, mixed, tick}]: what a lane draws (no canvas)
+ViewTimeline.laneSize(depth, limit, rowHeight, minRow)        // {height, rowHeight} of a stack lane
 ViewTimeline.limitRuns(telem)                                 // a number read through its thresholds: runs of "past the same threshold" (cached)
 ViewTimeline.buildLine(entry, decimator, from, to, width, range) // {timestamps, values, min, max}: the line of a number over a period
 ViewTimeline.extentOf(entry, time)                            // {start, end}: how long the state in force at a time really lasts

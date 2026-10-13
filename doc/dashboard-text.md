@@ -36,7 +36,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 | `time` | everything | time group: `inherit` (default), `dashboard`, or the name of a group shared by the views that name it |
 | `follow` | views | labels the view follows, separated by commas: new telemetries with one of these labels join the view |
 | `align`, `justify`, `gap`, `columnWidth`, `appearance`, `accent` | layouts | as in the edit panel (`align=stretch` is the default of layouts made by lines) |
-| any option of the view | views | `maxLines`, `displayGrid`, `displayNumberDecimals`, `decimation`, `thresholds` (`fit` / `show` / `hide`), `scale` (`auto` / `range`), `numbers` (`auto` / `text`, of a timeline), `trailLength`, `pointSize`... (the names of `view.options`); booleans are `true` / `false` |
+| any option of the view | views | `maxLines`, `displayGrid`, `displayNumberDecimals`, `decimation`, `thresholds` (`fit` / `show` / `hide`), `scale` (`auto` / `range`), `numbers` (`auto` / `text`) and `stackDepth` (of a timeline), `trailLength`, `pointSize`... (the names of `view.options`); booleans are `true` / `false` |
 
 **Escaping**: in names and values, the characters `% / : , | =` and line breaks are written `%XX`, the hexadecimal code of the character (`My%2Fboard` for "My/board"). Everything else is written as is, spaces and accents included.
 

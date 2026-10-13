@@ -410,6 +410,37 @@
       view.setOption("displayTelemetryName", false);
       Teleplot.view.addView(view);
     });
+    data("A stack", "tl.task: what a (pretend) program is running, as a path with a slash between levels, sent with the stack flag each time something starts or ends, with the time of the device (decimals of milliseconds). tl.deep goes 14 levels down.", () => {
+      const jobs = [["read", ["imu", "lidar", "camera/expose", "camera/read out"]], ["plan", ["map", "search", "search/expand", "smooth"]], ["drive", ["pid", "send"]]];
+      const send = (path) => Teleplot.parseDataText(`tl.task:${(performance.timeOrigin + performance.now()).toFixed(3)}:${path}|stack`);
+      let job = 0, step = -1;
+      setInterval(() => { // loop > job > step (> sub step), then nothing for a moment
+        if (step < 0) { send("loop/" + jobs[job][0]); step = 0; return; }
+        if (step < jobs[job][1].length) { send("loop/" + jobs[job][0] + "/" + jobs[job][1][step++]); return; }
+        job = (job + 1) % jobs.length; step = -1;
+        send(job == 0 ? "" : "loop");
+      }, 180);
+      let depth = 1, way = 1;
+      setInterval(() => {
+        Teleplot.parseDataText(`tl.deep:${Array.from({ length: depth }, (v, i) => "f" + i).join("/")}|stack`);
+        depth += way; if (depth >= 14 || depth <= 1) way = -way;
+      }, 250);
+    });
+    demo("A stack in a timeline", "A lane with a row per level: a band lasts while its level and the ones above it do not change (loop stays one band while what it runs changes). Hover a band: what it is, what it runs in, when it started and for how long. Next to it, a plain state for comparison.", ["100%", 170], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["tl.task", "tl.mode"]));
+    });
+    demo("Deeper than the lane opens to", "stackDepth (4 by default) is how many rows of full height a stack lane opens to. tl.deep goes down to 14 levels: past 4 the rows get thinner (their texts go away under 11 pixels: the pointer still tells them), down to 7 pixels, then the lane grows again. On the right the same with stackDepth 0: always full rows (the view scrolls).", ["100%", 240], (id) => {
+      const row = new Teleplot.view.ViewLayout(id, "default");
+      row.layout.align = "stretch"; row.setSize(1, 1);
+      Teleplot.view.addView(row);
+      for (const depth of [4, 0]) {
+        const view = new Teleplot.view.ViewTimeline("", ["tl.deep", "tl.mode"]);
+        view.setOption("stackDepth", depth);
+        view.setOption("title", "stackDepth " + depth);
+        view.setSize(2, 4);
+        row.addView(view);
+      }
+    });
     data("Whole numbers", "tl.gear (0 to 3) and tl.enable (0 or 1), 5 times per second.", () => {
       let gear = 0, enable = 1;
       setInterval(() => {

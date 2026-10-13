@@ -271,3 +271,20 @@ test('thresholds: operator, float64 value, name and color; same telemetry as the
     const same = U.datastore.getTelemetry('temp').data[40];
     assert.deepEqual([same.timestamps, same.data], [telem.data[40].timestamps, telem.data[40].data]);
 });
+
+test('stack attribute: a text telemetry whose text is a path, dated by the device to the nanosecond', () => {
+    const T = loadTeleplot();
+    assert.equal(T.protocol.TELEM_ATTR_STACK, 10);
+    T.parseDataBinary(new PacketBuilder(5).attrs(1, [[ATTR.NAME, 'task'], [10, true]])
+        .text(1, 1_627_551_892_437_000_000n, [[0, 'loop'], [250_000, 'loop/plan'], [1_500_000, 'loop/plan/A*'], [3_000_000, '']])
+        .attrs(2, [[ATTR.NAME, 'state'], [10, false]]).text(2, 1_000_000_000n, [[0, 'a/b']]).build());
+    const task = T.datastore.getTelemetry(id(5, 1));
+    assert.deepEqual([1, 2].map(n => T.datastore.getTelemetry(id(5, n)).getAttribute(10)), [true, false]);
+    assert.deepEqual(entry(T, 5, 1, TEXT).data[0], ['loop', 'loop/plan', 'loop/plan/A*', '']);
+    [0, 0.00025, 0.0015, 0.003].forEach((offset, i) => near(entry(T, 5, 1, TEXT).timestamps[i], 1627551892.437 + offset, 1e-6));
+    // The same telemetry as the text protocol gives
+    const U = loadTeleplot();
+    U.parseDataText('task:1627551892437:loop|stack\ntask:1627551892437.25:loop/plan|stack\ntask:1627551892438.5:loop/plan/A*|stack\ntask:1627551892440:|stack');
+    assert.deepEqual(U.stackRuns(U.datastore.getTelemetry('task').data[TEXT]).levels.map(l => l.data[0]), T.stackRuns(task.data[TEXT]).levels.map(l => l.data[0]));
+    assert.deepEqual([T.view.suggestViewType(id(5, 1)), T.view.suggestViewType(id(5, 2))], ['timeline', 'values']);
+});

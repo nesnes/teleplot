@@ -283,6 +283,11 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 offset++;
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_STACK: {
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK, view.getUint8(offset) !== 0);
+                offset++;
+                break;
+            }
             case TELEPLOT.protocol.TELEM_ATTR_RANGE: { // {MIN[float64]} {MAX[float64]}, not a number: no limit on that side
                 let min = view.getFloat64(offset, _parseDataBinary_LITTLE_ENDIAN), max = view.getFloat64(offset + 8, _parseDataBinary_LITTLE_ENDIAN);
                 min = Number.isFinite(min) ? min : undefined;

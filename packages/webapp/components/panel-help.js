@@ -86,6 +86,14 @@ const HELP_STEPS = [
         { code: "DASH|Robot/States:timeline:mode,nav", note: "A Timeline view: a lane per telemetry, a band per state. A log (nav, from step 4) is drawn as a tick per line. Drag to zoom, as on a chart.", expect: { dashboard: "Robot" } },
         { code: "DASH|Robot/Motion:chart:speed,mode", note: "In a chart, a text telemetry has no curve: it is drawn as marks, a line where the state changes with its text next to it (for a log, a mark per line).", expect: { dashboard: "Robot" } },
     ] },
+    { title: "Stacks: what is running", intro: "To see what a program spends its time in, send the path of what is running: a state whose text has a slash between levels. It is shown on a timeline, a row per level, like a profiler.", examples: [
+        { code: "task:loop|stack", note: "The stack flag: the text is a path. Here one level: loop is running. Send a message each time something starts or ends.", expect: { name: "task", type: "text", text: "loop", stack: true, view: "timeline" } },
+        { code: "task:loop/plan|stack", note: "plan starts, in loop: one level deeper. loop goes on: on a timeline it stays one band, with plan under it.", expect: { name: "task", type: "text", text: "loop/plan", stack: true } },
+        { code: "task:loop/plan/search|stack", note: "As deep as needed. When search is over, send loop/plan again.", expect: { name: "task", type: "text", text: "loop/plan/search", stack: true } },
+        { code: "task:1627551892437.25:loop/plan|stack", note: "With the time of the device, before the path: milliseconds, with decimals when it measures finer than that. Short calls need it: without a time, a message is dated when it arrives.", expect: { name: "task", type: "text", timestamp: 1627551892.43725, stack: true } },
+        { code: "task:|stack", note: "An empty text: nothing runs.", expect: { name: "task", type: "text", text: "", stack: true } },
+        { code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A stack gets a timeline by itself on the Live dashboard; this line puts one where you want it. stackDepth is how many rows of full height its lane opens to; a deeper stack gets thinner rows. Hover a band: what it is, what it runs in, and for how long. Something that runs several things at once sends one stack for each.", expect: { dashboard: "Robot" } },
+    ] },
 ];
 const HELP_EXAMPLES = HELP_STEPS.flatMap((step) => step.examples);
 

@@ -76,6 +76,7 @@ class ViewTelemetries extends Views {
         if(this.type == "teleplot-3d" && inScene) return true;
         // A 3D scene also takes the image telemetries of its label: they are its cameras (drawn once they have their parameters)
         if(this.type == "teleplot-3d" && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return true;
+        // (a timeline that follows a label takes its texts, stacks included; a values view takes its states, but a stack has its timeline)
         let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-3d": "3d" }[this.type];
         return kind !== undefined && TELEPLOT.view.suggestViewType(telem.id) === kind;
     }

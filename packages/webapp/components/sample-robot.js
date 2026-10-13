@@ -3,7 +3,8 @@
  * Self-contained: only uses the Teleplot API (TP.datastore, TP.view, TP.dashboards).
  * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, zone, and one log per subsystem merged in a Log view), image (camera),
  * ranges (battery, heading, distance: a bar under their value) and thresholds (currents, battery, and how close a wall may get: that one changes
- * as the robot does, so its line on the chart is a step), a timeline of the states and logs, the state as marks on a chart,
+ * as the robot does, so its line on the chart is a step), a timeline of the states and logs (with what its camera does for each
+ * picture as a stack: a row per level, two of its steps really measured), the state as marks on a chart,
  * 3D (the robot in its arena: shapes for the floor, the walls, the body, the wheels, a screen showing the camera, what the distance sensor hits; a 3D point for its path).
  * Frame of the 3D telemetries: x forward, y left, z up, in meters.
  * Frames: what the robot carries (wheels, screen, camera, lidar, an arrow for its heading, the circle of how far it looks) is described
@@ -252,6 +253,31 @@ function createRobotSample(TP) {
             put(found + ".name", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, ["obstacle " + (depth + CAMERA.forward).toFixed(2) + " m"]);
         }
         put("robot.camera", IMAGE, [P.IMAGE_TYPE_PNG, camera(eye)]);
+        publishPipeline(seen);
+    }
+
+    // What the camera does for each picture, as a stack (the path of what is running: a row per level in the timeline), dated like a
+    // device that times its own code would: finer than a millisecond. Two of the four steps are really measured here: "read out" is
+    // the time it took to compute the picture, "encode" the time to make a PNG of it. The two others are pretended, and move like
+    // real ones do: the exposure drifts slowly (auto exposure) and the detection takes longer when there is something to find.
+    const timing = { readOut: 0, encode: 0 }; // (milliseconds, measured by camera())
+    function publishPipeline(seen) {
+        const name = "robot.camera.task";
+        const exposure = Math.max(8, 32 + 10 * Math.sin(bot.t / 7) + noise(3));
+        const detect = Math.max(6, (seen ? 55 : 30) + noise(9) + (Math.random() < 0.08 ? 25 : 0)); // (now and then a slow one)
+        // The picture is out now: its steps ended one after the other just before
+        const end = performance.timeOrigin + performance.now();
+        const steps = [["frame/expose", exposure], ["frame/read out", timing.readOut], ["frame/encode", timing.encode], ["frame/detect", detect]];
+        let start = end - steps.reduce((sum, step) => sum + step[1], 0);
+        if (!TP.datastore.getTelemetry(name)) {
+            const telem = TP.datastore.getOrCreateTelemetry(name);
+            telem.setAttribute(P.TELEM_ATTR_AUTOPLOT, false);
+            telem.setAttribute(P.TELEM_ATTR_STACK, true);
+        }
+        const times = [], texts = [];
+        for (const [path, duration] of steps) { times.push(start / 1000); texts.push(path); start += duration; }
+        times.push(end / 1000); texts.push(""); // (nothing runs until the next picture)
+        TP.datastore.getTelemetry(name).addData(TEXT, times, [texts]);
     }
 
     // Front camera: each pixel is the color of what its ray hits in the arena (a wall, the floor, or nothing), as a base64 PNG.
@@ -271,6 +297,7 @@ function createRobotSample(TP) {
     for (let v = 0, i = 0; v < CAMERA.height; v++) for (let u = 0; u < CAMERA.width; u++) vignette[i++] = 1 - 0.45 * (((u - CAMERA.cx) / CAMERA.cx) ** 2 + ((v - CAMERA.cy) / CAMERA.cx) ** 2);
     const COLORS = { walls: WALL_COLORS.map(rgb), floor: rgb("#8a8f98"), sky: rgb("#cfe8ff"), outside: rgb("#b9bec5") };
     function camera(eye) {
+        const began = performance.now();
         const cos = Math.cos(bot.a), sin = Math.sin(bot.a), pixels = frame.data;
         for (let i = 0, n = CAMERA.width * CAMERA.height; i < n; i++) {
             const left = rays[i * 2], up = rays[i * 2 + 1];
@@ -285,8 +312,12 @@ function createRobotSample(TP) {
             const light = vignette[i], grain = (Math.random() - 0.5) * 14; // (values out of range are clamped by the image)
             pixels[i * 4] = color[0] * light + grain; pixels[i * 4 + 1] = color[1] * light + grain; pixels[i * 4 + 2] = color[2] * light + grain; pixels[i * 4 + 3] = 255;
         }
+        const computed = performance.now();
         g.putImageData(frame, 0, 0);
-        return canvas.toDataURL("image/png").split(",")[1];
+        const png = canvas.toDataURL("image/png").split(",")[1];
+        timing.readOut = computed - began;          // (what the camera pipeline reports: see publishPipeline)
+        timing.encode = performance.now() - computed;
+        return png;
     }
 
     // --- Dashboard (built once) ---
@@ -311,8 +342,8 @@ function createRobotSample(TP) {
         dashboard.setView(main);
         main.addView(top);
         // (numbers can have a lane too: the distance has a threshold, it is a band while a wall is too close; the gyro is a plain line)
-        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
-        timeline.setSize(12, 4);
+        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.camera.task", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
+        timeline.setSize(12, 5);
         main.addView(timeline);
         main.addView(bottom);
 

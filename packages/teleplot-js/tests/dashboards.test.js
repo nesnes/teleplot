@@ -263,3 +263,25 @@ test('auto dashboard: a telemetry described before its data (range, thresholds) 
     T.__timers.run();
     assert.equal(T.dashboards.getDashboard('Live').getView().views.length, 2);
 });
+
+test('auto dashboard: a stack gets a timeline; stacks without label share one, a label gives its own', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText({ data: 'main:loop/plan|stack\nworker:job/parse|stack\nstate:on|t\nnav:started|log\ncam,vision:frame/expose|stack\nfps,vision:5', timestamp: 1000 });
+    T.__timers.run();
+    const views = T.dashboards.getDashboard('Live').getView().views;
+    const names = (view) => Array.from(view.telemetryIdOrNameList).map((id) => T.datastore.getTelemetry(id).getAttribute(T.protocol.TELEM_ATTR_NAME));
+    assert.deepEqual(views.map((v) => v.type.replace('teleplot-', '') + ':' + (v.getOption('title') || '') + ':' + names(v).join(',')),
+        ['timeline::main,worker', 'current-value::state', 'log::nav', 'timeline:vision:cam', 'chart:vision:fps']);
+    views[0].update();
+    assert.deepEqual(views[0].lanes.map((l) => [l.name, l.kind, l.rows.length]), [['main', 'stack', 2], ['worker', 'stack', 2]]);
+    // One that comes later joins the timeline of the others
+    T.parseDataText({ data: 'late:a/b/c|stack', timestamp: 2000 });
+    T.__timers.run();
+    assert.deepEqual(names(T.dashboards.getDashboard('Live').getView().views[0]), ['main', 'worker', 'late']);
+    assert.equal(T.dashboards.getDashboard('Live').getView().views.length, 5);
+    // A stack that places itself with a path gets a timeline there too
+    T.parseDataText({ data: 'job,Robot/Tasks:a/b|stack', timestamp: 3000 });
+    T.__timers.run();
+    assert.equal(T.dashboards.getDashboard('Robot').getView().views[0].type, 'teleplot-timeline');
+});

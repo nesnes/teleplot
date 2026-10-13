@@ -363,3 +363,23 @@ test('a text may hold colons: its time, when it has one, is a first field that i
     telem.addData(NUMBER, [5, NaN, undefined, -1, 6], [[1, 2, 3, 4, 5]]);
     assert.deepEqual([telem.data[NUMBER].timestamps, telem.data[NUMBER].data[0]], [[5, 6], [1, 5]]);
 });
+
+test('a stack is a text state whose text is a path ("stack" flag); the device can date it, finer than a millisecond', () => {
+    const T = loadTeleplot();
+    const STACK = T.protocol.TELEM_ATTR_STACK;
+    assert.equal(STACK, 10);
+    assert.equal(parse(T, 'task:1627551892437:loop|stack\ntask:1627551892437.25:loop/plan|stack\ntask:1627551892438.5:loop/plan/A*|stack\ntask:1627551892440:|stack'), 0);
+    const task = T.datastore.getTelemetry('task');
+    assert.deepEqual([entry(T, 'task', TEXT).timestamps, entry(T, 'task', TEXT).data[0]], [[1627551892.437, 1627551892.43725, 1627551892.4385, 1627551892.44], ['loop', 'loop/plan', 'loop/plan/A*', '']]);
+    assert.deepEqual([task.getAttribute(STACK), task.getAttribute(T.protocol.TELEM_ATTR_LOG) === true], [true, false]);
+    assert.equal(T.view.suggestViewType('task'), 'timeline', 'a stack is read along the time');
+    // Without a time: dated when received, like everything else; the flag used last tells what the telemetry is
+    parse(T, 'now:loop/plan|stack\nplain:a/b|t\nnotes:a/b|log');
+    assert.deepEqual([entry(T, 'now', TEXT).timestamps, T.datastore.getTelemetry('now').getAttribute(STACK)], [[1000], true]);
+    assert.deepEqual(['plain', 'notes'].map(n => T.datastore.getTelemetry(n).getAttribute(STACK) === true), [false, false], 'a slash alone does not make a stack');
+    parse(T, 'now:idle|t');
+    assert.equal(T.datastore.getTelemetry('now').getAttribute(STACK), false);
+    // Levels: for each depth, a run per path down to it
+    const levels = T.stackRuns(entry(T, 'task', TEXT)).levels.map(l => l.timestamps.map((t, i) => Math.round((t - 1627551892.437) * 1e5) / 100 + ':' + l.data[0][i]));
+    assert.deepEqual(levels, [['0:loop', '3:'], ['0.25:loop/plan', '3:'], ['1.5:loop/plan/A*', '3:']]);
+});

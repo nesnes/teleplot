@@ -178,7 +178,7 @@ test('a timeline takes text telemetries: it suits them, and is a view type like 
     speed.addData(NUMBER, [1], [[1]]);
     assert.deepEqual([view.suitsTelemetry(telems[0]), view.suitsTelemetry(speed)], [true, false], 'a timeline that follows a label only takes texts: numbers are added on purpose');
     assert.equal(T.view.suggestViewType('state'), 'values', 'a state is still a value by default: a timeline is asked for');
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayTelemetryName', 'numbers']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayTelemetryName', 'stackDepth', 'numbers']);
     const copy = view.clone();
     assert.ok(copy instanceof T.view.ViewTimeline);
     assert.deepEqual(Array.from(copy.telemetryIdOrNameList), ['state']);
@@ -316,4 +316,55 @@ test('option "numbers": "text" writes each value as a state; a telemetry that ha
     assert.deepEqual(view.lanes.map(l => l.kind), ['values', 'limits', 'state']);
     // The latest state gets room at the end; numbers do not ask for any
     assert.deepEqual([view.period.from, view.period.to], [10, 51.6], 'room for the state "b" only');
+});
+
+test('a stack is a lane with a row per level: bands nest under what they run in', () => {
+    const { T, telems, view } = setup(['task', 'mode']);
+    const V = T.view.ViewTimeline;
+    T.parseDataText('task:10000:loop|stack\ntask:20000:loop/read|stack\ntask:30000:loop/plan|stack\ntask:40000:loop/plan/search|stack\ntask:45000:loop/plan/search|stack\ntask:50000:loop/plan|stack\ntask:60000:|stack\ntask:70000:loop|stack\ntask:80000:idle|stack\nmode:10000:on|t');
+    telems[1].addData(NUMBER, [10, 100], [[1, 1]]); // (what makes time pass up to 100)
+    view.update();
+    const lane = view.lanes[0];
+    assert.deepEqual([lane.kind, view.lanes[1].kind, lane.items], ['stack', 'state', []]);
+    assert.deepEqual(lane.rows.map(show), [['10-60:loop', '70-80:loop', '80-100:idle'], ['20-30:loop/read', '30-60:loop/plan'], ['40-50:loop/plan/search']]);
+    assert.deepEqual(lane.rows.map(row => row.map(i => i.label)), [['loop', 'loop', 'idle'], ['read', 'plan'], ['search']], 'a band is written with what runs at its level');
+    assert.equal(lane.rows[0][0].color, lane.rows[0][1].color, 'the same name, the same color');
+    assert.notEqual(lane.rows[1][0].color, lane.rows[1][1].color);
+    // Levels that nothing reaches in the period take no room; the period cuts bands like any state
+    Object.assign(T.view.groups.default, { cursorActive: true, timestampFrom: 52, timestampTo: 75 });
+    view.update();
+    assert.deepEqual(view.lanes[0].rows.map(show), [['52-60:loop', '70-75:loop'], ['52-60:loop/plan']]);
+    assert.deepEqual(V.extentOf(view.lanes[0].levels[1], 55), { start: 30, end: 60 }, 'what the pointer tells: how long the level really lasted');
+    T.view.groups.default.cursorActive = false;
+    // Calls too short to be drawn are a block at their level, as for states
+    const fast = T.datastore.getOrCreateTelemetry('fast');
+    fast.setAttribute(T.protocol.TELEM_ATTR_STACK, true);
+    fast.addData(TEXT, Array.from({ length: 1000 }, (v, i) => i), [Array.from({ length: 1000 }, (v, i) => i % 2 ? 'main/work' + i % 3 : 'main')]);
+    const levels = T.stackRuns(fast.data[TEXT]).levels;
+    assert.deepEqual(show(V.buildLane(levels[0], false, 0, 1000, 10)), ['0-1000:main'], 'the level above is one band, whatever happens under it');
+    assert.ok(V.buildLane(levels[1], false, 0, 1000, 10).every(b => b.mixed));
+    // The latest level gets room to be read, like the latest state
+    const lone = new V('l', ['solo']);
+    T.parseDataText('solo:10000:a|stack\nsolo:20000:a/b|stack');
+    lone.update();
+    assert.deepEqual([lone.period.to, lone.lanes[0].rows.map(show)], [20.4, [['10-20.4:a'], ['20-20.4:a/b']]]);
+});
+
+test('height of a stack lane: it opens with the stack up to "stackDepth" rows, then its rows get thinner down to a minimum, then it grows again', () => {
+    const { T, view } = setup(['task']);
+    const size = T.view.ViewTimeline.laneSize, MIN = T.view.ViewTimeline.ROW_MIN;
+    assert.equal(view.options.stackDepth, 4);
+    assert.deepEqual([1, 2, 4].map(d => size(d, 4, 20, MIN)), [{ height: 20, rowHeight: 20 }, { height: 40, rowHeight: 20 }, { height: 80, rowHeight: 20 }], 'a row of full height per level');
+    assert.deepEqual([5, 8, 11].map(d => size(d, 4, 20, MIN)), [{ height: 80, rowHeight: 16 }, { height: 80, rowHeight: 10 }, { height: 80, rowHeight: 80 / 11 }], 'deeper: the same height, thinner rows');
+    assert.deepEqual([12, 20].map(d => size(d, 4, 20, MIN)), [{ height: 12 * MIN, rowHeight: MIN }, { height: 20 * MIN, rowHeight: MIN }], 'rows at their minimum: the lane grows again');
+    assert.deepEqual([1, 6, 30].map(d => size(d, 0, 20, MIN)), [{ height: 20, rowHeight: 20 }, { height: 120, rowHeight: 20 }, { height: 600, rowHeight: 20 }], 'no limit: always full rows');
+    assert.deepEqual(size(0, 4, 20, MIN), { height: 20, rowHeight: 20 }, 'an empty stack is one row');
+    assert.deepEqual(size(3, 1, 20, MIN), { height: 3 * MIN, rowHeight: MIN });
+    // The option is part of what the lanes are built from
+    T.parseDataText('task:1000:a/b/c/d/e/f|stack');
+    view.update();
+    const key = view.lastKey;
+    view.setOption('stackDepth', 2);
+    view.update();
+    assert.notEqual(view.lastKey, key);
 });

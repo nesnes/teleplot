@@ -35,6 +35,8 @@ const TEXT = [
     'state:1627551892437:forward|t',
     'state:1627551893437:|t',
     'state:1627551894437:error: code 12:30|t',
+    'task:1627551892437.25:loop/plan/A*|stack',
+    'task:1627551892439:|stack',
     'ATTR|temp|min=-40.5|max=85',
     'ATTR|quiet|max=1e21',
     'TH|temp:1627551892437:hot>70:critical>85.123456789,#ff0000:cold<-10,rgb(0, 0, 255);1627551899000:hot>75.5:critical>',
@@ -66,6 +68,7 @@ function filled() {
         .shapeColorRGB(1, ref, [[0, 255, 128, 0]])
         .shapeOpacity(1, ref, [[0, 200]])
         .attrs(2, [[ATTR.NAME, 'notes'], [7, true], [ATTR.AUTOPLOT, false]])
+        .attrs(5, [[ATTR.NAME, 'calls'], [10, true]]).text(5, ref, [[0, 'main'], [250000, 'main/read'], [900000, 'main']])
         .text(2, ref, [[0, 'a: b; c | d § e'], [5, 'two\nlines']])
         .attrs(3, [[ATTR.NAME, 'pic']])
         .images(3, ref, [[0, 1, 0, 2, [1, 2, 3]], [0, 1, 1, 2, [4, 5]]])
@@ -128,6 +131,7 @@ test('text file: the lines of the text protocol, and what they say is read back 
     assert.ok(text.includes('temp,env:1627551892437:25.3;1627551892537.25:0.1;1627551893000:1e-7;1627551999999:123456789.123§°C\n'), text);
     assert.ok(text.includes('>1627551892437:Motors armed; all: 4 | ok\n'));
     assert.ok(text.includes('state:1627551892437:forward|t\nstate:1627551893437:|t\n'), 'an empty state is a line');
+    assert.ok(text.includes('task:1627551892437.25:loop/plan/A*|stack\ntask:1627551892439:|stack\n'), 'a stack keeps its flag and its times');
     assert.ok(text.includes('ATTR|temp|min=-40.5|max=85\nTH|temp:1627551892437:hot>70;1627551892437:critical>85.123456789,#ff0000;1627551892437:cold<-10,rgb(0, 0, 255);1627551899000:hot>75.5;1627551899000:critical>;1627551899000.5:50%25 %3A half>0.1\n'), text);
     assert.ok(text.includes('ATTR|quiet|max=1e+21\n') && text.includes('TH|only.limits:1627551892437:low<1\n'));
     assert.ok(text.startsWith('DASH|Robot:grid\n'), 'dashboards first');

@@ -124,6 +124,9 @@ Both are the same kind of data and both views display both: the flag only choose
 A state lasts until it changes: sending the same text again changes nothing. An empty text is a state too (`motor_4_state:|t`: nothing).
 A text may hold colons (`motor_4_state:error: stalled|t`); its time, when it has one, is a first field that is a number.
 
+A state can be a **stack**: the path of what is running, a slash between levels, with the `stack` flag (`task:loop/plan/search|stack`,
+or with the time of the device `task:1627551892437.25:loop/plan|stack`). It is displayed on a timeline, a row per level, like a profiler.
+
 Text telemetries can also be seen along the time: as bands in a **Timeline** view (a tick per line for a log), and as **marks** on a chart
 they are added to. Both are views you ask for (Edit mode, or a `DASH|` line): see `doc/time-views.md`.
 

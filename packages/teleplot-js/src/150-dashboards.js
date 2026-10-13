@@ -191,6 +191,7 @@ TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     let dataType = Object.keys(telem.data).find((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds are limits of its numbers)
     if(dataType === undefined || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) return "chart";
     if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true) return "log";
+    if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK) === true) return "timeline"; // A stack is read along the time: a row per level
     return "values";
 }
 
@@ -214,7 +215,7 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
  * A label also ties a camera to its scene: the 3D view of a label shows the image telemetries of that label as cameras, and the image view
  * of a labelled image telemetry gets the shapes, points and clouds of the label drawn over its pictures.
  * Number telemetries get a chart, shapes and 3D numbers share one 3D scene, texts emitted as logs share one log view (their lines are
- * merged by time), other types a current value view, telemetries with the autoplot
+ * merged by time), stacks share one timeline (a lane each), other types a current value view, telemetries with the autoplot
  * attribute set to false (text protocol flag "np") are left alone. Views are added to a "grid" layout (charts two columns wide, values one).
  * The dashboard is created when the first telemetry shows up; onCreated(dashboard) lets the caller
  * display it (the library doesn't decide where a dashboard goes on the page).
@@ -224,6 +225,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
     let scene = undefined; // The 3D view every shape without label goes to: things that live in the same space are seen together
     let map = undefined;   // The 2D view everything flat without label goes to, for the same reason
     let logs = undefined;  // The log view every log without label goes to: one place to read what happened, in order
+    let stacks = undefined; // The timeline every stack without label goes to: what runs at the same time is seen side by side
     let labelled = {};     // "label|view type" -> the view of the telemetries of that label
     TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
@@ -233,7 +235,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
         // scene is in the 3D view of its label, and still gets its image view.)
         if (TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return; // Drawn in the pixels of a picture: the image views of that picture take it
-        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image" }[TELEPLOT.view.suggestViewType(telem.id)];
+        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", timeline: "teleplot-timeline", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image" }[TELEPLOT.view.suggestViewType(telem.id)];
         if (layout !== undefined && layout.views.some((v) => v.type === ownViewType && v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
 
         let isNew = layout === undefined;
@@ -251,7 +253,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
 
         let type = TELEPLOT.view.suggestViewType(telem.id);
         let label = type == "image" ? undefined : telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL); // An image view shows one picture: images are not grouped
-        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : (type == "2d" ? map : (type == "log" ? logs : undefined)));
+        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : (type == "2d" ? map : (type == "log" ? logs : (type == "timeline" ? stacks : undefined))));
         if (shared !== undefined && layout.getViewFromId(shared.id) !== undefined) shared.addTelemetry(telem.id); // (a view the user removed is not used anymore)
         else {
             let view = TELEPLOT.view.createView(type, [telem.id], dashboard.getGroupName());
@@ -269,6 +271,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
             else if (type == "3d") scene = view;
             else if (type == "2d") map = view;
             else if (type == "log") logs = view;
+            else if (type == "timeline") stacks = view;
             layout.addView(view);
         }
         if (isNew) onCreated(dashboard);

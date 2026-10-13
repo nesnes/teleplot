@@ -542,3 +542,27 @@ test('new telemetries are announced when the datastore hands out wrapped objects
     T.__timers.run();
     assert.deepEqual(seen, ['battery', 'speed', 'again']);
 });
+
+test('levels of a stack: a run per path at each depth, completed as samples come, built again when samples are inserted or removed', () => {
+    const T = loadTeleplot();
+    const TEXT = T.protocol.SECTION_TYPE_TELEM_DATA_TEXT;
+    const telem = T.datastore.getOrCreateTelemetry('task');
+    const levels = () => T.stackRuns(telem.data[TEXT]).levels.map(l => l.timestamps.map((t, i) => t + ':' + l.data[0][i]));
+    telem.addData(TEXT, [1, 2, 3, 4, 5, 6, 7], [['main', 'main/read', 'main/read', 'main/plan', 'main/plan/search', 'main/plan', 'other/plan']]);
+    assert.deepEqual(levels(), [['1:main', '7:other'], ['2:main/read', '4:main/plan', '7:other/plan'], ['5:main/plan/search', '6:']],
+        'a level lasts while it and what is above it do not change: "plan" under "other" is not "plan" under "main"');
+    const first = T.stackRuns(telem.data[TEXT]);
+    telem.addData(TEXT, [8, 9], [['', 'main']]);
+    assert.deepEqual(levels(), [['1:main', '7:other', '8:', '9:main'], ['2:main/read', '4:main/plan', '7:other/plan', '8:'], ['5:main/plan/search', '6:']]);
+    assert.equal(T.stackRuns(telem.data[TEXT]), first, 'completed, not built again');
+    telem.addData(TEXT, [4.5], [['main/plan/a/b']]); // late
+    assert.deepEqual(levels()[3], ['4.5:main/plan/a/b', '5:']);
+    telem.removeRange(TEXT, 2, 6);
+    assert.deepEqual(levels(), [['1:main', '7:other', '8:', '9:main'], ['7:other/plan', '8:']]);
+    // Odd paths are taken as they are; a path that is absurdly deep is cut
+    const odd = T.datastore.getOrCreateTelemetry('odd');
+    odd.addData(TEXT, [1, 2, 3], [['a//b', '/x', Array.from({ length: 200 }, (v, i) => 'f' + i).join('/')]]);
+    const built = T.stackRuns(odd.data[TEXT]).levels;
+    assert.deepEqual([built[0].data[0], built[1].data[0].slice(0, 2), built[2].data[0][0], built.length], [['a', '', 'f0'], ['a/', '/x'], 'a//b', 64]);
+    assert.deepEqual(T.stackRuns({ timestamps: [], data: [[]] }).levels, []);
+});

@@ -10,6 +10,9 @@
  *   click to go back to the latest data; the pointer moves the cursor of the group and tells what is under it.
  * - Each text has its color: the texts of a view take the colors of the palette in the order they show up, so that the states of
  *   a telemetry are told apart; texts that look like errors or warnings take the colors of the theme for them, as in the Log view.
+ * - A stack (TELEM_ATTR_STACK, "stack" flag: a state whose text is the path of what is running, "loop/plan/search") is a lane with
+ *   a row per level: a band at a level lasts while that level and the ones above it do not change. The lane opens with the depth of
+ *   what is displayed, up to "stackDepth" rows of full height; deeper, its rows get thinner down to a minimum, then it grows again.
  * - Numbers can be given a lane too (they are added on purpose: a timeline that follows a label only takes texts):
  *     a number that has thresholds is read as a state: a band where it is past a threshold, named and colored after it, from the
  *       sample that passed it to the first one that is not past it any more;
@@ -30,6 +33,7 @@ class ViewTimeline extends ViewTelemetries{
         this.supportedLabel = "text or number";
 
         this.options.displayTelemetryName = true; // Name of each lane, on its left
+        this.options.stackDepth = 4;              // Rows of full height a stack lane opens to (0: as many as it has levels): see laneSize
         this.options.numbers = "auto";            // Lane of a number: "auto" (bands from its thresholds when it has some, else a line) or "text" (a band per value)
         this.decimators = TELEPLOT.Vue.markRaw({}); // One MinMaxDecimator per number drawn as a line (raw: see the chart)
 
@@ -87,6 +91,7 @@ class ViewTimeline extends ViewTelemetries{
 
     getOptionsSchema() {
         return [{ key: "displayTelemetryName", label: "Telemetry names", type: "bool" },
+            { key: "stackDepth", label: "Stack rows", type: "int", min: 0, max: 64, step: 1 },
             { key: "numbers", label: "Numbers", type: "choice", choices: [["auto", "Auto"], ["text", "As text"]] }]; // (a line, or bands from thresholds / a band per value)
     }
 
@@ -155,10 +160,11 @@ class ViewTimeline extends ViewTelemetries{
         }
         return TELEPLOT.colors.palette[ViewTimeline.PALETTE[index % ViewTimeline.PALETTE.length]].toStrRGB();
     }
-    static PALETTE = [1, 2, 4, 3, 5, 6, 0, 10, 11, 12, 13, 7]; // Colors of the palette that are told apart, blue first (red last: it reads as an alarm)
+    static PALETTE = [1, 2, 4, 3, 5, 6, 10, 11, 12, 13, 7]; // Colors of the palette that are told apart, blue first. No red: it reads as an alarm, and is what a text that looks like an error gets
     static COLOR_MEMORY = 500;
 
-    // What the telemetries of the view give a lane, in the order of its list: [{telem, entry, kind}]. A text is a "state" or a "log".
+    // What the telemetries of the view give a lane, in the order of its list: [{telem, entry, kind}]. A text is a "state", a "stack"
+    // (a state whose text is a path: a row per level) or a "log".
     // A number (of a telemetry without text) is "limits" (it has thresholds: bands of the one it is past), "line", or "values"
     // (option "numbers": "text": a band per value).
     getSources() {
@@ -168,7 +174,7 @@ class ViewTimeline extends ViewTelemetries{
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
             if(telem === undefined || sources.some((source) => source.telem.id === telem.id)) continue;
             let text = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT], number = telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER];
-            if(text !== undefined) sources.push({ telem, entry: text, kind: telem.getAttribute(P.TELEM_ATTR_LOG) === true ? "log" : "state" });
+            if(text !== undefined) sources.push({ telem, entry: text, kind: telem.getAttribute(P.TELEM_ATTR_LOG) === true ? "log" : (telem.getAttribute(P.TELEM_ATTR_STACK) === true ? "stack" : "state") });
             else if(number !== undefined) {
                 let kind = this.getOption("numbers", telem.id) === "text" ? "values" : (telem.data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD] !== undefined ? "limits" : "line");
                 sources.push({ telem, entry: number, kind });
@@ -288,7 +294,7 @@ class ViewTimeline extends ViewTelemetries{
         let room = (to - from) * ViewTimeline.LATEST_ROOM;
         for(let { entry, kind } of this.getSources()) {
             let last = entry.timestamps.length - 1;
-            if(last < 0 || kind !== "state" || String(entry.data[0][last]) === "") continue;
+            if(last < 0 || (kind !== "state" && kind !== "stack") || String(entry.data[0][last]) === "") continue;
             let extent = ViewTimeline.extentOf(entry, entry.timestamps[last]);
             if(extent !== undefined && extent.start + room > to) to = extent.start + room;
         }
@@ -310,7 +316,7 @@ class ViewTimeline extends ViewTelemetries{
         let sources = this.getSources();
         let period = this.getTimeWindow();
         let width = this.getPlotWidth();
-        let key = (period ? period.from + "," + period.to : "none") + "|" + width + "|" + (this.page ? this.page.width + "x" + this.page.height : "") + "|" + TELEPLOT.theme.key() + "|" + (this.options.displayTelemetryName ? 1 : 0);
+        let key = (period ? period.from + "," + period.to : "none") + "|" + width + "|" + (this.page ? this.page.width + "x" + this.page.height : "") + "|" + TELEPLOT.theme.key() + "|" + (this.options.displayTelemetryName ? 1 : 0) + "|" + this.options.stackDepth;
         for(let { telem, entry, kind } of sources) {
             key += `|${telem.id}:${kind}:${entry.lastUpdate}:${entry.timestamps.length}:${telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME)}`;
             let limits = kind === "limits" ? telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD] : undefined;
@@ -327,7 +333,18 @@ class ViewTimeline extends ViewTelemetries{
             this.lanes.length = 0;
             for(let { telem, entry, kind } of sources) {
                 let lane = { id: telem.id, kind, isLog: kind === "log", name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), items: [], runs: undefined, line: undefined, color: "" };
-                if(kind === "line") { // A number without thresholds: a line from sample to sample
+                if(kind === "stack") { // A row per level of the stack: the bands of a level are the runs of the path down to it
+                    lane.levels = TELEPLOT.stackRuns(entry).levels;
+                    lane.rows = [];
+                    if(period) for(let level of lane.levels) lane.rows.push(ViewTimeline.buildLane(level, false, period.from, period.to, minDuration));
+                    while(lane.rows.length && !lane.rows[lane.rows.length - 1].length) lane.rows.pop(); // (levels that nothing reaches in this period take no room)
+                    for(let row of lane.rows) for(let item of row) {
+                        if(item.mixed) continue;
+                        item.label = item.text.slice(item.text.lastIndexOf("/") + 1); // (what runs at this level; item.text is its whole path)
+                        item.color = ViewTimeline.colorOf(item.label, this.colors);
+                    }
+                }
+                else if(kind === "line") { // A number without thresholds: a line from sample to sample
                     if(this.decimators[telem.id] === undefined) this.decimators[telem.id] = new MinMaxDecimator();
                     lane.color = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_COLOR) || TELEPLOT.colors.getColor(this.lanes.length + 1).toStrRGB();
                     if(period) lane.line = ViewTimeline.buildLine(entry, this.decimators[telem.id], period.from, period.to, width, telem.getRange());
@@ -351,6 +368,17 @@ class ViewTimeline extends ViewTelemetries{
         this.__draw();
     }
     static MIN_PIXELS = 2; // What is narrower than this cannot be drawn as it is
+
+    // Height of a stack lane and of its rows: { height, rowHeight }. The lane opens with the stack: a row of full height (rowHeight)
+    // per level, up to "limit" rows (0: no limit). A deeper stack keeps that height and its rows get thinner, down to minRow; deeper
+    // still, rows stay at minRow and the lane grows again.
+    static laneSize(depth, limit, rowHeight, minRow) {
+        depth = Math.max(1, depth);
+        if(!(limit > 0) || depth <= limit) return { height: depth * rowHeight, rowHeight };
+        let thinner = limit * rowHeight / depth;
+        if(thinner >= minRow) return { height: limit * rowHeight, rowHeight: thinner };
+        return { height: depth * minRow, rowHeight: minRow };
+    }
 
     // The item of a lane at a time: the band that holds it, or the tick closest to it within "reach" seconds. undefined when none.
     static itemAt(lane, time, reach=0) {
@@ -492,15 +520,27 @@ class ViewTimeline extends ViewTelemetries{
     static LANE_MIN = 16; // Lanes share the height of the view between these two heights; more lanes than fit: the view scrolls
     static LANE_MAX = 30;
     static LANE_GAP = 4;
+    static ROW_MIN = 7;   // The thinnest a row of a stack gets (its texts are not written under 11 pixels: the pointer tells them)
 
     // Size of the canvas for the lanes there are: the height of the view, or more (then the view scrolls)
     __layout() {
         let page = this.page;
         if(!page || !page.width) return;
         let available = page.host.clientHeight;
+        // Lanes share the height of the view. A stack lane counts for as many rows as it opens to (see laneSize)
+        let limit = Math.max(0, Number(this.options.stackDepth) || 0);
+        let depthOf = (lane) => lane.rows ? Math.max(1, lane.rows.length) : 1;
+        let units = 0;
+        for(let lane of this.lanes) units += limit > 0 ? Math.min(depthOf(lane), limit) : depthOf(lane);
         let count = Math.max(1, this.lanes.length);
-        let laneHeight = Math.max(ViewTimeline.LANE_MIN, Math.min(ViewTimeline.LANE_MAX, Math.floor((available - ViewTimeline.AXIS - ViewTimeline.LANE_GAP) / count) - ViewTimeline.LANE_GAP));
-        let height = Math.max(available, count * (laneHeight + ViewTimeline.LANE_GAP) + ViewTimeline.LANE_GAP + ViewTimeline.AXIS);
+        let laneHeight = Math.max(ViewTimeline.LANE_MIN, Math.min(ViewTimeline.LANE_MAX, Math.floor((available - ViewTimeline.AXIS - ViewTimeline.LANE_GAP * (count + 1)) / Math.max(1, units))));
+        let y = ViewTimeline.LANE_GAP;
+        for(let lane of this.lanes) {
+            let size = lane.rows ? ViewTimeline.laneSize(depthOf(lane), limit, laneHeight, ViewTimeline.ROW_MIN) : { height: laneHeight, rowHeight: laneHeight };
+            lane.top = y; lane.height = size.height; lane.rowHeight = size.rowHeight;
+            y += size.height + ViewTimeline.LANE_GAP;
+        }
+        let height = Math.max(available, y + ViewTimeline.AXIS);
         let ratio = Math.min((typeof devicePixelRatio === "number" && devicePixelRatio) || 1, 2);
         page.laneHeight = laneHeight;
         page.gutter = this.__gutter();
@@ -525,8 +565,8 @@ class ViewTimeline extends ViewTelemetries{
         let time = this.__timeAt(at.x);
         TELEPLOT.view.hoveredGroup = this.group;
         TELEPLOT.view.groups[this.group].cursorTimestamp = time;
-        let index = Math.floor((at.y - ViewTimeline.LANE_GAP / 2) / (page.laneHeight + ViewTimeline.LANE_GAP));
-        let lane = this.lanes[index];
+        let lane = this.lanes.find((candidate) => at.y >= candidate.top && at.y < candidate.top + candidate.height);
+        let row = lane && lane.rows ? Math.min(lane.rows.length - 1, Math.floor((at.y - lane.top) / lane.rowHeight)) : -1; // (of a stack: the level under the pointer)
         let perPixel = (this.period.to - this.period.from) / Math.max(1, page.width - page.gutter);
         let tip = this.tip;
         let telem = lane ? TELEPLOT.datastore.getTelemetry(lane.id) : undefined;
@@ -541,7 +581,7 @@ class ViewTimeline extends ViewTelemetries{
             tip.detail = "at " + TELEPLOT.view.ViewLog.formatTime(entry.timestamps[index]);
         }
         else {
-        item = lane ? ViewTimeline.itemAt(lane, time, perPixel * 5) : undefined;
+        item = lane ? ViewTimeline.itemAt(lane.rows ? { items: lane.rows[row] || [] } : lane, time, perPixel * 5) : undefined;
         if(item === undefined) { tip.shown = false; return; }
         tip.name = lane.name;
         if(item.tick) {
@@ -554,9 +594,11 @@ class ViewTimeline extends ViewTelemetries{
         }
         else {
             // (the band is cut to the period displayed: the state itself may have started before, and may last longer)
-            let extent = (lane.runs && ViewTimeline.extentOf(lane.runs, time)) || { start: item.from, end: item.to };
-            tip.text = item.text;
-            tip.detail = (lane.kind === "limits" ? ViewTimeline.describeLimit(telem, item.text, time) : "") + "from " + TELEPLOT.view.ViewLog.formatTime(extent.start) + (extent.end === undefined ? ", still the latest" : ", for " + ViewTimeline.formatDuration(extent.end - extent.start));
+            let runs = lane.rows ? lane.levels[row] : lane.runs;
+            let extent = (runs && ViewTimeline.extentOf(runs, time)) || { start: item.from, end: item.to };
+            let above = lane.rows && row > 0 ? item.text.slice(0, item.text.length - item.label.length - 1).split("/").join(" / ") : ""; // (what a level of a stack runs in)
+            tip.text = lane.rows ? item.label : item.text;
+            tip.detail = (lane.kind === "limits" ? ViewTimeline.describeLimit(telem, item.text, time) : "") + (above !== "" ? "in " + above + ", " : "") + "from " + TELEPLOT.view.ViewLog.formatTime(extent.start) + (extent.end === undefined ? ", still the latest" : ", for " + ViewTimeline.formatDuration(extent.end - extent.start));
         }
         }
         tip.flip = at.x > page.width * 0.6; // (on the right half the tip opens to the left of the pointer)
@@ -590,14 +632,13 @@ class ViewTimeline extends ViewTelemetries{
         context.stroke();
 
         // Lanes
-        let laneHeight = page.laneHeight;
         for(let l = 0; l < this.lanes.length; l++) {
             let lane = this.lanes[l];
-            let top = ViewTimeline.LANE_GAP + l * (laneHeight + ViewTimeline.LANE_GAP), middle = top + laneHeight / 2;
+            let top = lane.top, laneHeight = lane.height, middle = top + Math.min(laneHeight, lane.rowHeight) / 2;
             if(gutter > 0) {
                 context.fillStyle = style.muted;
                 context.textAlign = "left";
-                context.fillText(ViewTimeline.fitText(context, lane.name, gutter - 10), 2, middle);
+                context.fillText(ViewTimeline.fitText(context, lane.name, gutter - 10), 2, top + Math.min(laneHeight, page.laneHeight) / 2);
             }
             context.fillStyle = style.grid; // The lane itself: a hole shows as the lane without band
             context.fillRect(gutter, top, plot, laneHeight);
@@ -620,34 +661,39 @@ class ViewTimeline extends ViewTelemetries{
                 if(line.timestamps.length === 1) { context.fillStyle = lane.color; context.fillRect(x(line.timestamps[0]) - 1.5, y(line.values[0]) - 1.5, 3, 3); } // (a lone sample is a dot)
                 context.restore();
             }
-            for(let item of lane.items) {
-                let left = Math.max(gutter, x(item.from));
-                if(item.tick) {
-                    let paint = item.color;
-                    context.fillStyle = paint === "error" ? style.error : (paint === "warn" ? style.warn : style.text);
-                    context.globalAlpha = paint === "error" || paint === "warn" ? 1 : 0.6;
-                    context.fillRect(Math.round(left) - (item.count > 1 ? 1 : 0), top, item.count > 1 ? 3 : 1, laneHeight);
+            // Bands and ticks: of the lane, or of each row of a stack (thin rows are not written in: the pointer tells them)
+            let rows = lane.rows || [lane.items];
+            for(let r = 0; r < rows.length; r++) {
+                let rowTop = top + r * lane.rowHeight, rowHeight = lane.rows ? Math.max(1, lane.rowHeight - (lane.rowHeight >= 10 ? 1 : 0)) : laneHeight;
+                for(let item of rows[r]) {
+                    let left = Math.max(gutter, x(item.from));
+                    if(item.tick) {
+                        let paint = item.color;
+                        context.fillStyle = paint === "error" ? style.error : (paint === "warn" ? style.warn : style.text);
+                        context.globalAlpha = paint === "error" || paint === "warn" ? 1 : 0.6;
+                        context.fillRect(Math.round(left) - (item.count > 1 ? 1 : 0), rowTop, item.count > 1 ? 3 : 1, rowHeight);
+                        context.globalAlpha = 1;
+                        continue;
+                    }
+                    let right = Math.min(width, x(item.to)), bandWidth = Math.max(1, right - left);
+                    if(item.mixed) { // Several states in a couple of pixels: none of them is drawn, the block says there is more to see
+                        context.fillStyle = style.muted;
+                        context.globalAlpha = 0.55;
+                        context.fillRect(left, rowTop + rowHeight * 0.25, bandWidth, rowHeight * 0.5);
+                        context.globalAlpha = 1;
+                        continue;
+                    }
+                    let paint = item.color === "error" ? style.error : (item.color === "warn" ? style.warn : item.color);
+                    context.fillStyle = paint;
+                    context.globalAlpha = 0.32;
+                    context.fillRect(left, rowTop, bandWidth, rowHeight);
                     context.globalAlpha = 1;
-                    continue;
-                }
-                let right = Math.min(width, x(item.to)), bandWidth = Math.max(1, right - left);
-                if(item.mixed) { // Several states in a couple of pixels: none of them is drawn, the block says there is more to see
-                    context.fillStyle = style.muted;
-                    context.globalAlpha = 0.55;
-                    context.fillRect(left, top + laneHeight * 0.25, bandWidth, laneHeight * 0.5);
-                    context.globalAlpha = 1;
-                    continue;
-                }
-                let paint = item.color === "error" ? style.error : (item.color === "warn" ? style.warn : item.color);
-                context.fillStyle = paint;
-                context.globalAlpha = 0.32;
-                context.fillRect(left, top, bandWidth, laneHeight);
-                context.globalAlpha = 1;
-                if(item.from > from) context.fillRect(left, top, Math.min(2, bandWidth), laneHeight); // Where the state starts: a sample
-                if(bandWidth > 22) {
-                    context.fillStyle = style.text;
-                    context.textAlign = "left";
-                    context.fillText(ViewTimeline.fitText(context, item.text, bandWidth - 10), left + 6, middle + 0.5);
+                    if(item.from > from) context.fillRect(left, rowTop, Math.min(2, bandWidth), rowHeight); // Where the state starts: a sample
+                    if(bandWidth > 22 && rowHeight >= 11) {
+                        context.fillStyle = style.text;
+                        context.textAlign = "left";
+                        context.fillText(ViewTimeline.fitText(context, item.label !== undefined ? item.label : item.text, bandWidth - 10), left + 6, rowTop + rowHeight / 2 + 0.5);
+                    }
                 }
             }
         }

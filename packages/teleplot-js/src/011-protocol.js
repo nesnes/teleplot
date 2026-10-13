@@ -13,6 +13,7 @@ TELEPLOT.protocol = {
     TELEM_ATTR_LOG: 7,        // A text telemetry is emitted as a log (lines to read one after the other: "log" flag in text) and not as a state (the default: its latest value matters, "t" flag). It only decides the view it gets by default.
     TELEM_ATTR_FRAME: 8,      // What the positions of a shape are relative to: {type, name}. FRAME_TYPE_POSE: the pose of the telemetry of that name (a shape, a camera, a point...); FRAME_TYPE_PIXELS: the pixels of the pictures of the image telemetry of that name
     TELEM_ATTR_RANGE: 9,      // The values a number telemetry is expected between: {min, max} (either can be undefined). Views use it as an extent (the bar of a value, the scale of a chart); it changes nothing to the data
+    TELEM_ATTR_STACK: 10,     // A text telemetry is a stack: its text is the path of what is running, a "/" between levels ("loop/plan/search": "stack" flag in text). A state like any other; a timeline draws a row per level
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,

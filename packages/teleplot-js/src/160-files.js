@@ -126,6 +126,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         let np = telem.getAttribute(P.TELEM_ATTR_AUTOPLOT) === false;
         let flags = (flag) => { let list = [flag, np ? "np" : ""].filter((f) => f !== ""); return list.length ? "|" + list.join(",") : ""; };
         let isLog = telem.getAttribute(P.TELEM_ATTR_LOG) === true;
+        let isStack = telem.getAttribute(P.TELEM_ATTR_STACK) === true;
 
         // Samples of a data type, several per line: line(prefix, samples joined by ";", suffix)
         let write = (dataType, prefix, suffix, format, perLine = 200) => {
@@ -170,7 +171,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         if(name === _defaultTextLogName) {
             write(P.SECTION_TYPE_TELEM_DATA_TEXT, ">", "", (d, i, ms) => /[\r\n]/.test(String(d[0][i])) ? undefined : ms + ":" + d[0][i], 1);
         }
-        else write(P.SECTION_TYPE_TELEM_DATA_TEXT, key + ":", unitText + flags(isLog ? "log" : "t"), (d, i, ms) => {
+        else write(P.SECTION_TYPE_TELEM_DATA_TEXT, key + ":", unitText + flags(isLog ? "log" : (isStack ? "stack" : "t")), (d, i, ms) => {
             let text = String(d[0][i]);
             return /[;|§\r\n]/.test(text) ? undefined : ms + ":" + text; // (colons are fine: the time written before the text tells where it starts)
         }, 1);
@@ -373,7 +374,7 @@ TELEPLOT.files.exportBinary = function(options = {}) {
         if(typeof timeout === "number" && timeout >= 0) attributes.push(() => w.u8(P.TELEM_ATTR_DATA_TIMEOUT).u64(Math.round(timeout * 1e9)));
         let shape = telem.getAttribute(P.TELEM_ATTR_SHAPE);
         if(shape && _files_isUint(shape.type, 255)) attributes.push(() => { w.u8(P.TELEM_ATTR_SHAPE).u8(shape.type); if(shape.type === P.TELEM_ATTR_SHAPE_TYPE_STL) w.str(String(shape.data || "")); });
-        text(P.TELEM_ATTR_VIEW_LABEL); flag(P.TELEM_ATTR_LOG);
+        text(P.TELEM_ATTR_VIEW_LABEL); flag(P.TELEM_ATTR_LOG); flag(P.TELEM_ATTR_STACK);
         let frame = telem.getAttribute(P.TELEM_ATTR_FRAME);
         if(frame && typeof frame.name === "string" && frame.name !== "" && !_files_NUL.test(frame.name)) attributes.push(() => w.u8(P.TELEM_ATTR_FRAME).u8(frame.type === P.FRAME_TYPE_PIXELS ? P.FRAME_TYPE_PIXELS : P.FRAME_TYPE_POSE).str(frame.name));
         let range = telem.getRange();

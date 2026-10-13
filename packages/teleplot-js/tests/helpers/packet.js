@@ -24,7 +24,7 @@ class PacketBuilder {
         this.u8(SECTION.ATTR).u16(telemId).u8(list.length);
         for (const [code, value] of list) {
             this.u8(code);
-            if (code === P.AUTOPLOT || code === 7) this.u8(value ? 1 : 0); // (7: TELEM_ATTR_LOG)
+            if (code === P.AUTOPLOT || code === 7 || code === 10) this.u8(value ? 1 : 0); // (7: TELEM_ATTR_LOG, 10: TELEM_ATTR_STACK)
             else if (code === P.TIMEOUT) this.u64(value); // nanoseconds
             else if (code === 9) this.f64(value.min === undefined ? NaN : value.min).f64(value.max === undefined ? NaN : value.max); // (9: TELEM_ATTR_RANGE) {min, max}
             else if (code === 8) this.u8(value.type).str(value.name); // (8: TELEM_ATTR_FRAME) {type: 0 pose | 1 pixels, name}

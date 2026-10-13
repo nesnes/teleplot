@@ -74,6 +74,7 @@ for (const example of HELP_EXAMPLES) {
         if ('text' in e) assert.deepEqual(telem.data[type].data[0], [e.text]);
         if (e.timestamp) assert.deepEqual(telem.data[type].timestamps, [e.timestamp]);
         if ('logText' in e) assert.equal(telem.attributes[P.TELEM_ATTR_LOG], e.logText, 'emitted as a log, or as a state');
+        if (e.stack) assert.equal(telem.attributes[P.TELEM_ATTR_STACK], true, 'a stack');
         if (e.view) assert.equal(T.view.suggestViewType(telem.id), e.view);
         if (e.unit) assert.equal(telem.attributes[P.TELEM_ATTR_UNIT], e.unit);
         if (e.autoplot === false) assert.equal(telem.attributes[P.TELEM_ATTR_AUTOPLOT], false);
@@ -124,6 +125,14 @@ test('examples of a step build on each other: sent in order, a step gives what i
     robot.forEach(v => v.update());
     assert.deepEqual(robot[0].lanes[0].items.map(i => [i.from, i.to, i.text]), [[6, 7, 'driving'], [8, 9, 'parked']], 'a hole between the two');
     assert.deepEqual(robot[1].overlay.marks[0].marks.map(m => m.t + ' ' + m.text), ['5 driving', '6 driving', '8 parked'], 'the marks of the chart: where the state changes to something');
+    // Stacks: the examples sent one after the other are a stack that goes down, comes back up and ends, in a timeline with a row per level
+    T = loadTeleplot();
+    HELP_STEPS.find(s => s.title == 'Stacks: what is running').examples.forEach((example, i) => T.parseDataText({ data: example.code.replace(':1627551892437.25:', ':'), timestamp: 10000 + i * 1000 }));
+    T.__timers.run();
+    const tasks = T.dashboards.getDashboard('Robot').getView().views[0];
+    assert.deepEqual([tasks.type, tasks.getOption('stackDepth')], ['teleplot-timeline', 4]);
+    tasks.update();
+    assert.deepEqual(tasks.lanes[0].rows.map(row => row.map(i => i.label + ' ' + i.from + '-' + i.to)), [['loop 10-14'], ['plan 11-14'], ['search 12-13']], 'loop is one band while what it runs changes; the empty text ends it');
     // The dashboard step: the telemetries place themselves, the lines size their chart and add a column with a log
     T = loadTeleplot();
     T.dashboards.enableAutoDashboard('Live');
@@ -170,6 +179,7 @@ test('helpColorize cuts a message in its parts without changing it', () => {
     assert.deepEqual(kinds('TH|temp:1000:hot>70;2000:hot>75'), ['flags=TH|', 'name=temp', 'time=1000', 'value=hot>70', 'time=2000', 'value=hot>75']);
     assert.deepEqual(kinds('TH|temp'), ['flags=TH|', 'name=temp']);
     assert.deepEqual(kinds('mode:|t'), ['name=mode', 'flags=t']);
+    assert.deepEqual(kinds('task:loop/plan/search|stack'), ['name=task', 'value=loop/plan/search', 'flags=stack']);
     assert.deepEqual(kinds('half'), ['name=half'], 'a message being typed');
     assert.deepEqual(kinds(''), []);
 });
