@@ -12,6 +12,7 @@ test('data channel count of every data section type', () => {
         SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION: 4, SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR: 1,
         SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB: 3, SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY: 1,
         SECTION_TYPE_TELEM_DATA_SHAPE_SIZE: 3, SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE: 2,
+        SECTION_TYPE_TELEM_DATA_THRESHOLD: 4,
     };
     for (const [name, count] of Object.entries(expected)) assert.equal(p.getSectionTypeTelemDataDataCount(p[name]), count, name);
 });

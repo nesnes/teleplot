@@ -116,9 +116,125 @@ test('new telemetry hooks receive the telemetry that was created, even when seve
     const T = loadTeleplot();
     const seen = [];
     T.datastore.onNewTelemetryHooks.push(t => seen.push(t.getAttribute(T.protocol.TELEM_ATTR_NAME)));
-    ['a', 'b', 'c'].forEach(n => T.datastore.getOrCreateTelemetry(n));
+    ['a', 'b', 'c'].forEach(n => T.datastore.getOrCreateTelemetry(n).addData(NUMBER, [1], [[1]]));
     T.__timers.run();
     assert.deepEqual(seen, ['a', 'b', 'c']);
+});
+
+test('a telemetry that has nothing to display yet (attributes, thresholds) is announced when its first data comes, once', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, seen = [];
+    T.datastore.onNewTelemetryHooks.push(t => seen.push(t.getAttribute(P.TELEM_ATTR_NAME)));
+    const telem = T.datastore.getOrCreateTelemetry('battery');
+    telem.setAttribute(P.TELEM_ATTR_RANGE, { min: 9, max: 12.6 });
+    telem.addData(P.SECTION_TYPE_TELEM_DATA_THRESHOLD, [1], [[P.THRESHOLD_BELOW], [10.5], ['low'], ['']]);
+    assert.equal(telem.hasContent(), false, 'a range and a threshold are nothing to display');
+    T.__timers.run();
+    assert.deepEqual(seen, [], 'nothing to place yet');
+    telem.addData(NUMBER, [2], [[11.4]]);
+    assert.deepEqual(seen, [], 'a moment after the data, as for a new telemetry');
+    T.__timers.run();
+    telem.addData(NUMBER, [3], [[11.3]]);
+    T.__timers.run();
+    assert.deepEqual(seen, ['battery']);
+    // A shape is something to display without data
+    const shape = T.datastore.getOrCreateTelemetry('box');
+    T.__timers.run();
+    shape.setAttribute(P.TELEM_ATTR_SHAPE, { type: 0, data: '' });
+    T.__timers.run();
+    assert.deepEqual(seen, ['battery', 'box']);
+    // A hook that throws does not prevent the others
+    T.datastore.onNewTelemetryHooks.unshift(() => { throw new Error('boom'); });
+    const out = captureConsole(() => { T.datastore.getOrCreateTelemetry('c').addData(NUMBER, [1], [[1]]); T.__timers.run(); });
+    assert.deepEqual([seen.at(-1), out.error.length], ['c', 1]);
+});
+
+test('thresholds: limits that hold from their timestamp, replaced by name, removed by a value that is not a number', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, BELOW = P.THRESHOLD_BELOW, ABOVE = P.THRESHOLD_ABOVE;
+    const telem = T.datastore.getOrCreateTelemetry('temp');
+    const add = (t, operator, value, name, color = '') => telem.addData(P.SECTION_TYPE_TELEM_DATA_THRESHOLD, [t], [[operator], [value], [name], [color]]);
+    const names = (t) => telem.getThresholds(t).map(x => x.name + (x.operator === ABOVE ? '>' : '<') + x.value);
+    assert.deepEqual(telem.getThresholds(), []);
+    assert.equal(telem.getThresholdStatus(100), undefined);
+    add(10, ABOVE, 70, 'hot'); add(10, ABOVE, 85, 'critical', 'red'); add(10, BELOW, -10, 'cold');
+    add(20, ABOVE, 75, 'hot');     // changed
+    add(30, ABOVE, NaN, 'critical'); // removed
+    assert.deepEqual(names(5), [], 'before the first one');
+    assert.deepEqual(names(10), ['cold<-10', 'hot>70', 'critical>85'], 'lowest first');
+    assert.deepEqual(names(25), ['cold<-10', 'hot>75', 'critical>85']);
+    assert.deepEqual(names(30), ['cold<-10', 'hot>75']);
+    assert.deepEqual(names(), ['cold<-10', 'hot>75'], 'without time: the latest');
+    assert.deepEqual(telem.getThresholds(15).find(x => x.name == 'critical'), { name: 'critical', value: 85, operator: ABOVE, color: 'red', timestamp: 10 });
+    // Status: the threshold a value is past; past several, the one it passed last
+    assert.equal(telem.getThresholdStatus(60, 15), undefined);
+    assert.equal(telem.getThresholdStatus(70, 15), undefined, 'at the limit is not past it');
+    assert.equal(telem.getThresholdStatus(72, 15).name, 'hot');
+    assert.equal(telem.getThresholdStatus(72, 25), undefined, 'the limit moved to 75');
+    assert.equal(telem.getThresholdStatus(90, 15).name, 'critical');
+    assert.equal(telem.getThresholdStatus(90, 35).name, 'hot', 'critical was removed');
+    assert.equal(telem.getThresholdStatus(-20).name, 'cold');
+    assert.equal(telem.getThresholdStatus(NaN), undefined);
+    assert.equal(telem.getThresholdStatus('72'), undefined);
+    // Steps over a period: a limit holds until the next sample of its name, the latest runs to the end
+    const steps = (from, to) => Object.fromEntries(telem.getThresholdSteps(from, to).map(l => [l.name, l.steps.map(s => [s.from, s.to, s.value])]));
+    assert.deepEqual(steps(0, 40), { hot: [[10, 20, 70], [20, 40, 75]], critical: [[10, 30, 85]], cold: [[10, 40, -10]] });
+    assert.deepEqual(steps(15, 25), { hot: [[15, 20, 70], [20, 25, 75]], critical: [[15, 25, 85]], cold: [[15, 25, -10]] }, 'cut to the period');
+    assert.deepEqual(steps(35, 40), { hot: [[35, 40, 75]], cold: [[35, 40, -10]] });
+    assert.deepEqual(steps(0, 5), {});
+    assert.deepEqual(telem.getThresholdSteps(5, 5), []);
+    // A late sample is put in its place
+    add(15, ABOVE, 72, 'hot');
+    assert.deepEqual(steps(0, 40).hot, [[10, 15, 70], [15, 20, 72], [20, 40, 75]]);
+});
+
+test('range attribute: both ends, one end, none', () => {
+    const T = loadTeleplot();
+    const telem = T.datastore.getOrCreateTelemetry('a');
+    assert.equal(telem.getRange(), undefined);
+    telem.setAttribute(T.protocol.TELEM_ATTR_RANGE, { min: 0, max: 5 });
+    assert.deepEqual(telem.getRange(), { min: 0, max: 5 });
+    telem.setAttribute(T.protocol.TELEM_ATTR_RANGE, { min: undefined, max: 5 });
+    assert.deepEqual(telem.getRange(), { min: undefined, max: 5 });
+    telem.setAttribute(T.protocol.TELEM_ATTR_RANGE, { min: NaN, max: undefined });
+    assert.equal(telem.getRange(), undefined);
+});
+
+test('data window: a state keeps its last sample before the window, a log does not, each threshold keeps its last sample', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, TEXT = P.SECTION_TYPE_TELEM_DATA_TEXT, TH = P.SECTION_TYPE_TELEM_DATA_THRESHOLD;
+    T.state.dataTimeout = 100;
+    const state = T.datastore.getOrCreateTelemetry('state'), logs = T.datastore.getOrCreateTelemetry('logs'), temp = T.datastore.getOrCreateTelemetry('temp');
+    logs.setAttribute(P.TELEM_ATTR_LOG, true);
+    for (const telem of [state, logs]) telem.addData(TEXT, [1000, 1010, 1020, 1200], [['a', 'b', 'c', 'd']]);
+    temp.addData(TH, [1000, 1000, 1010, 1020, 1030, 1200], [[1, 1, 1, 0, 1, 1], [70, 85, 72, -10, NaN, 74], ['hot', 'critical', 'hot', 'cold', 'critical', 'hot'], ['', 'red', '', '', '', '']]);
+    T.datastore.__deleteTimedOutData();
+    assert.deepEqual(state.data[TEXT].data[0], ['c', 'd'], 'the state in force when the window starts is kept');
+    assert.deepEqual(logs.data[TEXT].data[0], ['d']);
+    assert.deepEqual([temp.data[TH].timestamps, temp.data[TH].data[2]], [[1010, 1020, 1200], ['hot', 'cold', 'hot']], 'the last limit of each name; a removed one is gone');
+    assert.deepEqual(temp.getThresholds(1150).map(x => x.name + x.value), ['cold-10', 'hot72']);
+    T.datastore.__deleteTimedOutData();
+    assert.deepEqual([state.data[TEXT].data[0], temp.data[TH].timestamps], [['c', 'd'], [1010, 1020, 1200]], 'nothing more to remove');
+    // A threshold sent once stays, whatever comes after in the other data
+    const once = T.datastore.getOrCreateTelemetry('once');
+    once.addData(TH, [1], [[0], [10.5], ['low'], ['']]);
+    once.addData(NUMBER, [1, 5000], [[11, 12]]);
+    T.datastore.__deleteTimedOutData();
+    assert.deepEqual([once.data[NUMBER].timestamps, once.getThresholds().length], [[5000], 1]);
+});
+
+test('memory: thresholds are neither thinned nor forgotten with the data they limit', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, TH = P.SECTION_TYPE_TELEM_DATA_THRESHOLD;
+    const telem = T.datastore.getOrCreateTelemetry('a');
+    telem.addData(TH, [1, 1, 1, 1], [[0, 0, 1, 1], [1, 2, 3, 4], ['a', 'b', 'c', 'd'], ['', '', '', '']]);
+    telem.addData(NUMBER, Array.from({ length: 400 }, (v, i) => 1 + i), [Array.from({ length: 400 }, (v, i) => i % 7)]);
+    assert.ok(telem.thinOldest(0.5) > 0);
+    assert.ok(telem.forgetOldest(0.5) > 0);
+    assert.deepEqual(telem.getThresholds().map(x => x.name), ['a', 'b', 'c', 'd']);
+    const only = T.datastore.getOrCreateTelemetry('only');
+    only.addData(TH, [1, 2, 3, 4, 5, 6, 7, 8], [[0, 0, 0, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 7, 8], ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], ['', '', '', '', '', '', '', '']]);
+    assert.deepEqual([only.thinOldest(1), only.forgetOldest(1), only.getThresholds().length], [0, 0, 8]);
 });
 
 test('5 minutes of data are kept by default; with a lot of data, pruning waits for 1% of it to be too old', () => {
@@ -353,4 +469,76 @@ test('telemetries dated from the start of a device (small timestamps) are not pr
     telem.addData(N, [100.5, 450], [[1, 2]]);
     T.datastore.__deleteTimedOutData();
     assert.deepEqual(telem.data[N].timestamps, [400, 450]);
+});
+
+test('runs of a text entry: one item per run of the same text, completed as samples come, built again when samples are inserted or removed', () => {
+    const T = loadTeleplot();
+    const TEXT = T.protocol.SECTION_TYPE_TELEM_DATA_TEXT;
+    T.state.dataTimeout = 100;
+    const telem = T.datastore.getOrCreateTelemetry('state');
+    const runs = () => { const r = T.textRuns(telem.data[TEXT]); return r.timestamps.map((t, i) => t + r.data[0][i]); };
+    telem.addData(TEXT, [1000, 1001, 1002, 1003, 1004], [['a', 'a', 'b', '', 'a']]);
+    assert.deepEqual(runs(), ['1000a', '1002b', '1003', '1004a']);
+    const first = T.textRuns(telem.data[TEXT]);
+    telem.addData(TEXT, [1005, 1006], [['a', 'c']]);
+    assert.deepEqual(runs(), ['1000a', '1002b', '1003', '1004a', '1006c']);
+    assert.equal(T.textRuns(telem.data[TEXT]), first, 'completed, not built again');
+    assert.deepEqual(telem.data[TEXT].data[0], ['a', 'a', 'b', '', 'a', 'a', 'c'], 'the data is untouched');
+    telem.addData(TEXT, [1001.5], [['z']]); // late
+    assert.deepEqual(runs(), ['1000a', '1001.5z', '1002b', '1003', '1004a', '1006c']);
+    telem.addData(TEXT, [1200], [['d']]);
+    T.datastore.__deleteTimedOutData(); // the window removes the oldest (and keeps the state in force when it starts)
+    assert.deepEqual(runs(), ['1006c', '1200d']);
+    telem.addData(TEXT, [1201, 1202, 1203, 1204], [['d', 'e', 'e', 'f']]);
+    telem.forgetOldest(0.5);
+    assert.deepEqual(runs(), ['1202e', '1204f']);
+    telem.removeRange(TEXT, 1202, 1203);
+    assert.deepEqual(runs(), ['1204f']);
+    // A state sent again a great many times is one run, whatever is asked about it
+    const busy = T.datastore.getOrCreateTelemetry('busy');
+    busy.addData(TEXT, Array.from({ length: 50000 }, (v, i) => i), [Array.from({ length: 50000 }, (v, i) => i < 25000 ? 'idle' : 'moving')]);
+    assert.deepEqual(T.textRuns(busy.data[TEXT]).timestamps, [0, 25000]);
+});
+
+test('thresholds are found per name without going through all of them: appended, inserted late and pruned samples are followed', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, TH = P.SECTION_TYPE_TELEM_DATA_THRESHOLD;
+    T.state.dataTimeout = 100;
+    const telem = T.datastore.getOrCreateTelemetry('n');
+    const add = (t, value, name) => telem.addData(TH, [t], [[P.THRESHOLD_ABOVE], [value], [name], ['']]);
+    const at = (t) => telem.getThresholds(t).map(x => x.name + x.value);
+    add(1000, 1, 'fixed');
+    for (let i = 0; i < 2000; i++) add(1000 + i * 0.01, 10 + i, 'moving');
+    assert.deepEqual(at(), ['fixed1', 'moving2009']);
+    assert.deepEqual(at(1005), ['fixed1', 'moving510']);
+    assert.deepEqual(at(999), []);
+    add(1020, 5000, 'moving'); // appended after the index was built
+    assert.deepEqual(at(), ['fixed1', 'moving5000']);
+    add(1005.005, 7, 'moving'); // late
+    assert.deepEqual(at(1005.006), ['fixed1', 'moving7']);
+    add(1200, 2, 'fixed');
+    T.datastore.__deleteTimedOutData();
+    assert.deepEqual([telem.data[TH].timestamps, at(), at(1150)], [[1000, 1020, 1200], ['fixed2', 'moving5000'], ['fixed1', 'moving5000']], 'the limit of each name that was in force when the window starts is kept');
+});
+
+test('new telemetries are announced when the datastore hands out wrapped objects (a reactive framework around the library: regression)', () => {
+    const T = loadTeleplot();
+    // What Vue does to an application that keeps the library in its data: reading a telemetry gives a proxy, never the object that was stored
+    const raw = T.datastore.telemetries;
+    T.datastore.telemetries = new Proxy(raw, { get: (target, key) => (target[key] && typeof target[key] === 'object') ? new Proxy(target[key], {}) : target[key] });
+    const seen = [];
+    T.datastore.onNewTelemetryHooks.push(t => seen.push(t.getAttribute(T.protocol.TELEM_ATTR_NAME)));
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText('ATTR|battery|min=9|max=12.6');
+    T.__timers.run();
+    T.parseDataText('battery:11.4\nspeed:1');
+    T.__timers.run();
+    assert.deepEqual(seen, ['battery', 'speed']);
+    assert.equal(T.dashboards.getDashboard('Live').getView().views.length, 2, 'both are charted');
+    // A telemetry that was forgotten and came back under the same id before its hooks ran is announced once
+    T.datastore.getOrCreateTelemetry('again').addData(NUMBER, [1], [[1]]);
+    T.datastore.forgetTelemetries();
+    T.datastore.getOrCreateTelemetry('again').addData(NUMBER, [2], [[2]]);
+    T.__timers.run();
+    assert.deepEqual(seen, ['battery', 'speed', 'again']);
 });

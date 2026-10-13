@@ -96,15 +96,208 @@ test('zoomed range is applied to the chart and limits decimation to it', () => {
     assert.ok(xs.filter(x => x >= 10 && x <= 11).length > 50, 'visible range has detail');
 });
 
-test('telemetries without supported data (text, unknown) are ignored by the chart', () => {
-    const { T, telems, chart } = setup(['a', 'text', 'ghost']);
+test('telemetries without a series (text, positions, unknown) take no place in the data of the chart', () => {
+    const { T, telems, chart } = setup(['a', 'text', 'ghost', 'xy']);
     telems[0].addData(NUMBER, [1], [[5]]);
     telems[1].addData(23, [1], [['hello']]);
+    telems[3].addData(21, [1], [[1], [2]]);
     chart.update();
     assert.deepEqual(chart.chartData, [[1], [5]]);
-    assert.equal(chart.telemetries[telems[1].id].actualStrValue.length, 0);
+    assert.deepEqual(chart.getSeriesTelemetries().map(t => t.id), [telems[0].id]);
+    assert.equal(chart.telemetries[telems[3].id].actualStrValue.length, 0, 'what the chart cannot show has no value in the legend');
+    assert.ok(!chart.telemetries[telems[3].id].isMarks);
     assert.ok(T.datastore.getTelemetry('ghost'));
 });
+
+const TEXT = 23, THRESHOLD = 40;
+const marksOf = (chart, telem) => (chart.overlay.marks.find(m => m.id === telem.id) || { marks: [] }).marks.map(m => [m.t, m.text, m.count]);
+
+test('a text telemetry in a chart is drawn as marks: a log gives one per line, a state one where it changes', () => {
+    const { T, telems, chart } = setup(['a', 'state', 'events']);
+    telems[0].addData(NUMBER, [0, 100], [[1, 2]]);
+    telems[1].addData(TEXT, [10, 20, 30, 40, 50, 60, 70], [['idle', 'idle', 'moving', '', '', 'moving', 'idle']]);
+    telems[2].setAttribute(T.protocol.TELEM_ATTR_LOG, true);
+    telems[2].addData(TEXT, [15, 25, 90], [['armed', 'armed', '']]);
+    chart.update();
+    assert.deepEqual(chart.chartData, [[0, 100], [1, 2]], 'no series for them');
+    assert.deepEqual(marksOf(chart, telems[1]), [[10, 'idle', 1], [30, 'moving', 1], [60, 'moving', 1], [70, 'idle', 1]], 'the same state again is no mark, an empty one neither (but what follows it is a change)');
+    assert.deepEqual(marksOf(chart, telems[2]), [[15, 'armed', 1], [25, 'armed', 1]], 'every line of a log, but the empty ones');
+    assert.deepEqual(chart.getMarkTelemetries().map(t => t.id), [telems[1].id, telems[2].id]);
+    // Its legend entry: flagged as marks, and tells the text at the cursor (the last one at or before it)
+    const legend = chart.telemetries[telems[1].id];
+    assert.deepEqual([legend.isMarks, legend.actualStrValue], [true, ['idle']]);
+    T.view.groups.default.cursorTimestamp = 35;
+    chart.update();
+    assert.deepEqual(legend.actualStrValue, ['moving']);
+    T.view.groups.default.cursorTimestamp = 45;
+    chart.update();
+    assert.deepEqual(legend.actualStrValue, [''], 'an empty state');
+    T.view.groups.default.cursorTimestamp = 5;
+    chart.update();
+    assert.deepEqual(legend.actualStrValue, [''], 'before the first sample');
+    T.view.groups.default.cursorTimestamp = -1;
+    // A long text does not take the whole legend
+    telems[1].addData(TEXT, [80], [['x'.repeat(100)]]);
+    chart.update();
+    assert.deepEqual([legend.actualStrValue[0].length, legend.actualValue[0].length], [24, 100]);
+    // A chart that only has texts has nothing to draw them on, and says so
+    const lonely = new T.view.ViewChart('l', ['state']);
+    assert.deepEqual([lonely.getEmptyState().text, chart.getEmptyState().text], ['No number to chart', '']);
+    assert.deepEqual(chart.acceptedDataTypes, ['20', '23']);
+    // New marks are drawn: the chart is given its data again
+    const calls = chart.chart.setDataCalls;
+    chart.update();
+    assert.equal(chart.chart.setDataCalls, calls, 'nothing changed: nothing drawn again');
+    telems[2].addData(TEXT, [95], [['landed']]);
+    chart.update();
+    assert.equal(chart.chart.setDataCalls, calls + 1);
+    assert.deepEqual(marksOf(chart, telems[2]).at(-1), [95, 'landed', 1]);
+    // Switched off from the legend: no marks; back on: they are back
+    chart.toggleSeries(telems[2].id);
+    chart.update();
+    assert.deepEqual(marksOf(chart, telems[2]), []);
+    chart.toggleSeries(telems[2].id);
+    chart.update();
+    assert.equal(marksOf(chart, telems[2]).length, 3);
+});
+
+test('marks: only those of the period displayed, the state before it tells what a change is, close ones are folded and counted', () => {
+    const T = loadTeleplot();
+    const build = T.view.ViewChart.buildMarks;
+    const entry = { timestamps: [1, 2, 3, 4, 5, 6], data: [['a', 'b', 'b', 'c', 'a', 'a']] };
+    const list = (...args) => build(entry, ...args).map(m => m.t + m.text + (m.count > 1 ? 'x' + m.count : ''));
+    assert.deepEqual(list(false, 0, 10), ['1a', '2b', '4c', '5a']);
+    assert.deepEqual(list(true, 0, 10), ['1a', '2b', '3b', '4c', '5a', '6a']);
+    assert.deepEqual(list(false, 3, 4.5), ['4c'], 'b was already the state before the period');
+    assert.deepEqual(list(false, 2, 2), ['2b'], 'limits included');
+    assert.deepEqual(list(true, 3, 4.5), ['3b', '4c']);
+    assert.deepEqual(list(false, 7, 10), []);
+    assert.deepEqual(list(true, 0, 10, 2.5), ['1ax3', '4cx3'], 'within 2.5 s of the first of the group');
+    assert.deepEqual(list(false, 0, 10, 100), ['1ax4']);
+    assert.deepEqual(build({ timestamps: [], data: [[]] }, true, 0, 10), []);
+    // In a chart, the gap is a few pixels of the period displayed
+    const chart = new T.view.ViewChart('c', ['a', 'log']);
+    const a = T.datastore.getOrCreateTelemetry('a'), log = T.datastore.getOrCreateTelemetry('log');
+    log.setAttribute(T.protocol.TELEM_ATTR_LOG, true);
+    a.addData(NUMBER, [0, 1000], [[0, 1]]);
+    log.addData(TEXT, Array.from({ length: 1001 }, (v, i) => i), [Array.from({ length: 1001 }, (v, i) => 'line ' + i)]);
+    chart.update();
+    const marks = chart.overlay.marks[0].marks;
+    assert.ok(marks.length > 5 && marks.length <= 200 / T.view.ViewChart.MARK_GAP + 1, marks.length + ' marks for the 200 pixels of a chart that is not on a page');
+    assert.equal(marks.reduce((n, m) => n + m.count, 0), 1001, 'every line is counted');
+    T.view.groups.default.timestampFrom = 100; T.view.groups.default.timestampTo = 110; T.view.groups.default.cursorActive = true;
+    chart.update();
+    assert.deepEqual(chart.overlay.marks[0].marks.map(m => m.t), [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110], 'zoomed: each line has its mark');
+});
+
+test('thresholds of the series: steps over the period, kept in view by the scale, hidden with their series or by the option', () => {
+    const { T, telems, chart } = setup(['a', 'b']);
+    const P = T.protocol;
+    telems[0].addData(NUMBER, [0, 50, 100], [[10, 12, 11]]);
+    telems[1].addData(NUMBER, [0, 100], [[1, 2]]);
+    telems[0].addData(THRESHOLD, [0, 0, 60], [[P.THRESHOLD_ABOVE, P.THRESHOLD_BELOW, P.THRESHOLD_ABOVE], [20, 5, 25], ['high', 'low', 'high'], ['', 'red', '']]);
+    chart.update();
+    assert.deepEqual(chart.overlay.thresholds.map(t => [t.id, t.lines.map(l => [l.name, l.operator, l.color, l.steps.map(s => [s.from, s.to, s.value])])]),
+        [[telems[0].id, [['high', P.THRESHOLD_ABOVE, '', [[0, 60, 20], [60, 100, 25]]], ['low', P.THRESHOLD_BELOW, 'red', [[0, 100, 5]]]]]]);
+    assert.deepEqual(chart.chartData, [[0, 50, 100], [10, 12, 11], [1, null, 2]], 'thresholds are not series');
+    // Scale: what uPlot found in the series, widened to the thresholds ("fit", the default)
+    assert.deepEqual(chart.getScaleRange(1, 12), [1, 25]);
+    assert.deepEqual(chart.getScaleRange(null, null), [5, 25]);
+    chart.setOption('thresholds', 'show');
+    chart.update();
+    assert.deepEqual(chart.getScaleRange(1, 12), [1, 12]);
+    assert.equal(chart.overlay.thresholds.length, 1, 'still drawn');
+    chart.setOption('thresholds', 'hide');
+    chart.update();
+    assert.deepEqual([chart.overlay.thresholds, chart.getScaleRange(null, null)], [[], [0, 1]]);
+    chart.setOption('thresholds', 'fit');
+    chart.toggleSeries(telems[0].id);
+    chart.update();
+    assert.deepEqual(chart.overlay.thresholds, [], 'the thresholds of a series go with it');
+    chart.toggleSeries(telems[0].id);
+    // The limit changes: drawn again
+    chart.update();
+    const calls = chart.chart.setDataCalls;
+    telems[0].addData(THRESHOLD, [90], [[P.THRESHOLD_ABOVE], [30], ['high'], ['']]);
+    chart.update();
+    assert.equal(chart.chart.setDataCalls, calls + 1);
+    assert.deepEqual(chart.overlay.thresholds[0].lines[0].steps.at(-1), { from: 90, to: 100, value: 30 });
+    // Legend: the entry tells the threshold its value is past, at the cursor
+    assert.deepEqual([chart.telemetries[telems[0].id].status, chart.telemetries[telems[1].id].status], ['', '']);
+    telems[0].addData(NUMBER, [101], [[3]]);
+    chart.update();
+    assert.deepEqual([chart.telemetries[telems[0].id].status, chart.telemetries[telems[0].id].statusColor], ['low', 'red']);
+    T.view.groups.default.cursorTimestamp = 50;
+    chart.update();
+    assert.equal(chart.telemetries[telems[0].id].status, '');
+    assert.ok(chart.getOptionsSchema().some(o => o.key === 'thresholds' && o.type === 'choice') && chart.getOptionsSchema().some(o => o.key === 'scale'));
+});
+
+test('scale option "range": the range of the telemetries is the scale, on the sides they give', () => {
+    const { T, telems, chart } = setup(['a', 'b']);
+    telems[0].addData(NUMBER, [0, 1], [[10, 12]]);
+    telems[1].addData(NUMBER, [0, 1], [[1, 2]]);
+    chart.update();
+    telems[0].setAttribute(T.protocol.TELEM_ATTR_RANGE, { min: 0, max: 20 });
+    assert.deepEqual(chart.getScaleRange(1, 12), [1, 12], 'not asked for: the scale fits the data');
+    chart.setOption('scale', 'range');
+    assert.deepEqual(chart.getSeriesRange(), { min: 0, max: 20 });
+    assert.deepEqual(chart.getScaleRange(1, 12), [0, 20]);
+    assert.deepEqual(chart.getScaleRange(null, null), [0, 20]);
+    const calls = chart.chart.setDataCalls;
+    chart.update();
+    assert.equal(chart.chart.setDataCalls, calls + 1, 'drawn again with the new scale');
+    telems[1].setAttribute(T.protocol.TELEM_ATTR_RANGE, { min: -5, max: undefined });
+    assert.deepEqual(chart.getSeriesRange(), { min: -5, max: 20 }, 'what the ranges cover together');
+    telems[0].setAttribute(T.protocol.TELEM_ATTR_RANGE, undefined);
+    assert.deepEqual(chart.getScaleRange(1, 12), [-5, 12], 'one side given: the other fits the data');
+    assert.deepEqual(chart.getScaleRange(-9, -7), [-9, -7], 'a side that would turn the scale over is left out');
+    chart.toggleSeries(telems[1].id);
+    assert.equal(chart.getSeriesRange(), undefined, 'a hidden series does not count');
+});
+
+test('current value: a number with a range gets a bar, one with thresholds tells which one it is past', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, gauge = T.view.ViewCurrentValue.gauge;
+    const battery = T.datastore.getOrCreateTelemetry('battery'), plain = T.datastore.getOrCreateTelemetry('plain'), state = T.datastore.getOrCreateTelemetry('state');
+    battery.addData(NUMBER, [1, 2, 3], [[12, 10.2, 9.5]]);
+    plain.addData(NUMBER, [1], [[1]]);
+    state.addData(TEXT, [1], [['on']]);
+    const view = new T.view.ViewCurrentValue('v', ['battery', 'plain', 'state']);
+    view.update();
+    assert.deepEqual([view.telemetries[battery.id].bar, view.telemetries[battery.id].status], [undefined, undefined]);
+    assert.equal(gauge(plain, 1), T.view.ViewCurrentValue.NO_GAUGE);
+    battery.setAttribute(P.TELEM_ATTR_RANGE, { min: 9, max: 13 });
+    battery.addData(THRESHOLD, [0, 0, 0], [[P.THRESHOLD_BELOW, P.THRESHOLD_BELOW, P.THRESHOLD_ABOVE], [10.5, 9.9, 14], ['low', 'empty', 'over'], ['', 'red', '']]);
+    view.update();
+    assert.deepEqual(view.telemetries[battery.id].status, { name: 'empty', color: 'red' });
+    assert.deepEqual(view.telemetries[battery.id].bar, { fill: 0.125, min: 9, max: 13, ticks: [{ at: 0.2250000000000001, name: 'empty', color: 'red' }, { at: 0.375, name: 'low', color: '' }] }, 'the thresholds inside the range are ticks');
+    assert.equal(view.telemetries[plain.id].bar, undefined);
+    assert.equal(view.telemetries[state.id].status, undefined);
+    // At the cursor: the value and the limits of that time
+    T.view.groups.default.cursorTimestamp = 2;
+    view.update();
+    assert.deepEqual([view.telemetries[battery.id].status.name, view.telemetries[battery.id].bar.fill], ['low', (10.2 - 9) / 4]);
+    T.view.groups.default.cursorTimestamp = 1;
+    view.update();
+    assert.deepEqual([view.telemetries[battery.id].status, view.telemetries[battery.id].bar.fill], [undefined, 0.75]);
+    T.view.groups.default.cursorTimestamp = -1;
+    // Out of the range: the bar is full or empty, never more; a range with one end or upside down gives no bar
+    assert.deepEqual([gauge(battery, 20).bar.fill, gauge(battery, -5).bar.fill, gauge(battery, undefined).bar.fill, gauge(battery, NaN).status], [1, 0, 0, undefined]);
+    battery.setAttribute(P.TELEM_ATTR_RANGE, { min: 9, max: undefined });
+    assert.equal(gauge(battery, 12).bar, undefined);
+    battery.setAttribute(P.TELEM_ATTR_RANGE, { min: 13, max: 9 });
+    assert.equal(gauge(battery, 12).bar, undefined);
+    assert.equal(gauge(battery, 9.5).status.name, 'empty', 'the status needs no range');
+    // A telemetry that only has thresholds yet shows as "no data", not as a value
+    const waiting = T.datastore.getOrCreateTelemetry('waiting');
+    waiting.addData(THRESHOLD, [0], [[0], [1], ['low'], ['']]);
+    view.addTelemetry('waiting');
+    view.update();
+    assert.deepEqual([view.telemetries[waiting.id].empty, Object.keys(view.telemetries[waiting.id].data)], [true, []]);
+    assert.equal(view.telemetries[battery.id].empty, false);
+});
+
 
 test('legend data: name, unit, color, formatted value; value follows the cursor', () => {
     const { T, telems, chart } = setup(['a', 'b']);
@@ -281,4 +474,19 @@ test('a zoom stays when the pointer leaves the chart, and is reset when the char
     u.cursor.left = -10;
     hooks.setCursor[0](u);
     assert.equal(group.cursorTimestamp, -1);
+});
+
+test('current value: labels under a bar (ends of the range, names of the thresholds) are dropped when they would overlap, thresholds first', () => {
+    const T = loadTeleplot();
+    const V = T.view.ViewCurrentValue;
+    assert.deepEqual([9, 12.6, 0.1 + 0.2, 25.2000001, -3, 1e6].map(V.formatEnd), ['9', '12.6', '0.3', '25.2', '-3', '1000000']);
+    // In order of importance: the first labels keep their place, the next ones need room (4 pixels between two)
+    assert.deepEqual(V.fitLabels([{ left: 40, width: 30 }, { left: 60, width: 30 }, { left: 0, width: 20 }, { left: 170, width: 30 }]), [true, false, true, true]);
+    assert.deepEqual(V.fitLabels([{ left: 0, width: 30 }, { left: 0, width: 20 }, { left: 33, width: 20 }, { left: 34, width: 20 }]), [true, false, false, true]);
+    assert.deepEqual(V.fitLabels([]), []);
+    // The option, and the list of series of a chart (which stays compact)
+    const view = new V('v', []);
+    assert.equal(view.options.displayScale, true);
+    assert.ok(view.getOptionsSchema().some(o => o.key === 'displayScale'));
+    assert.doesNotThrow(() => { view.update(); view.fitScales(); });
 });

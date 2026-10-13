@@ -9,8 +9,8 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 
 | File | Covers |
 |---|---|
-| `datastore.test.js` | ordered/late insertion, pruning, timeouts, `getDataPoint`, naming |
-| `parseDataText.test.js` | V1 text protocol (retro-compatibility) |
+| `datastore.test.js` | ordered/late insertion, pruning, timeouts, `getDataPoint`, naming, thresholds and ranges, runs of a text, when a new telemetry is announced |
+| `parseDataText.test.js` | V1 text protocol (retro-compatibility), `ATTR|` and `TH|` lines, empty texts and texts with colons |
 | `viewScene2D.test.js` | `2D|` lines, flat shapes, frames and pixel frames (text and binary), what the 2D view draws, default view of flat telemetries |
 | `files.test.js` | data files: text and binary export, read back and compared with what was stored; import in pieces, options |
 | `dashboardText.test.js` | dashboards as text: `DASH|` lines received (text and binary), export, import, labels that are paths |
@@ -18,7 +18,8 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 | `decimator.test.js` | min/max decimation vs a naive reference, incremental == from scratch |
 | `protocol.test.js` | protocol constants, clients, colors |
 | `views.test.js` | views, layout, stack, drag and drop, dashboards, update loop |
-| `viewChart.test.js` | data given to the chart (decimation, multi-series, zoom), legend values, current value view |
+| `viewChart.test.js` | data given to the chart (decimation, multi-series, zoom), legend values, marks of text telemetries, thresholds and range of the series, current value view (bar, threshold status) |
+| `viewTimeline.test.js` | timeline: bands of states, holes, ticks of logs, what is too short to draw, period displayed, colors, what is under the pointer |
 | `viewScene3D.test.js` | 3D view: shape state at a time (defaults, rotation/quaternion, colors, textures), trails, suggested view, shared scene of the auto dashboard |
 | `viewImage.test.js` | image view: camera state, projection of a point, lens distortion and its inverse, ideal window, projection matrix, which telemetry is the picture |
 | `connectionSerial.test.js` | serial ports through Web Serial (fake port): lines across chunks, ">" telemetry vs log lines, console, send, baud rate, lost port, browser dialog |

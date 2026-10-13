@@ -8,7 +8,15 @@ class ViewChart extends ViewTelemetries{
         this.updateRunning = false;
         this.supportedDataTypes = [""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER];
         this.supportedLabel = "number";
+        // What can be added to the chart: numbers (its series) and texts (marks on them, see buildOverlay)
+        this.acceptedDataTypes = [...this.supportedDataTypes, ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
         this.setOption("decimation", true); // Only give the chart what it can display (see MinMaxDecimator), stored data is untouched
+        this.setOption("thresholds", "fit"); // Thresholds of the series: "fit" (drawn, and the scale keeps them in view), "show" (drawn when they are in view), "hide"
+        this.setOption("scale", "auto");     // Vertical scale: "auto" (fits what is drawn) or "range" (the range of the telemetries, TELEM_ATTR_RANGE, when they have one)
+        // What is drawn over the series, computed by update() for the period displayed (raw: read on every draw):
+        //   thresholds: [{id, lines: see Telemetry.getThresholdSteps}]   marks: [{id, color, marks: see ViewChart.buildMarks}]
+        this.overlay = TELEPLOT.Vue.markRaw({ thresholds: [], marks: [] });
+        this.overlayKey = "";
         this.decimators = TELEPLOT.Vue.markRaw({}); // One MinMaxDecimator per telemetry id. Not reactive: a proxied decimator never recognises its source (raw) and rescans all the data on every update
         this.lastDisplayRange = "";         // Time range and resolution used to build chartData, to detect a need for update
 
@@ -86,8 +94,17 @@ class ViewChart extends ViewTelemetries{
         super.dispose();
     }
 
+    // Texts are marks on the curves of numbers: a chart that only has texts says what it is missing
+    getEmptyState() {
+        let state = super.getEmptyState();
+        if(state.text === "Nothing to display" && this.getMarkTelemetries().length) return { text: "No number to chart", hint: "Text telemetries are drawn as marks on the curves: add a number telemetry" };
+        return state;
+    }
+
     getOptionsSchema() {
-        return [...super.getOptionsSchema(), { key: "decimation", label: "Decimation", type: "bool" }];
+        return [...super.getOptionsSchema(), { key: "decimation", label: "Decimation", type: "bool" },
+            { key: "thresholds", label: "Thresholds", type: "choice", choices: [["fit", "In view"], ["show", "If in view"], ["hide", "Hidden"]] }, // (kept in view by the scale / drawn when the scale has them in view)
+            { key: "scale", label: "Scale", type: "choice", choices: [["auto", "Auto"], ["range", "Range"]] }]; // (fits what is drawn / the range of the telemetries)
     }
 
     destroyChart() {
@@ -105,6 +122,7 @@ class ViewChart extends ViewTelemetries{
         if(this.hidden[id]) delete this.hidden[id]; else this.hidden[id] = true;
         let idx = this.seriesIndexOf(id);
         if(idx > 0 && this.chart && this.chart.setSeries) this.chart.setSeries(idx, { show: !this.hidden[id] });
+        this.updateForced = true; // Its thresholds, or its marks when it is a text telemetry, go with it
         this.highlightSeries(this.hidden[id] ? undefined : id); // The pointer is still on the entry: a series that is back is highlighted, one switched off has nothing to highlight
     }
 
@@ -162,6 +180,7 @@ class ViewChart extends ViewTelemetries{
         this.legend.open = true;
         let list = new TELEPLOT.view.ViewCurrentValue(this.popoverDivId, this.getSeriesTelemetries().map(t => t.id), this.group);
         list.options.displayNumberDecimals = this.options.displayNumberDecimals;
+        list.options.displayScale = false; // (a list of series: rows stay short)
         list.dimmed = this.hidden;
         list.rowHandlers = { click: (id) => this.toggleSeries(id), enter: (id) => this.highlightSeries(id), leave: () => this.highlightSeries(undefined) };
         this.popoverView = list;
@@ -250,7 +269,7 @@ class ViewChart extends ViewTelemetries{
             // Without data uPlot has no range to lay the axes out and throws while drawing: give empty charts a default one
             scales: {
                 x: { time: true, range: (u, min, max) => (min == null || max == null) ? [Date.now() / 1000 - 10, Date.now() / 1000] : [min, max] },
-                y: { range: (u, min, max) => (min == null || max == null) ? [0, 1] : TELEPLOT.uPlot.rangeNum(min, max, 0.1, true) }
+                y: { range: (u, min, max) => this.getScaleRange(min, max) }
             },
             series: [ {} ],
             // Colors come from the theme (--teleplot-*) and are read on every draw, so light and dark both work
@@ -269,6 +288,7 @@ class ViewChart extends ViewTelemetries{
             legend: { show: false },
             hooks: {
                 drawClear: [ (u) => this.drawThinned(u) ], // Under the grid and the series
+                draw: [ (u) => this.drawOverlay(u) ],      // Over them: thresholds and marks
                 setCursor: [
                     (u) => {
                         if(this.updateRunning) return;
@@ -356,6 +376,180 @@ class ViewChart extends ViewTelemetries{
         u.ctx.restore();
     }
 
+    // Vertical scale from the lowest and highest values drawn: thresholds are kept in view (option "thresholds": "fit"), and the
+    // range of the telemetries replaces it on the sides it gives (option "scale": "range")
+    getScaleRange(min, max) {
+        if(this.getOption("thresholds") === "fit") {
+            for(let item of this.overlay.thresholds) for(let line of item.lines) for(let step of line.steps) {
+                if(min == null || step.value < min) min = step.value;
+                if(max == null || step.value > max) max = step.value;
+            }
+        }
+        let fixed = this.getOption("scale") === "range" ? this.getSeriesRange() : undefined;
+        if(fixed !== undefined && fixed.min !== undefined && fixed.max !== undefined && fixed.min < fixed.max) return [fixed.min, fixed.max];
+        if(min == null || max == null) return [0, 1];
+        let range = TELEPLOT.uPlot.rangeNum ? TELEPLOT.uPlot.rangeNum(min, max, 0.1, true) : [min, max];
+        if(fixed !== undefined) {
+            if(fixed.min !== undefined && fixed.min < range[1]) range[0] = fixed.min;
+            if(fixed.max !== undefined && fixed.max > range[0]) range[1] = fixed.max;
+        }
+        return range;
+    }
+
+    // What the ranges of the series shown cover together: {min, max} (a side is undefined when no series gives it), undefined when none has a range
+    getSeriesRange() {
+        let min = undefined, max = undefined;
+        for(let telem of this.getSeriesTelemetries()) {
+            let range = this.hidden[telem.id] ? undefined : telem.getRange();
+            if(range === undefined) continue;
+            if(range.min !== undefined && (min === undefined || range.min < min)) min = range.min;
+            if(range.max !== undefined && (max === undefined || range.max > max)) max = range.max;
+        }
+        return (min === undefined && max === undefined) ? undefined : { min, max };
+    }
+
+    // Text telemetries of the view: they have no series, their samples are marks on the time axis
+    getMarkTelemetries() {
+        let list = [];
+        for(let telemIdOrName of this.telemetryIdOrNameList){
+            let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
+            if(telem === undefined || this.getSupportedDataEntry(telem) !== undefined || list.some((other) => other.id === telem.id)) continue;
+            if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined) list.push(telem);
+        }
+        return list;
+    }
+
+    // Marks of a text data entry between two times: [{t, text, count}]. A log gives one per line. A state gives one where its
+    // value changes (the same value sent again says nothing new) and none where it becomes empty. Marks closer than minGap
+    // (seconds: what a few pixels show) to the one before are folded into it: it counts them, and keeps its own text.
+    static buildMarks(entry, isLog, from, to, minGap=0) {
+        let stamps = entry.timestamps, texts = entry.data[0];
+        let lo = 0, hi = stamps.length;
+        while(lo < hi) { let mid = (lo + hi) >> 1; if(stamps[mid] < from) lo = mid + 1; else hi = mid; }
+        let previous = (!isLog && lo > 0) ? String(texts[lo - 1]) : undefined;
+        let marks = [], last = undefined;
+        for(let i = lo; i < stamps.length && stamps[i] <= to; i++) {
+            let text = String(texts[i]);
+            if(!isLog) { if(text === previous) continue; previous = text; }
+            if(text === "") continue;
+            if(last !== undefined && stamps[i] - last.t < minGap) { last.count++; continue; }
+            last = { t: stamps[i], text, count: 1 };
+            marks.push(last);
+        }
+        return marks;
+    }
+
+    // Computes what is drawn over the series for the period displayed (see this.overlay), when what it is made from changed.
+    // Returns a key that changes when it does.
+    buildOverlay(displayRange) {
+        const P = TELEPLOT.protocol;
+        let key = this.getOption("thresholds") + "|" + this.getOption("scale") + "|" + displayRange.key;
+        let withThresholds = [], withMarks = [];
+        if(this.getOption("thresholds") !== "hide") for(let telem of this.getSeriesTelemetries()) {
+            let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD];
+            if(entry === undefined || this.hidden[telem.id]) continue;
+            key += `|${telem.id}:${entry.lastUpdate}:${entry.timestamps.length}`;
+            withThresholds.push(telem);
+        }
+        if(this.getOption("scale") === "range") key += "|" + JSON.stringify(this.getSeriesRange() || null);
+        for(let telem of this.getMarkTelemetries()) {
+            let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT];
+            key += `|${telem.id}:${entry.lastUpdate}:${entry.timestamps.length}:${this.hidden[telem.id] ? 0 : 1}`;
+            if(!this.hidden[telem.id]) withMarks.push(telem);
+        }
+        if(key === this.overlayKey) return key;
+        let hasPeriod = displayRange.from < displayRange.to;
+        let minGap = hasPeriod ? (displayRange.to - displayRange.from) / displayRange.maxBuckets * ViewChart.MARK_GAP : 0;
+        this.overlay.thresholds = !hasPeriod ? [] : withThresholds.map((telem) => ({ id: telem.id, lines: telem.getThresholdSteps(displayRange.from, displayRange.to) }));
+        this.overlay.marks = !hasPeriod ? [] : withMarks.map((telem) => {
+            let isLog = telem.getAttribute(P.TELEM_ATTR_LOG) === true, entry = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT];
+            return { id: telem.id, marks: ViewChart.buildMarks(isLog ? entry : TELEPLOT.textRuns(entry), isLog, displayRange.from, displayRange.to, minGap) }; // (a state: its runs are where it changes)
+        });
+        return key;
+    }
+
+    static MARK_GAP = 6; // Pixels between two marks: closer ones are folded into one
+
+    // Thresholds (dashed steps, with their name on the side that is past the limit) and marks (a vertical line and its text), over the series
+    drawOverlay(u) {
+        if(!u.ctx || !u.bbox || !u.valToPos || (!this.overlay.thresholds.length && !this.overlay.marks.length)) return;
+        let ratio = (typeof devicePixelRatio === "number" && devicePixelRatio) || 1;
+        let element = document.getElementById(this.chartDivId);
+        let ctx = u.ctx, box = u.bbox;
+        let right = box.left + box.width, bottom = box.top + box.height;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(box.left, box.top, box.width, box.height);
+        ctx.clip();
+        ctx.font = `${10 * ratio}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+        let charWidth = ctx.measureText("0").width || 6 * ratio;
+        let surface = TELEPLOT.theme.color("--teleplot-surface", element, "white");
+        let label = (text, x, y, color, align) => { // A text on a patch of the background, so that it reads over the curves
+            let width = text.length * charWidth + 6 * ratio;
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = surface;
+            ctx.fillRect(align === "right" ? x - width : x, y - 6.5 * ratio, width, 13 * ratio);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = color;
+            ctx.textAlign = align;
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, align === "right" ? x - 3 * ratio : x + 3 * ratio, y);
+        };
+
+        // Thresholds
+        let warn = TELEPLOT.theme.color("--teleplot-warn", element, "orange");
+        ctx.lineWidth = ratio;
+        ctx.setLineDash([6 * ratio, 4 * ratio]);
+        for(let item of this.overlay.thresholds) for(let line of item.lines) {
+            let color = line.color || warn;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            let previous = undefined;
+            for(let step of line.steps) {
+                let x0 = u.valToPos(step.from, "x", true), x1 = u.valToPos(step.to, "x", true), y = Math.round(u.valToPos(step.value, "y", true)) + 0.5;
+                if(previous !== undefined && previous.to === step.from) ctx.lineTo(x0, y); // (the limit changed: a step, never a slope)
+                else ctx.moveTo(x0, y);
+                ctx.lineTo(x1, y);
+                previous = step;
+            }
+            ctx.stroke();
+            let last = line.steps[line.steps.length - 1];
+            let y = u.valToPos(last.value, "y", true);
+            let above = line.operator === TELEPLOT.protocol.THRESHOLD_ABOVE; // The name is written on the side that is past the limit
+            let x = Math.min(right, u.valToPos(last.to, "x", true)) - 2 * ratio;
+            ctx.setLineDash([]);
+            label(line.name, x, Math.max(box.top + 8 * ratio, Math.min(bottom - 8 * ratio, y + (above ? -9 : 9) * ratio)), color, "right");
+            ctx.setLineDash([6 * ratio, 4 * ratio]);
+        }
+        ctx.setLineDash([]);
+
+        // Marks: the text when there is room before the next mark, each text telemetry on its own line of texts
+        let row = 0;
+        for(let item of this.overlay.marks) {
+            let color = (this.telemetries[item.id] && this.telemetries[item.id].color) || TELEPLOT.theme.color("--teleplot-muted", element, "gray");
+            let y = box.top + (8 + 14 * (row++ % 4)) * ratio;
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.75;
+            ctx.beginPath();
+            let xs = item.marks.map((mark) => Math.round(u.valToPos(mark.t, "x", true)) + 0.5);
+            // A mark alone is a line over the whole chart; marks that were folded together (too close to be told apart) are a short
+            // tick at the top: a busy period reads as a row of ticks, and the curves under it stay visible
+            for(let i = 0; i < xs.length; i++) { ctx.moveTo(xs[i], box.top); ctx.lineTo(xs[i], item.marks[i].count > 1 ? box.top + 7 * ratio : bottom); }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            for(let i = 0; i < item.marks.length; i++) {
+                let mark = item.marks[i];
+                let room = (i + 1 < xs.length ? xs[i + 1] : right) - xs[i] - 8 * ratio;
+                let text = mark.count > 1 ? mark.text + " +" + (mark.count - 1) : mark.text;
+                let chars = Math.floor(room / charWidth);
+                if(chars < 3) continue;
+                if(text.length > chars) text = mark.count > 1 && chars < 8 ? "+" + mark.count : text.slice(0, chars - 1) + "\u2026";
+                label(text, xs[i] + ratio, mark.count > 1 ? y + 8 * ratio : y, color, "left");
+            }
+        }
+        ctx.restore();
+    }
+
     // Shows the cursor of the group (the timestamp hovered on any view) as a vertical line on a chart the pointer is not on,
     // so every chart marks the instant the other views show. Hidden when there is no cursor or it is outside of this chart's range.
     syncCursor() {
@@ -440,11 +634,27 @@ class ViewChart extends ViewTelemetries{
                 minimumFractionDigits: 0,
                 maximumFractionDigits: this.getOption("displayNumberDecimals", telem.id)
             });
+            // A text telemetry has no series: its samples are marks (see buildOverlay), its legend entry tells the text at the cursor
+            let shownTelem = this.telemetries[telem.id];
+            let textEntry = this.getSupportedDataEntry(telem) === undefined ? telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT] : undefined;
+            if((textEntry !== undefined) !== !!shownTelem.isMarks) shownTelem.isMarks = textEntry !== undefined;
+            if(textEntry !== undefined) {
+                let text = ViewChart.textAt(textEntry, TELEPLOT.view.groups[this.group].cursorTimestamp);
+                if(shownTelem.actualValue[0] !== text) {
+                    shownTelem.actualValue[0] = text;
+                    shownTelem.actualStrValue[0] = text.length > 24 ? text.slice(0, 23) + "\u2026" : text;
+                }
+            }
             for(let dataType in telem.data) {
                 if(!this.supportedDataTypes.includes(dataType)) continue;
                 
                 let targetTimestamp = TELEPLOT.view.groups[this.group].cursorTimestamp;
                 let dataPoint = telem.getDataPoint(dataType, targetTimestamp);
+                // The threshold the value is past (its legend entry takes its color)
+                let past = telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD] !== undefined ? telem.getThresholdStatus(dataPoint.data[0], targetTimestamp) : undefined;
+                let status = past === undefined ? "" : past.name, statusColor = past === undefined ? "" : (past.color || "var(--teleplot-warn)");
+                if(shownTelem.status !== status) shownTelem.status = status;
+                if(shownTelem.statusColor !== statusColor) shownTelem.statusColor = statusColor;
                 
                 // Check update need
                 needUpdate |= this.telemetries[telem.id].lastUpdate != telem.data[dataType].lastUpdate;
@@ -482,6 +692,10 @@ class ViewChart extends ViewTelemetries{
         // Create chart data
         let displayRange = this.getDisplayRange();
         needUpdate |= this.lastDisplayRange != displayRange.key;
+        // What is drawn over the series (thresholds, marks of text telemetries): the chart is drawn again when it changes
+        let overlayKey = this.buildOverlay(displayRange);
+        needUpdate |= this.overlayKey != overlayKey;
+        this.overlayKey = overlayKey;
         if(needUpdate || this.updateForced) {
             this.lastDisplayRange = displayRange.key;
             let dataList = [];
@@ -516,6 +730,17 @@ class ViewChart extends ViewTelemetries{
         queueMicrotask(()=>{this.updateRunning = false;}); // Need to use queueMicrotask to make sure to run after uPlot hooks are fired
     }
     
+    // The text of a text data entry at a time (the last sample at or before it; the latest without time), "" when there is none
+    static textAt(entry, timestamp=-1) {
+        let stamps = entry.timestamps, index = stamps.length - 1;
+        if(timestamp >= 0 && index >= 0 && stamps[index] > timestamp) {
+            let lo = 0, hi = stamps.length;
+            while(lo < hi) { let mid = (lo + hi) >> 1; if(stamps[mid] <= timestamp) lo = mid + 1; else hi = mid; }
+            index = lo - 1;
+        }
+        return index < 0 ? "" : String(entry.data[0][index]);
+    }
+
     // Data entry of the telemetry that this chart can display (only 1 datatype expected)
     getSupportedDataEntry(telem) {
         for(let dataType in telem.data) {
@@ -575,17 +800,17 @@ class ViewChart extends ViewTelemetries{
         ${ViewTelemetries.dragDropHtml}>
             <div class="teleplot-js-chart-legend">
                 <div v-for="(telem, i) in ordered" v-bind:key="telem.id" class="teleplot-js-chart-legend-block"
-                    v-bind:class="{'teleplot-js-chart-legend-folded': i >= legend.visible, 'teleplot-js-chart-legend-off': hidden[telem.id]}"
+                    v-bind:class="{'teleplot-js-chart-legend-folded': i >= legend.visible, 'teleplot-js-chart-legend-off': hidden[telem.id], 'teleplot-js-chart-legend-marks': telem.isMarks}"
                     v-bind:style="{'--chip-color': telem.color}"
                     v-on:click="onLegendClick(telem.id)" v-on:mouseenter="onLegendEnter(telem.id)" v-on:mouseleave="onLegendLeave()">
 
                     <div v-if="telem.actualStrValue && telem.actualStrValue.length" class="teleplot-js-chart-legend-value"
-                        v-bind:style="{'min-width': ''+(telem.valueChars || 0)+'ch' }"
-                        v-bind:title="telem.actualValue" >
+                        v-bind:style="{'min-width': ''+(telem.valueChars || 0)+'ch', 'color': telem.statusColor || null }"
+                        v-bind:title="telem.status ? telem.actualValue + ' (past the threshold ' + telem.status + ')' : telem.actualValue" >
                         <span>{{telem.actualStrValue.join(",")}}</span>
                     </div>
 
-                    <div class="teleplot-js-chart-legend-name" v-bind:class="{'teleplot-js-chart-legend-name-unsupported': (!telem.actualStrValue || !telem.actualStrValue.length)}">
+                    <div class="teleplot-js-chart-legend-name" v-bind:class="{'teleplot-js-chart-legend-name-unsupported': !telem.isMarks && (!telem.actualStrValue || !telem.actualStrValue.length)}">
                         <span>{{telem.name}}</span>
                         <span v-if="telem.unit"> ({{telem.unit}})</span>
                     </div>
@@ -663,6 +888,7 @@ class ViewChart extends ViewTelemetries{
                 content: ""; display: inline-block; width: 0.6em; height: 0.6em; margin-right: 0.4em;
                 border-radius: 50%; background: var(--chip-color, gray);
             }
+            .teleplot-js-chart-legend-marks .teleplot-js-chart-legend-name::before { width: 0.2em; height: 0.9em; border-radius: 1px; vertical-align: -0.1em; } /* a text telemetry: the key is a mark */
             .teleplot-js-chart-legend-value {
                 order: 2;
                 font-family: var(--teleplot-mono);

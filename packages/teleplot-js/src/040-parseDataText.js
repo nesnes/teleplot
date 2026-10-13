@@ -34,6 +34,11 @@ TELEPLOT.parseDataText = function(msgIn){
             // 2D: the same shapes, written flat (x:y positions, one angle)
             else if (msg.substring(0,3) == "2D|")
                 _parseDataText_parse3D(msg, now, true);
+            // Attributes of a telemetry (its range), thresholds of a number telemetry
+            else if (msg.substring(0,5) == "ATTR|")
+                _parseDataText_parseAttributes(msg);
+            else if (msg.substring(0,3) == "TH|")
+                _parseDataText_parseThresholds(msg, now);
             // JPG
             else if (msg.substring(0,4) == "JPG|" || msg.substring(0,4) == "PNG|")
                 _parseDataText_parseImage(msg, now);
@@ -135,8 +140,20 @@ function _parseDataText_parseVariablesData(msg, now)
             xyz no timestamp :  [1, 1, 1]
         */
 
-        if(value.length==0) continue;
+        if(value.length==0) {
+            // A text can be empty: the state that says "nothing" (a hole in a timeline). "name:|t", or "name:1627551892437:|t"
+            if(isTextFormatTelem && values.length == 1) { timestampArray.push(now); xArray.push(""); }
+            continue;
+        }
         let dims = value.split(":");
+        // A text may hold colons ("error: motor stalled"). Its time, when it has one, is a first field that is a number; the rest is
+        // the text, whatever it holds. (A text that starts with a number and a colon needs its time: "1627551892437:12:30".)
+        if(isTextFormatTelem && dims.length > 1) {
+            let time = /^\s*[0-9.eE+-]+\s*$/.test(dims[0]) ? parseFloat(dims[0]) / 1000 : NaN;
+            if(Number.isFinite(time)) { timestampArray.push(time); xArray.push(dims.slice(1).join(":")); }
+            else { timestampArray.push(now); xArray.push(value); }
+            continue;
+        }
 
         if(isXYZ) {
             if(dims.length < 3) continue;
@@ -194,6 +211,81 @@ function _parseDataText_parseVariablesData(msg, now)
             telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER, timestampArray, [xArray]);
         }
     }
+}
+
+// "%3A" -> ":" : how the names of "ATTR|" and "TH|" lines write the characters that separate their fields
+function _parseDataText_unescape(text) {
+    return String(text).replace(/%([0-9A-Fa-f]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/*
+ * Attributes of a telemetry: "ATTR|name|key=value|key=value". They describe the telemetry, they are not samples: sent once (again
+ * at will), before or after its data.
+ *   min, max   the values a number is expected between (TELEM_ATTR_RANGE); one of them is enough, given empty it is forgotten
+ * Throws on an unknown key (the line is counted as not understood).
+ */
+function _parseDataText_parseAttributes(msg)
+{
+    const P = TELEPLOT.protocol;
+    let parts = msg.substring(5).split("|");
+    let name = parts.shift();
+    if(name === undefined || name.length == 0) throw new Error("Attributes: ATTR|name|key=value");
+    let options = [];
+    for(let part of parts) {
+        if(part.trim() === "") continue;
+        let at = part.indexOf("=");
+        let key = (at < 0 ? part : part.substring(0, at)).trim(), value = at < 0 ? "" : _parseDataText_unescape(part.substring(at + 1)).trim();
+        if(key !== "min" && key !== "max") throw new Error("Unknown attribute : " + key);
+        let number = value === "" ? undefined : Number(value);
+        if(number !== undefined && !Number.isFinite(number)) throw new Error("Attribute " + key + " needs a number");
+        options.push([key, number]);
+    }
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(name);
+    if(!options.length) return;
+    let range = Object.assign({ min: undefined, max: undefined }, telemetry.getAttribute(P.TELEM_ATTR_RANGE));
+    for(let [key, number] of options) range[key] = number;
+    telemetry.setAttribute(P.TELEM_ATTR_RANGE, (range.min === undefined && range.max === undefined) ? undefined : range);
+}
+
+/*
+ * Thresholds of a number telemetry: "TH|name:threshold:threshold..." where a threshold is "itsName<value" (past the limit when the
+ * telemetry is below) or "itsName>value" (above), with an optional color: "low<10.5,orange".
+ *   TH|battery:low<10.5:empty<9.9,red
+ *   TH|motor_temp:1627551892437:hot>70           a field that is only a number is the timestamp (ms) of what follows
+ *   TH|motor_temp:1627551892437:hot>70;1627551899000:hot>75       several times in one line
+ *   TH|battery:low<                              without value: the threshold is removed from then on
+ * A threshold holds from its timestamp until another one of the same name: limits can change over time (TELEM_DATA_THRESHOLD).
+ * In the names, the characters % : ; | < > , are written %XX.
+ */
+function _parseDataText_parseThresholds(msg, now)
+{
+    const P = TELEPLOT.protocol;
+    let body = msg.substring(3);
+    let nameEnd = body.indexOf(":");
+    if(nameEnd < 1) throw new Error("Thresholds: TH|name:threshold<value");
+    let timestamps = [], operators = [], values = [], names = [], colors = [];
+    for(let group of body.substring(nameEnd + 1).split(";")) {
+        let fields = group.split(":").filter((field) => field.trim() !== "");
+        let timestamp = now;
+        if(fields.length && /^[0-9.eE+-]+$/.test(fields[0].trim())) {
+            let given = parseFloat(fields.shift()) / 1000;
+            if(Number.isFinite(given)) timestamp = given;
+        }
+        for(let field of fields) {
+            let match = /^([^<>]*)([<>])([^,]*)(?:,(.*))?$/.exec(field);
+            let name = match ? _parseDataText_unescape(match[1]).trim() : "";
+            if(name === "") throw new Error("Threshold: name<value or name>value, got " + field);
+            let text = match[3].trim(), value = text === "" ? NaN : Number(text);
+            if(text !== "" && !Number.isFinite(value)) throw new Error("Threshold " + name + " needs a number");
+            timestamps.push(timestamp);
+            operators.push(match[2] === ">" ? P.THRESHOLD_ABOVE : P.THRESHOLD_BELOW);
+            values.push(value);
+            names.push(name);
+            colors.push(match[4] === undefined ? "" : _parseDataText_unescape(match[4]).trim());
+        }
+    }
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(body.substring(0, nameEnd));
+    if(timestamps.length) telemetry.addData(P.SECTION_TYPE_TELEM_DATA_THRESHOLD, timestamps, [operators, values, names, colors]);
 }
 
 // A point cloud (lidar scan...): every point of the line belongs to one sample.

@@ -271,3 +271,95 @@ test('text emitted as a state ("t") or as a log ("log", and ">" lines): same dat
     assert.equal(T.view.suggestViewType('speed'), 'chart');
     assert.ok(new T.view.ViewLog('', ['state']).supportedDataTypes.includes(String(TEXT)));
 });
+
+test('an empty text is a sample: the state that says nothing ("name:|t", with or without a time)', () => {
+    const T = loadTeleplot();
+    assert.equal(parse(T, 'mode:driving|t\nmode:|t\nmode:3000000:|t\nmode:4000000:back|t'), 0);
+    assert.deepEqual([entry(T, 'mode', TEXT).timestamps, entry(T, 'mode', TEXT).data[0]], [[1000, 1000, 3000, 4000], ['driving', '', '', 'back']]);
+    // Only for texts, and only when the value is the whole message: an empty number is still nothing, as are the gaps of a list
+    parse(T, 'n:\nlist:a;;b|t\nlist:|log');
+    assert.equal(T.datastore.getTelemetry('n').data[NUMBER], undefined);
+    assert.deepEqual(entry(T, 'list', TEXT).data[0], ['a', 'b', '']);
+});
+
+test('ATTR lines: the range of a telemetry, set, completed and forgotten; unknown keys are not understood', () => {
+    const T = loadTeleplot();
+    const range = (name) => T.datastore.getTelemetry(name).getRange();
+    assert.equal(parse(T, 'ATTR|battery|min=9|max=12.6'), 0);
+    assert.deepEqual(range('battery'), { min: 9, max: 12.6 });
+    assert.equal(T.datastore.getTelemetry('battery').hasContent(), false, 'an attribute is not data');
+    assert.equal(parse(T, 'ATTR|battery|max=13'), 0);
+    assert.deepEqual(range('battery'), { min: 9, max: 13 }, 'what is not said is kept');
+    parse(T, 'ATTR|battery|min=');
+    assert.deepEqual(range('battery'), { min: undefined, max: 13 });
+    parse(T, 'ATTR|battery|max=');
+    assert.equal(range('battery'), undefined);
+    assert.equal(T.datastore.getTelemetry('battery').getAttribute(T.protocol.TELEM_ATTR_RANGE), undefined);
+    parse(T, 'ATTR|temp| min = -40 |max=1e2|');
+    assert.deepEqual(range('temp'), { min: -40, max: 100 });
+    assert.equal(parse(T, 'ATTR|late'), 0, 'a name alone says nothing, and is not a mistake');
+    // Before or after the data, it is the same telemetry
+    parse(T, 'battery:11.4\nATTR|battery|min=9|max=12.6');
+    assert.deepEqual([entry(T, 'battery').data[0], range('battery')], [[11.4], { min: 9, max: 12.6 }]);
+    // Not understood: counted, nothing changed
+    const out = captureConsole(() => {
+        assert.equal(parse(T, 'ATTR|battery|color=red'), 1);
+        assert.equal(parse(T, 'ATTR|battery|min=low'), 1);
+        assert.equal(parse(T, 'ATTR||min=1'), 1);
+        assert.equal(parse(T, 'ATTR|battery|min=0|oops=1'), 1, 'a line is taken as a whole');
+    });
+    assert.equal(out.log.length, 4);
+    assert.deepEqual(range('battery'), { min: 9, max: 12.6 });
+    // From a serial port, as every other line: after ">"
+    T.parseDataText({ data: '>ATTR|serial|min=1|max=2', fromSerial: true });
+    assert.deepEqual(range('serial'), { min: 1, max: 2 });
+});
+
+test('TH lines: thresholds with a name, < or >, a value, an optional color and an optional time', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, TH = P.SECTION_TYPE_TELEM_DATA_THRESHOLD;
+    const rows = (name) => { const e = entry(T, name, TH); return e.timestamps.map((t, i) => [t, e.data[2][i], e.data[0][i] === P.THRESHOLD_ABOVE ? '>' : '<', e.data[1][i], e.data[3][i]]); };
+    assert.equal(parse(T, 'TH|battery:low<10.5:empty<9.9,red'), 0);
+    assert.deepEqual(rows('battery'), [[1000, 'low', '<', 10.5, ''], [1000, 'empty', '<', 9.9, 'red']]);
+    assert.equal(parse(T, 'TH|temp:5000:hot>70:critical>85,#ff0000;9000:hot>75,rgb(255, 128, 0)'), 0);
+    assert.deepEqual(rows('temp'), [[5, 'hot', '>', 70, ''], [5, 'critical', '>', 85, '#ff0000'], [9, 'hot', '>', 75, 'rgb(255, 128, 0)']]);
+    // Without value: removed from then on
+    parse(T, 'TH|temp:12000:critical>');
+    assert.ok(Number.isNaN(entry(T, 'temp', TH).data[1][3]));
+    assert.deepEqual(T.datastore.getTelemetry('temp').getThresholds().map(t => t.name), ['hot']);
+    assert.deepEqual(T.datastore.getTelemetry('temp').getThresholds(10).map(t => t.name), ['hot', 'critical']);
+    // Names: spaces around are dropped, separators are written %XX; negative values, exponents
+    parse(T, 'TH|x: too low <-1.5e1 : 50%25 %3A half>0.5');
+    assert.deepEqual(rows('x').map(r => r.slice(1)), [['too low', '<', -15, ''], ['50% : half', '>', 0.5, '']]);
+    // A telemetry that only has thresholds has nothing to display, and is a number for the views
+    assert.equal(T.datastore.getTelemetry('battery').hasContent(), false);
+    assert.equal(T.view.suggestViewType('battery'), 'chart');
+    parse(T, 'battery:11');
+    assert.equal(T.view.suggestViewType('battery'), 'chart');
+    // Not understood: counted, and nothing of the line is stored
+    const out = captureConsole(() => {
+        assert.equal(parse(T, 'TH|battery:low=10'), 1);
+        assert.equal(parse(T, 'TH|battery:low<ten'), 1);
+        assert.equal(parse(T, 'TH|battery:<10'), 1);
+        assert.equal(parse(T, 'TH|:low<10'), 1);
+        assert.equal(parse(T, 'TH|battery'), 1);
+        assert.equal(parse(T, 'TH|battery:ok<1:bad'), 1);
+    });
+    assert.equal(out.log.length, 6);
+    assert.equal(rows('battery').length, 2);
+    assert.equal(parse(T, 'TH|battery:'), 0, 'no threshold: nothing to do');
+    T.parseDataText({ data: '>TH|serial:low<1', fromSerial: true });
+    assert.equal(rows('serial').length, 1);
+});
+
+test('a text may hold colons: its time, when it has one, is a first field that is a number; nothing is stored at a time that is not one', () => {
+    const T = loadTeleplot();
+    assert.equal(parse(T, 'mode:error: motor stalled|t\nmode:3000000:error: code 12:30|t\nmode:4000000:plain|t\nmode:12:30|t\nnotes:a:b;e;5000000:c:d|log'), 0);
+    assert.deepEqual([entry(T, 'mode', TEXT).timestamps, entry(T, 'mode', TEXT).data[0]],
+        [[0.012, 1000, 3000, 4000], ['30', 'error: motor stalled', 'error: code 12:30', 'plain']], 'a text that starts with a number and a colon is read as its time');
+    assert.deepEqual([entry(T, 'notes', TEXT).timestamps, entry(T, 'notes', TEXT).data[0]], [[1000, 1000, 5000], ['a:b', 'e', 'c:d']], 'several texts in a line, each with or without its time');
+    // The datastore refuses what is not a time, whoever asks (it would break the order of the samples)
+    const telem = T.datastore.getOrCreateTelemetry('n');
+    telem.addData(NUMBER, [5, NaN, undefined, -1, 6], [[1, 2, 3, 4, 5]]);
+    assert.deepEqual([telem.data[NUMBER].timestamps, telem.data[NUMBER].data[0]], [[5, 6], [1, 5]]);
+});

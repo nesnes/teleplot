@@ -2,10 +2,12 @@
 let _datastore_currentSourceId = undefined;
 let _datastore_addWatcher = undefined; // Called with (telemetry, dataType, timestamps) for what is added while it is set (see watchAdds)
 let _datastore_dry = false;            // true: nothing is stored nor cleared, the watcher still sees what would be added (see dryRun)
+let _datastore_serial = 0;             // Counts the telemetries created: tells one from another one that took its id (objects are not compared: an application may wrap them)
 
 class Telemetry {
     constructor(id) {
         this.id = id;
+        this.serial = ++_datastore_serial;
         this.clientId = -1;
         this.sourceId = _datastore_currentSourceId; // Connection that first sent it (undefined: created by the application itself)
         this.attributes = {};
@@ -14,6 +16,12 @@ class Telemetry {
     }
     setAttribute(code, data) {
         this.attributes[code] = data;
+        if(this.__unannounced && code === TELEPLOT.protocol.TELEM_ATTR_SHAPE) _datastore_announce(this);
+    }
+    // Has the telemetry something to display ? Data (thresholds are not: they are limits of other data), or a shape
+    hasContent() {
+        for(let dataType in this.data) if(dataType != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) return true;
+        return this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) !== undefined;
     }
     getAttribute(code) {
         return this.attributes[code];
@@ -48,7 +56,7 @@ class Telemetry {
         let lastTimestamp = stored.timestamps.length ? stored.timestamps[stored.timestamps.length-1] : -Infinity;
         for(let i=0;i<timestamps.length;i++) {
             let timestamp = timestamps[i];
-            if (timestamp<0) continue; // Do not use negative timestamps (not supported and -1 could interact with getDataPoint)
+            if (!(timestamp >= 0)) continue; // Do not use negative timestamps (not supported and -1 could interact with getDataPoint), nor what is not a time at all (it would break the order of the data)
             // Fast path: data coming in order is appended (the common case, much cheaper than a search and an insertion)
             if (timestamp >= lastTimestamp) {
                 stored.timestamps.push(timestamp);
@@ -71,6 +79,7 @@ class Telemetry {
 
         stored.lastUpdate = Date.now();
         if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps);
+        if(this.__unannounced && dataType !== TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) _datastore_announce(this);
     };
     getDataPoint(dataType, timestamp=-1) { // timestamp=-1 means "the latest value"
         let result = {timestamp:-1, data:[], index:undefined};
@@ -113,6 +122,100 @@ class Telemetry {
         if(_datastore_dry) return;
         Object.keys(this.data).forEach(key => delete this.data[key]);
     };
+
+    // The values the telemetry is expected between (TELEM_ATTR_RANGE): {min, max}, each a number or undefined. undefined without range.
+    getRange() {
+        let range = this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_RANGE);
+        if(!range) return undefined;
+        let min = Number.isFinite(range.min) ? range.min : undefined, max = Number.isFinite(range.max) ? range.max : undefined;
+        return (min === undefined && max === undefined) ? undefined : { min, max };
+    }
+
+    /*
+     * Thresholds: limits of a number telemetry (TELEM_DATA_THRESHOLD). A sample is one limit, from its timestamp on: an operator
+     * (THRESHOLD_BELOW / THRESHOLD_ABOVE: the side of the limit that is past it), a value, a name and a color ("" when none).
+     * A later sample of the same name replaces it, and removes it when its value is not a number. So limits can change over time,
+     * and what was drawn in the past keeps the limits it had.
+     */
+
+    // The thresholds in force at a time (the latest ones without time): [{name, value, operator, color, timestamp}], lowest value first
+    getThresholds(timestamp=-1) {
+        let entry = this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD];
+        if(entry === undefined || !entry.timestamps.length) return [];
+        let stamps = entry.timestamps, list = [];
+        for(let [name, indexes] of Telemetry.__thresholdIndex(entry)) {
+            // The latest sample of the name at or before the time is the one in force
+            let at = indexes.length - 1;
+            if(timestamp >= 0 && stamps[indexes[at]] > timestamp) {
+                let lo = 0, hi = indexes.length;
+                while(lo < hi) { let mid = (lo + hi) >> 1; if(stamps[indexes[mid]] <= timestamp) lo = mid + 1; else hi = mid; }
+                at = lo - 1;
+            }
+            if(at < 0) continue;
+            let i = indexes[at];
+            if(Number.isFinite(entry.data[1][i])) list.push({ name, value: entry.data[1][i], operator: entry.data[0][i], color: entry.data[3][i] || "", timestamp: stamps[i] });
+        }
+        return list.sort((a, b) => a.value - b.value);
+    }
+
+    // The samples of each threshold name: Map name -> indexes, in order. Kept with the data entry and completed as samples are
+    // appended (a limit that moves many times per second makes many samples: they are not gone through on every question);
+    // built again when samples were inserted or removed.
+    static __thresholdIndex(entry) {
+        let index = entry.thresholdIndex;
+        if(index === undefined || index.late !== entry.lateInsertions || index.timestamps !== entry.timestamps || index.count > entry.timestamps.length) {
+            index = entry.thresholdIndex = { late: entry.lateInsertions, timestamps: entry.timestamps, count: 0, byName: new Map() };
+        }
+        let names = entry.data[2];
+        for(let i = index.count; i < names.length; i++) {
+            let indexes = index.byName.get(names[i]);
+            if(indexes === undefined) index.byName.set(names[i], indexes = []);
+            indexes.push(i);
+        }
+        index.count = names.length;
+        return index.byName;
+    }
+
+    // The threshold a value is past at a time, undefined when it is past none. Past several: the one it passed last (the limit
+    // closest to the value: "critical" rather than "warning" once both are passed).
+    getThresholdStatus(value, timestamp=-1) {
+        if(typeof value !== "number" || isNaN(value) || this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD] === undefined) return undefined;
+        let past = undefined;
+        for(let threshold of this.getThresholds(timestamp)) {
+            let isPast = threshold.operator === TELEPLOT.protocol.THRESHOLD_ABOVE ? value > threshold.value : value < threshold.value;
+            if(isPast && (past === undefined || Math.abs(value - threshold.value) < Math.abs(value - past.value))) past = threshold;
+        }
+        return past;
+    }
+
+    // The thresholds over a period, as steps (a limit holds from its sample until the next one of the same name: nothing is drawn in
+    // between two values): [{name, operator, color, steps: [{from, to, value}]}]. A limit that is still in force runs until "to".
+    getThresholdSteps(from, to) {
+        let entry = this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD];
+        if(entry === undefined || !(from < to)) return [];
+        let lines = new Map();
+        for(let i = 0; i < entry.timestamps.length; i++) {
+            let timestamp = entry.timestamps[i];
+            if(timestamp > to) break;
+            let name = entry.data[2][i];
+            let line = lines.get(name);
+            if(line === undefined) { line = { name, operator: entry.data[0][i], color: "", steps: [], open: undefined }; lines.set(name, line); }
+            if(line.open !== undefined) { // The step that was running ends here
+                if(timestamp > from) line.steps.push({ from: Math.max(from, line.open.from), to: timestamp, value: line.open.value });
+                line.open = undefined;
+            }
+            line.operator = entry.data[0][i];
+            line.color = entry.data[3][i] || "";
+            if(Number.isFinite(entry.data[1][i])) line.open = { from: timestamp, value: entry.data[1][i] };
+        }
+        let list = [];
+        for(let line of lines.values()) {
+            if(line.open !== undefined) line.steps.push({ from: Math.max(from, line.open.from), to, value: line.open.value });
+            delete line.open;
+            if(line.steps.length) list.push(line);
+        }
+        return list;
+    }
 
     // Removes the samples of a data type between two timestamps (seconds, limits included). Returns how many were removed.
     removeRange(dataType, from, to) {
@@ -191,6 +294,7 @@ class Telemetry {
         const GROUP = 4;
         let primary = undefined, heaviest = -1;
         for (let dataType in this.data) {
+            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) continue; // Limits are not thinned: each sample is one limit, none stands for the others
             let entry = this.data[dataType];
             let count = entry.timestamps.length;
             let bytes = count * 8;
@@ -223,7 +327,7 @@ class Telemetry {
         let times = primary.timestamps;
         for (let dataType in this.data) {
             let entry = this.data[dataType];
-            if (entry === primary || !entry.timestamps.length) continue;
+            if (entry === primary || !entry.timestamps.length || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) continue;
             let stamps = entry.timestamps, limit = 0, index = -1, keptHere = [];
             while (limit < stamps.length && stamps[limit] <= boundary) limit++; // Samples [0, limit) are concerned
             if (limit < 2) continue;
@@ -254,11 +358,13 @@ class Telemetry {
     forgetOldest(fraction=0.25) {
         let removed = 0;
         for (let dataType in this.data) {
+            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) continue; // (limits stay: see thinOldest)
             let entry = this.data[dataType];
             let count = Math.floor(entry.timestamps.length * fraction);
             if (count < 1) continue;
             entry.timestamps.splice(0, count);
             for (let channel of entry.data) channel.splice(0, count);
+            entry.pruned = (entry.pruned || 0) + 1;
             removed += count;
         }
         return removed;
@@ -283,6 +389,10 @@ class Telemetry {
             if (closestDataPoint.index === undefined) continue;
             let removeUpToIdx = closestDataPoint.index; // index NOT included in delete
             if (closestDataPoint.timestamp < oldestTimestampAllowed) removeUpToIdx = closestDataPoint.index + 1; // index included in delete
+            // What holds until the next sample is still what is shown when the window starts: a state keeps its last sample before
+            // the window (a log does not: its lines are instants), and so does each threshold
+            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) { this.__deleteOldThresholds(removeUpToIdx); continue; }
+            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) !== true) removeUpToIdx--;
             // Removing from the front of a long array moves all of it: with a lot of data, wait until 1% of it is too old
             let stored = this.data[dataType].timestamps.length;
             if (removeUpToIdx < 1 || (stored >= 4096 && removeUpToIdx < stored * 0.01)) continue;
@@ -291,10 +401,24 @@ class Telemetry {
             for (let dataChannel in this.data[dataType].data) {
                 this.data[dataType].data[dataChannel].splice(0, removeUpToIdx);
             }
+            this.data[dataType].pruned = (this.data[dataType].pruned || 0) + 1; // (what is cached by index from this data starts again: see textRuns)
         }
-        for (let dataType in this.data) {
-            this.data[dataType].timestamp
+    };
+
+    // Removes the threshold samples before an index, but the last one of each name (the limit in force when the data window starts)
+    __deleteOldThresholds(end) {
+        let entry = this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD];
+        let seen = new Set(), kept = [];
+        for(let i = end - 1; i >= 0; i--) {
+            let name = entry.data[2][i];
+            if(seen.has(name)) continue;
+            seen.add(name);
+            if(Number.isFinite(entry.data[1][i])) kept.unshift(i); // (a limit that was removed has nothing left to say)
         }
+        if(kept.length >= end) return;
+        entry.timestamps = kept.map((i) => entry.timestamps[i]).concat(entry.timestamps.slice(end));
+        for(let c = 0; c < entry.data.length; c++) { let channel = entry.data[c]; entry.data[c] = kept.map((i) => channel[i]).concat(channel.slice(end)); }
+        entry.lateInsertions++;
     };
 }
 
@@ -478,14 +602,26 @@ TELEPLOT.datastore.addTelemetry = function(idOrName) {
         telem.setAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME, name);
     }
 
-    // Call new telemetry hooks
-    if(!_datastore_dry) for(let hook of TELEPLOT.datastore.onNewTelemetryHooks) {
-        // Call hook with a delay, giving time to receive attributes and data
-        setTimeout(()=>{
-            hook(telem);
-        }, 100);
-    }
+    if(!_datastore_dry) _datastore_announce(telem);
     return telem;
+}
+
+// Calls the new telemetry hooks, with a delay that gives time to receive attributes and data. A telemetry that has nothing to display
+// by then (only attributes or thresholds were sent: "ATTR|" and "TH|" lines when a device starts, its values later) is announced
+// when it gets its first data: the hooks decide where a telemetry is displayed from what it holds.
+function _datastore_announce(telem) {
+    telem.__unannounced = false;
+    setTimeout(()=>{
+        // Forgotten meanwhile ? (By its serial number, not "is it the same object": an application that wraps the library in
+        // proxies, as a reactive framework does, gets another object from the datastore than the one that was stored.)
+        let stored = TELEPLOT.datastore.telemetries[telem.id];
+        if(stored === undefined || stored.serial !== telem.serial) return;
+        if(!telem.hasContent()) { telem.__unannounced = true; return; }
+        for(let hook of TELEPLOT.datastore.onNewTelemetryHooks) {
+            try { hook(telem); }
+            catch(e) { console.error("Teleplot new telemetry hook failed:", e); }
+        }
+    }, 100);
 }
 
 // The telemetry of a name, whichever protocol it came from: telemetries of the text protocol are known by their name, the others have

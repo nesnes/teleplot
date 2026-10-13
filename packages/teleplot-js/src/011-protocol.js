@@ -12,6 +12,7 @@ TELEPLOT.protocol = {
     TELEM_ATTR_VIEW_LABEL: 6, // Telemetries with the same label are displayed in the same view when nobody arranged them ("name,label" in text)
     TELEM_ATTR_LOG: 7,        // A text telemetry is emitted as a log (lines to read one after the other: "log" flag in text) and not as a state (the default: its latest value matters, "t" flag). It only decides the view it gets by default.
     TELEM_ATTR_FRAME: 8,      // What the positions of a shape are relative to: {type, name}. FRAME_TYPE_POSE: the pose of the telemetry of that name (a shape, a camera, a point...); FRAME_TYPE_PIXELS: the pixels of the pictures of the image telemetry of that name
+    TELEM_ATTR_RANGE: 9,      // The values a number telemetry is expected between: {min, max} (either can be undefined). Views use it as an extent (the bar of a value, the scale of a chart); it changes nothing to the data
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,
@@ -48,6 +49,9 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR: 37,     // x, y, z: the vector of an arrow
     SECTION_TYPE_TELEM_DATA_SHAPE_TEXT: 38,       // The text of a text shape
     SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH: 39, // Width of the lines of a shape, in the units of its frame (never sent: as thin as the screen draws) // Samples of a data type made of numbers, each number as a float64: for values that the float32 (or integer) section of the data type would round
+    SECTION_TYPE_TELEM_DATA_THRESHOLD: 40,        // A limit of a number telemetry, from its timestamp on: operator, value, name, color. A limit of the same name replaces it; a value that is not a number removes it
+    THRESHOLD_BELOW: 0, // Operators of a threshold: the telemetry is past it when its value is below ("<" in text)
+    THRESHOLD_ABOVE: 1, //                           or above (">")
     POINT_CLOUD_INTENSITY: 1, // Flags of a point cloud: each point has an intensity (float32)
     POINT_CLOUD_RGB: 2,       //                          each point has a color (r, g, b bytes)
     IMAGE_TYPE_JPEG: 0,
@@ -114,6 +118,8 @@ TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
             return 1;
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH:
             return 1;
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD:
+            return 4; // operator, value, name, color ("" when none)
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
             return 0; // Not a data type: a way to write the others
     }

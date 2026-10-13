@@ -314,9 +314,13 @@ test('empty states say why a view shows nothing, and say nothing when there is s
     let waiting = new T.view.ViewChart('', ['x', 'y']).getEmptyState();
     assert.deepEqual([waiting.text, waiting.hint], ['Waiting for data', 'x, y']);
     assert.equal(new T.view.ViewChart('', ['nodata']).getEmptyState().text, 'Waiting for data');
-    const wrong = new T.view.ViewChart('', ['txt']).getEmptyState();
+    const marksOnly = new T.view.ViewChart('', ['txt']).getEmptyState(); // (a text is a mark on the curves of numbers: it needs one)
+    assert.equal(marksOnly.text, 'No number to chart');
+    assert.match(marksOnly.hint, /marks.*number/);
+    T.datastore.getOrCreateTelemetry('xy').addData(T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D, [1], [[1], [2]]);
+    const wrong = new T.view.ViewChart('', ['xy']).getEmptyState();
     assert.equal(wrong.text, 'Nothing to display');
-    assert.match(wrong.hint, /number data.*txt/);
+    assert.match(wrong.hint, /number data.*xy/);
     assert.match(new T.view.ViewLog('', ['num']).getEmptyState().hint, /text data/);
     assert.equal(new T.view.ViewChart('', ['txt', 'num']).getEmptyState().text, ''); // one telemetry is enough
     assert.equal(new T.view.ViewLog('', ['txt']).getEmptyState().text, '');

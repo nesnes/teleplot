@@ -232,7 +232,7 @@
     demo("Too many for the view", "The view scrolls.", [200, 80], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["numberTelemetry", "number.cos", "text.Telemetry", "long.unit", "multi-channel-telemetry"]));
     });
-    demo("Narrow, long names and a long unit", "Names are shortened (hover them), text wraps.", [120, 250], (id) => {
+    demo("Narrow, long names and a long unit", "Names are shortened (hover them), text wraps. The unit is written after the value; a long one goes on under the number.", [120, 250], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, [longName, "text.Telemetry", "long.unit"]));
     });
     demo("2D and 3D numbers", "Their values separated by commas.", [250, 100], (id) => {
@@ -356,6 +356,86 @@
       Teleplot.view.addView(new Teleplot.view.ViewLog(id, ["log.empty", "does.not.exist"]));
     });
 
+    // ====================================================================================================================== Time
+    section("Timelines, marks, ranges and thresholds", "Text over time: a ViewTimeline draws states as bands and logs as ticks, a chart draws text telemetries as marks. Numbers can say what they are expected between (a range: an attribute) and which limits they should not pass (thresholds: data, so they can change over time). Nothing is made up: bands start and end on samples, limits are steps. See doc/time-views.md.");
+
+    data("States, a zone with holes, a number with a range and thresholds", "tl.mode changes every second or so (sent again 10 times per second: the same text continues its band), tl.zone is \"dock\" or nothing (an empty text), tl.fast changes 200 times per second during one second out of ten. tl.temp has a range (ATTR line), two fixed thresholds and one (hot) that moves every 6 seconds (TH lines). tl.battery gets the same things through the binary protocol.", () => {
+      const modes = ["idle", "moving", "moving", "grasping", "moving", "idle", "error: gripper stalled", "idle", "charging"];
+      let mode = 0, until = 0, hot = 70;
+      Teleplot.parseDataText("ATTR|tl.temp|min=0|max=100\nTH|tl.temp:cold<15,#3498db:hot>70:critical>90,#e74c3c");
+      setInterval(() => {
+        const now = Date.now() / 1000;
+        if (now > until) { mode = (mode + 1) % modes.length; until = now + 0.8 + Math.random() * 2.5; }
+        Teleplot.parseDataText(`tl.mode:${modes[mode]}|t`);
+        Teleplot.parseDataText(`tl.zone:${Math.floor(now / 4) % 3 == 0 ? "dock" : ""}|t`);
+        Teleplot.parseDataText(`tl.temp:${(55 + 40 * Math.sin(now / 5) + 3 * Math.sin(now * 3)).toFixed(2)}§°C`);
+        const moved = 70 + 8 * (Math.floor(now / 6) % 3);
+        if (moved != hot) { hot = moved; Teleplot.parseDataText(`TH|tl.temp:hot>${hot}`); } // from now on: what was drawn keeps the limit it had
+      }, 100);
+      setInterval(() => { // A state too fast to be drawn, one second out of ten
+        const now = Date.now() / 1000;
+        if (Math.floor(now) % 10 == 0) Teleplot.parseDataText("tl.fast:" + Array.from({ length: 4 }, (v, i) => Math.round(now * 1000 + i * 5) + ":s" + (Math.round(now * 200) + i) % 3).join(";") + "|t");
+        else Teleplot.parseDataText("tl.fast:steady|t");
+      }, 20);
+
+      // The same through the binary protocol: a range attribute (9) and a threshold section (40), see doc/binaryProtocol.md
+      const bytes = [];
+      const u8 = (v) => bytes.push(v & 0xff), u16 = (v) => { u8(v); u8(v >> 8); }, u32 = (v) => { u16(v & 0xffff); u16(Math.floor(v / 65536)); };
+      const u64 = (v) => { u32(Number(v & 0xffffffffn)); u32(Number(v >> 32n)); };
+      const f32 = (v) => bytes.push(...new Uint8Array(new Float32Array([v]).buffer)), f64 = (v) => bytes.push(...new Uint8Array(new Float64Array([v]).buffer));
+      const str = (text) => bytes.push(...new TextEncoder().encode(text), 0);
+      const packet = (write) => { bytes.length = 0; u8(P.BINARY_MARKER); u8(P.BINARY_VERSION); u16(12); write(); u16(0); Teleplot.parseDataBinary(Uint8Array.from(bytes).buffer); };
+      window.tlBattery = 12 * 0x10000 + 1; // (client 12, telemetry 1)
+      packet(() => {
+        u8(P.SECTION_TYPE_TELEM_ATTR); u16(1); u8(3); u8(P.TELEM_ATTR_NAME); str("tl.battery"); u8(P.TELEM_ATTR_UNIT); str("V"); u8(P.TELEM_ATTR_RANGE); f64(9); f64(12.6);
+        u8(P.SECTION_TYPE_TELEM_DATA_THRESHOLD); u16(1); u64(BigInt(Date.now()) * 1000000n); u8(2);
+        u32(0); u8(P.THRESHOLD_BELOW); f64(10.5); str("low"); str("");
+        u32(0); u8(P.THRESHOLD_BELOW); f64(9.9); str("empty"); str("#e74c3c");
+      });
+      setInterval(() => packet(() => { u8(P.SECTION_TYPE_TELEM_DATA_NUMBER); u16(1); u64(BigInt(Date.now()) * 1000000n); u8(1); u32(0); f32(11 + 1.6 * Math.sin(Date.now() / 7000)); }), 200);
+    });
+    demo("Timeline: states and a log", "A lane per telemetry. tl.mode: a band per state, its text when there is room; the same text sent again continues the band; the state that looks like an error takes the error color. tl.zone: holes where the text is empty. text.journal (a log): a tick per line. Hover a band: its text, when it started and how long it lasted (the cursor of the group follows: look at the other views). Drag to zoom, double click to come back.", ["100%", 150], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["tl.mode", "tl.zone", "text.journal"]));
+    });
+    demo("States too short to be drawn", "tl.fast changes 200 times per second for a second: that part is a gray block (hover it: it tells how many states it holds), never one of the states. Zoom on it to see them.", [600, 90], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["tl.fast"]));
+    });
+    demo("More lanes than the view can hold", "The view scrolls, its time axis stays at the bottom.", [420, 110], (id) => {
+      const view = new Teleplot.view.ViewTimeline(id, ["tl.mode", "tl.zone", "tl.fast", "log.events", "log.main", "text.state", "text.journal"]);
+      view.setOption("title", "Seven lanes");
+      Teleplot.view.addView(view);
+    });
+    demo("Without names", "displayTelemetryName off: no margin on the left.", [300, 70], (id) => {
+      const view = new Teleplot.view.ViewTimeline(id, ["tl.mode", "tl.zone"]);
+      view.setOption("displayTelemetryName", false);
+      Teleplot.view.addView(view);
+    });
+    demo("Marks on a chart", "Text telemetries added to a chart have no curve: tl.mode (a state) is a line where it changes, with its text when there is room; text.journal (a log) a line per line of the log. Marks too close to be told apart are folded into a short tick at the top. Their legend entry (with a bar as its key) tells the text at the cursor; click it to hide the marks.", [700, 240], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["tl.temp", "tl.mode", "text.journal"]));
+    });
+    demo("Thresholds on a chart", "Dashed lines with their name on the side that is past the limit. hot moves every 6 seconds: its line is a step, the past keeps the limit it had. The scale keeps the thresholds in view (option thresholds: \"fit\", the default). The value in the legend takes the color of the threshold it is past.", [700, 240], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["tl.temp"]));
+    });
+    demo("Thresholds only when they are in view, hidden, and the range as the scale", "thresholds: \"show\" (the scale fits the curve: limits out of it are not drawn), thresholds: \"hide\", and scale: \"range\" (the range of the telemetry, 9 to 12.6 V, sent in binary).", ["100%", 200], (id) => {
+      const row = new Teleplot.view.ViewLayout(id, "default");
+      row.layout.align = "stretch"; row.setSize(1, 1);
+      Teleplot.view.addView(row);
+      for (const [name, option, value] of [["tl.temp", "thresholds", "show"], ["tl.temp", "thresholds", "hide"], [tlBattery, "scale", "range"]]) {
+        const chart = new Teleplot.view.ViewChart("", [name]);
+        chart.setOption(option, value);
+        chart.setOption("title", option + ": " + value);
+        row.addView(chart);
+      }
+    });
+    demo("Values: a bar for the range, the threshold that is passed", "A number with a range (both ends) gets a bar from its minimum to its maximum, with a tick for each threshold inside it; under the bar, lightly, the minimum, the maximum and the names of the thresholds (option displayScale; what would overlap is dropped). Past a threshold, the value takes its color and says its name. Like every value, it follows the cursor of the group: hover a chart above.", [320, 150], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["tl.temp", tlBattery, "tl.mode"]));
+    });
+    demo("The same in a row", "", [420, 90], (id) => {
+      const view = new Teleplot.view.ViewCurrentValue(id, ["tl.temp", tlBattery]);
+      view.setOption("displayLayoutRow", true);
+      Teleplot.view.addView(view);
+    });
+
     // ====================================================================================================================== Layouts
     section("Layouts and look", "ViewLayout arranges views in a row, a column or a grid, and chooses how they look (cards or flat, top color). What an editor needs is here too: titles, clone(), adding and removing telemetries, the options a form can edit.");
 
@@ -444,7 +524,9 @@
     demo("Values without telemetry", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, [])); });
     demo("Log without telemetry", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewLog(id, [])); });
     demo("Chart on a telemetry with no data yet", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["empty.telemetry"])); });
-    demo("Chart on text only", "Text cannot be plotted.", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["text.Telemetry"])); });
+    demo("Chart on text only", "A text is a mark on the curves of numbers: the chart says it has no number yet.", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["text.Telemetry"])); });
+    demo("Timeline without telemetry", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, [])); });
+    demo("Timeline on numbers only", "A timeline shows text.", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["numberTelemetry"])); });
     demo("Chart on a telemetry that does not exist", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["does.not.exist"])); });
     demo("Values on a telemetry that does not exist", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["does.not.exist"])); });
     demo("Long title on a narrow view", "", [180, 120], (id) => {

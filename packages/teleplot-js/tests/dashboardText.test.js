@@ -263,3 +263,22 @@ test('the automatic dashboard uses the layout of a dashboard received under its 
     assert.equal(live.isAuto, true);
     assert.deepEqual(tree(T, live.getView()), { grid: ['chart(x)', 'chart(y)'] });
 });
+
+test('a timeline is a view type of the lines; options of the chart for thresholds and scale are written when they differ', () => {
+    const T = loadTeleplot();
+    assert.ok(T.dashboards.receiveLine('DASH|Robot/States:timeline:mode,nav|h=3|displayTelemetryName=false'));
+    assert.ok(T.dashboards.receiveLine('DASH|Robot/Motion:chart:speed,mode|thresholds=show|scale=range'));
+    const layout = T.dashboards.getDashboard('Robot').getView();
+    const [timeline, chart] = layout.views;
+    assert.ok(timeline instanceof T.view.ViewTimeline);
+    assert.deepEqual([namesOf(T, timeline), timeline.layout.height, timeline.options.displayTelemetryName], [['mode', 'nav'], 3, false]);
+    assert.deepEqual([chart.getOption('thresholds'), chart.getOption('scale')], ['show', 'range']);
+    assert.deepEqual(T.dashboards.exportText('Robot').split('\n'), ['DASH|Robot:grid', 'DASH|Robot/States:timeline:mode,nav|h=3|displayTelemetryName=false', 'DASH|Robot/Motion:chart:speed,mode|thresholds=show|scale=range']);
+    // Read back in another page
+    const U = loadTeleplot();
+    U.dashboards.importText(T.dashboards.exportText('Robot'));
+    assert.deepEqual(tree(U, U.dashboards.getDashboard('Robot').getView()), { grid: ['timeline(mode,nav)', 'chart(speed,mode)'] });
+    // A chart then a timeline at the same place: the view is replaced, its telemetries stay
+    assert.ok(T.dashboards.receiveLine('DASH|Robot/Motion:timeline'));
+    assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView()), { grid: ['timeline(mode,nav)', 'timeline(speed,mode)'] });
+});

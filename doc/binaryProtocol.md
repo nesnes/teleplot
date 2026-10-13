@@ -58,6 +58,7 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - `8` **TELEM_ATTR_FRAME** `{FRAME_TYPE[8] - NAME[null terminated string]}`: what the positions of the telemetry are relative to (see `2d.md`). **NAME** is the name (`TELEM_ATTR_NAME`) of another telemetry.
           - `0` **FRAME_TYPE_POSE**: the pose of that telemetry (a shape, a camera, the sensor of a point cloud, a point): positions, orientations, vectors and points are in its frame and follow it.
           - `1` **FRAME_TYPE_PIXELS**: the pixels of the pictures of that image telemetry (u to the right, v down): the telemetry is drawn on those pictures, without any camera model.
+        - `9` **TELEM_ATTR_RANGE** `{MIN[64] - MAX[64]}` (float64): the values a number telemetry is expected between. A side that is not a number (NaN) is open. It changes nothing to the data: views use it as an extent (the bar of a value, the scale of a chart). `ATTR|name|min=..|max=..` in the text protocol, see `time-views.md`.
         - `5` **TELEM_ATTR_SHAPE** `{TELEM_ATTR_SHAPE_TYPE[8] - TELEM_ATTR_SHAPE_DATA[x]}`:
           - `0` **TELEM_ATTR_SHAPE_TYPE_CUBE**: the 2D object is a square, and the 3D object is a cube. (no **TELEM_ATTR_SHAPE_DATA**)
           - `1` **TELEM_ATTR_SHAPE_TYPE_SPHERE**: the 2D object is a circle, and the 3D object is a sphere. (no **TELEM_ATTR_SHAPE_DATA**)
@@ -207,6 +208,15 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
 
   - `39` **TELEM_DATA_SHAPE_LINE_WIDTH**: width of the lines of a shape (a line, the outline of a polygon, an arrow), in the units of its frame. Never sent: as thin as the screen draws.
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - ({TIMEDIFF[32]} - {WIDTH[32]})...` (float32)
+
+  - `40` **TELEM_DATA_THRESHOLD**: limits of a number telemetry (see `time-views.md`). A sample is one threshold, from its timestamp on.
+    - **SECTION_DATA**: `{TELEM_DATA_HEADER} - ({TIMEDIFF[32]} - {OPERATOR[8]} - {VALUE[64]} - {NAME[null terminated string]} - {COLOR[null terminated string]})...`
+      - **OPERATOR**(uint8): `0` **THRESHOLD_BELOW**: the telemetry is past the limit when its value is below it (`<` in the text protocol); `1` **THRESHOLD_ABOVE**: when it is above (`>`).
+      - **VALUE**(float64): the limit. Not a number (NaN): the threshold of that name is removed from then on.
+      - **NAME**: the name of the threshold (`low`, `critical`...). A sample replaces, from its timestamp on, the one of the same name; thresholds of different names live side by side.
+      - **COLOR**: a CSS color (`red`, `#e74c3c`), or an empty string for the default one.
+      - Sent to the telemetry whose numbers it limits, at any time and at its own rate: once when the device starts, or whenever a limit moves. What is displayed for a past moment uses the limits in force at that moment.
+      - Same as `TH|name:threshold<value,color` in the text protocol.
 
   - `36` **TELEM_DATA_FLOAT64**: Samples of a data type made of numbers, each number as a float64. For values that the section of the data type would round (its float32, or its integers): what Teleplot writes to a binary file uses it when needed, a device can use it too.
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - {DATA_TYPE[8]} - ({TIMEDIFF[32]} - {VALUE[64]}...)...`

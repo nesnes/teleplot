@@ -40,6 +40,24 @@ function _files_range(entry, from, to) {
     return [start, Math.max(start, end)];
 }
 
+// Indexes of the samples of a data entry to export for a period. Thresholds are limits that hold until they are replaced: the ones
+// in force when the period starts (the last sample of each name before it) are part of what the period needs, and come first.
+function _files_indexes(dataType, entry, from, to) {
+    let [start, end] = _files_range(entry, from, to);
+    let indexes = [];
+    if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD && start > 0) {
+        let seen = new Set();
+        for(let i = start - 1; i >= 0; i--) {
+            let name = entry.data[2][i];
+            if(seen.has(name)) continue;
+            seen.add(name);
+            if(Number.isFinite(entry.data[1][i])) indexes.unshift(i);
+        }
+    }
+    for(let i = start; i < end; i++) indexes.push(i);
+    return indexes;
+}
+
 // ---------------------------------------------------------------------------------------------------------------- Text
 
 // A timestamp (seconds) as the milliseconds the text protocol takes, written so that reading it gives the same timestamp back
@@ -77,7 +95,7 @@ function _files_quoted(value) {
 /*
  * The data (and the dashboards) as lines of the text protocol. Returns { parts, samples, skipped }: "parts" are strings to put one
  * after the other (new Blob(parts)), "samples" the number of samples written, "skipped" the number of samples the text protocol
- * cannot carry: telemetries whose name holds a separator, texts that hold one (; : | § or a line break).
+ * cannot carry: telemetries whose name holds a separator, texts that hold one (; | § or a line break).
  * Also not in a text file, because the text protocol has no word for them: colors and data windows of telemetries, clients (two
  * telemetries of the same name sent by two clients become one), and colors sent as r, g, b come back as "rgb(r,g,b)".
  */
@@ -113,9 +131,8 @@ TELEPLOT.files.exportText = function(options = {}) {
         let write = (dataType, prefix, suffix, format, perLine = 200) => {
             let entry = telem.data[dataType];
             if(entry === undefined) return;
-            let [start, end] = _files_range(entry, selection.from, selection.to);
             let fields = [];
-            for(let i = start; i < end; i++) {
+            for(let i of _files_indexes(dataType, entry, selection.from, selection.to)) {
                 let field = format(entry.data, i, _files_ms(entry.timestamps[i]));
                 if(field === undefined) { skipped++; continue; }
                 fields.push(field);
@@ -137,6 +154,16 @@ TELEPLOT.files.exportText = function(options = {}) {
         let frameName = frame && frame.name ? _files_quoted(frame.name) : undefined;
         if(frameName !== undefined) push("3D|" + key + (frame.type === P.FRAME_TYPE_PIXELS ? ":FPX:" : ":F:") + frameName + flags(""));
 
+        // Its range (an attribute: said once) and its thresholds
+        let range = telem.getRange();
+        if(range !== undefined) push("ATTR|" + name + (range.min !== undefined ? "|min=" + range.min : "") + (range.max !== undefined ? "|max=" + range.max : ""));
+        let escape = (text) => String(text).replace(/[%:;|<>,]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
+        write(P.SECTION_TYPE_TELEM_DATA_THRESHOLD, "TH|" + name + ":", "", (d, i, ms) => {
+            let thresholdName = String(d[2][i]), color = String(d[3][i] || "");
+            if(thresholdName.trim() === "" || thresholdName !== thresholdName.trim() || /[\r\n]/.test(thresholdName) || /[:;|\r\n]/.test(color) || color !== color.trim()) return undefined;
+            return ms + ":" + escape(thresholdName) + (d[0][i] === P.THRESHOLD_ABOVE ? ">" : "<") + (Number.isFinite(d[1][i]) ? d[1][i] : "") + (color !== "" ? "," + color.replace(/%/g, "%25") : "");
+        }, 100);
+
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER, key + ":", unitText + flags(""), (d, i, ms) => ms + ":" + d[0][i]);
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, key + ":", unitText + flags("xy"), (d, i, ms) => d[0][i] + ":" + d[1][i] + ":" + ms);
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, key + ":", unitText + flags("xyz"), (d, i, ms) => d[0][i] + ":" + d[1][i] + ":" + d[2][i] + ":" + ms);
@@ -145,7 +172,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         }
         else write(P.SECTION_TYPE_TELEM_DATA_TEXT, key + ":", unitText + flags(isLog ? "log" : "t"), (d, i, ms) => {
             let text = String(d[0][i]);
-            return /[;:|§\r\n]/.test(text) ? undefined : ms + ":" + text;
+            return /[;|§\r\n]/.test(text) ? undefined : ms + ":" + text; // (colons are fine: the time written before the text tells where it starts)
         }, 1);
         write(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, key + ":", flags("pc"), (d, i, ms) => {
             let positions = d[0][i], intensities = d[1][i], colors = d[2][i];
@@ -265,6 +292,10 @@ function _files_encoders(P) {
     encoders[P.SECTION_TYPE_TELEM_DATA_TEXT] = { skip: (d, i) => _files_NUL.test(String(d[0][i])), write: (w, d, i) => w.str(String(d[0][i])) };
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR] = { skip: (d, i) => _files_NUL.test(String(d[0][i])), write: (w, d, i) => w.str(String(d[0][i])) };
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE] = { skip: (d, i) => _files_NUL.test(String(d[1][i])), write: (w, d, i) => w.u8(d[0][i]).str(String(d[1][i])) };
+    encoders[P.SECTION_TYPE_TELEM_DATA_THRESHOLD] = {
+        skip: (d, i) => _files_NUL.test(String(d[2][i])) || _files_NUL.test(String(d[3][i])),
+        write: (w, d, i) => w.u8(d[0][i] === P.THRESHOLD_ABOVE ? P.THRESHOLD_ABOVE : P.THRESHOLD_BELOW).f64(d[1][i]).str(String(d[2][i])).str(String(d[3][i] || ""))
+    };
     return encoders;
 }
 
@@ -345,6 +376,8 @@ TELEPLOT.files.exportBinary = function(options = {}) {
         text(P.TELEM_ATTR_VIEW_LABEL); flag(P.TELEM_ATTR_LOG);
         let frame = telem.getAttribute(P.TELEM_ATTR_FRAME);
         if(frame && typeof frame.name === "string" && frame.name !== "" && !_files_NUL.test(frame.name)) attributes.push(() => w.u8(P.TELEM_ATTR_FRAME).u8(frame.type === P.FRAME_TYPE_PIXELS ? P.FRAME_TYPE_PIXELS : P.FRAME_TYPE_POSE).str(frame.name));
+        let range = telem.getRange();
+        if(range !== undefined) attributes.push(() => w.u8(P.TELEM_ATTR_RANGE).f64(range.min === undefined ? NaN : range.min).f64(range.max === undefined ? NaN : range.max));
         if(attributes.length) {
             w.u8(P.SECTION_TYPE_TELEM_ATTR).u16(telemId).u8(attributes.length);
             attributes.forEach((write) => write());
@@ -400,17 +433,20 @@ TELEPLOT.files.exportBinary = function(options = {}) {
             let encoder = encoders[dataType];
             if(encoder === undefined) { skipped += end - start; continue; }
             let channelCount = data.length;
-            for(let i = start; i < end;) {
-                if(encoder.skip && encoder.skip(data, i)) { skipped++; i++; continue; }
+            let order = _files_indexes(dataType, entry, selection.from, selection.to); // (the samples of the period, in order)
+            for(let at = 0; at < order.length;) {
+                let i = order[at];
+                if(encoder.skip && encoder.skip(data, i)) { skipped++; at++; continue; }
                 // A section: up to 255 samples within reach of its time reference, all written the same way (as float64 as soon as
                 // one of them needs it: a section per sample would cost more)
                 let ns = _files_ns(timestamps[i]);
                 let reference = ns / 1e9;
                 let asFloat64 = false;
                 let indexes = [], diffs = [];
-                for(let j = i; j < end && indexes.length < 255; j++) {
+                for(let next = at; next < order.length && indexes.length < 255; next++) {
+                    let j = order[next];
                     if(encoder.skip && encoder.skip(data, j)) break;
-                    let diff = j === i ? 0 : _files_diff(reference, timestamps[j]);
+                    let diff = next === at ? 0 : _files_diff(reference, timestamps[j]);
                     if(diff === undefined) break;
                     if(encoder.exact !== undefined && !encoder.exact(data, j)) asFloat64 = true;
                     indexes.push(j); diffs.push(diff);
@@ -424,7 +460,7 @@ TELEPLOT.files.exportBinary = function(options = {}) {
                     else encoder.write(w, data, indexes[n]);
                 }
                 samples += indexes.length;
-                i += indexes.length;
+                at += indexes.length;
             }
         }
     }
@@ -578,6 +614,7 @@ TELEPLOT.files.estimate = function(format, options = {}) {
             let dataType = Number(key), entry = telem.data[key];
             let [start, end] = _files_range(entry, selection.from, selection.to);
             let count = end - start;
+            if(format !== "csv" && dataType === P.SECTION_TYPE_TELEM_DATA_THRESHOLD) count = _files_indexes(dataType, entry, selection.from, selection.to).length; // (with the ones in force when the period starts)
             if(count === 0) continue;
             if(format === "csv" && !_files_CSV_TYPES.includes(dataType)) { skipped += count; continue; }
             let per;
@@ -591,7 +628,8 @@ TELEPLOT.files.estimate = function(format, options = {}) {
             }
             else if(format === "binary") {
                 let strings = [P.SECTION_TYPE_TELEM_DATA_TEXT, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT].includes(dataType);
-                if(strings) per = 4.1 + average(entry.data[entry.data.length - 1], start, end, textLength) + 1;
+                if(dataType === P.SECTION_TYPE_TELEM_DATA_THRESHOLD) per = 15.1 + average(entry.data[2], start, end, textLength) + average(entry.data[3], start, end, textLength);
+                else if(strings) per = 4.1 + average(entry.data[entry.data.length - 1], start, end, textLength) + 1;
                 else {
                     let exact = entry.data.every((channel) => _files_isF32(channel[start]) && _files_isF32(channel[end - 1]));
                     per = 4.1 + entry.data.length * (exact ? 4 : 8);

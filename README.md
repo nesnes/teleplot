@@ -121,6 +121,29 @@ Text sent with `t` is a **state**: what matters is its latest value, and it is s
 
 Both are the same kind of data and both views display both: the flag only chooses the view a telemetry gets when nobody arranged it.
 
+A state lasts until it changes: sending the same text again changes nothing. An empty text is a state too (`motor_4_state:|t`: nothing).
+A text may hold colons (`motor_4_state:error: stalled|t`); its time, when it has one, is a first field that is a number.
+
+Text telemetries can also be seen along the time: as bands in a **Timeline** view (a tick per line for a log), and as **marks** on a chart
+they are added to. Both are views you ask for (Edit mode, or a `DASH|` line): see `doc/time-views.md`.
+
+### Ranges and thresholds
+
+What a number is expected between is an attribute of its telemetry, sent once with an `ATTR|` line. Its value then gets a bar, and a chart
+can use the range as its scale:
+
+- `ATTR|battery|min=9|max=12.6`
+
+The limits a number should not pass are thresholds: a name, `<` or `>` (the side that is past the limit), a value, and a color if you want one.
+Charts draw them as dashed lines, values tell which one is passed:
+
+- `TH|battery:low<10.5:empty<9.9,red`
+- `TH|motor_temp:1627551892437:hot>70` (with a time, in ms, before the name)
+- `TH|battery:low<` (without value: removed)
+
+A threshold holds from its time until another one of the same name: limits can change, and what was drawn before keeps the limit it had.
+See `doc/time-views.md`.
+
 ### Publishing multiple points
 /!\ here, many values will be received at the same time by teleplot, therefore you must precise their timestamps.
 
@@ -179,6 +202,7 @@ A whole dashboard can be described with `DASH|` lines, one per view, addressed b
 - `DASH|Robot/Motion:chart:speed,accel|w=4|h=3`
 - `DASH|Robot/side/Log:log:robot.log|maxLines=50`
 - `DASH|Robot/side:column`
+- `DASH|Robot/States:timeline:state,robot.log`
 
 Lines can come in any order and be sent again at will (a line only does something when it changed). The dashboard menu exports any dashboard
 as a file of such lines and imports them. The format is described in `doc/dashboard-text.md`.

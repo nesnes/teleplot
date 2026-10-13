@@ -213,7 +213,7 @@ function initComponent_panel_edit(vue) {
                 return Math.max(0, count(this.dashboard.view) - 1); // the dashboard layout itself doesn't count
             },
             viewIcon() {
-                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-2d": "icofont-map", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
+                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-timeline": "icofont-tasks-alt", "teleplot-2d": "icofont-map", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
             },
             // Time group of the selected element: its choice, what it comes down to, and the custom groups of the dashboard
             timeGroup() {
@@ -254,7 +254,8 @@ function initComponent_panel_edit(vue) {
                 for (const id in this.TP.datastore.telemetries) {
                     const telem = this.TP.datastore.telemetries[id];
                     if (used.has(telem.id)) continue;
-                    if (view.supportedDataTypes && !Object.keys(telem.data).some((t) => view.supportedDataTypes.includes(t))) continue;
+                    const types = view.acceptedDataTypes || view.supportedDataTypes; // (a chart also takes texts: they are its marks)
+                    if (types && !Object.keys(telem.data).some((t) => types.includes(t))) continue;
                     list.push({ id: telem.id, name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(telem.id) });
                 }
                 return list.sort((a, b) => a.name.localeCompare(b.name));

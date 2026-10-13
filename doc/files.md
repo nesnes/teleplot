@@ -27,12 +27,14 @@ state:1627551892437:forward|t
 3D|box:1627551892437:P:1:0:0.5
 ```
 
-- Every line is a line of the text protocol (see the README): numbers, positions, text, logs, point clouds, images, 3D shapes and cameras, dashboards.
+- Every line is a line of the text protocol (see the README): numbers, positions, text, logs, point clouds, images, 3D shapes and cameras, ranges (`ATTR|`) and thresholds (`TH|`), dashboards.
 - **Give each line its time** (milliseconds since 1970, or since the start of the device). A line without a time is dated when it is read, like any line received: all of them would get the time of the import.
 - A file that was logged from a serial port (telemetry lines start with `>`, the others are logs) is read with the `serial` option.
 - Empty lines are skipped; lines that are not understood are counted and reported.
 
-What a text file written by Teleplot does not hold, because the text protocol has no word for it: the color and the data window of a telemetry, clients (telemetries of the same name sent by two clients become one), colors sent as r, g, b (they come back as the text `rgb(r,g,b)`). Samples that cannot be written are **skipped and counted**, never changed: texts that hold `; : | §` or a line break, and telemetries whose name holds `: , |`. Use the binary file for those.
+What a text file written by Teleplot does not hold, because the text protocol has no word for it: the color and the data window of a telemetry, clients (telemetries of the same name sent by two clients become one), colors sent as r, g, b (they come back as the text `rgb(r,g,b)`). Samples that cannot be written are **skipped and counted**, never changed: texts that hold `; | §` or a line break, telemetries whose name holds `: , |`, and thresholds whose name or color would not be read back the same (spaces around the name, a line break, a color that holds `: ; |`). Use the binary file for those.
+
+**A period** (`from`, `to`) holds the samples of that period, and one more thing: the thresholds in force when it starts (the last sample of each name before it) are written before its own, at their own time. Without them the limits of the period would be missing from its file.
 
 ## Binary file
 
@@ -51,7 +53,7 @@ What Teleplot writes gives back exactly what was stored:
 - values that a float32 (or the integers of some sections) would round are written in `TELEM_DATA_FLOAT64` sections; the others in the section of their data type;
 - timestamps are written so that they are read back to the same value;
 - telemetries that came from the binary protocol keep their client and their id; telemetries that are identified by their name (text protocol) are written under the client id `0xFFFF`, which means just that (see `binaryProtocol.md`);
-- attributes (name, unit, color, autoplot, data window, shape, view label, log) and client names are written before the data;
+- attributes (name, unit, color, autoplot, data window, shape, view label, log, frame, range) and client names are written before the data;
 - dashboards are written first, in `DASHBOARD` sections.
 
 Not written, and counted as skipped: texts that hold a zero character (strings end with one), images that are not base64.

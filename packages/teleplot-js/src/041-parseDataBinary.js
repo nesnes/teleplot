@@ -130,6 +130,9 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT:
                     offset = _parseDataBinary_parseStrings(view, offset, clientId, sectionType);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD:
+                    offset = _parseDataBinary_parseTELEM_DATA_THRESHOLD(view, offset, clientId);
+                    break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
                     offset = _parseDataBinary_parseTELEM_DATA_FLOAT64(view, offset, clientId);
                     break;
@@ -280,6 +283,14 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 offset++;
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_RANGE: { // {MIN[float64]} {MAX[float64]}, not a number: no limit on that side
+                let min = view.getFloat64(offset, _parseDataBinary_LITTLE_ENDIAN), max = view.getFloat64(offset + 8, _parseDataBinary_LITTLE_ENDIAN);
+                min = Number.isFinite(min) ? min : undefined;
+                max = Number.isFinite(max) ? max : undefined;
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_RANGE, (min === undefined && max === undefined) ? undefined : {min, max});
+                offset += 16;
+                break;
+            }
             default:
                 console.warn(`parseDataBinary: unknown TELEM_ATTR code ${attrCode}`);
         }
@@ -318,6 +329,27 @@ function _parseDataBinary_parseStrings(view, offset, clientId, dataType) {
         offset = next;
     }
     TELEPLOT.datastore.getOrCreateTelemetry(telemId).addData(dataType, timestamps, [texts]);
+    return offset;
+}
+
+// Thresholds of a number telemetry: {TELEM_DATA_HEADER} then for each one {TIMEDIFF[32]} {OPERATOR[8]} {VALUE[float64]}
+// {NAME[null terminated string]} {COLOR[null terminated string]} (operator: THRESHOLD_BELOW / THRESHOLD_ABOVE; color empty: none;
+// a value that is not a number removes the threshold of that name)
+function _parseDataBinary_parseTELEM_DATA_THRESHOLD(view, offset, clientId) {
+    let [telemId, timeRef, samples, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
+    offset = newOffset;
+    let timestamps = [], operators = [], values = [], names = [], colors = [];
+    for(let i = 0; i < samples; i++) {
+        timestamps.push(_parseDataBinary_makeTimestamp(timeRef, view.getUint32(offset, _parseDataBinary_LITTLE_ENDIAN)));
+        operators.push(view.getUint8(offset + 4) === TELEPLOT.protocol.THRESHOLD_ABOVE ? TELEPLOT.protocol.THRESHOLD_ABOVE : TELEPLOT.protocol.THRESHOLD_BELOW);
+        values.push(view.getFloat64(offset + 5, _parseDataBinary_LITTLE_ENDIAN));
+        let [name, afterName] = _parseDataBinary_readString(view, offset + 13);
+        let [color, afterColor] = _parseDataBinary_readString(view, afterName);
+        names.push(name);
+        colors.push(color);
+        offset = afterColor;
+    }
+    TELEPLOT.datastore.getOrCreateTelemetry(telemId).addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD, timestamps, [operators, values, names, colors]);
     return offset;
 }
 

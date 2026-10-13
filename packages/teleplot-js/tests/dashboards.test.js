@@ -86,7 +86,8 @@ test('createView builds a view of a known type with its telemetries and a size t
     assert.ok(T.view.createView('3d', ['a']) instanceof T.view.ViewScene3D);
     assert.ok(T.view.createView('image', ['a']) instanceof T.view.ViewImage);
     assert.ok(T.view.createView('2d', ['a']) instanceof T.view.ViewScene2D);
-    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', '2d', '3d', 'image']);
+    assert.ok(T.view.createView('timeline', ['a']) instanceof T.view.ViewTimeline);
+    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', 'timeline', '2d', '3d', 'image']);
 });
 
 test('auto dashboard: telemetries with the same view label share a view per kind of view, titled with the label', () => {
@@ -242,4 +243,23 @@ test('clearDashboard empties a dashboard and keeps it; the auto dashboard goes o
     T.__timers.run();
     assert.deepEqual(live.getView().views.map((v) => v.type + ':' + v.telemetryIdOrNameList.length), ['teleplot-chart:1', 'teleplot-3d:1'], 'new telemetries get new views');
     assert.equal(T.dashboards.clearDashboard('Nope'), 0);
+});
+
+test('auto dashboard: a telemetry described before its data (range, thresholds) is charted when its data comes; thresholds do not change its view', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText({ data: 'ATTR|battery|min=9|max=12.6\nTH|battery:low<10.5\nTH|mode.limits:x<1', timestamp: 0 });
+    T.__timers.run();
+    assert.equal(T.dashboards.getDashboard('Live'), undefined, 'nothing to display yet');
+    T.parseDataText({ data: 'battery:11.4\nstate:on|t\nTH|state:odd<1', timestamp: 1000 });
+    T.__timers.run();
+    const views = T.dashboards.getDashboard('Live').getView().views.map((v) => v.type.replace('teleplot-', '') + ':' + v.telemetryIdOrNameList.length);
+    assert.deepEqual(views, ['chart:1', 'current-value:1']);
+    assert.equal(T.view.suggestViewType('battery'), 'chart');
+    assert.equal(T.view.suggestViewType('state'), 'values');
+    assert.equal(T.view.suggestViewType('mode.limits'), 'chart', 'limits are about numbers');
+    // Sent the other way round, or again later: nothing moves
+    T.parseDataText({ data: 'ATTR|battery|min=8\nbattery:11.3', timestamp: 2000 });
+    T.__timers.run();
+    assert.equal(T.dashboards.getDashboard('Live').getView().views.length, 2);
 });

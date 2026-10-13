@@ -14,6 +14,7 @@ class PacketBuilder {
     u32(v) { return this.u16(v & 0xffff).u16(Math.floor(v / 65536)); }
     u64(v) { v = BigInt(v); return this.u32(Number(v & 0xffffffffn)).u32(Number(v >> 32n)); }
     f32(v) { const b = Buffer.alloc(4); b.writeFloatLE(v); this.bytes.push(...b); return this; }
+    f64(v) { const b = Buffer.alloc(8); b.writeDoubleLE(v); this.bytes.push(...b); return this; }
     str(s) { this.bytes.push(...Buffer.from(s, 'utf8'), 0); return this; }
 
     clientName(name) { return this.u8(SECTION.CLIENT_NAME).str(name); }
@@ -25,6 +26,7 @@ class PacketBuilder {
             this.u8(code);
             if (code === P.AUTOPLOT || code === 7) this.u8(value ? 1 : 0); // (7: TELEM_ATTR_LOG)
             else if (code === P.TIMEOUT) this.u64(value); // nanoseconds
+            else if (code === 9) this.f64(value.min === undefined ? NaN : value.min).f64(value.max === undefined ? NaN : value.max); // (9: TELEM_ATTR_RANGE) {min, max}
             else if (code === 8) this.u8(value.type).str(value.name); // (8: TELEM_ATTR_FRAME) {type: 0 pose | 1 pixels, name}
             else if (code === P.SHAPE) { this.u8(value.type); if (value.type === 10) this.str(value.url); } // {type, url}: the url only for an STL file
             else this.str(value);
@@ -67,6 +69,8 @@ class PacketBuilder {
             }
         });
     }
+    // samples: [[timeDiffNs, operator (0: below, 1: above), value, name, color]]
+    thresholds(telemId, refNs, samples) { return this._data(40, telemId, refNs, samples, v => this.u8(v[0]).f64(v[1]).str(v[2]).str(v[3] || '')); }
     text(telemId, refNs, samples) { return this._data(SECTION.TEXT, telemId, refNs, samples, v => this.str(v[0])); }
 
     build() { // The checksum is not verified by the parser yet: zeros

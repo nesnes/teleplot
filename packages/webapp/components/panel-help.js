@@ -34,6 +34,12 @@ const HELP_STEPS = [
         { code: "nav,logs:Path clear|log", note: "The log flag: a line of a log, shown in a Log view. With a label, the logs of several parts of a system are read together.", expect: { name: "nav", type: "text", logText: true, view: "log", label: "logs" } },
         { code: ">:Motors armed", note: "A line starting with > goes to the general log, without a name.", expect: { log: true } },
     ] },
+    { title: "Ranges and thresholds", intro: "What a number is expected between, and the limits it should not pass: said once, they are shown wherever the number is.", examples: [
+        { code: "ATTR|battery|min=9|max=12.6", note: "ATTR| describes a telemetry: here its range. Its value gets a bar from the minimum to the maximum, and a chart can take the range as its scale (Edit mode). Send it once, before or after the values.", expect: { name: "battery", range: [9, 12.6] } },
+        { code: "TH|battery:low<10.5:empty<9.9,red", note: "TH| gives thresholds: a name, < or > (the side that is past the limit), a value, and a color if you want one. Charts draw them as dashed lines, values tell which one is passed.", expect: { name: "battery", thresholds: ["empty<9.9,red", "low<10.5"] } },
+        { code: "battery:10.2§V", note: "The number itself, as usual: here it is below \"low\".", expect: { name: "battery", type: "number", unit: "V" } },
+        { code: "TH|battery:1627551892437:low<10.8", note: "A threshold can change: with a time (before its name) it holds from then on, and what was drawn before keeps the limit it had. low< without a value removes it.", expect: { name: "battery", thresholds: ["low<10.8"] } },
+    ] },
     { title: "A position", intro: "Two or three numbers at once make a point instead of a curve.", examples: [
         { code: "position:12.5:4.2|xy", note: "Two numbers and the xy flag: a position, shown on a map (a 2D view) with the trail of where it went.", expect: { name: "position", type: "2d", view: "2d" } },
         { code: "position:12.5:4.2:1627551892437|xy", note: "The time, when there is one, comes after the coordinates.", expect: { name: "position", type: "2d", timestamp: 1627551892.437 } },
@@ -70,9 +76,15 @@ const HELP_STEPS = [
     { title: "Your own dashboard", intro: "A device can say where its telemetries go, and describe whole dashboards, with the same kind of lines. The dashboard menu exports any dashboard as such lines, and imports them.", examples: [
         { code: "speed,Robot/Motion:1.2", note: "A label that is a path: the dashboard, a slash, the view. Both are created if needed.", expect: { name: "speed", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
         { code: "accel,Robot/Motion:0.3", note: "Same path: it joins the chart \"Motion\" of the dashboard \"Robot\".", expect: { name: "accel", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
-        { code: "DASH|Robot/Motion:chart|w=4|h=3", note: "A DASH| line describes a view by its path: its type (chart, values, log, 3d, image), then options (here its width and height). Send it again to change the view.", expect: { dashboard: "Robot" } },
+        { code: "DASH|Robot/Motion:chart|w=4|h=3", note: "A DASH| line describes a view by its path: its type (chart, values, log, timeline, 2d, 3d, image), then options (here its width and height). Send it again to change the view.", expect: { dashboard: "Robot" } },
         { code: "DASH|Robot/side/Log:log:nav,state|maxLines=50", note: "After the type, the telemetries the view shows, by name: they do not have to exist yet. A longer path nests the view in layouts, created on the way.", expect: { dashboard: "Robot" } },
         { code: "DASH|Robot/side:column", note: "A layout has a line too: row, column, grid or stack. Lines can come in any order; the type none removes a view.", expect: { dashboard: "Robot" } },
+    ] },
+    { title: "States over time, marks on a chart", intro: "A state is also a band on a timeline, and a mark on a chart: the same text telemetry, shown along the time. Both are views you ask for: in Edit mode, or with a DASH| line.", examples: [
+        { code: "mode:driving|t", note: "A state, as in step 4: it lasts from this message until the state changes. Sending it again changes nothing.", expect: { name: "mode", type: "text", text: "driving", view: "values" } },
+        { code: "mode:|t", note: "An empty text is a state too: nothing. On a timeline it leaves a hole.", expect: { name: "mode", type: "text", text: "" } },
+        { code: "DASH|Robot/States:timeline:mode,nav", note: "A Timeline view: a lane per telemetry, a band per state. A log (nav, from step 4) is drawn as a tick per line. Drag to zoom, as on a chart.", expect: { dashboard: "Robot" } },
+        { code: "DASH|Robot/Motion:chart:speed,mode", note: "In a chart, a text telemetry has no curve: it is drawn as marks, a line where the state changes with its text next to it (for a log, a mark per line).", expect: { dashboard: "Robot" } },
     ] },
 ];
 const HELP_EXAMPLES = HELP_STEPS.flatMap((step) => step.examples);
@@ -118,6 +130,27 @@ function helpColorize(message) {
         add(colon < 0 ? head : head.slice(0, colon), "name");
         if (colon >= 0) { add(":"); add(head.slice(colon + 1), "value"); }
         if (options >= 0) { add("|"); add(rest.slice(options + 1), "flags"); }
+        return parts;
+    }
+    if (rest.startsWith("ATTR|")) { // Attributes: ATTR|name|key=value|...
+        add("ATTR|", "flags");
+        rest = rest.slice(5);
+        const options = rest.indexOf("|");
+        add(options < 0 ? rest : rest.slice(0, options), "name");
+        if (options >= 0) { add("|"); add(rest.slice(options + 1), "value"); }
+        return parts;
+    }
+    if (rest.startsWith("TH|")) { // Thresholds: TH|name:time:threshold<value:...;time:...
+        add("TH|", "flags");
+        rest = rest.slice(3);
+        const colon = rest.indexOf(":");
+        add(colon < 0 ? rest : rest.slice(0, colon), "name");
+        if (colon < 0) return parts;
+        add(":");
+        rest.slice(colon + 1).split(";").forEach((group, g) => {
+            if (g > 0) add(";");
+            group.split(":").forEach((field, f) => { if (f > 0) add(":"); add(field, f == 0 && /^[0-9.eE+-]+$/.test(field) ? "time" : "value"); });
+        });
         return parts;
     }
     const prefix = /^(3D|2D|JPG|PNG)\|/.exec(rest);
@@ -173,6 +206,22 @@ function helpDescribe(TP, message, problems) {
         if (problems > 0 || !line) return { ok: false, text: "Teleplot did not understand this dashboard line. It is DASH|dashboard/view:type:telemetries|option=value, for example DASH|Robot/Motion:chart:speed" };
         if (line.type == "none") return { ok: true, text: "Received: " + (line.segments.length ? "the view " + line.segments.join("/") + " of the dashboard " + line.name : "the dashboard " + line.name) + " is removed." };
         return { ok: true, text: "Received: " + (line.segments.length ? "the view " + line.segments.join("/") + " of the dashboard " + line.name : "the layout of the dashboard " + line.name) + ". Sending the same line again changes nothing." };
+    }
+    if (message.startsWith("ATTR|")) {
+        const name = message.slice(5).split("|")[0];
+        const telem = TP.datastore.getTelemetry(name);
+        if (problems > 0 || !telem) return { ok: false, text: "Teleplot did not understand this line. It is ATTR|name|min=value|max=value, for example ATTR|battery|min=9|max=12.6" };
+        const range = telem.getRange();
+        if (!range) return { ok: true, text: "Received: " + name + " has no range any more." };
+        const hasData = telem.hasContent();
+        return { ok: true, text: "Received: " + name + " is expected " + (range.min === undefined ? "up to " + range.max : (range.max === undefined ? "from " + range.min : "between " + range.min + " and " + range.max)) + "." + (hasData ? " Its value has a bar when both ends are given." : " Now send its value, for example " + name + ":" + (range.min !== undefined ? range.min : range.max)) };
+    }
+    if (message.startsWith("TH|")) {
+        const name = message.slice(3).split(":")[0];
+        const telem = TP.datastore.getTelemetry(name);
+        if (problems > 0 || !telem) return { ok: false, text: "Teleplot did not understand this line. It is TH|name:threshold<value or threshold>value, for example TH|battery:low<10.5" };
+        const list = telem.getThresholds().map((t) => t.name + (t.operator == TP.protocol.THRESHOLD_ABOVE ? " above " : " below ") + t.value);
+        return { ok: true, text: "Received: " + (list.length ? "the threshold" + (list.length > 1 ? "s" : "") + " of " + name + " " + (list.length > 1 ? "are " : "is ") + list.join(", ") + "." : name + " has no threshold any more.") + (telem.hasContent() ? "" : " Now send its value, for example " + name + ":" + (list.length ? telem.getThresholds()[0].value : 0)) };
     }
     if (problems > 0 || !message.includes(":")) return { ok: false, text: "Teleplot did not understand this line. A message is name:value, for example temperature:25.3" };
     if (message.startsWith(">")) return { ok: true, text: "Received: a log line. Text telemetries are shown by a Log view." };

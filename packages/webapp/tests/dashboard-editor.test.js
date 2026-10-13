@@ -176,7 +176,7 @@ test('container type: row/column switch in place, stack replaces the container a
 });
 
 test('grid containers: switched in place, added from the menu, a view takes columns of the grid', () => {
-    const { editor, root, row, a, b } = setup();
+    const { T, editor, root, row, a, b } = setup();
     assert.equal(editor.setContainerType(row.id, 'grid'), row);
     assert.equal(editor.typeLabel(row), 'Grid');
     assert.equal(editor.isGrid(row), true);
@@ -192,6 +192,9 @@ test('grid containers: switched in place, added from the menu, a view takes colu
     assert.equal(editor.addView('chart', grid.id).layout.width, 2, 'a chart takes two columns');
     assert.equal(editor.addView('values', grid.id).layout.width, 1);
     assert.equal(editor.addView('log', grid.id).layout.width, 2);
+    const timeline = editor.addView('timeline', grid.id);
+    assert.ok(timeline instanceof T.view.ViewTimeline);
+    assert.deepEqual([editor.typeLabel(timeline), editor.ADD_TYPES.includes('timeline'), editor.ADD_LABELS.timeline], ['Timeline', true, 'Timeline']);
 });
 
 test('image views: added from the menu, dropped images get a view each', () => {

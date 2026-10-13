@@ -1,7 +1,9 @@
 /*
  * Sample data: a tiny robot wandering in a 4 x 3 m arena, to demo every kind of telemetry.
  * Self-contained: only uses the Teleplot API (TP.datastore, TP.view, TP.dashboards).
- * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, and one log per subsystem merged in a Log view), image (camera),
+ * Numbers (wheels, current, battery, gyro, distance), 2D numbers (position), text (state, zone, and one log per subsystem merged in a Log view), image (camera),
+ * ranges (battery, heading, distance: a bar under their value) and thresholds (currents, battery, and how close a wall may get: that one changes
+ * as the robot does, so its line on the chart is a step), a timeline of the states and logs, the state as marks on a chart,
  * 3D (the robot in its arena: shapes for the floor, the walls, the body, the wheels, a screen showing the camera, what the distance sensor hits; a 3D point for its path).
  * Frame of the 3D telemetries: x forward, y left, z up, in meters.
  * Frames: what the robot carries (wheels, screen, camera, lidar, an arrow for its heading, the circle of how far it looks) is described
@@ -22,7 +24,8 @@ function createRobotSample(TP) {
     const noise = (s) => (Math.random() + Math.random() + Math.random() - 1.5) * s; // ~gaussian
 
     // --- Simulation: unicycle that drives straight and turns away from walls ---
-    const bot = { x: 1, y: 1, a: 0.5, v: 0, w: 0, vl: 0, vr: 0, state: "forward", until: 0, battery: 25.2, t: 0 };
+    const bot = { x: 1, y: 1, a: 0.5, v: 0, w: 0, vl: 0, vr: 0, state: "forward", until: 0, battery: 25.2, t: 0, reach: 0.5 };
+    const DOCK = [0.15, 0.15, 0.95, 0.7]; // The zone drawn on the floor: x and y of two opposite corners
 
     // Distance to the arena walls along an angle, and which wall (0..3) is hit
     function ray(a) {
@@ -35,7 +38,10 @@ function createRobotSample(TP) {
     function step() {
         bot.t += STEP;
         const d = ray(bot.a).d;
-        if (bot.state == "forward" && d < 0.5) {
+        // How close a wall may get before the robot turns: it is more careful every other half minute (a limit that changes over time)
+        const reach = Math.floor(bot.t / 30) % 2 ? 0.8 : 0.5;
+        if (reach != bot.reach) { bot.reach = reach; log("robot.nav.log", "INFO", `Keeping ${reach} m from the walls`); }
+        if (bot.state == "forward" && d < bot.reach) {
             bot.state = "turning";
             bot.dir = Math.random() < 0.5 ? -1 : 1;
             bot.until = bot.t + 0.6 + Math.random() * 1.2;
@@ -75,6 +81,14 @@ function createRobotSample(TP) {
         }
         telem.addData(type, [Date.now() / 1000], values.map(v => [v]));
     };
+    // What a number is expected between (an attribute: a bar under its value) and its thresholds (data: [name, "<" or ">", value, color]),
+    // said again when they were forgotten (data cleared from the Data menu)
+    const describe = (name, range, thresholds = []) => {
+        const telem = TP.datastore.getTelemetry(name);
+        if (range && !telem.getAttribute(P.TELEM_ATTR_RANGE)) telem.setAttribute(P.TELEM_ATTR_RANGE, { min: range[0], max: range[1] });
+        if (thresholds.length && !telem.data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD]) for (const threshold of thresholds) limit(name, ...threshold);
+    };
+    const limit = (name, thresholdName, operator, value, color = "") => put(name, P.SECTION_TYPE_TELEM_DATA_THRESHOLD, [operator == ">" ? P.THRESHOLD_ABOVE : P.THRESHOLD_BELOW, value, thresholdName, color]);
     const NUMBER = P.SECTION_TYPE_TELEM_DATA_NUMBER, NUMBER_2D = P.SECTION_TYPE_TELEM_DATA_NUMBER_2D;
     const TEXT = P.SECTION_TYPE_TELEM_DATA_TEXT, IMAGE = P.SECTION_TYPE_TELEM_DATA_IMAGE;
     const log = (name, level, text) => { // One text telemetry per subsystem, merged by the Log view; they share the view label "logs"
@@ -140,7 +154,7 @@ function createRobotSample(TP) {
             inFrame("robot.map.reach", BODY, [0, 0, -BODY_Z + 0.004]);
             // Flat shapes of the arena: a zone (a polygon is the surface inside its points) and its name
             shape("robot.map.dock", ENVIRONMENT, P.TELEM_ATTR_SHAPE_TYPE_POLYGON, [1, 1, 1], "#27ae60", 90);
-            put("robot.map.dock", P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [Float32Array.from([0.15, 0.15, 0.003, 0.95, 0.15, 0.003, 0.95, 0.7, 0.003, 0.15, 0.7, 0.003]), null, null]);
+            put("robot.map.dock", P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, [Float32Array.from([DOCK[0], DOCK[1], 0.003, DOCK[2], DOCK[1], 0.003, DOCK[2], DOCK[3], 0.003, DOCK[0], DOCK[3], 0.003]), null, null]);
             shape("robot.map.dock.name", ENVIRONMENT, P.TELEM_ATTR_SHAPE_TYPE_TEXT, [0.13, 0.13, 0.13], "#1e8449"); // (its size is its height)
             put("robot.map.dock.name", P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, ["Dock"]);
             put("robot.map.dock.name", POSITION, [0.2, 0.82, 0.003]);
@@ -186,12 +200,25 @@ function createRobotSample(TP) {
         put("robot.current.right", NUMBER, [bot.ir + noise(0.03)], "A");
         put("robot.gyro.z", NUMBER, [bot.w + noise(0.02)], "rad/s");
         put("robot.distance", NUMBER, [ray(bot.a).d + noise(0.01)], "m");
+        describe("robot.current.left", null, [["spike", ">", 1.6]]);
+        describe("robot.current.right", null, [["spike", ">", 1.6]]);
+        describe("robot.distance", [0, 5]);
+        // The distance at which the robot turns is a threshold that changes: sent when it does, it holds from then on
+        if (bot.reach != bot.reachSent || !TP.datastore.getTelemetry("robot.distance").data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD]) {
+            bot.reachSent = bot.reach;
+            limit("robot.distance", "wall", "<", bot.reach, "#e74c3c");
+            if (TP.datastore.getTelemetry("robot.map.reach")) put("robot.map.reach", SIZE, [bot.reach * 2, bot.reach * 2, 1]); // (the circle around the robot on the map)
+        }
     }
     function publishSlow() { // 5 Hz
         put("robot.position", NUMBER_2D, [bot.x, bot.y], "m");
         put("robot.heading", NUMBER, [(bot.a * 180 / Math.PI % 360 + 360) % 360], "°");
         put("robot.battery", NUMBER, [bot.battery - 0.1 * (bot.il + bot.ir) + noise(0.01)], "V");
+        describe("robot.heading", [0, 360]);
+        describe("robot.battery", [20, 25.2], [["low", "<", 22], ["empty", "<", 20.5, "#e74c3c"]]);
         put("robot.state", TEXT, [bot.state]);
+        // Where it is: the name of the zone, or nothing (an empty text: a hole in the timeline)
+        put("robot.zone", TEXT, [bot.x > DOCK[0] && bot.x < DOCK[2] && bot.y > DOCK[1] && bot.y < DOCK[3] ? "dock" : ""]);
         // The camera: its parameters and where it is on the robot (once: it is in the frame of the body, looking along its x), then
         // where the robot is when the picture is taken, and the picture
         const eye = [bot.x + Math.cos(bot.a) * CAMERA.forward, bot.y + Math.sin(bot.a) * CAMERA.forward, CAMERA.up];
@@ -277,10 +304,15 @@ function createRobotSample(TP) {
         // merged logs of all subsystems.
         // Under it, the motion charts. The plain camera picture is alone in a time group of its own ("Live"): nothing moves its
         // cursor, so it keeps showing the latest picture while the rest of the dashboard is zoomed or follows the pointer.
+        // Between them, the timeline: the states of the robot as bands (where it is leaves holes: it is in no zone most of the time) and
+        // two of its logs as ticks. On the charts, the state and the motor log are marks, and the thresholds are dashed lines.
         const main = layout("column"), top = layout("row"), bottom = layout("row");
         const cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(2, 5);
         dashboard.setView(main);
         main.addView(top);
+        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.zone", "robot.nav.log", "robot.motor.log"], group);
+        timeline.setSize(12, 3);
+        main.addView(timeline);
         main.addView(bottom);
 
         const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.path", "robot.lidar", "robot.map.dock", "robot.map.dock.name", "robot.map.heading", "robot.map.reach", "robot.map.obstacle.name"], group);
@@ -310,13 +342,13 @@ function createRobotSample(TP) {
         cameraView.setOption("title", "Camera + 3D");
         cameras.addView(cameraView);
 
-        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery"], 3, 2));
+        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery", "robot.distance"], 3, 3));
         const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log"], group);
-        logView.setSize(3, 5);
+        logView.setSize(3, 4);
         state.addView(logView);
 
-        bottom.addView(chart(["robot.current.left", "robot.current.right"], 3, 5));
-        bottom.addView(chart(["robot.wheel.left", "robot.wheel.right"], 3, 5));
+        bottom.addView(chart(["robot.current.left", "robot.current.right", "robot.motor.log"], 3, 5));
+        bottom.addView(chart(["robot.wheel.left", "robot.wheel.right", "robot.state"], 3, 5));
         bottom.addView(tabs);
         const distance = chart(["robot.distance"], 2, 5), gyro = chart(["robot.gyro.z"], 2, 5);
         distance.setOption("title", "Distance"); // (the title of a view is the name of its tab)

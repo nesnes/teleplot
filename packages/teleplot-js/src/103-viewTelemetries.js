@@ -67,7 +67,7 @@ class ViewTelemetries extends Views {
     // (suggestViewType); a log also takes any text, and an image view what can be drawn over its picture.
     suitsTelemetry(telem) {
         const P = TELEPLOT.protocol;
-        if(this.type == "teleplot-log") return telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined;
+        if(this.type == "teleplot-log" || this.type == "teleplot-timeline") return telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined;
         if(this.type == "teleplot-image") return telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined && TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined;
         // 2D and 3D views show the same things (flat ones lie on the ground of a 3D scene, solids are seen from above in a 2D view),
         // but for what is drawn in the pixels of a picture
@@ -128,7 +128,7 @@ class ViewTelemetries extends Views {
         }
         if(!found.length) return { text: "Waiting for data", hint: list(missing) };
 
-        let hasData = (telem) => Object.keys(telem.data).length > 0;
+        let hasData = (telem) => Object.keys(telem.data).some((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds alone are limits of data to come)
         if(!found.some(hasData)) return { text: "Waiting for data", hint: list(found.map(nameOf)) };
         if(this.supportedDataTypes && !found.some((telem) => Object.keys(telem.data).some((type) => this.supportedDataTypes.includes(type)))) {
             let others = found.filter(hasData).map(nameOf);

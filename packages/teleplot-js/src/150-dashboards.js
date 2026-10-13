@@ -175,9 +175,9 @@ TELEPLOT.dashboards.createDashboard = function(name = "") {
 /*
  * Which view displays a telemetry best, and creating that view. Used by the auto dashboard and by applications that let users
  * add views (drop a telemetry on a dashboard...).
- * View types: "chart", "values", "log", "2d", "3d", "image".
+ * View types: "chart", "values", "log", "timeline", "2d", "3d", "image".
  */
-TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "2d", "3d", "image"];
+TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "timeline", "2d", "3d", "image"];
 
 // Numbers are plotted, shapes, 3D numbers and point clouds go to a 3D scene, images to an image view, text emitted as a log
 // (TELEM_ATTR_LOG) to a log view, anything else (text emitted as a state, 2D...) is shown as values.
@@ -188,18 +188,19 @@ TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return "image";
     if(TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined) return "image"; // Drawn in the pixels of a picture: with that picture
     if(TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined) return TELEPLOT.view.ViewScene3D.isFlat(telem) ? "2d" : "3d"; // (both views show both: this is only the default)
-    let dataType = Object.keys(telem.data)[0];
+    let dataType = Object.keys(telem.data).find((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds are limits of its numbers)
     if(dataType === undefined || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) return "chart";
     if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true) return "log";
     return "values";
 }
 
-// New view of a type ("chart", "values", "log", "3d" or "image"), showing the telemetries (ids or names), with a size that suits it. Undefined for an unknown type.
+// New view of a type (one of VIEW_TYPES), showing the telemetries (ids or names), with a size that suits it. Undefined for an unknown type.
 TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
     let view;
     if(type == "chart") { view = new TELEPLOT.view.ViewChart("", telemetries, group); view.setSize(2, 4); }
     else if(type == "values") view = new TELEPLOT.view.ViewCurrentValue("", telemetries, group);
     else if(type == "log") { view = new TELEPLOT.view.ViewLog("", telemetries, group); view.setSize(2, 4); }
+    else if(type == "timeline") view = new TELEPLOT.view.ViewTimeline("", telemetries, group);
     else if(type == "3d") view = new TELEPLOT.view.ViewScene3D("", telemetries, group);
     else if(type == "2d") view = new TELEPLOT.view.ViewScene2D("", telemetries, group);
     else if(type == "image") view = new TELEPLOT.view.ViewImage("", telemetries, group);
@@ -228,8 +229,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
         // A label that is a path ("Robot/Motion") says in which dashboard the telemetry goes: see placeTelemetry (151-dashboardText.js)
         if (TELEPLOT.dashboards.getLabelPath(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL)) !== undefined) return;
-        let dataType = Object.keys(telem.data)[0];
-        if (dataType === undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) === undefined) return; // No data (yet): nothing to display
+        if (!telem.hasContent()) return; // No data (yet): nothing to display
         // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
         // scene is in the 3D view of its label, and still gets its image view.)
         if (TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return; // Drawn in the pixels of a picture: the image views of that picture take it

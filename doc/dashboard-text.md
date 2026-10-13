@@ -25,7 +25,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 
 - **Path**: the name of the dashboard, then the names of the views down to the one the line describes. Layouts that are missing on the way are created (as grids), so lines can be sent **in any order**, and each line stands alone. The dashboard alone (`DASH|Robot:row`) is its top layout.
 - **Name of a view** (the last name of the path): its key among its siblings, and for a view that shows telemetries, its title. A name that starts with `#` (`#1`) is only a key: the view has no title.
-- **Type**: `row`, `column`, `grid`, `stack` (layouts), `chart`, `values`, `log`, `2d`, `3d`, `image`, or `none`, which removes the view (or the whole dashboard). Without a type, a view that exists keeps its own and a new one gets what suits its first telemetry (a grid when it has none): `DASH|Robot/top/Motion|h=6` only changes a height.
+- **Type**: `row`, `column`, `grid`, `stack` (layouts), `chart`, `values`, `log`, `timeline`, `2d`, `3d`, `image`, or `none`, which removes the view (or the whole dashboard). Without a type, a view that exists keeps its own and a new one gets what suits its first telemetry (a grid when it has none): `DASH|Robot/top/Motion|h=6` only changes a height.
 - **Telemetries**: by name, separated by commas. They do not have to exist yet: the view waits for them ("Waiting for data").
 - **Options**: only what is written changes.
 
@@ -36,7 +36,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 | `time` | everything | time group: `inherit` (default), `dashboard`, or the name of a group shared by the views that name it |
 | `follow` | views | labels the view follows, separated by commas: new telemetries with one of these labels join the view |
 | `align`, `justify`, `gap`, `columnWidth`, `appearance`, `accent` | layouts | as in the edit panel (`align=stretch` is the default of layouts made by lines) |
-| any option of the view | views | `maxLines`, `displayGrid`, `displayNumberDecimals`, `decimation`, `trailLength`, `pointSize`... (the names of `view.options`); booleans are `true` / `false` |
+| any option of the view | views | `maxLines`, `displayGrid`, `displayNumberDecimals`, `decimation`, `thresholds` (`fit` / `show` / `hide`), `scale` (`auto` / `range`), `trailLength`, `pointSize`... (the names of `view.options`); booleans are `true` / `false` |
 
 **Escaping**: in names and values, the characters `% / : , | =` and line breaks are written `%XX`, the hexadecimal code of the character (`My%2Fboard` for "My/board"). Everything else is written as is, spaces and accents included.
 

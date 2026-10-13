@@ -244,3 +244,30 @@ test('log attribute: a text telemetry emitted as a log', () => {
     assert.deepEqual([1, 2].map(n => T.view.suggestViewType(id(5, n))), ['log', 'values']);
     assert.deepEqual(entry(T, 5, 2, TEXT).data[0], ['forward'], 'the sections after the attribute are still read');
 });
+
+test('range attribute: two float64, a side that is not a number is open', () => {
+    const T = loadTeleplot();
+    assert.equal(T.protocol.TELEM_ATTR_RANGE, 9);
+    T.parseDataBinary(new PacketBuilder(5).attrs(1, [[ATTR.NAME, 'battery'], [9, { min: 9, max: 12.6 }]]).numbers(1, 1_000_000_000n, [[0, 11.5]])
+        .attrs(2, [[9, { max: 100 }], [ATTR.NAME, 'load']]).attrs(3, [[9, {}]]).build());
+    assert.deepEqual([1, 2, 3].map(n => T.datastore.getTelemetry(id(5, n)).getRange()), [{ min: 9, max: 12.6 }, { min: undefined, max: 100 }, undefined]);
+    assert.deepEqual(entry(T, 5, 1).data[0], [11.5], 'the sections after the attribute are still read');
+    assert.equal(T.datastore.getTelemetry(id(5, 2)).getAttribute(ATTR.NAME), 'load', 'and the attributes after it');
+});
+
+test('thresholds: operator, float64 value, name and color; same telemetry as the TH lines of the text protocol', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    assert.deepEqual([P.SECTION_TYPE_TELEM_DATA_THRESHOLD, P.THRESHOLD_BELOW, P.THRESHOLD_ABOVE], [40, 0, 1]);
+    T.parseDataBinary(new PacketBuilder(5).attrs(1, [[ATTR.NAME, 'temp']])
+        .thresholds(1, 5_000_000_000n, [[0, 1, 70, 'hot', ''], [0, 1, 85.123456789, 'critical', '#ff0000'], [4_000_000_000, 1, 75, 'hot', ''], [4_000_000_000, 0, NaN, 'gone', '']])
+        .numbers(1, 5_000_000_000n, [[0, 72]]).build());
+    const telem = T.datastore.getTelemetry(id(5, 1));
+    assert.deepEqual(telem.getThresholds(6), [{ name: 'hot', value: 70, operator: 1, color: '', timestamp: 5 }, { name: 'critical', value: 85.123456789, operator: 1, color: '#ff0000', timestamp: 5 }]);
+    assert.deepEqual(telem.getThresholds().map(t => t.name + t.value), ['hot75', 'critical85.123456789']);
+    assert.deepEqual(entry(T, 5, 1).data[0], [72], 'the sections after it are still read');
+    const U = loadTeleplot();
+    U.parseDataText('TH|temp:5000:hot>70:critical>85.123456789,#ff0000;9000:hot>75:gone<');
+    const same = U.datastore.getTelemetry('temp').data[40];
+    assert.deepEqual([same.timestamps, same.data], [telem.data[40].timestamps, telem.data[40].data]);
+});

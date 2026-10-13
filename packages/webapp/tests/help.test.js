@@ -29,6 +29,11 @@ for (const example of HELP_EXAMPLES) {
         const telem = find(T, e.name);
         assert.ok(telem, 'telemetry ' + e.name + ' exists');
         const S = T.view.ViewScene3D;
+        if (e.range) { assert.deepEqual(telem.getRange(), { min: e.range[0], max: e.range[1] }); return; }
+        if (e.thresholds) { // "name<value,color", lowest first
+            assert.deepEqual(telem.getThresholds().map(t => t.name + (t.operator === P.THRESHOLD_ABOVE ? '>' : '<') + t.value + (t.color ? ',' + t.color : '')), e.thresholds);
+            return;
+        }
         if ('label' in e) assert.equal(telem.attributes[P.TELEM_ATTR_VIEW_LABEL], e.label);
         if (e.position) assert.deepEqual(S.shapeState(telem).position, e.position);
         if (e.camera) {
@@ -66,6 +71,7 @@ for (const example of HELP_EXAMPLES) {
         const type = { number: P.SECTION_TYPE_TELEM_DATA_NUMBER, '2d': P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, '3d': P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, text: P.SECTION_TYPE_TELEM_DATA_TEXT }[e.type];
         assert.ok(telem.data[type], 'has data of type ' + e.type);
         if (e.samples) assert.equal(telem.data[type].timestamps.length, e.samples);
+        if ('text' in e) assert.deepEqual(telem.data[type].data[0], [e.text]);
         if (e.timestamp) assert.deepEqual(telem.data[type].timestamps, [e.timestamp]);
         if ('logText' in e) assert.equal(telem.attributes[P.TELEM_ATTR_LOG], e.logText, 'emitted as a log, or as a state');
         if (e.view) assert.equal(T.view.suggestViewType(telem.id), e.view);
@@ -97,6 +103,27 @@ test('examples of a step build on each other: sent in order, a step gives what i
     assert.deepEqual(find(T, 'speed').data[T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER].data[0], [0], 'clr forgot the samples sent before');
     T = run('Text: states and logs');
     assert.deepEqual(views(T), ['current-value::1', 'log:logs:1', 'log::1']);
+    // Ranges and thresholds: one telemetry, charted once, below its "low" limit; the limit sent with a time holds from that time only
+    T = run('Ranges and thresholds');
+    const battery = find(T, 'battery');
+    assert.deepEqual(views(T), ['chart::1']);
+    assert.deepEqual([battery.getRange(), battery.getThresholdStatus(10.2).name, battery.getThresholds().map(t => t.name + t.value)], [{ min: 9, max: 12.6 }, 'low', ['empty9.9', 'low10.5']]);
+    assert.deepEqual(battery.getThresholds(1627551892.437).map(t => t.name + t.value), ['low10.8'], 'the one of 2021, at that time');
+    assert.deepEqual(T.view.ViewCurrentValue.gauge(battery, 10.2).bar.ticks.map(t => t.name), ['empty', 'low']);
+    // States over time: a timeline and a chart described by lines, the state as bands with a hole after it, and as marks
+    T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    assert.equal(T.parseDataText({ data: 'speed:1\nnav:Path clear|log\n' + HELP_STEPS.find(s => s.title == 'States over time, marks on a chart').examples.map(e => e.code).join('\n'), timestamp: 5000 }), 0);
+    T.parseDataText({ data: 'speed:2', timestamp: 9000 });
+    T.__timers.run();
+    const robot = T.dashboards.getDashboard('Robot').getView().views;
+    assert.deepEqual(robot.map(v => v.type), ['teleplot-timeline', 'teleplot-chart']);
+    robot.forEach(v => v.update());
+    assert.deepEqual(robot[0].lanes.map(l => [l.name, l.isLog, l.items.length]), [['mode', false, 0], ['nav', true, 1]], 'driving, then nothing at the same instant: no band');
+    T.parseDataText({ data: 'mode:6000:driving|t\nmode:7000:|t\nmode:8000:parked|t' });
+    robot.forEach(v => v.update());
+    assert.deepEqual(robot[0].lanes[0].items.map(i => [i.from, i.to, i.text]), [[6, 7, 'driving'], [8, 9, 'parked']], 'a hole between the two');
+    assert.deepEqual(robot[1].overlay.marks[0].marks.map(m => m.t + ' ' + m.text), ['5 driving', '6 driving', '8 parked'], 'the marks of the chart: where the state changes to something');
     // The dashboard step: the telemetries place themselves, the lines size their chart and add a column with a log
     T = loadTeleplot();
     T.dashboards.enableAutoDashboard('Live');
@@ -137,6 +164,12 @@ test('helpColorize cuts a message in its parts without changing it', () => {
     assert.deepEqual(kinds('DASH|Robot/Motion:chart:speed,accel|w=2|h=3'), ['flags=DASH|', 'name=Robot/Motion', 'value=chart:speed,accel', 'flags=w=2|h=3']);
     assert.deepEqual(kinds('DASH|Robot'), ['flags=DASH|', 'name=Robot']);
     assert.deepEqual(kinds('left,motors:0.4'), ['name=left,motors', 'value=0.4']);
+    assert.deepEqual(kinds('ATTR|battery|min=9|max=12.6'), ['flags=ATTR|', 'name=battery', 'value=min=9|max=12.6']);
+    assert.deepEqual(kinds('ATTR|battery'), ['flags=ATTR|', 'name=battery']);
+    assert.deepEqual(kinds('TH|battery:low<10.5:empty<9.9,red'), ['flags=TH|', 'name=battery', 'value=low<10.5', 'value=empty<9.9,red']);
+    assert.deepEqual(kinds('TH|temp:1000:hot>70;2000:hot>75'), ['flags=TH|', 'name=temp', 'time=1000', 'value=hot>70', 'time=2000', 'value=hot>75']);
+    assert.deepEqual(kinds('TH|temp'), ['flags=TH|', 'name=temp']);
+    assert.deepEqual(kinds('mode:|t'), ['name=mode', 'flags=t']);
     assert.deepEqual(kinds('half'), ['name=half'], 'a message being typed');
     assert.deepEqual(kinds(''), []);
 });
@@ -186,7 +219,20 @@ test('helpDescribe tells what Teleplot made of a message sent from the panel', (
     assert.match(say('DASH|Robot/top/Motion:chart:speed'), /the view top\/Motion of the dashboard Robot/);
     assert.match(say('DASH|Robot:row'), /the layout of the dashboard Robot/);
     assert.match(say('DASH|Robot/Motion:none'), /is removed/);
-    for (const wrong of ['hello', 'value:abc', 'bad:1:2:3;4:5|pc', 'DASH|Robot/Motion:pie', 'DASH|Robot/Motion:chart|w=wide']) {
+    assert.match(say('ATTR|battery|min=9|max=12.6'), /battery is expected between 9 and 12\.6\. Now send its value, for example battery:9/);
+    assert.match(say('ATTR|load|max=100'), /load is expected up to 100/);
+    assert.match(say('ATTR|battery'), /has no range any more/);
+    assert.match(say('TH|battery:low<10.5:empty<9.9,red'), /the thresholds of battery are empty below 9\.9, low below 10\.5\. Now send its value/);
+    assert.match(say('TH|temp:hot>70'), /the threshold of temp is hot above 70/);
+    assert.match(say('TH|temp:hot>'), /temp has no threshold any more/);
+    assert.match(say('mode:|t'), /some text named mode/);
+    { // With its value already there, nothing more is asked for
+        const T = loadTeleplot();
+        T.parseDataText('battery:11');
+        assert.doesNotMatch(helpDescribe(T, 'TH|battery:low<10.5', T.parseDataText('TH|battery:low<10.5')).text, /Now send/);
+        assert.match(helpDescribe(T, 'ATTR|battery|min=9|max=12.6', T.parseDataText('ATTR|battery|min=9|max=12.6')).text, /has a bar/);
+    }
+    for (const wrong of ['hello', 'value:abc', 'bad:1:2:3;4:5|pc', 'DASH|Robot/Motion:pie', 'DASH|Robot/Motion:chart|w=wide', 'ATTR|battery|color=red', 'ATTR|battery|min=low', 'TH|battery:low=10', 'TH|battery']) {
         const T = loadTeleplot();
         const answer = helpDescribe(T, wrong, T.parseDataText(wrong));
         assert.equal(answer.ok, false, wrong);

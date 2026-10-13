@@ -33,6 +33,13 @@ const TEXT = [
     'pos:12.5:4.2:1627551892437|xy',
     'drone:1.5:0.2:3:1627551892437|xyz',
     'state:1627551892437:forward|t',
+    'state:1627551893437:|t',
+    'state:1627551894437:error: code 12:30|t',
+    'ATTR|temp|min=-40.5|max=85',
+    'ATTR|quiet|max=1e21',
+    'TH|temp:1627551892437:hot>70:critical>85.123456789,#ff0000:cold<-10,rgb(0, 0, 255);1627551899000:hot>75.5:critical>',
+    'TH|temp:1627551899000.5:50%25 %3A half>0.1',
+    'TH|only.limits:1627551892437:low<1',
     'nav,logs:1627551892437:Path clear|log',
     '>1627551892437:Motors armed; all: 4 | ok',
     'lidar:1627551892437;1:0:0:0.9;0.7:0.7:0:0.4;0:1:0.25:0.1|pc',
@@ -53,7 +60,8 @@ function filled() {
     // And what only the binary protocol sends: two clients, a telemetry name they share, r, g, b colors, an image in parts, attributes
     const ref = 1627551892437000000n;
     T.parseDataBinary(new PacketBuilder(3).clientName('left arm')
-        .attrs(1, [[ATTR.NAME, 'joint'], [ATTR.UNIT, 'rad'], [ATTR.COLOR, '#ff0000'], [ATTR.TIMEOUT, 60000000000n], [6, 'arm'], [ATTR.SHAPE, { type: 1 }]])
+        .attrs(1, [[ATTR.NAME, 'joint'], [ATTR.UNIT, 'rad'], [ATTR.COLOR, '#ff0000'], [ATTR.TIMEOUT, 60000000000n], [6, 'arm'], [ATTR.SHAPE, { type: 1 }], [9, { min: -3.14 }]])
+        .thresholds(1, ref, [[0, 1, 3, 'limit', ''], [1000, 0, -3, 'li:mit<', 'a,b']])
         .numbers(1, ref, [[0, 0.5], [1000, 0.25], [4000000000, -1.5]])
         .shapeColorRGB(1, ref, [[0, 255, 128, 0]])
         .shapeOpacity(1, ref, [[0, 200]])
@@ -119,6 +127,9 @@ test('text file: the lines of the text protocol, and what they say is read back 
     const text = joinText(out.parts);
     assert.ok(text.includes('temp,env:1627551892437:25.3;1627551892537.25:0.1;1627551893000:1e-7;1627551999999:123456789.123§°C\n'), text);
     assert.ok(text.includes('>1627551892437:Motors armed; all: 4 | ok\n'));
+    assert.ok(text.includes('state:1627551892437:forward|t\nstate:1627551893437:|t\n'), 'an empty state is a line');
+    assert.ok(text.includes('ATTR|temp|min=-40.5|max=85\nTH|temp:1627551892437:hot>70;1627551892437:critical>85.123456789,#ff0000;1627551892437:cold<-10,rgb(0, 0, 255);1627551899000:hot>75.5;1627551899000:critical>;1627551899000.5:50%25 %3A half>0.1\n'), text);
+    assert.ok(text.includes('ATTR|quiet|max=1e+21\n') && text.includes('TH|only.limits:1627551892437:low<1\n'));
     assert.ok(text.startsWith('DASH|Robot:grid\n'), 'dashboards first');
     const U = loadTeleplot();
     const result = U.files.importData(text);
@@ -132,6 +143,7 @@ test('text file: what the text protocol cannot say is counted (texts with separa
     const T = filled();
     const out = T.files.exportText();
     assert.equal(out.skipped, 2, 'the two texts of "notes"');
+    assert.ok(joinText(out.parts).includes('ATTR|joint|min=-3.14\nTH|joint:1627551892437:limit>3;1627551892437.001:li%3Amit%3C<-3,a,b\n'), 'names of thresholds are escaped');
     const U = loadTeleplot();
     U.files.importData(joinText(out.parts));
     const joint = U.datastore.getTelemetry('joint');
@@ -151,7 +163,12 @@ test('export options: some telemetries, a time range, dashboards or not', () => 
     assert.deepEqual(U.datastore.getTelemetry('temp').data[20].timestamps, [1627551892.53725, 1627551893], 'limits included');
     assert.equal(U.datastore.getTelemetry('state').data[23], undefined);
     const text = joinText(T.files.exportText({ telemetries: ['temp'], from: 1627551893, dashboards: ['Robot'] }).parts);
-    assert.equal(text, 'DASH|Robot:grid\nDASH|Robot/Motion:chart:speed|w=4|h=3\nDASH|Robot/side:grid\nDASH|Robot/side/Log:log:nav,state|maxLines=50\ntemp,env:1627551893000:1e-7;1627551999999:123456789.123§°C\n');
+    assert.equal(text, 'DASH|Robot:grid\nDASH|Robot/Motion:chart:speed|w=4|h=3\nDASH|Robot/side:grid\nDASH|Robot/side/Log:log:nav,state|maxLines=50\n'
+        + 'ATTR|temp|min=-40.5|max=85\n'
+        + 'TH|temp:1627551892437:hot>70;1627551892437:critical>85.123456789,#ff0000;1627551892437:cold<-10,rgb(0, 0, 255);1627551899000:hot>75.5;1627551899000:critical>;1627551899000.5:50%25 %3A half>0.1\n'
+        + 'temp,env:1627551893000:1e-7;1627551999999:123456789.123§°C\n', 'the thresholds in force when the period starts are written before its own');
+    U = only({ telemetries: ['temp'], from: 1627551900, dashboards: false });
+    assert.deepEqual(U.datastore.getTelemetry('temp').getThresholds().map((t) => t.name + t.value), ['cold-10', '50% : half0.1', 'hot75.5'], 'in a binary file too; one that was removed before is not');
 });
 
 test('a file can be read in pieces cut anywhere', () => {
@@ -359,4 +376,30 @@ test('a file that holds data and dashboards: one can be opened without the other
         result = U.files.importData(file, { dashboards: false, data: false });
         assert.deepEqual([result.samples, result.dashboards, Object.keys(U.datastore.telemetries), Object.keys(U.dashboards.dashboards)], [0, [], [], []]);
     }
+});
+
+test('thresholds and ranges in files: what a text file cannot say is counted, a CSV has none, estimates count them', () => {
+    const T = loadTeleplot();
+    const P = T.protocol, TH = P.SECTION_TYPE_TELEM_DATA_THRESHOLD;
+    const telem = T.datastore.getOrCreateTelemetry('temp');
+    telem.addData(20, [1, 2], [[20, 21]]);
+    telem.addData(TH, [1, 1, 1, 1, 1], [[1, 1, 1, 1, 0], [70, 80, 90, 95, NaN], ['hot', ' padded ', 'two\nlines', 'bad color', 'gone'], ['', '', '', 'a:b', '']]);
+    const text = T.files.exportText({ dashboards: false });
+    assert.equal(text.skipped, 3, 'names that would not come back the same, a color with a separator');
+    assert.equal(joinText(text.parts), 'TH|temp:1000:hot>70;1000:gone<\ntemp:1000:20;2000:21\n');
+    const binary = T.files.exportBinary({ dashboards: false });
+    assert.equal(binary.skipped, 0);
+    const U = loadTeleplot();
+    U.files.importData(joinBytes(binary.parts));
+    assert.deepEqual(snapshot(U), snapshot(T), 'the binary file holds them all');
+    assert.equal(U.datastore.getTelemetry('temp').getThresholds().length, 4);
+    const csv = T.files.exportCSV();
+    assert.deepEqual([csv.samples, csv.skipped, joinText(csv.parts).split('\r\n')[0]], [2, 5, 'time,temp']);
+    assert.deepEqual([T.files.estimate('binary').samples, T.files.estimate('csv').skipped], [7, 5]);
+    // A dry run counts them as it counts the rest, and stores nothing
+    const V = loadTeleplot();
+    const report = V.files.createImport({ dryRun: true });
+    report.add('ATTR|x|min=0|max=1\nTH|x:1000:low<0.2\nx:1000:0.5\n');
+    const result = report.finish();
+    assert.deepEqual([result.samples, Object.keys(V.datastore.telemetries).length], [2, 0]);
 });
