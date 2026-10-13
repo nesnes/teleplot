@@ -270,7 +270,7 @@ class ViewCurrentValue extends ViewTelemetries{
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-number"
                         v-bind:title="''+telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER}].lastValue[0]"
                         v-bind:style="telem.status ? {'color': telem.status.color || 'var(--teleplot-warn)'} : {}">
-                        <span v-if="telem.status" class="teleplot-js-current-value-status" v-bind:title="'Past the threshold ' + telem.status.name">{{telem.status.name}}</span>
+                        <span v-if="telem.status" class="teleplot-js-current-value-status" v-bind:title="'Threshold: ' + telem.status.name">{{telem.status.name}}</span>
                         <span>{{telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER}].lastDisplayValue[0]}}</span><span v-if="telem.unit" class="teleplot-js-current-value-unit">{{telem.unit}}</span>
                     </div>
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-number"

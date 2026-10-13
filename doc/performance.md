@@ -112,6 +112,8 @@ Measured in the webapp (Vue proxies around the library), Chromium, views 800 pix
 | Timeline: a state that changes on every sample, 1000 times per second (300 000 states) | 3 ms |
 | Timeline: a log of 100 000 lines | 0.2 ms |
 | Chart: a series of 300 000 samples, with that log and that state as marks, and a threshold that moves 50 times per second (15 000 samples) | 1.3 ms |
+| Timeline: a number of 300 000 samples (1000 per second) drawn as a line | 0.1 ms |
+| Timeline: the same number read through its thresholds (bands), a limit moving on every update | 0.1 ms |
 | Values: a number with a range and those thresholds | 0.1 ms |
 | The threshold a value is past, asked 100 times at 100 different times | 0.1 ms |
 | The steps of 15 000 threshold samples over a period | 0.3 ms |
@@ -121,6 +123,7 @@ What these say:
 - **A state costs what it changes, not what it is sent.** `TELEPLOT.textRuns(entry)` keeps, next to a text entry, one item per run of the same text, completed as samples are appended (`107-textRuns.js`). Timelines and the marks of a chart work on runs: a state sent at every loop of a device is free. Before it, the three lanes above took 5 ms.
 - **A state that really changes a thousand times per second** is gone through on every update (10 nanoseconds per state). It is drawn as blocks of "several states here": the cost is in counting them, not in drawing. Fine for a few hundred thousand; not a use to plan for.
 - **Thresholds are indexed by name** (`Telemetry.__thresholdIndex`, completed as samples are appended): asking which limit holds at a time is a search per name, whatever the number of samples. Before it, a limit that moved often made every question go through all its samples (25 microseconds each with 15 000 samples).
+- **A number in a timeline costs what is new.** Its line comes from a `MinMaxDecimator`, like a chart. Its bands (`ViewTimeline.limitRuns`) are runs of "past the same threshold", completed as samples are appended; a new threshold only makes it read again what came from its time on, and samples removed by the data window take their runs with them. Reading 300 000 samples from scratch takes 30 to 45 ms: it happens once, when the lane is created (or after a late insertion), not while data flows.
 - **Marks are bounded by the pixels**: closer than 6 pixels they are folded, so a chart never draws more than a mark every 6 pixels however long the log is. What is computed for the period displayed (`chart.overlay`) is only computed again when its data, the period or an option changes.
 - Both caches follow the rule of this page: they are kept out of what a framework can wrap (`textRuns` in a `WeakMap`, the index on the raw data entry), and they are thrown away when samples are inserted late or removed (`lateInsertions`, `pruned`).
 

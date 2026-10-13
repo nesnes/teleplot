@@ -410,6 +410,22 @@
       view.setOption("displayTelemetryName", false);
       Teleplot.view.addView(view);
     });
+    data("Whole numbers", "tl.gear (0 to 3) and tl.enable (0 or 1), 5 times per second.", () => {
+      let gear = 0, enable = 1;
+      setInterval(() => {
+        if (Math.random() < 0.08) gear = Math.max(0, Math.min(3, gear + (Math.random() < 0.5 ? -1 : 1)));
+        if (Math.random() < 0.05) enable = 1 - enable;
+        Teleplot.parseDataText(`tl.gear:${gear}\ntl.enable:${enable}`);
+      }, 200);
+    });
+    demo("Numbers in a timeline", "A number can be given a lane. tl.temp has thresholds: it is read as a state, a band where it is past one, named and colored after it, from the sample that passed it (hover: for how long). The others are a plain line from sample to sample, scaled on their range or on what is displayed: tl.enable (0 or 1) reads like a digital signal, tl.gear like steps, numberTelemetry is a curve squeezed in a lane (a chart shows it better). Hover a line: its value at that time.", ["100%", 170], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["tl.mode", "tl.temp", "tl.enable", "tl.gear", "numberTelemetry"]));
+    });
+    demo("Numbers as text", "Option numbers: \"text\": each value is written as a state, a band per run of the same value. Good for a gear or a mode code; thresholds are not used. It can be set for one telemetry: view.setOption(\"numbers\", \"text\", \"tl.gear\").", [600, 110], (id) => {
+      const view = new Teleplot.view.ViewTimeline(id, ["tl.gear", "tl.enable"]);
+      view.setOption("numbers", "text");
+      Teleplot.view.addView(view);
+    });
     demo("Marks on a chart", "Text telemetries added to a chart have no curve: tl.mode (a state) is a line where it changes, with its text when there is room; text.journal (a log) a line per line of the log. Marks too close to be told apart are folded into a short tick at the top. Their legend entry (with a bar as its key) tells the text at the cursor; click it to hide the marks.", [700, 240], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["tl.temp", "tl.mode", "text.journal"]));
     });
@@ -526,7 +542,7 @@
     demo("Chart on a telemetry with no data yet", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["empty.telemetry"])); });
     demo("Chart on text only", "A text is a mark on the curves of numbers: the chart says it has no number yet.", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["text.Telemetry"])); });
     demo("Timeline without telemetry", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, [])); });
-    demo("Timeline on numbers only", "A timeline shows text.", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["numberTelemetry"])); });
+    demo("Timeline on positions only", "A timeline shows texts and numbers.", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, [longName])); });
     demo("Chart on a telemetry that does not exist", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewChart(id, ["does.not.exist"])); });
     demo("Values on a telemetry that does not exist", "", [300, 120], (id) => { Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["does.not.exist"])); });
     demo("Long title on a narrow view", "", [180, 120], (id) => {

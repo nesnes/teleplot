@@ -70,11 +70,11 @@ test('the view builds a lane per text telemetry of its list, in its order, and o
     telems[2].setAttribute(T.protocol.TELEM_ATTR_LOG, true);
     telems[2].addData(TEXT, [15], [['armed']]);
     view.update();
-    assert.deepEqual(view.lanes.map(l => [l.name, l.isLog, show(l.items)]), [['state', false, ['10-20:idle', '20-30:moving']], ['events', true, ['|15:armed']]]);
+    assert.deepEqual(view.lanes.map(l => [l.name, l.kind, show(l.items)]), [['state', 'state', ['10-20:idle', '20-30:moving']], ['speed', 'line', []], ['events', 'log', ['|15:armed']]]);
     assert.deepEqual([view.period.from, view.period.to], [10, 30], 'the numbers of the view count in its period');
     const lanes = view.lanes.map(l => l.items);
     view.update();
-    assert.deepEqual(view.lanes.map(l => l.items === lanes[view.lanes.indexOf(l)]), [true, true], 'nothing changed: nothing built again');
+    assert.deepEqual(view.lanes.map(l => l.items === lanes[view.lanes.indexOf(l)]), [true, true, true], 'nothing changed: nothing built again');
     telems[0].addData(TEXT, [40], [['error: stalled']]);
     view.update();
     assert.deepEqual(show(view.lanes[0].items), ['10-20:idle', '20-40:moving', '40-41.2:error: stalled'], 'the latest state has just shown up: it gets some room to be read');
@@ -176,15 +176,144 @@ test('a timeline takes text telemetries: it suits them, and is a view type like 
     telems[0].addData(TEXT, [1], [['idle']]);
     const speed = T.datastore.getOrCreateTelemetry('speed');
     speed.addData(NUMBER, [1], [[1]]);
-    assert.deepEqual([view.suitsTelemetry(telems[0]), view.suitsTelemetry(speed)], [true, false]);
+    assert.deepEqual([view.suitsTelemetry(telems[0]), view.suitsTelemetry(speed)], [true, false], 'a timeline that follows a label only takes texts: numbers are added on purpose');
     assert.equal(T.view.suggestViewType('state'), 'values', 'a state is still a value by default: a timeline is asked for');
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayTelemetryName']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayTelemetryName', 'numbers']);
     const copy = view.clone();
     assert.ok(copy instanceof T.view.ViewTimeline);
     assert.deepEqual(Array.from(copy.telemetryIdOrNameList), ['state']);
     // Empty states of the view (no telemetry, no data, not text)
     assert.equal(new T.view.ViewTimeline('x', []).getEmptyState().text, 'No telemetry');
     assert.equal(new T.view.ViewTimeline('x', ['ghost']).getEmptyState().text, 'Waiting for data');
-    assert.equal(new T.view.ViewTimeline('x', ['speed']).getEmptyState().text, 'Nothing to display');
+    assert.equal(new T.view.ViewTimeline('x', ['speed']).getEmptyState().text, '', 'a number can be given a lane');
+    T.datastore.getOrCreateTelemetry('xy').addData(21, [1], [[1], [2]]);
+    assert.equal(new T.view.ViewTimeline('x', ['xy']).getEmptyState().text, 'Nothing to display');
     assert.equal(view.getEmptyState().text, '');
+});
+
+const THRESHOLD = 40;
+
+test('a number with thresholds is read as a state: a band where it is past a threshold, from the sample that passed it', () => {
+    const { T, telems, view } = setup(['temp']);
+    const P = T.protocol, V = T.view.ViewTimeline;
+    const limit = (t, operator, value, name, color = '') => telems[0].addData(THRESHOLD, [t], [[operator], [value], [name], [color]]);
+    limit(0, P.THRESHOLD_ABOVE, 70, 'hot'); limit(0, P.THRESHOLD_ABOVE, 90, 'critical', 'red'); limit(0, P.THRESHOLD_BELOW, 10, 'cold', '#00f');
+    telems[0].addData(NUMBER, [10, 20, 30, 40, 50, 60, 70, 80], [[50, 75, 80, 95, 72, 60, 5, NaN]]);
+    const runs = () => { const r = V.limitRuns(telems[0]); return r.timestamps.map((t, i) => t + ':' + r.data[0][i]); };
+    assert.deepEqual(runs(), ['10:', '20:hot', '40:critical', '50:hot', '60:', '70:cold', '80:'], 'a run starts at the sample that passed the limit, not where a line between two samples would cross it');
+    view.update();
+    assert.deepEqual([view.lanes[0].kind, show(view.lanes[0].items)], ['limits', ['20-40:hot', '40-50:critical', '50-60:hot', '70-80:cold']]);
+    assert.deepEqual(view.lanes[0].items.map(i => i.color), ['warn', 'red', 'warn', '#00f'], 'the color of the threshold, or the one of the theme');
+    // Completed as samples come, not built again
+    const first = V.limitRuns(telems[0]);
+    telems[0].addData(NUMBER, [90, 100], [[71, 72]]);
+    assert.deepEqual(runs().slice(-1), ['90:hot']);
+    assert.equal(V.limitRuns(telems[0]), first);
+    // Each sample is compared with the limits in force at its own time: a limit that moves does not rewrite the past
+    limit(95, P.THRESHOLD_ABOVE, 80, 'hot');
+    assert.deepEqual(runs().slice(-2), ['90:hot', '100:'], '71 was past 70 at 90; 72 is not past 80 at 100');
+    limit(105, P.THRESHOLD_ABOVE, NaN, 'critical');
+    telems[0].addData(NUMBER, [110], [[99]]);
+    assert.deepEqual(runs().slice(-1), ['110:hot'], 'critical was removed');
+    // A limit that is given late (a time before samples already read) is taken into account too
+    limit(55, P.THRESHOLD_BELOW, 65, 'cool');
+    assert.deepEqual(runs().slice(4), ['60:cool', '70:cold', '80:', '90:hot', '100:', '110:hot'], '60 is below 65 from 55 on; before it nothing changed');
+    assert.deepEqual(runs().slice(0, 4), ['10:', '20:hot', '40:critical', '50:hot']);
+    // What is under the pointer: how long it was really past it
+    view.update();
+    assert.deepEqual(V.extentOf(view.lanes[0].runs, 45), { start: 40, end: 50 });
+    telems[0].setAttribute(P.TELEM_ATTR_UNIT, '°C');
+    assert.deepEqual([V.describeLimit(telems[0], 'critical', 45), V.describeLimit(telems[0], 'cold', 75), V.describeLimit(telems[0], 'hot', 25), V.describeLimit(telems[0], 'hot', 100), V.describeLimit(telems[0], 'nope', 45)],
+        ['above 90 °C, ', 'below 10 °C, ', 'above 70 °C, ', 'above 80 °C, ', ''], 'what the tip says of a band: the limit as it was at that time');
+    // Late samples and pruning are followed
+    telems[0].addData(NUMBER, [15], [[100]]);
+    assert.deepEqual(runs().slice(0, 3), ['10:', '15:critical', '20:hot']);
+    // The data window removes old samples: their runs go with them, the rest is not read again
+    T.state.dataTimeout = 1000;
+    const rolling = T.datastore.getOrCreateTelemetry('rolling');
+    rolling.addData(THRESHOLD, [0], [[P.THRESHOLD_ABOVE], [0.5], ['high'], ['']]);
+    rolling.addData(NUMBER, Array.from({ length: 3000 }, (v, i) => i), [Array.from({ length: 3000 }, (v, i) => Math.floor(i / 100) % 2)]);
+    const kept = V.limitRuns(rolling);
+    let read = 0; const all = rolling.getThresholds.bind(rolling); rolling.getThresholds = (t) => { read++; return all(t); };
+    T.datastore.__deleteTimedOutData();
+    rolling.addData(NUMBER, [3000, 3001], [[1, 0]]);
+    const rolled = V.limitRuns(rolling);
+    const reference = () => { const fresh = { data: rolling.data, getThresholds: all }; const list = []; let last; rolling.data[NUMBER].timestamps.forEach((t, i) => { const name = rolling.data[NUMBER].data[0][i] > 0.5 ? 'high' : ''; if (name !== last) { list.push(t + ':' + name); last = name; } }); return list; };
+    assert.equal(rolled, kept);
+    assert.equal(rolling.data[NUMBER].timestamps[0], 1999, 'the window removed the first two thirds');
+    assert.deepEqual(rolled.timestamps.map((t, i) => t + ':' + rolled.data[0][i]).slice(1), reference().slice(1), 'the same runs as read from scratch');
+    assert.deepEqual([rolled.timestamps[0] <= 1999, rolled.data[0][0], read], [true, 'high', 1], 'the run in force when the data starts is kept; only the new samples were read');
+    T.state.dataTimeout = 0;
+    // What a new limit costs: only the samples from its time on are read again
+    const many = T.datastore.getOrCreateTelemetry('many');
+    many.addData(THRESHOLD, [0], [[P.THRESHOLD_ABOVE], [0.5], ['high'], ['']]);
+    many.addData(NUMBER, Array.from({ length: 5000 }, (v, i) => i), [Array.from({ length: 5000 }, (v, i) => Math.floor(i / 100) % 2)]);
+    const before = V.limitRuns(many), length = before.timestamps.length;
+    let asked = 0; const original = many.getThresholds.bind(many); many.getThresholds = (t) => { asked++; return original(t); };
+    many.addData(THRESHOLD, [4950], [[P.THRESHOLD_ABOVE], [2], ['high'], ['']]);
+    const after = V.limitRuns(many);
+    assert.equal(after, before, 'the same runs, completed');
+    assert.deepEqual([after.timestamps.slice(0, length - 1).every((t, i) => t === i * 100), after.timestamps.at(-1), after.data[0].at(-1), asked], [true, 4950, '', 1], 'past "high" until 4950, where the limit rose above it');
+    // Too short to be drawn: a block, as for states
+    const fast = T.datastore.getOrCreateTelemetry('fast');
+    fast.addData(THRESHOLD, [0], [[P.THRESHOLD_ABOVE], [0.5], ['high'], ['']]);
+    fast.addData(NUMBER, Array.from({ length: 1000 }, (v, i) => i), [Array.from({ length: 1000 }, (v, i) => i % 2)]);
+    const blocks = V.buildLane(V.limitRuns(fast), false, 0, 1000, 10);
+    assert.ok(blocks.length > 20 && blocks.every(b => b.mixed), blocks.length + ' blocks');
+});
+
+test('a number without thresholds is a line: real samples, a few per pixel, with the one before and the one after the period', () => {
+    const { T, telems, view } = setup(['n', 'ranged', 'flat']);
+    const V = T.view.ViewTimeline;
+    telems[0].addData(NUMBER, [0, 10, 20, 30, 40], [[0, 1, 0, 1, 5]]);
+    telems[1].addData(NUMBER, [0, 40], [[2, 3]]);
+    telems[1].setAttribute(T.protocol.TELEM_ATTR_RANGE, { min: 0, max: 10 });
+    telems[2].addData(NUMBER, [5], [[7]]);
+    view.update();
+    assert.deepEqual(view.lanes.map(l => [l.kind, l.items.length, l.line.timestamps, l.line.values, l.line.min, l.line.max]),
+        [['line', 0, [0, 10, 20, 30, 40], [0, 1, 0, 1, 5], 0, 5], ['line', 0, [0, 40], [2, 3], 0, 10], ['line', 0, [5], [7], 7, 7]], 'scaled on what is drawn, or on the range of the telemetry');
+    assert.ok(view.lanes.every(l => l.color), 'each line has its color');
+    // A period inside the data: the line comes in from the sample before and goes out to the sample after
+    const decimator = view.decimators[telems[0].id];
+    const line = V.buildLine(telems[0].data[NUMBER], decimator, 12, 28, 100);
+    assert.deepEqual([line.timestamps, line.values], [[10, 20, 30], [1, 0, 1]]);
+    const between = V.buildLine(telems[0].data[NUMBER], decimator, 22, 28, 100);
+    assert.deepEqual([between.timestamps, between.values], [[20, 30], [0, 1]], 'no sample in the period: still the segment that goes through it');
+    assert.deepEqual(V.buildLine(telems[0].data[NUMBER], decimator, 50, 60, 100).timestamps, [40], 'after the last sample: nothing is drawn further');
+    assert.deepEqual(V.buildLine({ timestamps: [], data: [[]] }, decimator, 0, 10, 100), { timestamps: [], values: [], min: Infinity, max: -Infinity });
+    // Many samples: a few per pixel, all of them real, the extremes kept
+    const big = T.datastore.getOrCreateTelemetry('big');
+    big.addData(NUMBER, Array.from({ length: 100000 }, (v, i) => i * 0.001), [Array.from({ length: 100000 }, (v, i) => i === 54321 ? 99 : Math.sin(i / 50))]);
+    const few = V.buildLine(big.data[NUMBER], new view.decimators[telems[0].id].constructor(), 0, 100, 300);
+    assert.ok(few.timestamps.length < 2500, few.timestamps.length + ' points for 300 pixels');
+    assert.equal(few.max, 99);
+    assert.ok(few.timestamps.every((t, i) => big.data[NUMBER].data[0][Math.round(t * 1000)] === few.values[i]), 'every point is a sample');
+    // Something that is not a number is not a point of the line
+    telems[2].addData(NUMBER, [6, 7], [[NaN, 8]]);
+    view.update();
+    assert.deepEqual(view.lanes[2].line.values, [7, 8]);
+});
+
+test('option "numbers": "text" writes each value as a state; a telemetry that has text is shown by its text', () => {
+    const { T, telems, view } = setup(['gear', 'temp', 'both']);
+    const P = T.protocol;
+    telems[0].addData(NUMBER, [10, 20, 30, 40, 50], [[0, 1, 1, 2, 1]]);
+    telems[1].addData(NUMBER, [10, 50], [[20, 80]]);
+    telems[1].addData(THRESHOLD, [0], [[P.THRESHOLD_ABOVE], [70], ['hot'], ['']]);
+    telems[2].addData(NUMBER, [10, 50], [[1, 2]]);
+    telems[2].addData(TEXT, [10, 50], [['a', 'b']]);
+    view.update();
+    assert.deepEqual(view.lanes.map(l => l.kind), ['line', 'limits', 'state']);
+    view.setOption('numbers', 'text');
+    view.update();
+    assert.deepEqual(view.lanes.map(l => [l.kind, show(l.items)]), [['values', ['10-20:0', '20-40:1', '40-50:2', '50-51.6:1']], ['values', ['10-50:20', '50-51.6:80']], ['state', ['10-50:a', '50-51.6:b']]], 'the same value again continues its band; thresholds are not used');
+    assert.equal(new Set(view.lanes[0].items.map(i => i.color)).size, 3, 'a color per value');
+    assert.equal(view.lanes[0].items[1].color, view.lanes[0].items[3].color, 'the same value, the same color');
+    // For one telemetry only
+    view.setOption('numbers', 'auto');
+    view.setOption('numbers', 'text', 'gear');
+    view.update();
+    assert.deepEqual(view.lanes.map(l => l.kind), ['values', 'limits', 'state']);
+    // The latest state gets room at the end; numbers do not ask for any
+    assert.deepEqual([view.period.from, view.period.to], [10, 51.6], 'room for the state "b" only');
 });

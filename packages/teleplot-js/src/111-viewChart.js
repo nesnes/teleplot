@@ -806,7 +806,7 @@ class ViewChart extends ViewTelemetries{
 
                     <div v-if="telem.actualStrValue && telem.actualStrValue.length" class="teleplot-js-chart-legend-value"
                         v-bind:style="{'min-width': ''+(telem.valueChars || 0)+'ch', 'color': telem.statusColor || null }"
-                        v-bind:title="telem.status ? telem.actualValue + ' (past the threshold ' + telem.status + ')' : telem.actualValue" >
+                        v-bind:title="telem.status ? telem.actualValue + ' (threshold: ' + telem.status + ')' : telem.actualValue" >
                         <span>{{telem.actualStrValue.join(",")}}</span>
                     </div>
 

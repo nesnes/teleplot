@@ -10,23 +10,33 @@
  *   click to go back to the latest data; the pointer moves the cursor of the group and tells what is under it.
  * - Each text has its color: the texts of a view take the colors of the palette in the order they show up, so that the states of
  *   a telemetry are told apart; texts that look like errors or warnings take the colors of the theme for them, as in the Log view.
- * What is drawn is first computed without any canvas (buildLane, getTimeWindow): that part is tested.
+ * - Numbers can be given a lane too (they are added on purpose: a timeline that follows a label only takes texts):
+ *     a number that has thresholds is read as a state: a band where it is past a threshold, named and colored after it, from the
+ *       sample that passed it to the first one that is not past it any more;
+ *     any other number is a plain line from sample to sample (straight, no steps: nothing says the value held), scaled on its range
+ *       or on what is displayed. A number with few values reads like a digital signal; it is not a chart (no axis, no thresholds);
+ *     option "numbers": "text" writes each value as a state instead (a band per run of the same value: a gear, a mode code).
+ * What is drawn is first computed without any canvas (buildLane, limitRuns, getTimeWindow): that part is tested.
  */
+const _timeline_limitRuns = new WeakMap(); // number data entry -> runs of "the threshold it is past" (see ViewTimeline.limitRuns)
+
 class ViewTimeline extends ViewTelemetries{
     constructor(divId, telemetryIdOrNameList, group="default"){
         super(divId, group);
         this.name = "timeline";
         this.type = "teleplot-timeline";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
-        this.supportedDataTypes = [""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
-        this.supportedLabel = "text";
+        this.supportedDataTypes = [""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER];
+        this.supportedLabel = "text or number";
 
         this.options.displayTelemetryName = true; // Name of each lane, on its left
+        this.options.numbers = "auto";            // Lane of a number: "auto" (bands from its thresholds when it has some, else a line) or "text" (a band per value)
+        this.decimators = TELEPLOT.Vue.markRaw({}); // One MinMaxDecimator per number drawn as a line (raw: see the chart)
 
         this.layout.width = 2;
         this.layout.height = 2;
 
-        // What is drawn (raw: read on every draw): [{id, name, isLog, items: see buildLane}], and the period it covers
+        // What is drawn (raw: read on every draw): [{id, name, kind, items: see buildLane, line: see buildLine}], and the period it covers
         this.lanes = TELEPLOT.Vue.markRaw([]);
         this.period = TELEPLOT.Vue.markRaw({ from: 0, to: 0 });
         this.colors = TELEPLOT.Vue.markRaw(new Map()); // Text -> index of its color, in the order texts showed up (see colorOf)
@@ -76,7 +86,8 @@ class ViewTimeline extends ViewTelemetries{
     }
 
     getOptionsSchema() {
-        return [{ key: "displayTelemetryName", label: "Telemetry names", type: "bool" }];
+        return [{ key: "displayTelemetryName", label: "Telemetry names", type: "bool" },
+            { key: "numbers", label: "Numbers", type: "choice", choices: [["auto", "Auto"], ["text", "As text"]] }]; // (a line, or bands from thresholds / a band per value)
     }
 
     // ------------------------------------------------------------------ What is drawn (no canvas here)
@@ -147,16 +158,105 @@ class ViewTimeline extends ViewTelemetries{
     static PALETTE = [1, 2, 4, 3, 5, 6, 0, 10, 11, 12, 13, 7]; // Colors of the palette that are told apart, blue first (red last: it reads as an alarm)
     static COLOR_MEMORY = 500;
 
-    // Text entries of the telemetries of the view, in the order of its list: [{telem, entry}]
+    // What the telemetries of the view give a lane, in the order of its list: [{telem, entry, kind}]. A text is a "state" or a "log".
+    // A number (of a telemetry without text) is "limits" (it has thresholds: bands of the one it is past), "line", or "values"
+    // (option "numbers": "text": a band per value).
     getSources() {
+        const P = TELEPLOT.protocol;
         let sources = [];
         for(let telemIdOrName of this.telemetryIdOrNameList) {
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
-            let entry = telem && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
-            if(entry === undefined || sources.some((source) => source.telem.id === telem.id)) continue;
-            sources.push({ telem, entry });
+            if(telem === undefined || sources.some((source) => source.telem.id === telem.id)) continue;
+            let text = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT], number = telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER];
+            if(text !== undefined) sources.push({ telem, entry: text, kind: telem.getAttribute(P.TELEM_ATTR_LOG) === true ? "log" : "state" });
+            else if(number !== undefined) {
+                let kind = this.getOption("numbers", telem.id) === "text" ? "values" : (telem.data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD] !== undefined ? "limits" : "line");
+                sources.push({ telem, entry: number, kind });
+            }
         }
         return sources;
+    }
+
+    // A number read through its thresholds: { timestamps, data: [names], colors: Map name -> color } with one item per run of "past
+    // the same threshold" ("" when it is past none), in the shape of a data entry (see TELEPLOT.textRuns). A run starts at the sample
+    // that passed the limit: where the value crossed it between two samples is not known, and not guessed. Each sample is compared
+    // with the limits in force at its own time. Kept next to the number entry and completed as samples are appended; a new threshold
+    // makes it read again what came from its time on, samples removed by the data window take their runs with them; built again
+    // when samples or thresholds were inserted late.
+    static limitRuns(telem) {
+        const P = TELEPLOT.protocol;
+        let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER], limits = telem.data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD];
+        let stamps = entry.timestamps, values = entry.data[0];
+        let limitStamps = limits === undefined ? [] : limits.timestamps, limitLate = limits === undefined ? 0 : limits.lateInsertions;
+        let runs = _timeline_limitRuns.get(entry);
+        if(runs === undefined || runs.late !== entry.lateInsertions || runs.source !== stamps
+            || runs.limitSource !== limitStamps || runs.limitLate !== limitLate || runs.limitCount > limitStamps.length) {
+            runs = { late: entry.lateInsertions, pruned: entry.pruned, source: stamps, count: 0, lastStamp: undefined, limitSource: limitStamps, limitLate, limitCount: 0, timestamps: [], data: [[]], colors: new Map() };
+            _timeline_limitRuns.set(entry, runs);
+        }
+        let lower = (value) => { let lo = 0, hi = stamps.length; while(lo < hi) { let mid = (lo + hi) >> 1; if(stamps[mid] < value) lo = mid + 1; else hi = mid; } return lo; };
+        let forgetFrom = (time) => { while(runs.timestamps.length && runs.timestamps[runs.timestamps.length - 1] >= time) { runs.timestamps.pop(); runs.data[0].pop(); } };
+        if(runs.pruned !== entry.pruned || runs.count > stamps.length) {
+            // The oldest samples were removed (the data window moves on: several times per second with a lot of data). The runs that
+            // ended before what is left go with them, and reading goes on from the last sample that was read: nothing is read twice.
+            runs.pruned = entry.pruned;
+            let first = stamps.length ? stamps[0] : Infinity, gone = 0;
+            while(gone + 1 < runs.timestamps.length && runs.timestamps[gone + 1] <= first) gone++; // (the run in force when the data starts stays)
+            runs.timestamps.splice(0, gone);
+            runs.data[0].splice(0, gone);
+            if(runs.lastStamp === undefined || !stamps.length) { runs.count = 0; runs.timestamps.length = 0; runs.data[0].length = 0; }
+            else { runs.count = lower(runs.lastStamp); forgetFrom(runs.lastStamp); }
+        }
+        if(runs.limitCount < limitStamps.length) {
+            // New thresholds (appended: the usual case of a limit that moves now): only what the number said from the first of them
+            // on has to be read again, not everything it ever said
+            let since = limitStamps[runs.limitCount];
+            let from = lower(since);
+            if(from < runs.count) { runs.count = from; forgetFrom(since); }
+            runs.limitCount = limitStamps.length;
+        }
+        let kept = runs.data[0], last = kept.length ? kept[kept.length - 1] : undefined;
+        let changes = limitStamps, change = 0, current = undefined;
+        for(let i = runs.count; i < stamps.length; i++) {
+            let time = stamps[i], value = values[i];
+            if(current === undefined || (change < changes.length && changes[change] <= time)) { // (the limits moved: the ones in force now)
+                current = telem.getThresholds(time);
+                while(change < changes.length && changes[change] <= time) change++;
+            }
+            let past = undefined;
+            for(let threshold of current) {
+                let isPast = threshold.operator === P.THRESHOLD_ABOVE ? value > threshold.value : value < threshold.value;
+                if(isPast && (past === undefined || Math.abs(value - threshold.value) < Math.abs(value - past.value))) past = threshold;
+            }
+            let name = past === undefined ? "" : past.name;
+            if(past !== undefined) runs.colors.set(name, past.color);
+            if(name === last) continue;
+            runs.timestamps.push(time);
+            kept.push(name);
+            last = name;
+        }
+        runs.count = stamps.length;
+        runs.lastStamp = stamps.length ? stamps[stamps.length - 1] : undefined;
+        return runs;
+    }
+
+    // The line of a number over a period: { timestamps, values, min, max }. Real samples only, joined by straight segments when
+    // drawn: at most a few per pixel (the first, lowest, highest and last of each: see MinMaxDecimator), plus the sample before the
+    // period and the one after it, so that the line comes in and goes out where it does. min / max: what the lane goes from and to
+    // (the range of the telemetry when it has both ends, else what is drawn).
+    static buildLine(entry, decimator, from, to, width, range) {
+        let stamps = entry.timestamps, numbers = entry.data[0];
+        let view = stamps.length && from < to ? decimator.getView(entry, from, to, Math.max(1, Math.round(width))) : { timestamps: [], values: [] };
+        let before = ViewTimeline.after(stamps, view.timestamps.length ? view.timestamps[0] : from) - 1;
+        while(before >= 0 && (stamps[before] >= (view.timestamps.length ? view.timestamps[0] : from) || !Number.isFinite(numbers[before]))) before--;
+        if(before >= 0) { view.timestamps.unshift(stamps[before]); view.values.unshift(numbers[before]); }
+        let next = ViewTimeline.after(stamps, view.timestamps.length ? view.timestamps[view.timestamps.length - 1] : to);
+        while(next < stamps.length && !Number.isFinite(numbers[next])) next++;
+        if(next < stamps.length && stamps[next] > to) { view.timestamps.push(stamps[next]); view.values.push(numbers[next]); }
+        let min = Infinity, max = -Infinity;
+        if(range !== undefined && range.min !== undefined && range.max !== undefined && range.max > range.min) { min = range.min; max = range.max; }
+        else for(let value of view.values) { if(value < min) min = value; if(value > max) max = value; }
+        return { timestamps: view.timestamps, values: view.values, min, max };
     }
 
     // The period displayed: the zoomed range of the group, or else what the numbers and texts shown by the views of the group cover
@@ -186,9 +286,9 @@ class ViewTimeline extends ViewTelemetries{
         // The latest state gets some room at the end: when it just showed up and nothing else makes time pass, it would have no
         // width at all, and it is the one people look for. (The axis tells what time that is: nothing is said to have happened there.)
         let room = (to - from) * ViewTimeline.LATEST_ROOM;
-        for(let { telem, entry } of this.getSources()) {
+        for(let { entry, kind } of this.getSources()) {
             let last = entry.timestamps.length - 1;
-            if(last < 0 || telem.getAttribute(P.TELEM_ATTR_LOG) === true || String(entry.data[0][last]) === "") continue;
+            if(last < 0 || kind !== "state" || String(entry.data[0][last]) === "") continue;
             let extent = ViewTimeline.extentOf(entry, entry.timestamps[last]);
             if(extent !== undefined && extent.start + room > to) to = extent.start + room;
         }
@@ -211,7 +311,12 @@ class ViewTimeline extends ViewTelemetries{
         let period = this.getTimeWindow();
         let width = this.getPlotWidth();
         let key = (period ? period.from + "," + period.to : "none") + "|" + width + "|" + (this.page ? this.page.width + "x" + this.page.height : "") + "|" + TELEPLOT.theme.key() + "|" + (this.options.displayTelemetryName ? 1 : 0);
-        for(let { telem, entry } of sources) key += `|${telem.id}:${entry.lastUpdate}:${entry.timestamps.length}:${telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME)}:${telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true ? 1 : 0}`;
+        for(let { telem, entry, kind } of sources) {
+            key += `|${telem.id}:${kind}:${entry.lastUpdate}:${entry.timestamps.length}:${telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME)}`;
+            let limits = kind === "limits" ? telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD] : undefined;
+            if(limits !== undefined) key += `:${limits.lastUpdate}:${limits.timestamps.length}`;
+            if(kind === "line") { let range = telem.getRange(); if(range !== undefined) key += `:${range.min}:${range.max}`; }
+        }
         let cursor = TELEPLOT.view.groups[this.group].cursorTimestamp;
         if(key === this.lastKey && cursor === this.lastCursor && !this.selection) return;
         if(key !== this.lastKey) {
@@ -220,14 +325,24 @@ class ViewTimeline extends ViewTelemetries{
             this.period.to = period ? period.to : 0;
             let minDuration = period ? (period.to - period.from) / width * ViewTimeline.MIN_PIXELS : 0;
             this.lanes.length = 0;
-            for(let { telem, entry } of sources) {
-                let isLog = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true;
-                let lane = {
-                    id: telem.id, isLog,
-                    name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id),
-                    items: period ? ViewTimeline.buildLane(isLog ? entry : TELEPLOT.textRuns(entry), isLog, period.from, period.to, minDuration) : [] // (a state: its runs, the same text sent again is nothing new)
-                };
-                for(let item of lane.items) if(!item.mixed) item.color = ViewTimeline.colorOf(item.text, isLog ? undefined : this.colors); // (a log line only has a color when it is an error or a warning)
+            for(let { telem, entry, kind } of sources) {
+                let lane = { id: telem.id, kind, isLog: kind === "log", name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), items: [], runs: undefined, line: undefined, color: "" };
+                if(kind === "line") { // A number without thresholds: a line from sample to sample
+                    if(this.decimators[telem.id] === undefined) this.decimators[telem.id] = new MinMaxDecimator();
+                    lane.color = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_COLOR) || TELEPLOT.colors.getColor(this.lanes.length + 1).toStrRGB();
+                    if(period) lane.line = ViewTimeline.buildLine(entry, this.decimators[telem.id], period.from, period.to, width, telem.getRange());
+                }
+                else {
+                    // Bands work on runs: a state by its text (the same text sent again is nothing new), a number by its value
+                    // ("values") or by the threshold it is past ("limits"). A log has no runs: every line is a tick.
+                    if(kind !== "log") lane.runs = kind === "limits" ? ViewTimeline.limitRuns(telem) : TELEPLOT.textRuns(entry);
+                    if(period) lane.items = ViewTimeline.buildLane(kind === "log" ? entry : lane.runs, kind === "log", period.from, period.to, minDuration);
+                    for(let item of lane.items) {
+                        if(item.mixed) continue;
+                        if(kind === "limits") item.color = lane.runs.colors.get(item.text) || "warn"; // (the color of the threshold, or the one of the theme)
+                        else item.color = ViewTimeline.colorOf(item.text, kind === "log" ? undefined : this.colors); // (a log line only has a color when it is an error or a warning)
+                    }
+                }
                 this.lanes.push(lane);
             }
             this.__layout();
@@ -264,6 +379,14 @@ class ViewTimeline extends ViewTelemetries{
         while(first > 0 && String(texts[first - 1]) === text) first--;
         while(next < stamps.length && String(texts[next]) === text) next++;
         return { start: stamps[first], end: next < stamps.length ? stamps[next] : undefined };
+    }
+
+    // What the threshold of a name asks at a time, to go before the rest of a tip: "above 70 °C, " ("" when it is not known any more)
+    static describeLimit(telem, name, time) {
+        let threshold = telem ? telem.getThresholds(time).find((t) => t.name === name) : undefined;
+        if(threshold === undefined) return "";
+        let unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
+        return (threshold.operator === TELEPLOT.protocol.THRESHOLD_ABOVE ? "above " : "below ") + threshold.value + (unit ? " " + unit : "") + ", ";
     }
 
     // "850 ms", "12.3 s", "2 min 05 s", "1 h 02 min"
@@ -405,9 +528,21 @@ class ViewTimeline extends ViewTelemetries{
         let index = Math.floor((at.y - ViewTimeline.LANE_GAP / 2) / (page.laneHeight + ViewTimeline.LANE_GAP));
         let lane = this.lanes[index];
         let perPixel = (this.period.to - this.period.from) / Math.max(1, page.width - page.gutter);
-        let item = lane ? ViewTimeline.itemAt(lane, time, perPixel * 5) : undefined;
-        if(item === undefined) { this.tip.shown = false; return; }
         let tip = this.tip;
+        let telem = lane ? TELEPLOT.datastore.getTelemetry(lane.id) : undefined;
+        let item = undefined;
+        if(lane && lane.kind === "line") { // A line: the value it has at that time (the last sample at or before it)
+            let entry = telem && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER];
+            let index = entry ? ViewTimeline.after(entry.timestamps, time) - 1 : -1;
+            if(index < 0) { tip.shown = false; return; }
+            let unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
+            tip.name = lane.name;
+            tip.text = String(entry.data[0][index]) + (unit ? " " + unit : "");
+            tip.detail = "at " + TELEPLOT.view.ViewLog.formatTime(entry.timestamps[index]);
+        }
+        else {
+        item = lane ? ViewTimeline.itemAt(lane, time, perPixel * 5) : undefined;
+        if(item === undefined) { tip.shown = false; return; }
         tip.name = lane.name;
         if(item.tick) {
             tip.text = item.text;
@@ -419,11 +554,10 @@ class ViewTimeline extends ViewTelemetries{
         }
         else {
             // (the band is cut to the period displayed: the state itself may have started before, and may last longer)
-            let telem = TELEPLOT.datastore.getTelemetry(lane.id);
-            let entry = telem && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
-            let extent = (entry && ViewTimeline.extentOf(entry, time)) || { start: item.from, end: item.to };
+            let extent = (lane.runs && ViewTimeline.extentOf(lane.runs, time)) || { start: item.from, end: item.to };
             tip.text = item.text;
-            tip.detail = "from " + TELEPLOT.view.ViewLog.formatTime(extent.start) + (extent.end === undefined ? ", still the latest" : ", for " + ViewTimeline.formatDuration(extent.end - extent.start));
+            tip.detail = (lane.kind === "limits" ? ViewTimeline.describeLimit(telem, item.text, time) : "") + "from " + TELEPLOT.view.ViewLog.formatTime(extent.start) + (extent.end === undefined ? ", still the latest" : ", for " + ViewTimeline.formatDuration(extent.end - extent.start));
+        }
         }
         tip.flip = at.x > page.width * 0.6; // (on the right half the tip opens to the left of the pointer)
         tip.left = Math.round(at.x + page.host.offsetLeft);
@@ -467,6 +601,25 @@ class ViewTimeline extends ViewTelemetries{
             }
             context.fillStyle = style.grid; // The lane itself: a hole shows as the lane without band
             context.fillRect(gutter, top, plot, laneHeight);
+            if(lane.line && lane.line.timestamps.length) { // A number: straight segments between its samples, inside its lane
+                let line = lane.line, pad = 3, room = laneHeight - 2 * pad, flat = !(line.max > line.min);
+                let y = (value) => flat ? middle : top + pad + (1 - Math.max(-1, Math.min(2, (value - line.min) / (line.max - line.min)))) * room;
+                context.save();
+                context.beginPath();
+                context.rect(gutter, top, plot, laneHeight);
+                context.clip();
+                context.beginPath();
+                for(let i = 0; i < line.timestamps.length; i++) {
+                    if(i === 0) context.moveTo(x(line.timestamps[i]), y(line.values[i]));
+                    else context.lineTo(x(line.timestamps[i]), y(line.values[i]));
+                }
+                context.strokeStyle = lane.color;
+                context.lineWidth = 1.5;
+                context.lineJoin = "round";
+                context.stroke();
+                if(line.timestamps.length === 1) { context.fillStyle = lane.color; context.fillRect(x(line.timestamps[0]) - 1.5, y(line.values[0]) - 1.5, 3, 3); } // (a lone sample is a dot)
+                context.restore();
+            }
             for(let item of lane.items) {
                 let left = Math.max(gutter, x(item.from));
                 if(item.tick) {

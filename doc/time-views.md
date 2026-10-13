@@ -72,9 +72,9 @@ A threshold has **a name**, **an operator** (`<`: past the limit when the teleme
 
 | Data | Chart | Values | Log | Timeline |
 |---|---|---|---|---|
-| Number | series | value | no | no |
-| Number + range | scale, when the option says so | a bar from min to max | no | no |
-| Number + thresholds | dashed steps with their name | the name and the color of the one that is passed | no | no |
+| Number | series | value | no | a line, when added on purpose (or a band per value) |
+| Number + range | scale, when the option says so | a bar from min to max | no | the scale of its line |
+| Number + thresholds | dashed steps with their name | the name and the color of the one that is passed | no | a band where it is past a threshold |
 | Text, a state (`t`) | a mark where it changes | value | lines | bands |
 | Text, a log (`log`) | a mark per line | latest line | lines | ticks |
 | Empty text | no mark | empty | an empty line | a hole |
@@ -103,6 +103,24 @@ text in a chart, are asked for: in the Edit mode of the webapp, or with a line (
   the state really started and how long it lasted (whatever the period shows of it). Drag to zoom (shared by the group, as on a
   chart), double click to go back to the latest data.
 - More lanes than fit: the view scrolls, its time axis stays at the bottom.
+
+### Numbers in a timeline
+
+A number can be given a lane, next to the states it goes with. It is added on purpose (Edit mode, a `DASH|` line, a drop): a
+timeline that follows a label only takes texts. A telemetry that has both text and numbers is shown by its text.
+
+- **A number that has thresholds is read as a state**: a band where it is past a threshold, named and colored after it, and nothing
+  where it is past none. A band starts at the sample that passed the limit and ends at the first sample that is not past it any more:
+  where the value crossed the limit between two samples is not known, and not guessed. Each sample is compared with the limits in
+  force at its own time. Past several, the one it passed last, as everywhere else.
+- **Any other number is a plain line** from sample to sample: straight segments (no steps: nothing says the value held), in the color
+  of the telemetry, scaled on its range when it has both ends, else on what is displayed. A number with two values reads like a
+  digital signal, one with a few values like steps. It is not a chart: no axis, no thresholds; a curve squeezed in a lane is better
+  seen on a chart of the same time group. The pointer tells the value at that time (the last sample at or before it).
+- **Option `numbers`: `text`** (`auto` by default) writes each value as a state instead: a band per run of the same value, with the
+  value in it (a gear, a mode code). Thresholds are not used. For one telemetry only: `view.setOption("numbers", "text", telemetry)`.
+- Many samples: the line is given a few real samples per pixel (the first, lowest, highest and last, like a chart), bands too short to
+  be drawn are a block, as for states.
 
 ## Marks on a chart
 
@@ -160,6 +178,8 @@ TELEPLOT.textRuns(entry)                  // {timestamps, data: [texts]}: a text
 
 new TELEPLOT.view.ViewTimeline(divId, telemetries, group)     // or TELEPLOT.view.createView("timeline", telemetries, group)
 ViewTimeline.buildLane(entry, isLog, from, to, minDuration)   // [{from, to, text, count, mixed, tick}]: what a lane draws (no canvas)
+ViewTimeline.limitRuns(telem)                                 // a number read through its thresholds: runs of "past the same threshold" (cached)
+ViewTimeline.buildLine(entry, decimator, from, to, width, range) // {timestamps, values, min, max}: the line of a number over a period
 ViewTimeline.extentOf(entry, time)                            // {start, end}: how long the state in force at a time really lasts
 ViewChart.buildMarks(entry, isLog, from, to, minGap)          // [{t, text, count}]
 chart.overlay                                                 // {thresholds, marks}: what is drawn over the series for the period displayed

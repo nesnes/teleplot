@@ -310,8 +310,9 @@ function createRobotSample(TP) {
         const cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(2, 5);
         dashboard.setView(main);
         main.addView(top);
-        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.zone", "robot.nav.log", "robot.motor.log"], group);
-        timeline.setSize(12, 3);
+        // (numbers can have a lane too: the distance has a threshold, it is a band while a wall is too close; the gyro is a plain line)
+        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
+        timeline.setSize(12, 4);
         main.addView(timeline);
         main.addView(bottom);
 
