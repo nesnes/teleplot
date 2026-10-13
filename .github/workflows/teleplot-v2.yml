@@ -109,4 +109,14 @@ jobs:
         run: |
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Teleplot $GITHUB_REF_NAME" --generate-notes $flags
+          cat > notes.md <<'EOF'
+          **Executables** (`teleplot-<os>-<arch>`): the server and the web application in one file, nothing to install. Run it, open http://127.0.0.1:8080 and send UDP packets to port 47269.
+
+          They are not signed with a paid certificate, so the system asks before running one downloaded with a browser:
+          - Linux and macOS: `chmod +x teleplot-macos-arm64`
+          - macOS "could not verify": close the dialog, then `xattr -d com.apple.quarantine teleplot-macos-arm64`
+          - Windows SmartScreen: "More info", then "Run anyway"
+
+          **Other files**: `teleplot-server.zip` (the same as sources: `npm ci && node main.js`), `teleplot-webapp.zip` (the web application alone, static files), `teleplot-js.js` (the library alone).
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Teleplot $GITHUB_REF_NAME" --notes-file notes.md --generate-notes $flags

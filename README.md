@@ -498,6 +498,21 @@ By adding a millisecond timestamp to your log, you can sync them with the charts
 
 `echo ">1627551892437:Hello world" | nc -u -w0 127.0.0.1 47269`
 
+# Teleplot V2 (beta)
+
+Teleplot V2 is a rework of the library, the web application and the server. Each [release](https://github.com/nesnes/teleplot/releases) comes with:
+
+- `teleplot-linux-x64`, `teleplot-linux-arm64`, `teleplot-macos-arm64`, `teleplot-macos-x64`, `teleplot-win-x64.exe`: the server and the web application as one executable, nothing to install. Run it, open `http://127.0.0.1:8080` and send UDP packets to port `47269`.
+- `teleplot-server.zip`: the same as sources, for Node.js (`npm ci && node main.js`).
+- `teleplot-webapp.zip`: the web application alone, static files to serve.
+- `teleplot-js.js`: the library alone, one file to include in your own page.
+
+The executables are not signed with a paid certificate, so the system asks before running one that was downloaded with a browser:
+
+- Linux and macOS: make it executable with `chmod +x teleplot-macos-arm64`.
+- macOS says it "could not verify" the file: close the dialog, then run `xattr -d com.apple.quarantine teleplot-macos-arm64` (or allow it in System Settings > Privacy & Security > Open Anyway).
+- Windows SmartScreen: "More info", then "Run anyway".
+
 # Project goal (future works)
 
 Teleplot is aiming to be a simple-to-use yet powerfull telemetry visualization solution.
