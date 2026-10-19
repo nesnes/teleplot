@@ -46,4 +46,4 @@ The older server-side serial input (`src/032-dataInputSerial.js`, commands sent 
 
 Rates, ages and consoles are not reactive (they change on every message): the panel refreshes four times per second. The rate history is sampled once per second from the start of the application (`startSourcesMonitor`), so the panel has it even when opened later.
 
-Not there yet: remote commands (telecmd), and an automated test of the panel itself (the library side is covered by `tests/connection.test.js` and `tests/connectionSerial.test.js`, with a fake serial port).
+Not there yet: remote commands (telecmd, designed in `telecmd.md`), and an automated test of the panel itself (the library side is covered by `tests/connection.test.js` and `tests/connectionSerial.test.js`, with a fake serial port).

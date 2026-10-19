@@ -83,7 +83,7 @@ The server does not wait for a page. When more than `--max-buffer` is waiting to
 - Text packets wait up to `--batch` ms before they are sent (their timestamps do not depend on it). Binary packets too, since they are grouped: before, each was sent at once. `--batch 0` sends everything as it arrives, one message per packet.
 - The time of reception is taken when Node reads the packet, not when the network card got it: packets that queued in the system during a busy moment get close times.
 - JSON for text packets costs an escape of each text and its parsing in the page. It was kept because it is one line to read anywhere; a binary envelope would be faster for very high text rates, where the binary protocol is the better answer anyway.
-- Commands go to one address (`--cmd-host`), not back to whichever device sent telemetry.
+- Commands go to one address (`--cmd-host`), not back to whichever device sent telemetry. The design of telecmd (`telecmd.md`) sends writes back to the sender of the data instead.
 - No TLS, no password.
 
 ## Tests
