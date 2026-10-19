@@ -576,7 +576,7 @@ class ViewCurrentValue extends ViewTelemetries{
                         <label v-else-if="arg.type == 'bool'" class="teleplot-js-cmd-check"><input type="checkbox" v-bind:checked="ui.form[arg.name] == '1'" v-on:change="ui.form[arg.name] = $event.target.checked ? '1' : '0'"/> {{arg.name}}</label>
                         <input v-else type="text" v-model="ui.form[arg.name]" v-bind:placeholder="arg.default !== undefined ? arg.default : (arg.type == 'pose2d' ? 'x, y, yaw' : (arg.type == 'xy' ? 'x, y' : (arg.type == 'xyz' ? 'x, y, z' : '')))"
                             v-bind:class="{'teleplot-js-cmd-bad': formErrors(telem)[arg.name] && ui.form[arg.name] !== ''}" v-on:keydown.enter.prevent="Object.keys(formErrors(telem)).length || callForm(telem)"/>
-                        <div class="teleplot-js-cmd-arg-help" v-bind:class="{'teleplot-js-cmd-error': formErrors(telem)[arg.name] && ui.form[arg.name] !== ''}">{{formErrors(telem)[arg.name] && ui.form[arg.name] !== '' ? formErrors(telem)[arg.name] : (arg.desc || '') + (arg.optional && arg.default !== undefined ? ' Empty: ' + arg.default + '.' : '')}}</div>
+                        <div class="teleplot-js-cmd-arg-help" v-bind:class="{'teleplot-js-cmd-error': formErrors(telem)[arg.name] && ui.form[arg.name] !== ''}">{{formErrors(telem)[arg.name] && ui.form[arg.name] !== '' ? formErrors(telem)[arg.name] : (arg.desc || '') + (arg.desc && !/[.!?]$/.test(arg.desc) ? '.' : '') + (arg.optional && arg.default !== undefined ? ' Empty: ' + arg.default + '.' : '')}}</div>
                     </div>
                     <div class="teleplot-js-cmd-form-buttons">
                         <span v-if="ui.error" class="teleplot-js-cmd-error">{{ui.error}}</span>

@@ -9,6 +9,8 @@
  *       could not be understood are always shown).
  *     - The robot sample (see sample-controls.js).
  * - "Add a source": a server (address and port) or a serial port (the browser asks which one).
+ * - Commands (doc/telecmd.md): a source's card lists, per device, what the page can change or call, the last result, and how long a
+ *   setting takes to be applied (from sending to the device's echo).
  * Everything about connections is in the library (TP.connection); this file only displays it. Rates and the console are not reactive
  * (raw data, updated on every message): the panel refreshes on a timer.
  */
@@ -110,7 +112,14 @@ function initComponent_panel_sources(vue) {
                   <dt>Telemetries</dt><dd>{{s.telemetryCount}}</dd>
                   <dt>Problems</dt><dd :class="{'sources-danger': s.problems > 0}">{{s.problems ? s.problems + ' packets or lines not understood' : 'none'}}</dd>
                   <template v-if="s.dropped"><dt>Dropped</dt><dd class="sources-danger">{{s.dropped}} packets not sent by the server: this page was too slow to receive them</dd></template>
+                  <template v-if="s.readOnly"><dt>Commands</dt><dd>refused: the server is read-only (--read-only)</dd></template>
                 </dl>
+                <template v-for="d in s.commands" :key="d.name">
+                  <div class="sources-cmd-head"><span>Commands · {{d.name}}</span><span class="sources-grow"></span><span v-if="d.roundTrip" title="From sending a setting to the device's echo (median of the latest)">round trip {{d.roundTrip}}</span></div>
+                  <table class="sources-cmd">
+                    <tr v-for="r in d.rows" :key="r.key" :title="r.title"><td>{{r.icon}} {{r.name}}</td><td class="sources-cmd-value">{{r.value}}</td><td><span v-if="r.mark" class="sources-cmd-icon" :class="'sources-cmd-' + r.status">{{r.mark}}</span></td></tr>
+                  </table>
+                </template>
                 <div class="sources-line sources-actions">
                   <span class="sources-grow"></span>
                   <button class="sources-btn sources-ghost" @click="remove(s)">Remove</button>
@@ -129,6 +138,12 @@ function initComponent_panel_sources(vue) {
                   <button v-if="s.connected" class="sources-btn" @click="s.conn.disconnect()">Disconnect</button>
                   <button class="sources-btn sources-ghost" @click="remove(s)">Remove</button>
                 </div>
+                <template v-for="d in s.commands" :key="d.name">
+                  <div class="sources-cmd-head"><span>Commands · {{d.name}}</span><span class="sources-grow"></span><span v-if="d.roundTrip" title="From sending a setting to the device's echo (median of the latest)">round trip {{d.roundTrip}}</span></div>
+                  <table class="sources-cmd">
+                    <tr v-for="r in d.rows" :key="r.key" :title="r.title"><td>{{r.icon}} {{r.name}}</td><td class="sources-cmd-value">{{r.value}}</td><td><span v-if="r.mark" class="sources-cmd-icon" :class="'sources-cmd-' + r.status">{{r.mark}}</span></td></tr>
+                  </table>
+                </template>
                 <div class="sources-console" :ref="el => setConsole(s.id, el)" @scroll="onConsoleScroll(s.id, $event)">
                   <div v-for="line in s.lines" :key="line.key" :class="line.cls"><span v-if="ui(s.id).timestamps" class="sources-console-time">{{line.time}}</span>{{line.text}}</div>
                   <div v-if="!s.lines.length" class="sources-console-empty">{{s.hidden ? 'Only telemetry lines so far (hidden).' : 'Nothing received yet.'}}</div>
@@ -160,7 +175,13 @@ function initComponent_panel_sources(vue) {
                 <span class="sources-grow"></span>
                 <button class="sources-btn" @click="toggleSample()">{{ctx.sampleRunning ? 'Stop' : 'Start'}}</button>
               </div>
-              <div class="sources-sub">A simulated robot, to try Teleplot without hardware</div>
+              <div class="sources-sub">A simulated robot, to try Teleplot without hardware{{sampleCommands.length ? ': it also takes commands (CMD)' : ''}}</div>
+              <template v-for="d in sampleCommands" :key="d.name">
+                <div class="sources-cmd-head"><span>Commands</span><span class="sources-grow"></span><span v-if="d.roundTrip" title="From sending a setting to the device's echo (median of the latest)">round trip {{d.roundTrip}}</span></div>
+                <table class="sources-cmd">
+                  <tr v-for="r in d.rows" :key="r.key" :title="r.title"><td>{{r.icon}} {{r.name}}</td><td class="sources-cmd-value">{{r.value}}</td><td><span v-if="r.mark" class="sources-cmd-icon" :class="'sources-cmd-' + r.status">{{r.mark}}</span></td></tr>
+                </table>
+              </template>
             </div>
 
             <!-- Add a source -->
@@ -225,6 +246,15 @@ function initComponent_panel_sources(vue) {
         .sources-spark { display: block; width: 100%; height: 2.4rem; color: var(--sc); overflow: visible; }
 
         /* Cards */
+        .sources-cmd-head { display: flex; gap: 0.4rem; margin: 0.45rem 0 0.15rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+        .sources-cmd-head > span:last-child { text-transform: none; letter-spacing: 0; font-weight: 400; }
+        .sources-cmd { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+        .sources-cmd td { padding: 0.18rem 0.25rem; border-top: 1px solid var(--color-bg-dark); white-space: nowrap; }
+        .sources-cmd-value { font-family: var(--mono, monospace); text-align: right; color: var(--color-text-muted); }
+        .sources-cmd-icon { display: inline-grid; place-items: center; width: 1rem; height: 1rem; border-radius: 50%; font-size: 0.65rem; font-weight: 700; color: #fff; background: var(--color-text-muted); }
+        .sources-cmd-applied, .sources-cmd-ok { background: var(--color-success); }
+        .sources-cmd-kept { background: var(--color-warning); }
+        .sources-cmd-refused, .sources-cmd-err, .sources-cmd-noanswer { background: var(--color-danger); }
         .sources-card { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--sc, var(--color-bg-dark)); }
         .sources-head { cursor: pointer; }
         .sources-dot { flex: none; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--sc, var(--color-text-muted)); }
@@ -314,16 +344,17 @@ function initComponent_panel_sources(vue) {
                 const now = Date.now();
                 const clients = Object.values(this.TP.clients.clients);
                 const telemetries = Object.values(this.TP.datastore.telemetries);
-                return this.TP.connection.connections.map((conn) => {
+                return this.TP.connection.connections.filter((conn) => !conn.isSample).map((conn) => {
                     const serial = conn.type == "serial";
                     const rate = sourcesRate(this.TP, conn.id);
                     const last = conn.stats.lastMessage ? "last data " + sourcesFormatAge(now - conn.stats.lastMessage) + " ago" : "nothing received yet";
                     const silent = conn.stats.lastMessage > 0 && now - conn.stats.lastMessage > 5000;
                     const source = {
-                        id: conn.id, conn, kind: serial ? "serial" : "server", badge: serial ? "SERIAL" : "SERVER", name: conn.name,
+                        id: conn.id, conn, kind: serial ? "serial" : (conn.type == "local" ? "local" : "server"), badge: serial ? "SERIAL" : (conn.type == "local" ? "PAGE" : "SERVER"), name: conn.name,
                         connected: conn.connected, rateText: sourcesFormatRate(rate), problems: conn.stats.problems, dropped: conn.stats.dropped || 0,
                         bytesText: conn.id in sourcesMonitor.byteRates ? sourcesFormatBytes(sourcesMonitor.byteRates[conn.id]) : "",
                         state: conn.connected ? (silent ? "warn" : "ok") : "bad", summary: "", lines: [], hidden: 0, clients: [], telemetryCount: 0,
+                        commands: this.commandsOf(conn.id), readOnly: !!conn.readOnly,
                     };
                     if (serial) {
                         if (conn.connected) source.summary = `This browser (Web Serial) · ${conn.baudRate} baud · ${last}`;
@@ -331,6 +362,7 @@ function initComponent_panel_sources(vue) {
                         else { source.summary = `Disconnected · ${conn.baudRate} baud · its data is kept`; source.state = "idle"; }
                         if (this.isOpen(source)) Object.assign(source, this.consoleLines(conn));
                     }
+                    else if (conn.type == "local") source.summary = `A source of this page · ${last}`;
                     else {
                         const mine = clients.filter(c => c.sourceId === conn.id);
                         source.clients = mine.map(c => (c.name || "client") + " (" + c.id + ")");
@@ -343,6 +375,12 @@ function initComponent_panel_sources(vue) {
                     }
                     return source;
                 });
+            },
+            // Commands of the robot sample (a source of the page itself)
+            sampleCommands() {
+                this.tick;
+                const conn = this.TP.connection.connections.find((c) => c.isSample);
+                return conn && this.ctx.sampleRunning ? this.commandsOf(conn.id) : [];
             },
             // The summary on top
             health() {
@@ -382,6 +420,39 @@ function initComponent_panel_sources(vue) {
             },
         },
         methods: {
+            // What the devices of a source accept: [{name, roundTrip, rows: [{key, icon, name, value, status, mark, title}]}]
+            commandsOf(sourceId) {
+                const C = this.TP.commands, devices = [];
+                const marks = { applied: "✓", ok: "✓", kept: "!", refused: "✕", err: "✕", noanswer: "✕", pending: "…", sent: "…", run: "…" };
+                for (const id in this.TP.datastore.telemetries) {
+                    const telem = this.TP.datastore.telemetries[id];
+                    if (telem.sourceId !== sourceId) continue;
+                    const declaration = C.declaration(telem);
+                    if (!declaration) continue;
+                    const deviceName = C.deviceName(telem);
+                    let device = devices.find((d) => d.name == deviceName);
+                    if (!device) devices.push(device = { name: deviceName, rows: [], roundTrips: [] });
+                    const name = telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(telem.id);
+                    if (declaration.kind == "action") {
+                        const call = C.lastCall(telem);
+                        const duration = call && call.end !== undefined && call.run !== undefined ? this.TP.view.ViewCurrentValue.formatDuration(call.end - call.run) : "";
+                        device.rows.push({ key: telem.id, icon: "\u25B6", name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_TITLE) || name, value: duration, status: call ? call.status : "", mark: call ? marks[call.status] || "" : "",
+                            title: name + (call ? " · last call #" + call.id + ": " + call.status + (call.text ? " (" + call.text + ")" : "") : " · never called") });
+                    }
+                    else {
+                        const reported = C.reported(telem), request = C.request(telem);
+                        device.rows.push({ key: telem.id, icon: "\u270E", name, value: reported ? C.formatValue(declaration.type, reported.value) : "", status: request ? request.status : "", mark: request ? marks[request.status] || "" : "",
+                            title: name + (request ? " · " + (request.reason || request.status) : "") + (C.isContinuous(telem) ? " · continuous (a joystick)" : "") });
+                        for (const r of C.history(telem)) if (r.status == "applied" && r.endedAt) device.roundTrips.push(r.endedAt - r.firstSentAt);
+                    }
+                }
+                for (const device of devices) {
+                    const trips = device.roundTrips.slice(-20).sort((a, b) => a - b);
+                    device.roundTrip = trips.length ? Math.round(trips[Math.floor(trips.length / 2)]) + " ms" : "";
+                    delete device.roundTrips;
+                }
+                return devices;
+            },
             isOpen(source) { return source.kind == "serial" ? this.opened[source.id] !== false : this.opened[source.id] === true; },
             toggle(source) { this.opened[source.id] = !this.isOpen(source); },
             // Settings of the console of a serial source (created by ensureUi, outside of any rendering)

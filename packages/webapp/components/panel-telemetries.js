@@ -35,7 +35,7 @@ function initComponent_panel_telemetries(vue) {
                     <div v-if="section.ungrouped.length" class="telemetries-tiles">
                         <div v-for="item in section.ungrouped" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
                             draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent>
-                            <span class="telemetries-name"><template v-for="seg in segments(item, 0)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span>
+                            <span class="telemetries-name"><template v-for="seg in segments(item, 0)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template><span v-if="item.command" class="telemetries-cmd" :title="item.commandTitle">{{item.command}}</span></span>
                             <span class="telemetries-value-line">
                                 <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
                                 <span class="telemetries-val">{{item.valueText}}<span v-if="item.unit" class="telemetries-unit">{{item.unit}}</span></span>
@@ -57,7 +57,7 @@ function initComponent_panel_telemetries(vue) {
                             <div v-for="item in group.items" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
                                 draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent>
                                 <span class="telemetries-name">
-                                    <span class="telemetries-dim"><template v-for="seg in segments(item, 0, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span><template v-for="seg in segments(item, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template>
+                                    <span class="telemetries-dim"><template v-for="seg in segments(item, 0, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span><template v-for="seg in segments(item, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template><span v-if="item.command" class="telemetries-cmd" :title="item.commandTitle">{{item.command}}</span>
                                 </span>
                                 <span class="telemetries-value-line">
                                     <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
@@ -161,6 +161,7 @@ function initComponent_panel_telemetries(vue) {
         .telemetries-tile:active { cursor: grabbing; }
         .telemetries-name { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; line-height: 1.25; }
         .telemetries-dim { font-weight: 400; color: var(--color-text-muted); }
+        .telemetries-cmd { margin-left: 0.35em; font-weight: 700; font-size: 0.85em; color: var(--color-primary); }
         .telemetries-value-line { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--color-text-muted); min-width: 0; }
         .telemetries-unit { margin-left: 0.25em; }
         .telemetries-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -237,8 +238,12 @@ function initComponent_panel_telemetries(vue) {
                     const mainType = isLog ? "log" : (types.length ? types[0] : "other");
                     const label = telem.attributes[P.TELEM_ATTR_VIEW_LABEL] || "";
                     const rate = this.rateText(telem, types);
+                    // Commands (doc/telecmd.md): a pen for what the page can change, a play sign for what it can call (shown CMD on or off)
+                    const declaration = this.TP.commands.declaration(telem);
+                    const command = !declaration ? "" : (declaration.kind == "action" ? "\u25B6" : "\u270E");
+                    const commandTitle = !declaration ? "" : (declaration.kind == "action" ? "An action the page can call (CMD on): drag it to get its button" : (this.TP.commands.isContinuous(telem) ? "Driven continuously (CMD on): drag it to get a joystick" : "A setting the page can change (CMD on): drag it to a values view"));
                     list.push({
-                        id: telem.id, name, unit, types, mainType, label, clientId: telem.clientId,
+                        id: telem.id, name, unit, types, mainType, label, clientId: telem.clientId, command, commandTitle,
                         group: path.length > 1 ? path[0] : null,
                         dimLength: path.length > 1 ? name.length - rest.length : 0, // The group and its separator are dimmed
                         valueText: this.valueText(telem, types),

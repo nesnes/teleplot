@@ -948,6 +948,78 @@
       }, 250);
     });
 
+    // ====================================================================================================================== Commands
+    section("Commands", "Telecmd: the page changes settings of a device and calls its actions (doc/telecmd.md). A setting is a writable telemetry: the page sends the line the device would send, and the device's echo is the acknowledgement. An action is a call with named, typed arguments, answered run, then ok or err. Nothing is sent, and no control is drawn, while Teleplot.state.commands is off (the CMD button of the webapp).");
+
+    data("A device in the page", "cmd.* telemetries come from a local connection (Teleplot.connection.addConnectionLocal): a source of the page that gets what the page writes. It declares its settings and actions with ATTR lines, applies a write after 50 to 400 ms, keeps cmd.limit at 1.5 at most, refuses \"fast\" while cmd.power is off, runs cmd.move for a second, and drops cmd.drive 300 ms after the last write.", () => {
+      const state = { limit: 1, power: 1, mode: "slow", drive: [0, 0, 0], driveAt: 0, pose: [1, 1, 0.5] };
+      const device = Teleplot.connection.addConnectionLocal("Device of the page", (message) => {
+        for (const line of message.text.split("\n")) setTimeout(() => apply(line), 50 + Math.random() * 350);
+      });
+      const send = (text) => device.sendText(text);
+      const publish = () => send([`cmd.limit:${state.limit}`, `cmd.power:${state.power}`, `cmd.mode:${state.mode}|t`, `cmd.pose:${state.pose.join(":")}|xyz`, `cmd.drive:${state.drive.join(":")}|xyz`].join("\n"));
+      const ran = new Map(); // A call sent again is answered again, never run twice
+      function apply(line) {
+        if (line.startsWith("!")) {
+          const [head, ...args] = line.slice(1).split(":"), [name, id] = head.split("#");
+          if (ran.has(head)) return send(`ACK|${head}:${ran.get(head)}`);
+          ran.set(head, "run"); send(`ACK|${head}:run`);
+          const to = (args.find((a) => a.startsWith("to=")) || "to=0,0").slice(3).split(",").map(Number);
+          return setTimeout(() => { const ok = to.every((v) => Math.abs(v) <= 5); ran.set(head, ok ? "ok" : "err:out of reach"); send(`ACK|${head}:${ran.get(head)}`); if (ok) state.pose = [to[0], to[1], state.pose[2]]; }, 1000);
+        }
+        const [name, ...values] = line.split(":");
+        if (name == "cmd.limit") state.limit = Math.min(1.5, Number(values[0]));
+        if (name == "cmd.power") state.power = Number(values[0]);
+        if (name == "cmd.mode") { if (values[0] == "fast" && !state.power) send("ACK|cmd.mode:err:power off"); else state.mode = values[0]; }
+        if (name == "cmd.pose") state.pose = values.map(Number);
+        if (name == "cmd.drive") { state.drive = values.map(Number); state.driveAt = Date.now(); }
+        publish();
+      }
+      send([
+        "ATTR|cmd.limit|write|min=0|max=2|step=0.1|unit=m/s|desc=Speed limit: the device keeps 1.5 at most",
+        "ATTR|cmd.power|write=bool",
+        "ATTR|cmd.mode|write|choices=slow,fast,off|desc=fast is refused while the power is off",
+        "ATTR|cmd.drive|write=pose2d|rate=20|hold=300|min=-1|max=1",
+        "ATTR|cmd.turn|write=number|rate=20|hold=300|min=-1|max=1",
+        "ATTR|cmd.pose|write=pose2d",
+        "ATTR|cmd.reset|action|title=Reset|confirm",
+        "ATTR|cmd.move|action|title=Move|desc=Moves the pose to a point",
+        "ATTR|cmd.move|arg=to|type=xy|desc=x and y, within 5",
+        "ATTR|cmd.move|arg=speed|type=number|optional|default=1|min=0.1|max=2",
+        "ATTR|cmd.stop|action|title=Stop|color=#d6453d|longpress",
+      ].join("\n"));
+      setInterval(() => { if (Date.now() - state.driveAt > 300 && state.drive.some((v) => v)) state.drive = [0, 0, 0]; publish(); }, 250); // (it publishes what it applies: that is its echo)
+    });
+    demo("CMD", "Off by default: views draw no control and nothing is sent. Switch it on to use the demos of this section.", [360, 44], (id) => {
+      const box = document.getElementById(id), button = box.appendChild(document.createElement("button")), info = box.appendChild(document.createElement("span"));
+      const show = () => { button.textContent = Teleplot.state.commands ? "CMD ON: switch off" : "CMD OFF: switch on"; const s = Teleplot.commands.summary(); info.textContent = `  ${s.settings} settings, ${s.actions} actions`; };
+      button.onclick = () => { Teleplot.commands.setEnabled(!Teleplot.state.commands); show(); };
+      setInterval(show, 500);
+    });
+    demo("Settings and actions in a values view", "CMD on: a pen after what can be changed. Drag the bar of cmd.limit (the caret is the target; ask more than 1.5 and it turns amber: the device keeps 1.5), click a value to type it, the switch, the choices of cmd.mode (fast is refused while the power is off), the buttons (Reset asks first, Stop must be held, Move opens a form with its arguments). The icon tells how a request ended.", [380, 360], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["cmd.limit", "cmd.power", "cmd.mode", "cmd.reset", "cmd.move", "cmd.stop"]));
+    });
+    demo("Joystick: a pose2d velocity", "A pad (forward and sideways) and a rocker (rotation). The knob is what the page sends, 20 times per second while held; the green ring is what the device reports. Released: back to zero.", [240, 280], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewJoystick(id, ["cmd.drive"]));
+    });
+    demo("Joystick: a number, vertical, with the keyboard", "A rocker for a number. keyboard: \"arrows\": click the view, then the arrow keys drive it (only while it has the focus).", [140, 280], (id) => {
+      const view = new Teleplot.view.ViewJoystick(id, ["cmd.turn"]);
+      view.setOption("orientation", "vertical");
+      view.setOption("keyboard", "arrows");
+      Teleplot.view.addView(view);
+    });
+    demo("A pose on a 2D view", "cmd.pose is a writable pose2d: drawn as a pose. CMD on, hover it: a move handle (center) and a turn handle (on the ring). Drag them, then Send (or Enter); Esc drops the ghost.", [360, 280], (id) => {
+      const view = new Teleplot.view.ViewScene2D(id, ["cmd.pose"]);
+      view.setOption("displayLegend", false);
+      Teleplot.view.addView(view);
+    });
+    demo("Timeline: requests and calls", "A tick at the top of a setting's lane per request (hollow: not applied or refused); a band per call of an action, from its run to its end, growing while it runs.", ["100%", 130], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["cmd.mode", "cmd.limit", "cmd.move", "cmd.reset"]));
+    });
+    demo("The conversation", "commands.sent: what the page sent (a telemetry of the page), with the answers of the actions.", [520, 180], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewLog(id, ["commands.sent", "cmd.move", "cmd.reset", "cmd.stop"]));
+    });
+
     // ====================================================================================================================== Dashboards
     section("Dashboards", "A dashboard is a named layout. The automatic one displays new telemetries without any setup: numbers get a chart, shapes and 3D points share one 3D scene, images get an image view, the rest a values view.");
 

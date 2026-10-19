@@ -1,10 +1,13 @@
 /*
  * Top menu: a floating island at the top of the workspace.
- * [logo] [dashboard switcher] [pause/resume | data rate] [panels: Telemetries, Sources, Export] [Edit] [Help]
+ * [logo] [dashboard switcher] [pause/resume | data rate] [panels: Telemetries, Sources, Export] [CMD] [Edit] [Help]
+ * - CMD (commands, doc/telecmd.md): only when a device declared something the page can write or call. Off at every start: nothing is
+ *   sent and the views draw no control. Its tooltip counts what can be commanded, per device.
  * - The panels are one segmented control, icon only, with a hint of their content next to the icon. Telemetries and Sources share the left
  *   dock (ctx.sidePanel, one at a time); Help has its own dock on the right (ctx.helpOpen), so it can stay open next to one of them; Export and import opens on the right too (ctx.exportOpen), in place of Help.
  * - Pause/resume is the library's own TP.state.isPaused (incoming data is ignored while paused: the displays freeze).
- * - Shortcuts (not while typing): Space pause/resume, T / S / H panels, E edit. Esc is handled in main.js.
+ * - Shortcuts (not while typing): Space pause/resume, T / S / H panels, E edit, C commands. Esc is handled in main.js. None while a
+ *   joystick view drives with the keyboard (TP.commands.keyboardCaptured).
  * - The island floats over the dashboard and fades out when the mouse rests (IDLE_MS), to leave the whole stage to the data. It stays while a popup
  *   is open, while the band above the dashboard is scrolled into view (ctx.bandVisible), while editing, while there is no dashboard, and while the pointer
  *   or the keyboard focus is on it. Paused: a small amber chip remains.
@@ -189,6 +192,18 @@ function initComponent_top_menu(vue) {
                     </button>
                 </div>
 
+                <template v-if="commandCount || commandsOn">
+                    <span class="tm-sep"></span>
+                    <button class="tm-btn tm-cmd tm-tipped" :class="{on: commandsOn}" :aria-pressed="commandsOn" :aria-label="'Commands ' + (commandsOn ? 'on' : 'off')" @click="toggleCommands($event);">
+                        <b>CMD</b><small>{{commandsOn ? 'ON' : 'OFF'}}</small>
+                        <span class="tm-tip" role="tooltip">
+                            <span class="tm-tip-head"><b>Commands</b><kbd>C</kbd></span>
+                            <span class="tm-tip-line">{{commandsOn ? 'On: the views can change settings and call actions.' : 'Off: nothing is sent, the views show no controls.'}}</span>
+                            <span v-for="device in commands.devices" :key="device.name" class="tm-tip-line"><b>{{device.name}}</b>: {{plural(device.settings, 'setting')}}, {{plural(device.actions, 'action')}}</span>
+                        </span>
+                    </button>
+                </template>
+
                 <span class="tm-sep"></span>
 
                 <button class="tm-btn tm-edit tm-tipped" :class="{done: editor.state.enabled}" :disabled="!ctx.activeDashboard" :aria-pressed="editor.state.enabled" @click="toggleEdit($event);">
@@ -362,6 +377,11 @@ function initComponent_top_menu(vue) {
         .tm-split.paused .tm-rate { border-left-color: rgba(0, 0, 0, 0.2) !important; }
 
         /* Edit */
+        .tm-cmd { flex-direction: column; justify-content: center; gap: 0; line-height: 1.05; min-width: 3.4rem; }
+        .tm-cmd b { font-size: 0.92rem; letter-spacing: 0.06em; }
+        .tm-cmd small { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-text-muted); opacity: 0.75; }
+        .tm-cmd.on { background: color-mix(in srgb, var(--color-success) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--color-success); }
+        .tm-cmd.on b, .tm-cmd.on small { color: var(--color-success); opacity: 1; }
         .tm-edit { background: var(--color-text); color: var(--color-bg-light); font-weight: 600; }
         .tm-edit:hover { background: color-mix(in srgb, var(--color-text) 82%, var(--color-bg-light)); }
         .tm-edit.done { background: var(--tp-edit-container, #e67e22); color: #fff; }
@@ -541,6 +561,7 @@ function initComponent_top_menu(vue) {
                 focused: false, // The keyboard focus is in the island
                 totalRate: 0, // Hz, refreshed by a timer
                 streams: 0,   // data streams seen (a telemetry has one per data type)
+                commands: { settings: 0, actions: 0, devices: [] }, // What can be commanded (TP.commands.summary, refreshed by the timer)
                 confirmDelete: "", // Name of the dashboard whose deletion is being confirmed in the list
                 confirmForget: "", // What is being confirmed in the data menu: "forget" (every telemetry), "layout" (empty the displayed dashboard), "dashboards" (delete them all), or ""
                 usage: { bytes: 0, samples: 0, telemetries: [] }, // Memory taken by the data (TP.datastore.memory, refreshed by the timer)
@@ -557,10 +578,12 @@ function initComponent_top_menu(vue) {
         },
         computed: {
             paused() { return !!this.TP.state.isPaused; },
+            commandsOn() { return !!this.TP.state.commands; },
+            commandCount() { return this.commands.settings + this.commands.actions; },
             // A chart is zoomed on a time range: the display no longer follows the latest data, the pause button becomes "back to live"
             zoomed() { return Object.values(this.TP.view.groups).some(g => g.cursorActive); },
             // Reasons to stay on screen even when nothing moves
-            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused); },
+            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused || this.commandsOn); },
             away() { return !(this.awake || this.pinned); },
             // The island floats over the dashboard (not over the free band above it)
             over() { return !!this.ctx.activeDashboard && !this.ctx.bandVisible; },
@@ -748,6 +771,11 @@ function initComponent_top_menu(vue) {
                 if (input.files.length) { this.ctx.droppedFiles = Vue.markRaw(Array.from(input.files)); this.ctx.exportOpen = true; this.ctx.topPanel = ""; }
                 input.value = ""; // The same file can be picked again
             },
+            toggleCommands(event) {
+                this.release(event);
+                this.TP.commands.setEnabled(!this.TP.state.commands);
+            },
+            plural(count, word) { return count + " " + word + (count == 1 ? "" : "s"); },
             toggleEdit(event) {
                 this.release(event);
                 if (!this.ctx.activeDashboard) return;
@@ -766,6 +794,8 @@ function initComponent_top_menu(vue) {
                 }
                 this.totalRate = total;
                 this.streams = streams;
+                const summary = this.TP.commands.summary();
+                if (JSON.stringify(summary) !== JSON.stringify(this.commands)) this.commands = summary;
                 this.refreshMemory();
             },
             // The library measures its data once per second (TP.datastore.memory, not reactive): copy what is displayed
@@ -849,12 +879,14 @@ function initComponent_top_menu(vue) {
             },
             onKeyDown(event) {
                 if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
+                if (this.TP.commands.keyboardCaptured) return; // (a joystick drives with the keys)
                 const t = event.target;
                 if (t && (t.isContentEditable || (t.closest && t.closest("input, textarea, select")))) return; // Typing
                 if (event.key == " " && t && t.closest && t.closest("button, summary, a")) return; // Space activates a focused control, as usual
                 if (event.key == " ") { event.preventDefault(); this.togglePause(); return; }
                 const key = event.key.toLowerCase();
                 if (key == "e") { event.preventDefault(); this.toggleEdit(); return; }
+                if (key == "c" && (this.commandCount || this.commandsOn)) { event.preventDefault(); this.toggleCommands(); return; }
                 const panel = this.panels.find(p => !p.soon && (p.key.toLowerCase() == key || (p.name == "help" && key == "?")));
                 if (panel) { event.preventDefault(); this.toggleSidePanel(panel.name); }
             },

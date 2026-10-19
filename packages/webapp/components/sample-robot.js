@@ -12,6 +12,11 @@
  * of the same telemetries as the 3D scene. Pixels: what the robot "detects" is drawn in the pixels of the camera pictures.
  * The camera is a real one: a wide angle lens with distortion, whose pictures are computed pixel by pixel from the arena. It publishes its
  * intrinsics, its distortion and where it is, so that an image view can draw the 3D telemetries over its pictures.
+ * Commands (doc/telecmd.md, switch CMD on): it is a source of the page (a local connection) that declares what it takes, as a device
+ * would with ATTR lines: a speed limit (it cannot go above 0.6 m/s: asked more, it keeps 0.6), its motors, a mode (auto, manual,
+ * idle: manual is refused while the motors are off), velocities for a joystick (cmd_vel, one stick: it cannot go sideways), its pose
+ * (moved on the map: where it believes it is), and actions: reset odometry (asks first), go to (a target and an optional speed),
+ * stop (red), dock (to be held). It reads the lines the page writes (handleCommand) and answers with the lines of a device.
  *
  *   const robot = createRobotSample(TP);   // robot.start(), robot.stop(), robot.running, robot.dashboard
  */
@@ -25,7 +30,9 @@ function createRobotSample(TP) {
     const noise = (s) => (Math.random() + Math.random() + Math.random() - 1.5) * s; // ~gaussian
 
     // --- Simulation: unicycle that drives straight and turns away from walls ---
-    const bot = { x: 1, y: 1, a: 0.5, v: 0, w: 0, vl: 0, vr: 0, state: "forward", until: 0, battery: 25.2, t: 0, reach: 0.5 };
+    const bot = { x: 1, y: 1, a: 0.5, v: 0, w: 0, vl: 0, vr: 0, state: "forward", until: 0, battery: 25.2, t: 0, reach: 0.5,
+        speedLimit: 0.4, motors: 1, mode: "auto", cmd: { x: 0, yaw: 0, at: -1 }, goal: null }; // (commands: see handleCommand)
+    const MAX_SPEED = 0.6, CMD_HOLD = 0.3; // What its motors can do (m/s); a velocity command older than this (s) is dropped
     const DOCK = [0.15, 0.15, 0.95, 0.7]; // The zone drawn on the floor: x and y of two opposite corners
 
     // Distance to the arena walls along an angle, and which wall (0..3) is hit
@@ -51,8 +58,27 @@ function createRobotSample(TP) {
             bot.state = "forward";
             log("robot.nav.log", "INFO", "Path clear, driving forward");
         }
-        const vTarget = bot.state == "forward" ? 0.4 : 0;
-        const wTarget = bot.state == "turning" ? 1.5 * bot.dir : 0;
+        if (bot.motors && bot.state == "motors off") bot.state = bot.mode == "auto" ? "forward" : bot.mode; // (powered again)
+        let vTarget = bot.state == "forward" ? bot.speedLimit : 0;
+        let wTarget = bot.state == "turning" ? 1.5 * bot.dir : 0;
+        // Commands: a target to reach, a joystick, or nothing at all
+        if (bot.goal) {
+            const dx = bot.goal.x - bot.x, dy = bot.goal.y - bot.y, distance = Math.hypot(dx, dy);
+            let error = Math.atan2(dy, dx) - bot.a;
+            error = Math.atan2(Math.sin(error), Math.cos(error));
+            wTarget = Math.max(-2, Math.min(2, 3 * error));
+            vTarget = Math.abs(error) < 0.6 ? Math.min(bot.goal.speed, distance * 1.5) : 0;
+            bot.state = "going";
+            if (distance < 0.04) { answer(bot.goal.name, bot.goal.id, "ok"); bot.goal = null; bot.state = "forward"; if (bot.mode == "dock") setMode("idle"); }
+        }
+        else if (bot.mode == "manual") {
+            const fresh = bot.t - bot.cmd.at < CMD_HOLD; // (the device stops by itself when the page stops sending)
+            vTarget = fresh ? bot.cmd.x * MAX_SPEED : 0;
+            wTarget = fresh ? bot.cmd.yaw * 2 : 0;
+            bot.state = fresh && (bot.cmd.x || bot.cmd.yaw) ? "driven" : "waiting";
+        }
+        else if (bot.mode == "idle") { vTarget = 0; wTarget = 0; bot.state = "idle"; }
+        if (!bot.motors) { vTarget = 0; wTarget = 0; bot.state = "motors off"; }
         const prevVl = bot.vl, prevVr = bot.vr;
         bot.v += (vTarget - bot.v) * STEP / 0.2; // first-order lag: motors don't answer instantly
         bot.w += (wTarget - bot.w) * STEP / 0.2;
@@ -97,6 +123,74 @@ function createRobotSample(TP) {
         TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_VIEW_LABEL, "logs");
         TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_LOG, true); // Text emitted as a log (robot.state is text emitted as a state)
     };
+
+    // --- Commands: the robot is a source of the page, it declares what it takes and reads what the page writes ---
+    let device = null; // Its connection (TP.connection.addConnectionLocal), made on start
+    const send = (lines) => { if (device) device.sendText(lines); }; // Lines a device would send, read by the page as usual
+    const answer = (name, id, status, text = "") => send(`ACK|${name}#${id}:${status}${text ? ":" + text : ""}`);
+    function declareCommands() {
+        send([
+            "ATTR|robot.speed_limit|write|min=0|max=0.8|step=0.05|unit=m/s|desc=Cruise speed. The motors cannot go above 0.6 m/s",
+            "ATTR|robot.motors|write=bool|desc=Power of the motors",
+            "ATTR|robot.mode|write|choices=auto,manual,idle|desc=auto: wanders and avoids walls; manual: the joystick drives; idle: stays still",
+            "ATTR|robot.cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=300|min=-1|max=1|desc=Joystick (manual mode): forward speed and turn",
+            "ATTR|robot.pose|write=pose2d|desc=Where the robot believes it is: move it on the map to correct it",
+            "ATTR|robot.odometry.reset|action|title=Reset odometry|confirm|desc=Forgets the path driven so far",
+            "ATTR|robot.goto|action|title=Go to|desc=Drives to a point of the arena, then goes on",
+            "ATTR|robot.goto|arg=target|type=xy|unit=m|desc=Where to go, x and y in the arena (0 to 4, 0 to 3)",
+            "ATTR|robot.goto|arg=speed|type=number|optional|default=0.3|min=0.05|max=0.6|unit=m/s|desc=How fast",
+            "ATTR|robot.stop|action|title=Stop|color=#d6453d|desc=Stops what it is doing: idle mode",
+            "ATTR|robot.dock|action|title=Dock|longpress|desc=Drives to its dock (hold the button 1 s)",
+        ].join("\n"));
+        for (const name of ["robot.speed_limit", "robot.motors", "robot.mode", "robot.cmd_vel", "robot.pose", "robot.odometry.reset", "robot.goto", "robot.stop", "robot.dock"]) {
+            TP.datastore.getTelemetry(name).setAttribute(P.TELEM_ATTR_AUTOPLOT, false); // (in its own dashboard, not the automatic one)
+        }
+        publishSettings();
+    }
+    // What it applies, as a device publishes it: the page knows a setting was applied when this comes back
+    function publishSettings() {
+        send([`robot.speed_limit:${bot.speedLimit}`, `robot.motors:${bot.motors}`, `robot.mode:${bot.mode}|t`].join("\n"));
+    }
+    function setMode(mode) { bot.mode = mode; if (mode != "auto") bot.state = mode; else bot.state = "forward"; publishSettings(); }
+    // A line written by the page: "name:value" for a setting, "!name#id:arg=value:arg=value" for a call (doc/telecmd.md)
+    function handleCommand(line) {
+        const unescape = (text) => text.replace(/%([0-9A-Fa-f]{2})/g, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
+        if (line.startsWith("!")) {
+            const [head, ...fields] = line.substring(1).split(":");
+            const [name, idText] = head.split("#"), id = Number(idText);
+            if (calls.has(name + "#" + id)) return answer(name, id, calls.get(name + "#" + id)); // (sent again: answered again, not run twice)
+            const args = {};
+            for (const field of fields) { const at = field.indexOf("="); args[unescape(field.substring(0, at))] = unescape(field.substring(at + 1)); }
+            const done = (status, text) => { calls.set(name + "#" + id, status); if (calls.size > 50) calls.delete(calls.keys().next().value); answer(name, id, status, text); };
+            if (name == "robot.odometry.reset") { const path = TP.datastore.getTelemetry("robot.path"); if (path) path.clearData(); return done("ok"); }
+            if (name == "robot.stop") { if (bot.goal) answer(bot.goal.name, bot.goal.id, "err", "stopped"); bot.goal = null; setMode("idle"); return done("ok"); }
+            if (name == "robot.goto" || name == "robot.dock") {
+                const target = name == "robot.dock" ? [(DOCK[0] + DOCK[2]) / 2, (DOCK[1] + DOCK[3]) / 2] : String(args.target || "").split(",").map(Number);
+                if (target.length != 2 || target.some((v) => !Number.isFinite(v))) return done("err", "target: x,y");
+                if (target[0] < 0.1 || target[0] > W - 0.1 || target[1] < 0.1 || target[1] > H - 0.1) return done("err", "unreachable: out of the arena");
+                if (!bot.motors) return done("err", "motors off");
+                if (bot.goal) answer(bot.goal.name, bot.goal.id, "err", "replaced by another goal");
+                bot.goal = { name, id, x: target[0], y: target[1], speed: Math.min(MAX_SPEED, Number(args.speed) || 0.3) };
+                calls.set(name + "#" + id, "run");
+                if (name == "robot.dock") bot.mode = "dock";
+                return answer(name, id, "run");
+            }
+            return done("err", "unknown action");
+        }
+        const at = line.indexOf(":"), name = line.substring(0, at), value = unescape(line.substring(at + 1));
+        if (name == "robot.speed_limit") bot.speedLimit = Math.max(0, Math.min(MAX_SPEED, Number(value) || 0)); // (its limit: asked more, it keeps 0.6)
+        else if (name == "robot.motors") { bot.motors = Number(value) ? 1 : 0; if (!bot.motors && bot.goal) { answer(bot.goal.name, bot.goal.id, "err", "motors off"); bot.goal = null; } }
+        else if (name == "robot.mode") {
+            if (!["auto", "manual", "idle"].includes(value)) return send(`ACK|robot.mode:err:unknown mode`);
+            if (value == "manual" && !bot.motors) { send("ACK|robot.mode:err:motors off"); return publishSettings(); }
+            setMode(value);
+        }
+        else if (name == "robot.cmd_vel") { const [x, , yaw] = value.split(":").map(Number); bot.cmd = { x: x || 0, yaw: yaw || 0, at: bot.t }; send(`robot.cmd_vel:${bot.cmd.x}:0:${bot.cmd.yaw}|xyz`); return; }
+        else if (name == "robot.pose") { const [x, y, a] = value.split(":").map(Number); if ([x, y, a].every(Number.isFinite)) { bot.x = Math.max(0.1, Math.min(W - 0.1, x)); bot.y = Math.max(0.1, Math.min(H - 0.1, y)); bot.a = a; } publishPose(); return; }
+        publishSettings();
+    }
+    const calls = new Map(); // "name#id" -> what was answered (a call sent again is answered again, never run twice)
+    function publishPose() { send(`robot.pose:${bot.x.toFixed(3)}:${bot.y.toFixed(3)}:${bot.a.toFixed(3)}|xyz`); }
 
     // 3D shapes: a shape is a telemetry with a shape attribute, its data are its position, orientation, size, color...
     const POSITION = P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, QUATERNION = P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, SIZE = P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE;
@@ -213,6 +307,11 @@ function createRobotSample(TP) {
     }
     function publishSlow() { // 5 Hz
         put("robot.position", NUMBER_2D, [bot.x, bot.y], "m");
+        // Commands: what it applies (the echo of the settings), where it believes it is, the velocity it applies (zero once dropped)
+        publishSettings();
+        publishPose();
+        if (bot.t - bot.cmd.at >= CMD_HOLD && (bot.cmd.x || bot.cmd.yaw)) bot.cmd = { x: 0, yaw: 0, at: bot.cmd.at };
+        if (bot.mode == "manual" || bot.t - bot.cmd.at < 1) send(`robot.cmd_vel:${bot.cmd.x}:0:${bot.cmd.yaw}|xyz`);
         put("robot.heading", NUMBER, [(bot.a * 180 / Math.PI % 360 + 360) % 360], "°");
         put("robot.battery", NUMBER, [bot.battery - 0.1 * (bot.il + bot.ir) + noise(0.01)], "V");
         describe("robot.heading", [0, 360]);
@@ -342,7 +441,7 @@ function createRobotSample(TP) {
         dashboard.setView(main);
         main.addView(top);
         // (numbers can have a lane too: the distance has a threshold, it is a band while a wall is too close; the gyro is a plain line)
-        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.camera.task", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
+        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.mode", "robot.goto", "robot.camera.task", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
         timeline.setSize(12, 5);
         main.addView(timeline);
         main.addView(bottom);
@@ -352,7 +451,7 @@ function createRobotSample(TP) {
         scene.setOption("trailLength", 500);
         top.addView(scene);
         // The map: the same telemetries seen from above (solids are drawn as what they cover on the ground). Nothing is sent twice.
-        const map = new TP.view.ViewScene2D("", ["robot.3d.floor", "robot.map.dock", "robot.map.dock.name", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.map.reach", "robot.path", "robot.lidar", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.camera", "robot.map.heading", "robot.3d.obstacle", "robot.map.obstacle.name"], group);
+        const map = new TP.view.ViewScene2D("", ["robot.3d.floor", "robot.map.dock", "robot.map.dock.name", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.map.reach", "robot.path", "robot.lidar", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.camera", "robot.map.heading", "robot.3d.obstacle", "robot.map.obstacle.name", "robot.pose"], group);
         map.setSize(3, 7);
         map.setOption("trailLength", 500);
         map.setOption("displayLegend", false);
@@ -375,13 +474,22 @@ function createRobotSample(TP) {
         cameras.addView(cameraView);
 
         state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery", "robot.distance"], 3, 3));
-        const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log"], group);
+        const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log", "commands.sent", "robot.goto", "robot.dock", "robot.stop", "robot.odometry.reset"], group);
         logView.setSize(3, 4);
         state.addView(logView);
 
         bottom.addView(chart(["robot.current.left", "robot.current.right", "robot.motor.log"], 3, 5));
         bottom.addView(chart(["robot.wheel.left", "robot.wheel.right", "robot.state"], 3, 5));
         bottom.addView(tabs);
+        // Commands (switch CMD on): its settings and actions, edited and called in place, and a joystick for the manual mode
+        const commands = layout("column", 3, 5);
+        const settings = values(["robot.speed_limit", "robot.motors", "robot.mode", "robot.odometry.reset", "robot.goto", "robot.stop", "robot.dock"], 3, 3);
+        settings.setOption("title", "Commands");
+        commands.addView(settings);
+        const joystick = new TP.view.ViewJoystick("", ["robot.cmd_vel"], group);
+        joystick.setSize(3, 2);
+        commands.addView(joystick);
+        bottom.addView(commands);
         const distance = chart(["robot.distance"], 2, 5), gyro = chart(["robot.gyro.z"], 2, 5);
         distance.setOption("title", "Distance"); // (the title of a view is the name of its tab)
         gyro.setOption("title", "Gyro");
@@ -398,15 +506,22 @@ function createRobotSample(TP) {
         start() {
             if (timer !== null) return;
             if (!this.dashboard) createDashboard();
+            // A source of the page: what the robot publishes is attributed to it, and what the page writes comes back to it
+            if (!device || !TP.connection.connections.some((c) => c.id === device.id)) {
+                device = TP.connection.addConnectionLocal("Robot sample", (message) => { if (message.text) for (const line of message.text.split("\n")) handleCommand(line); });
+                device.isSample = true; // (the Sources panel has its own card for it)
+            }
+            device.connected = true;
+            TP.datastore.withSource(device.id, declareCommands);
             let last = Date.now();
-            timer = setInterval(() => { // Catch up if the page was throttled, so that simulated time follows real time
+            timer = setInterval(() => TP.datastore.withSource(device.id, () => { // Catch up if the page was throttled, so that simulated time follows real time
                 const now = Date.now();
                 for (let n = Math.min(50, Math.floor((now - last) / (STEP * 1000))); n > 0; n--) { step(); publishFast(); last += STEP * 1000; }
                 if (bot.t - last3D >= 0.039) { last3D = bot.t; publish3D(); }
                 if (bot.t - lastLidar >= 0.099) { lastLidar = bot.t; publishLidar(); }
                 if (bot.t - lastSlow >= 0.2) { lastSlow = bot.t; publishSlow(); }
-            }, 20);
+            }), 20);
         },
-        stop() { clearInterval(timer); timer = null; },
+        stop() { clearInterval(timer); timer = null; if (device) device.connected = false; },
     };
 }

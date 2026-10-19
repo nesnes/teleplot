@@ -94,6 +94,15 @@ const HELP_STEPS = [
         { code: "task:|stack", note: "An empty text: nothing runs.", expect: { name: "task", type: "text", text: "", stack: true } },
         { code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A stack gets a timeline by itself on the Live dashboard; this line puts one where you want it. stackDepth is how many rows of full height its lane opens to; a deeper stack gets thinner rows. Hover a band: what it is, what it runs in, and for how long. Something that runs several things at once sends one stack for each.", expect: { dashboard: "Robot" } },
     ] },
+    { title: "Settings and actions", intro: "Let this page change a value of your device, or call one of its functions: declare it once with ATTR|, and keep sending the value. Then switch CMD on, in the top menu. Your device reads the lines the page sends back (the Teleplot server sends them to the address and port your packets come from).", examples: [
+        { code: "ATTR|speed_limit|write|min=0|max=2|step=0.1", note: "write: the page may change it. With CMD on, its value view gets a slider. The page sends speed_limit:1.5, the line your device would send.", expect: { name: "speed_limit", write: "number" } },
+        { code: "speed_limit:1.2", note: "Keep sending the value: when your device sends the value that was asked, the page knows it was applied (a check). Something else: the page says what your device kept.", expect: { name: "speed_limit", type: "number" } },
+        { code: "ATTR|mode|write|choices=auto,manual,idle", note: "A text among choices: a click on its value opens them. Your device may refuse one with ACK|mode:err:why.", expect: { name: "mode", write: "text" } },
+        { code: "ATTR|reset|action|title=Reset odometry|confirm", note: "action: a button (confirm: it asks first; longpress: it must be held; color=red). The page sends !reset#12: a call and its number.", expect: { name: "reset", action: true } },
+        { code: "ACK|reset#12:ok", note: "What your device answers to a call: run when it starts, then ok or err:why. The page shows how long it ran. A call sent again with the same number must not run twice: answer again.", expect: { name: "reset", answer: "#12 ok" } },
+        { code: "ATTR|goto|arg=target|type=xy|desc=Where to go", note: "The arguments of an action, one line each, in order (optional, default, min, max, unit, choices...): its button opens a form. The call names them: !goto#13:target=1.5,2", expect: { name: "goto", args: ["target"] } },
+        { code: "ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", note: "rate and hold: driven continuously, by a joystick view. Your device stops by itself when nothing came for hold ms.", expect: { name: "cmd_vel", write: "pose2d", view: "joystick" } },
+    ] },
 ];
 const HELP_EXAMPLES = HELP_STEPS.flatMap((step) => step.examples);
 
@@ -215,10 +224,23 @@ function helpDescribe(TP, message, problems) {
         if (line.type == "none") return { ok: true, text: "Received: " + (line.segments.length ? "the view " + line.segments.join("/") + " of the dashboard " + line.name : "the dashboard " + line.name) + " is removed." };
         return { ok: true, text: "Received: " + (line.segments.length ? "the view " + line.segments.join("/") + " of the dashboard " + line.name : "the layout of the dashboard " + line.name) + ". Sending the same line again changes nothing." };
     }
+    if (message.startsWith("ACK|")) {
+        if (problems > 0) return { ok: false, text: "Teleplot did not understand this answer. It is ACK|name#id:run, ok or err:why, for example ACK|reset#12:ok" };
+        return { ok: true, text: "Received: an answer of your device to a call. The page shows it on the button of the action, and on a timeline." };
+    }
     if (message.startsWith("ATTR|")) {
         const name = message.slice(5).split("|")[0];
         const telem = TP.datastore.getTelemetry(name);
         if (problems > 0 || !telem) return { ok: false, text: "Teleplot did not understand this line. It is ATTR|name|min=value|max=value, for example ATTR|battery|min=9|max=12.6" };
+        // Commands: what the page can change or call
+        if (/\|(write|action|arg)\b/.test(message)) {
+            const declaration = TP.commands.declaration(telem), args = TP.commands.args(telem);
+            if (/\|arg=/.test(message)) return { ok: true, text: "Received: " + name + " takes " + args.length + (args.length == 1 ? " argument: " : " arguments: ") + args.map((a) => a.name + (a.optional ? " (optional)" : "")).join(", ") + "." };
+            if (!declaration) return { ok: true, text: "Received: " + name + " cannot be changed from the page any more." };
+            if (declaration.kind == "action") return { ok: true, text: "Received: " + name + " is an action. Switch CMD on (top menu): it gets a button where it is displayed." };
+            if (TP.commands.isContinuous(telem)) return { ok: true, text: "Received: " + name + " is driven continuously (" + declaration.type + "). Switch CMD on, and use its joystick view." };
+            return { ok: true, text: "Received: " + name + " can be changed from the page (" + declaration.type + "). Switch CMD on (top menu), then change it where its value is displayed." + (telem.hasContent() ? "" : " Now send its value, for example " + name + ":1") };
+        }
         const range = telem.getRange();
         if (!range) return { ok: true, text: "Received: " + name + " has no range any more." };
         const hasData = telem.hasContent();

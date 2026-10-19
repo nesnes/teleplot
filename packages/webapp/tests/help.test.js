@@ -30,6 +30,11 @@ for (const example of HELP_EXAMPLES) {
         assert.ok(telem, 'telemetry ' + e.name + ' exists');
         const S = T.view.ViewScene3D;
         if (e.range) { assert.deepEqual(telem.getRange(), { min: e.range[0], max: e.range[1] }); return; }
+        // Commands: what the page can change or call
+        if (e.write) { assert.equal(T.commands.declaration(telem).type, e.write); if (e.view) assert.equal(T.view.suggestViewType(telem.id), e.view); return; }
+        if (e.action) { assert.equal(T.commands.isAction(telem), true); return; }
+        if (e.args) { assert.deepEqual(T.commands.args(telem).map((a) => a.name), e.args); return; }
+        if (e.answer) { assert.deepEqual(telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT].data[0], [e.answer]); return; }
         if (e.thresholds) { // "name<value,color", lowest first
             assert.deepEqual(telem.getThresholds().map(t => t.name + (t.operator === P.THRESHOLD_ABOVE ? '>' : '<') + t.value + (t.color ? ',' + t.color : '')), e.thresholds);
             return;
@@ -236,13 +241,18 @@ test('helpDescribe tells what Teleplot made of a message sent from the panel', (
     assert.match(say('TH|temp:hot>70'), /the threshold of temp is hot above 70/);
     assert.match(say('TH|temp:hot>'), /temp has no threshold any more/);
     assert.match(say('mode:|t'), /some text named mode/);
+    assert.match(say('ATTR|kp|write|min=0|max=10'), /kp can be changed from the page \(number\)/);
+    assert.match(say('ATTR|reset|action'), /reset is an action/);
+    assert.match(say('ATTR|go|arg=to|type=xy'), /go takes 1 argument: to/);
+    assert.match(say('ATTR|drive|write=xy|rate=20|hold=200'), /joystick/);
+    assert.match(say('ACK|reset#3:ok'), /an answer of your device/);
     { // With its value already there, nothing more is asked for
         const T = loadTeleplot();
         T.parseDataText('battery:11');
         assert.doesNotMatch(helpDescribe(T, 'TH|battery:low<10.5', T.parseDataText('TH|battery:low<10.5')).text, /Now send/);
         assert.match(helpDescribe(T, 'ATTR|battery|min=9|max=12.6', T.parseDataText('ATTR|battery|min=9|max=12.6')).text, /has a bar/);
     }
-    for (const wrong of ['hello', 'value:abc', 'bad:1:2:3;4:5|pc', 'DASH|Robot/Motion:pie', 'DASH|Robot/Motion:chart|w=wide', 'ATTR|battery|color=red', 'ATTR|battery|min=low', 'TH|battery:low=10', 'TH|battery']) {
+    for (const wrong of ['hello', 'value:abc', 'bad:1:2:3;4:5|pc', 'DASH|Robot/Motion:pie', 'DASH|Robot/Motion:chart|w=wide', 'ATTR|battery|colour=red', 'ATTR|battery|min=low', 'TH|battery:low=10', 'TH|battery']) {
         const T = loadTeleplot();
         const answer = helpDescribe(T, wrong, T.parseDataText(wrong));
         assert.equal(answer.ok, false, wrong);
