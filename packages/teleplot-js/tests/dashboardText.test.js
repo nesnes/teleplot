@@ -282,3 +282,20 @@ test('a timeline is a view type of the lines; options of the chart for threshold
     assert.ok(T.dashboards.receiveLine('DASH|Robot/Motion:timeline'));
     assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView()), { grid: ['timeline(mode,nav)', 'timeline(speed,mode)'] });
 });
+
+test('a dashboard received after its telemetries: the views it describes take them (by name, binary ones included, or by followed label)', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText('speed,motors:1.5\naccel,motors:0.2');
+    T.parseDataBinary(new PacketBuilder(1).attrs(5, [[ATTR.NAME, 'temp']]).numbers(5, 1000000000n, [[0, 20]]).build());
+    T.__timers.run();
+    assert.deepEqual(tree(T, T.dashboards.getDashboard('Live').getView()), { grid: ['chart(speed,accel)', 'chart(temp)'] });
+    T.parseDataText(['DASH|Robot/Motion:chart|follow=motors', 'DASH|Robot/Temp:chart:temp'].join('\n'));
+    const [motion, temp] = T.dashboards.getDashboard('Robot').getView().views;
+    assert.deepEqual(namesOf(T, motion), ['speed', 'accel'], 'the telemetries of a followed label that are already there');
+    assert.equal(typeof temp.telemetryIdOrNameList[0], 'number', 'a binary telemetry found by its name attribute');
+    // And the ones that come later
+    T.parseDataText('jerk,motors:3');
+    T.__timers.run();
+    assert.deepEqual(namesOf(T, motion), ['speed', 'accel', 'jerk']);
+});

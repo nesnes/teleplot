@@ -34,7 +34,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 | `w`, `h` | everything | width and height (see the layouts in `dashboard-editing.md`: a column span in a grid, a share of the space in a row or column; a height step is 4 em) |
 | `title` | views | the text in the corner of the view, when it is not the name of the path (`title=` for none) |
 | `time` | everything | time group: `inherit` (default), `dashboard`, or the name of a group shared by the views that name it |
-| `follow` | views | labels the view follows, separated by commas: new telemetries with one of these labels join the view |
+| `follow` | views | labels the view follows, separated by commas: the telemetries with one of these labels join the view, those already received and those to come |
 | `align`, `justify`, `gap`, `columnWidth`, `appearance`, `accent` | layouts | as in the edit panel (`align=stretch` is the default of layouts made by lines) |
 | any option of the view | views | `maxLines`, `displayGrid`, `displayNumberDecimals`, `decimation`, `thresholds` (`fit` / `show` / `hide`), `scale` (`auto` / `range`), `numbers` (`auto` / `text`) and `stackDepth` (of a timeline), `trailLength`, `pointSize`... (the names of `view.options`); booleans are `true` / `false` |
 

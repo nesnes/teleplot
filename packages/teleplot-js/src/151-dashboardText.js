@@ -275,7 +275,7 @@ function _dashText_setValue(target, key, text) {
 function _dashText_setTelemetries(view, names, path) {
     let entries = [];
     let add = (entry) => {
-        let telem = TELEPLOT.datastore.getTelemetry(entry);
+        let telem = TELEPLOT.datastore.findByName(entry); // (a binary telemetry that is already there has its name as an attribute)
         let value = telem !== undefined ? telem.id : entry;
         if(!entries.includes(value)) entries.push(value);
     };
@@ -351,6 +351,12 @@ function _dashText_apply(dashboard, parsed) {
             if(leaf && typeof view.followLabel === "function") {
                 view.options.followLabels.splice(0, view.options.followLabels.length);
                 text.split(",").filter((l) => l !== "").forEach((l) => view.followLabel(TELEPLOT.dashboards.textDecode(l)));
+                // The telemetries of these labels that are already there (a dashboard received after its data), as a dropped label does
+                for(let id in TELEPLOT.datastore.telemetries) {
+                    let telem = TELEPLOT.datastore.telemetries[id];
+                    if(!telem.hasContent() || !view.options.followLabels.includes(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL))) continue;
+                    if(view.suitsTelemetry(telem)) view.addTelemetry(telem.id);
+                }
             }
             else ok = false;
         }
