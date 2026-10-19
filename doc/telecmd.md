@@ -16,8 +16,8 @@ UDP 47268, untyped, no reply, one device), which never matured: nothing of it is
 - **An action is a call**, like an RPC: several typed arguments, optional ones with defaults, a description for the action and
   for each argument. The device answers `run` when it starts, then `ok` or `err`: the page knows how long it ran.
 - **CMD is off by default.** Nothing is sent and no command UI is drawn: a wall screen needs no setting.
-- **Editing happens where the value is displayed**, with editors light enough to live in any view. A *controls* view (an option of
-  the values view) is there for driving: pads, rockers, bigger targets.
+- **Editing happens where the value is displayed**, with editors light enough to live in the views that exist. The one control
+  that has no home there, the joystick, is a view type of its own.
 
 What it gives:
 
@@ -182,8 +182,8 @@ The lib holds the state (`TELEPLOT.state.commands`) and refuses writes when it i
 ### CMD off
 
 Nothing is sent, and what was added for commands is not drawn: pens, carets, switches, choice lists, action buttons. Views look
-exactly as today. The one exception: **controls views** keep their controls, dimmed (they were made for that; the layout does not
-jump). Action rows keep their last result (it is telemetry).
+exactly as today, with no exception: a joystick view still shows the reported value, without its knob. Action rows keep their
+last result (it is telemetry).
 
 ### Editing in place (values view, 110)
 
@@ -203,15 +203,18 @@ layout. The value shown is always the reported one.
   valid. While the call runs, the button shows a spinner until `run`, then the running time.
 - **State of a request: icons only**, next to the value: spinner (sent), check (applied, for 2 s), amber (not applied), red
   (refused, no answer). The reason in a tooltip.
-- A continuous telemetry (`rate` / `hold`) shows its value here; it is driven from a controls view.
+- A continuous telemetry (`rate` / `hold`) shows its value here; it is driven from a joystick view.
 
-### Controls view
+### Joystick view (117)
 
-The option `controls` of the values view (Edit panel "Controls", `DASH|…|controls=1` from a device): tiles with editors always
-drawn and bigger targets. Pads for continuous telemetries: a pad for `xy`, a rocker for a number, a pad and a rotation rocker for
-`pose2d` (one stick, up = forward and sideways = turn, when `axes=x,yaw`). The knob is what the page sends, a ring what the device
-reports. Option `keyboard`: off (default), arrows, or WASD, read by key position (`event.code`), only while the view has the
-focus, page shortcuts paused meanwhile.
+A view type (`teleplot-joystick`, `"joystick"` in `createView`, `DASH|` lines and the editor menus) for **one** continuous
+telemetry (`rate` / `hold`): a pad for `xy`, a rocker that springs back for a number (option `orientation`: horizontal or
+vertical), a pad and a rotation rocker for `pose2d` (one stick, up = forward and sideways = turn, when `axes=x,yaw`). Two sticks
+are two joystick views side by side in a row. It is a display view too: a ring shows what the device reports, CMD on or off; CMD
+on adds the knob, which is what the page sends. Released, the knob springs back. Option `keyboard`: off (default), arrows, or
+WASD, read by key position (`event.code`), only while the view has the focus, page shortcuts paused meanwhile.
+`suggestViewType` answers `"joystick"` for a writable telemetry with `rate` / `hold`: dragging it, the auto dashboard and
+`DASH|Robot/Drive:joystick:robot.cmd_vel` all make one.
 
 ### 2D view (115)
 
@@ -239,7 +242,7 @@ the telemetry.
 
 3D view, image and camera views; picking an action's argument on a map (typed in the form for now). Dropped during the design: a
 command palette, requests drawn on charts, reserved action names, a toolbar of actions, progress of a call, a special drag for
-command views.
+command views, a "controls" kind of values view (the joystick view replaces it).
 
 ## Implementation plan
 
@@ -293,11 +296,12 @@ The page can send something to the device that sent a telemetry. Nothing visible
 ### Step 4: driving
 
 - **Commands**: `hold(telemetry, getValue)` / `release(telemetry)`, rest value, stop on hidden / blur / CMD off.
-- **Controls option** of the values view: tiles, pad, rocker, pad + rocker (`axes`), dimmed when CMD is off; `keyboard` option
-  (and a flag the webapp's shortcut handler checks). `DASH|…|controls=1` works through the option schema (`151`).
+- **Joystick view** (new `117-viewJoystick.js`): pad, rocker, pad + rocker (`axes`), the reported ring, `keyboard` and
+  `orientation` options (and a flag the webapp's shortcut handler checks); `suggestViewType`, `createView`, `VIEW_TYPES`, `DASH|`
+  type `joystick`, editor menus. Tests in `viewJoystick.test.js` (the geometry of the pad without a canvas).
 - **2D view** (`115`): the ghost of a writable `pose2d` / `xy`, move and turn handles, Send / Enter / Esc, dashed until the echo.
   Tests in `viewScene2D.test.js` (`buildItems` with a ghost).
-- **Samples**: robot `cmd_vel` (pad + rocker) in a Drive controls view, and "set pose" on the Map.
+- **Samples**: robot `cmd_vel` in a joystick view, and "set pose" on the Map.
 
 ### Step 5: clients and documents
 

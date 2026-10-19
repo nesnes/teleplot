@@ -211,7 +211,7 @@ svg text { font-family: var(--mono); }
 <header>
     <h1>Telecmd · reference</h1>
     <nav>
-        <a href="#model">Model</a><a href="#cmd">CMD button</a><a href="#values">Values view</a><a href="#actions">Actions</a><a href="#controls">Controls</a>
+        <a href="#model">Model</a><a href="#cmd">CMD button</a><a href="#values">Values view</a><a href="#actions">Actions</a><a href="#joystick">Joystick</a>
         <a href="#pose">2D pose</a><a href="#timeline">Timeline</a><a href="#log">Log</a><a href="#panels">Panels</a><a href="#later">Not now</a>
     </nav>
     <button onclick="toggleTheme()">Light / dark</button>
@@ -226,8 +226,8 @@ svg text { font-family: var(--mono); }
 <ul class="needs">
     <li><b>Writable telemetries</b><span>A device publishes a value and declares it writable. The page writes it with the line the device would send; the device's echo is the acknowledgement.</span></li>
     <li><b>Actions are calls</b><span>Several typed arguments, optional ones with defaults, a description for the action and each argument. The device answers <code>run</code>, then <code>ok</code> or <code>err</code>.</span></li>
-    <li><b>CMD off by default</b><span>Nothing is sent and no command UI is drawn: a wall screen needs no setting. Only <b>controls</b> views keep their controls, dimmed.</span></li>
-    <li><b>Light editors, no special views</b><span>CMD on, any view edits in place, with editors that appear when used. A <b>controls</b> view (an option of the values view) is for driving.</span></li>
+    <li><b>CMD off by default</b><span>Nothing is sent and no command UI is drawn: a wall screen needs no setting, with no exception.</span></li>
+    <li><b>Light editors, one new view</b><span>CMD on, the views that exist edit in place, with editors that appear when used. The joystick is the one new view type.</span></li>
     <li><b>Icons, not words</b><span><i class="spin" style="vertical-align:-2px"></i> sent · <span class="ic ok">✓</span> applied · <span class="ic kept">!</span> not applied · <span class="ic err">✕</span> refused / no answer. The why is in a tooltip.</span></li>
     <li><b>The value is the reported one</b><span>Never the one typed. What was asked is a target (a caret, a dashed ghost) only until the device answers.</span></li>
 </ul>
@@ -287,21 +287,21 @@ waiting, amber when the device kept something else. <b>No caret = nothing asked.
     <div class="stage" data-build="actStyles"></div>
 </div>
 
-<!-- ======================================================= CONTROLS ======================================================= -->
-<h2 id="controls">Controls view: driving</h2>
+<!-- ======================================================= JOYSTICK ======================================================= -->
+<h2 id="joystick">Joystick view</h2>
 <div class="block">
     <div>
-        <h3>The option "controls" of the values view</h3>
+        <h3>A view type for one continuous telemetry</h3>
         <ul>
-            <li>Tiles with editors always drawn, bigger targets. The only kind of view that keeps its controls when CMD is off (dimmed: placed on purpose, the layout does not jump).</li>
-            <li>Made from the Edit panel (option "Controls"), or by the device: <code>DASH|…|controls=1</code>.</li>
-            <li>Continuous telemetries (<code>rate</code> / <code>hold</code>) are driven here: a pad for <code>xy</code>, a rocker for a number, a pad and a rotation rocker for a
-            <code>pose2d</code> velocity (one stick when the device declares <code>axes=x,yaw</code>).</li>
-            <li>The knob is what the page sends, the green ring what the device reports. Released: back to rest, sent a few times, then nothing; the device stops on its own after <code>hold</code> ms.</li>
-            <li>Keyboard off by default; the view option turns on arrows or WASD (read by key position, only while the view has the focus, page shortcuts paused).</li>
+            <li>For a writable with <code>rate</code> / <code>hold</code>: a pad for <code>xy</code>, a rocker for a number, a pad and a rotation rocker for a <code>pose2d</code>
+            velocity (one stick when the device declares <code>axes=x,yaw</code>). Two sticks: two joystick views in a row.</li>
+            <li>A display view too: the green ring is what the device reports, CMD on or off. CMD on adds the knob, what the page sends.</li>
+            <li>Released: back to rest, sent a few times, then nothing; the device stops on its own after <code>hold</code> ms.</li>
+            <li>Its default view: dragging the telemetry, the auto dashboard and <code>DASH|…:joystick:…</code> make one.</li>
+            <li>Keyboard off by default; the option turns on arrows or WASD (by key position, only while the view has the focus, page shortcuts paused).</li>
         </ul>
     </div>
-    <div class="stage" data-build="controls"></div>
+    <div class="stage" data-build="joystick"></div>
 </div>
 
 <!-- ======================================================= POSE ======================================================= -->
@@ -342,8 +342,7 @@ waiting, amber when the device kept something else. <b>No caret = nothing asked.
     <div>
         <h3>Telemetries: the pen is a sign, not a handle</h3>
         <p>Writable telemetries and actions carry the pen (▶ for an action), CMD on or off. Dragging works as today: the default view of the telemetry, where it can be
-        edited when CMD is on. No special drag: in-place editors are light enough not to need a kind of view. For driving, the Edit panel turns a values view into
-        "Controls".</p>
+        edited when CMD is on (a continuous one makes a joystick view). No special drag: in-place editors are light enough not to need a kind of view.</p>
     </div>
     <div class="stage" data-build="tele"></div>
 </div>
@@ -357,7 +356,7 @@ waiting, amber when the device kept something else. <b>No caret = nothing asked.
 <ul class="needs">
     <li><b>3D view, image / camera views</b><span>On hold: the 2D view first.</span></li>
     <li><b>Picking an argument on a map</b><span>An <code>xy</code> / <code>pose2d</code> argument is typed in the form for now.</span></li>
-    <li><b>Dropped</b><span>Command palette, requests on charts, reserved names, a toolbar of actions, progress of a call, a special drag for command views.</span></li>
+    <li><b>Dropped</b><span>Command palette, requests on charts, reserved names, a toolbar of actions, progress of a call, a special drag for command views, a "controls" kind of values view.</span></li>
 </ul>
 
 </main>
@@ -485,21 +484,21 @@ B.actStyles = () => {
         + item('<span class="vbtn outline-red"><span class="fill" style="width:62%"></span>Hold to dock</span>', "ATTR|robot.dock|action|title=Dock|longpress", "Fills while held; sent at 1 s.");
 };
 
-B.controls = () => {
+B.joystick = () => {
     const pad = (k, r, held) => `<div class="joy${held ? " held" : ""}">${k ? `<span class="knob" style="left:${k[0]}%;top:${k[1]}%"></span>` : ""}<span class="rep" style="left:${r[0]}%;top:${r[1]}%"></span></div>`;
     const rocker = (k, r) => `<div class="rocker">${k != null ? `<span class="k" style="left:${k}%"></span>` : ""}<span class="rep" style="left:${r}%"></span></div>`;
-    const tiles = (on, held) => `<div class="ctl">`
-        + `<div class="ctile" style="grid-row:span 2"><div class="n">robot.cmd_vel${on ? '<span class="pen">✎</span>' : ""}</div>${pad(on ? (held ? [64, 30] : [50, 50]) : null, held ? [61, 34] : [50, 50], held)}${rocker(on ? (held ? 66 : 50) : null, held ? 62 : 50)}<div class="vsub" style="justify-content:center">${held ? "vx 0.40 · vy 0.28 · wz 0.32" : "vx 0 · vy 0 · wz 0"}</div></div>`
-        + `<div class="ctile"><div class="n">robot.motors${on ? '<span class="pen">✎</span>' : ""}</div><div class="v">on<span class="grow"></span><span class="sw on big-sw"></span></div></div>`
-        + `<div class="ctile"><div class="n">robot.speed_limit${on ? '<span class="pen">✎</span>' : ""}</div><div class="v">1.20<small style="font-size:0.75rem;color:var(--tp-muted);font-weight:400">m/s</small></div>${bar({ p: 60, edit: true })}<div class="stepper"><span class="vbtn">−</span><span class="vbtn">+</span></div></div>`
-        + `<div class="ctile"><div class="n">robot.mode${on ? '<span class="pen">✎</span>' : ""}</div><div class="vseg"><span>idle</span><span class="cur">auto</span><span>manual</span></div></div>`
-        + `<div class="ctile"><div class="n">actions</div><div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.3rem"><span class="vbtn red">■ Stop</span><span class="vbtn">Go to… ▾</span><span class="vbtn">Reset odometry</span></div></div></div>`;
-    return frame(1, "CMD off", view("Drive <span class='grow'></span><span class='lockchip'>CMD off</span>", tiles(false, false), { w: "38rem", cls: "dimmed" }), "Kept, dimmed: only what the device reports.")
-        + frame(2, "CMD on, pad held", view("Drive", tiles(true, true), { w: "38rem" }), "Knob = sent, green ring = reported.")
-        + frame(3, "Edit panel", `<div class="panel" style="width:19rem"><h4>Drive <span>values</span></h4><div class="efield"><span class="muted">Controls</span><span><input type="checkbox" checked> tiles, pads</span></div><div class="efield"><span class="muted">Keyboard</span><div class="seg"><span class="on">Off</span><span>Arrows</span><span>WASD</span></div></div><div class="fnote">Keys by position, only while the view has the focus; page shortcuts pause meanwhile.</div></div>`)
-        + msgs([["d", "DASH|Robot/Drive:values:robot.cmd_vel,robot.motors,robot.speed_limit,robot.mode,robot.stop,robot.goto,robot.odometry.reset|controls=1", 1],
-            ["d", "ATTR|robot.cmd_vel|write=pose2d|rate=20|hold=200|min=-1|max=1   (add |axes=x,yaw for a differential base: one stick)"], ["d", "robot.cmd_vel:0:0:0"],
-            ["p", "robot.cmd_vel:0.40:0.28:0.32   × 20 per second while held", 2], ["d", "robot.cmd_vel:0.38:0.26:0.30"], ["p", "robot.cmd_vel:0:0:0   × 3 on release; then nothing"]]);
+    const joy = (title, k, r, rk, rr, held, sub) => view(title, `<div style="padding:0.2rem 0.5rem 0.5rem">${pad(k, r, held)}${rk !== undefined ? rocker(rk, rr) : ""}<div class="vsub" style="justify-content:center">${sub}</div></div>`, { w: "12rem" });
+    return frame(1, "CMD off", joy("robot.cmd_vel", null, [56, 44], null, 58, false, "vx 0.12 · vy 0 · wz 0.08"), "A display: the ring is what the device reports.")
+        + frame(2, "CMD on", joy("robot.cmd_vel <span class='pen'>✎</span>", [50, 50], [50, 50], 50, 50, false, "drag the knob"))
+        + frame(3, "Held", joy("robot.cmd_vel <span class='pen'>✎</span>", [64, 30], [61, 34], 66, 62, true, "vx 0.40 · vy 0.28 · wz 0.32"), "Knob = sent, green ring = reported.")
+        + frame(4, "Released", joy("robot.cmd_vel <span class='pen'>✎</span>", [50, 50], [54, 47], 50, 53, false, "back to 0"), "Rest value sent a few times, then nothing.")
+        + frame(5, "One stick", joy("base.cmd_vel <span class='pen'>✎</span>", [58, 26], [56, 30], undefined, 0, true, "forward 0.48 · turn 0.16"), "axes=x,yaw: up = forward, sideways = turn.")
+        + frame(6, "A number", view("arm.lift <span class='pen'>✎</span>", `<div style="padding:0.6rem 0.5rem 0.5rem">${rocker(30, 34)}<div class="vsub" style="justify-content:center">-0.40</div></div>`, { w: "12rem" }), "A rocker (orientation: horizontal or vertical).")
+        + frame(7, "Edit panel", `<div class="panel" style="width:19rem"><h4>robot.cmd_vel <span>joystick</span></h4><div class="efield"><span class="muted">Keyboard</span><div class="seg"><span class="on">Off</span><span>Arrows</span><span>WASD</span></div></div><div class="fnote">Keys by position, only while the view has the focus; page shortcuts pause meanwhile.</div></div>`)
+        + msgs([["d", "ATTR|robot.cmd_vel|write=pose2d|rate=20|hold=200|min=-1|max=1", 1], ["d", "robot.cmd_vel:0.12:0:0.08   (what it is doing, at every loop)"],
+            ["p", "robot.cmd_vel:0.40:0.28:0.32   × 20 per second while held", 3], ["d", "robot.cmd_vel:0.38:0.26:0.30"], ["p", "robot.cmd_vel:0:0:0   × 3 on release; then nothing", 4],
+            ["d", "ATTR|base.cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", 5], ["d", "ATTR|arm.lift|write=number|rate=10|hold=300|min=-1|max=1", 6],
+            ["d", "DASH|Robot/Drive:joystick:robot.cmd_vel   (a device can place it; dragging it or the auto dashboard make one too)"]]);
 };
 
 function map(o) {
