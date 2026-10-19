@@ -14,6 +14,12 @@ TELEPLOT.protocol = {
     TELEM_ATTR_FRAME: 8,      // What the positions of a shape are relative to: {type, name}. FRAME_TYPE_POSE: the pose of the telemetry of that name (a shape, a camera, a point...); FRAME_TYPE_PIXELS: the pixels of the pictures of the image telemetry of that name
     TELEM_ATTR_RANGE: 9,      // The values a number telemetry is expected between: {min, max} (either can be undefined). Views use it as an extent (the bar of a value, the scale of a chart); it changes nothing to the data
     TELEM_ATTR_STACK: 10,     // A text telemetry is a stack: its text is the path of what is running, a "/" between levels ("loop/plan/search": "stack" flag in text). A state like any other; a timeline draws a row per level
+    // Commands (telecmd, doc/telecmd.md): what the page may write, or call
+    TELEM_ATTR_WRITE: 11,     // {kind: "setting" | "action", type ("" = the type of the data, "number", "bool", "text", "xy", "xyz", "pose2d"), step, rate, hold, axes, confirm, longpress}
+    TELEM_ATTR_CHOICES: 12,   // The texts a setting can take: ["idle", "auto"...]
+    TELEM_ATTR_ARGS: 13,      // The arguments of an action, in order: [{name, type, optional, default, min, max, step, unit, choices, desc}]
+    TELEM_ATTR_DESC: 14,      // A short description (a tooltip)
+    TELEM_ATTR_TITLE: 15,     // The text of the button of an action (default: its name)
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,
@@ -51,6 +57,14 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_SHAPE_TEXT: 38,       // The text of a text shape
     SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH: 39, // Width of the lines of a shape, in the units of its frame (never sent: as thin as the screen draws) // Samples of a data type made of numbers, each number as a float64: for values that the float32 (or integer) section of the data type would round
     SECTION_TYPE_TELEM_DATA_THRESHOLD: 40,        // A limit of a number telemetry, from its timestamp on: operator, value, name, color. A limit of the same name replaces it; a value that is not a number removes it
+    SECTION_TYPE_CALL: 41,         // Page to device: a call of an action, {TELEM_ID[16]} {CALL_ID[16]} {COUNT[8]} then {INDEX[8]} {VALUE} per argument
+    SECTION_TYPE_CALL_ANSWER: 42,  // Device to page: {TELEM_ID[16]} {CALL_ID[16]} {STATUS[8]} {TEXT}: a call ran, runs or failed (CALL_ID_SETTING: a setting was refused)
+    CALL_STATUS_OK: 0,
+    CALL_STATUS_ERROR: 1,
+    CALL_STATUS_RUNNING: 2,
+    CALL_ID_SETTING: 0xFFFF,
+    WRITE_TYPES: ["", "number", "bool", "text", "xy", "xyz", "pose2d"], // Codes of the types of what can be written (binary: the index)
+    WRITE_AXES: ["x", "y", "yaw"], // Bits of the axes of an xy or pose2d (binary: bit i = WRITE_AXES[i])
     THRESHOLD_BELOW: 0, // Operators of a threshold: the telemetry is past it when its value is below ("<" in text)
     THRESHOLD_ABOVE: 1, //                           or above (">")
     POINT_CLOUD_INTENSITY: 1, // Flags of a point cloud: each point has an intensity (float32)

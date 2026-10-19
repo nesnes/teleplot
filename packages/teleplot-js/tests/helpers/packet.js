@@ -28,6 +28,14 @@ class PacketBuilder {
             else if (code === P.TIMEOUT) this.u64(value); // nanoseconds
             else if (code === 9) this.f64(value.min === undefined ? NaN : value.min).f64(value.max === undefined ? NaN : value.max); // (9: TELEM_ATTR_RANGE) {min, max}
             else if (code === 8) this.u8(value.type).str(value.name); // (8: TELEM_ATTR_FRAME) {type: 0 pose | 1 pixels, name}
+            // (11: TELEM_ATTR_WRITE) {kind 0 none | 1 setting | 2 action, type (index in WRITE_TYPES), flags (1 confirm, 2 longpress), step, rate, hold, axes (bits x, y, yaw)}
+            else if (code === 11) this.u8(value.kind).u8(value.type || 0).u8(value.flags || 0).f64(value.step === undefined ? NaN : value.step).u16(value.rate || 0).u16(value.hold || 0).u8(value.axes || 0);
+            // (13: TELEM_ATTR_ARGS) one argument {index, type, flags (1 optional), min, max, step, name, unit, default, choices (line feeds), desc}
+            else if (code === 13) {
+                this.u8(value.index).u8(value.type).u8(value.flags || 0);
+                for (const key of ['min', 'max', 'step']) this.f64(value[key] === undefined ? NaN : value[key]);
+                for (const key of ['name', 'unit', 'default', 'choices', 'desc']) this.str(value[key] || '');
+            }
             else if (code === P.SHAPE) { this.u8(value.type); if (value.type === 10) this.str(value.url); } // {type, url}: the url only for an STL file
             else this.str(value);
         }
@@ -72,6 +80,8 @@ class PacketBuilder {
     // samples: [[timeDiffNs, operator (0: below, 1: above), value, name, color]]
     thresholds(telemId, refNs, samples) { return this._data(40, telemId, refNs, samples, v => this.u8(v[0]).f64(v[1]).str(v[2]).str(v[3] || '')); }
     text(telemId, refNs, samples) { return this._data(SECTION.TEXT, telemId, refNs, samples, v => this.str(v[0])); }
+    // An answer to a command (42): status 0 ok, 1 error, 2 running; callId 0xFFFF for a setting
+    answer(telemId, callId, status, text = '') { return this.u8(42).u16(telemId).u16(callId).u8(status).str(text); }
 
     build() { // The checksum is not verified by the parser yet: zeros
         const bytes = Uint8Array.from([...this.bytes, 0, 0]);

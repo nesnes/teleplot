@@ -135,6 +135,19 @@ class ConnectionSerial extends Connection {
         return true;
     }
 
+    whyNotWritable() {
+        if(!this.connected) return "The port is not open";
+        if(!this.port.writable) return "The port cannot be written";
+        return "";
+    }
+
+    // A command (doc/telecmd.md) is a line written to the port (devices on a serial port speak the text protocol)
+    write(message) {
+        if(!this.canWrite() || message.text === undefined) return false;
+        this.send(message.text);
+        return true;
+    }
+
     static explain(error) {
         let name = error && error.name;
         if(name === "NetworkError") return "The device was lost (unplugged ?)";

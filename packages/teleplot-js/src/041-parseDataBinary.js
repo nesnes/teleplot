@@ -136,6 +136,9 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
                     offset = _parseDataBinary_parseTELEM_DATA_FLOAT64(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_CALL_ANSWER:
+                    offset = _parseDataBinary_parseCALL_ANSWER(view, offset, clientId);
+                    break;
                 default:
                     console.warn(`parseDataBinary: unknown section type ${sectionType}`);
                     return;
@@ -296,12 +299,74 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 offset += 16;
                 break;
             }
+            // Commands (doc/telecmd.md)
+            case TELEPLOT.protocol.TELEM_ATTR_WRITE: { // {KIND[8]} {TYPE[8]} {FLAGS[8]} {STEP[64]} {RATE[16]} {HOLD[16]} {AXES[8]}
+                let kind = view.getUint8(offset), type = view.getUint8(offset + 1), flags = view.getUint8(offset + 2);
+                let step = view.getFloat64(offset + 3, _parseDataBinary_LITTLE_ENDIAN);
+                let rate = view.getUint16(offset + 11, _parseDataBinary_LITTLE_ENDIAN), hold = view.getUint16(offset + 13, _parseDataBinary_LITTLE_ENDIAN);
+                let axesBits = view.getUint8(offset + 15);
+                offset += 16;
+                if(kind === 0) { telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_WRITE, undefined); break; }
+                let write = { kind: kind === 2 ? "action" : "setting", type: TELEPLOT.protocol.WRITE_TYPES[type] || "", confirm: (flags & 1) !== 0, longpress: (flags & 2) !== 0 };
+                if(Number.isFinite(step)) write.step = step;
+                if(rate > 0) write.rate = rate;
+                if(hold > 0) write.hold = hold;
+                if(axesBits) write.axes = TELEPLOT.protocol.WRITE_AXES.filter((axis, i) => (axesBits & (1 << i)) !== 0);
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_WRITE, write);
+                break;
+            }
+            case TELEPLOT.protocol.TELEM_ATTR_CHOICES: { // The choices separated by line feeds
+                let [text, newOffset] = _parseDataBinary_readString(view, offset);
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_CHOICES, text === "" ? undefined : text.split("\n"));
+                offset = newOffset;
+                break;
+            }
+            case TELEPLOT.protocol.TELEM_ATTR_ARGS: { // One argument: {INDEX[8]} {TYPE[8]} {FLAGS[8]} {MIN[64]} {MAX[64]} {STEP[64]} {NAME} {UNIT} {DEFAULT} {CHOICES} {DESC}
+                let index = view.getUint8(offset), type = view.getUint8(offset + 1), flags = view.getUint8(offset + 2);
+                let numbers = [0, 1, 2].map((i) => view.getFloat64(offset + 3 + i * 8, _parseDataBinary_LITTLE_ENDIAN));
+                offset += 27;
+                let texts = [];
+                for(let i = 0; i < 5; i++) { let [text, newOffset] = _parseDataBinary_readString(view, offset); texts.push(text); offset = newOffset; }
+                let args = (telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_ARGS) || []).slice();
+                if(type === 0) args.splice(index, 1);
+                else {
+                    let arg = { name: texts[0], type: TELEPLOT.protocol.WRITE_TYPES[type] || "number", optional: (flags & 1) !== 0 };
+                    ["min", "max", "step"].forEach((key, i) => { if(Number.isFinite(numbers[i])) arg[key] = numbers[i]; });
+                    if(texts[1] !== "") arg.unit = texts[1];
+                    if(texts[2] !== "") arg.default = texts[2];
+                    if(texts[3] !== "") arg.choices = texts[3].split("\n");
+                    if(texts[4] !== "") arg.desc = texts[4];
+                    args[index] = arg;
+                }
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_ARGS, args.filter((a) => a !== undefined).length ? args.filter((a) => a !== undefined) : undefined);
+                break;
+            }
+            case TELEPLOT.protocol.TELEM_ATTR_DESC:
+            case TELEPLOT.protocol.TELEM_ATTR_TITLE: {
+                let [text, newOffset] = _parseDataBinary_readString(view, offset);
+                telemetry.setAttribute(attrCode, text === "" ? undefined : text);
+                offset = newOffset;
+                break;
+            }
             default:
                 console.warn(`parseDataBinary: unknown TELEM_ATTR code ${attrCode}`);
         }
     }
 
     return offset;
+}
+
+// What a device answers to a command (doc/telecmd.md): {TELEM_ID[16]} {CALL_ID[16]} {STATUS[8]} {TEXT}
+function _parseDataBinary_parseCALL_ANSWER(view, offset, clientId) {
+    const P = TELEPLOT.protocol;
+    let telemId = view.getUint16(offset, _parseDataBinary_LITTLE_ENDIAN);
+    let callId = view.getUint16(offset + 2, _parseDataBinary_LITTLE_ENDIAN);
+    let status = view.getUint8(offset + 4);
+    let [text, newOffset] = _parseDataBinary_readString(view, offset + 5);
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(_parseDataBinary_setCombineClientAndTelem(clientId, telemId));
+    let word = status === P.CALL_STATUS_RUNNING ? "run" : status === P.CALL_STATUS_ERROR ? "err" : "ok";
+    TELEPLOT.commands.__answer(telemetry, callId === P.CALL_ID_SETTING ? undefined : callId, word, text, Date.now() / 1000);
+    return newOffset;
 }
 
 // Data types whose samples are only numbers: they can also be written as float64 (TELEM_DATA_FLOAT64)

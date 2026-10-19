@@ -1,5 +1,6 @@
 // Where the data being parsed comes from (the id of a connection), for the telemetries and clients it creates: see TELEPLOT.datastore.withSource
 let _datastore_currentSourceId = undefined;
+let _datastore_currentEndpoint = undefined; // Which device of that source sent it (the sender address the Teleplot server gives), see withSource
 let _datastore_addWatcher = undefined; // Called with (telemetry, dataType, timestamps) for what is added while it is set (see watchAdds)
 let _datastore_dry = false;            // true: nothing is stored nor cleared, the watcher still sees what would be added (see dryRun)
 let _datastore_serial = 0;             // Counts the telemetries created: tells one from another one that took its id (objects are not compared: an application may wrap them)
@@ -10,18 +11,21 @@ class Telemetry {
         this.serial = ++_datastore_serial;
         this.clientId = -1;
         this.sourceId = _datastore_currentSourceId; // Connection that first sent it (undefined: created by the application itself)
+        this.endpoint = _datastore_currentEndpoint; // The device of that connection that sent it last (where commands go back: doc/telecmd.md)
         this.attributes = {};
         // Raw (not reactive): a UI framework wrapping the datastore in proxies would make ingestion ~100x slower. Views read it through update().
         this.data = TELEPLOT.Vue.markRaw({});
     }
     setAttribute(code, data) {
         this.attributes[code] = data;
-        if(this.__unannounced && code === TELEPLOT.protocol.TELEM_ATTR_SHAPE) _datastore_announce(this);
+        if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
+        if(this.__unannounced && (code === TELEPLOT.protocol.TELEM_ATTR_SHAPE || (code === TELEPLOT.protocol.TELEM_ATTR_WRITE && data !== undefined))) _datastore_announce(this);
     }
-    // Has the telemetry something to display ? Data (thresholds are not: they are limits of other data), or a shape
+    // Has the telemetry something to display ? Data (thresholds are not: they are limits of other data), a shape, or something the page
+    // can write or call (an action has no data until it is called)
     hasContent() {
         for(let dataType in this.data) if(dataType != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) return true;
-        return this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) !== undefined;
+        return this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) !== undefined || this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_WRITE) !== undefined;
     }
     getAttribute(code) {
         return this.attributes[code];
@@ -78,6 +82,7 @@ class Telemetry {
         }
 
         stored.lastUpdate = Date.now();
+        if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
         if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps);
         if(this.__unannounced && dataType !== TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) _datastore_announce(this);
     };
@@ -466,12 +471,14 @@ TELEPLOT.datastore.rememberIdentity = function() {
     };
 }
 
-// Runs fn() (parsing a message...) telling that what it creates comes from a source (a connection id). Returns what fn returns.
-TELEPLOT.datastore.withSource = function(sourceId, fn) {
-    let previous = _datastore_currentSourceId;
+// Runs fn() (parsing a message...) telling that what it creates comes from a source (a connection id), and from which device of it
+// (endpoint: the sender address a Teleplot server gives, undefined when the source is one device). Returns what fn returns.
+TELEPLOT.datastore.withSource = function(sourceId, fn, endpoint=undefined) {
+    let previous = _datastore_currentSourceId, previousEndpoint = _datastore_currentEndpoint;
     _datastore_currentSourceId = sourceId;
+    _datastore_currentEndpoint = endpoint;
     try { return fn(); }
-    finally { _datastore_currentSourceId = previous; }
+    finally { _datastore_currentSourceId = previous; _datastore_currentEndpoint = previousEndpoint; }
 }
 
 // Forgets the data of every telemetry (the telemetries stay, with their attributes: views keep what they display).

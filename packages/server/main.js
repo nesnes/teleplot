@@ -1,5 +1,6 @@
-// Teleplot server: receives telemetry as UDP packets and relays it to the pages connected through a WebSocket, forwards the
-// commands of the pages to the device (UDP), and serves the webapp. Options and messages exchanged with the page: doc/server.md
+// Teleplot server: receives telemetry as UDP packets and relays it to the pages connected through a WebSocket, sends the commands
+// of the pages back to the device that sent the telemetry (UDP), and serves the webapp. Options and messages exchanged with the
+// page: doc/server.md; commands: doc/telecmd.md
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -20,6 +21,7 @@ const DEFAULTS = {
     maxBuffer: 64,        // MB waiting to be sent to a page above which packets are dropped for it
     www: "",              // Folder of the webapp ("" = www/ next to this file, or ../webapp)
     serve: [],            // Other folders to serve: "folder" (at the root, after the webapp) or "/url=folder"
+    readOnly: false,      // Commands of the pages are refused
 };
 
 // name on the command line, option, type, value shown in the help, description
@@ -35,6 +37,7 @@ const ARGUMENTS = [
     ["--max-buffer", "maxBuffer", "number", "<MB>", "Data waiting for a page that is too slow, above which packets are dropped for it"],
     ["--www", "www", "text", "<folder>", "Folder of the webapp to serve"],
     ["--serve", "serve", "texts", "[/url=]<folder>", "Also serve the files of this folder (pictures, textures, pages...): under /url, or next to the webapp, whose files come first. Can be repeated"],
+    ["--read-only", "readOnly", "flag", "", "Refuse the commands of the pages: the devices are only watched"],
 ];
 
 // Commands that Teleplot V1 pages send to the server itself (its serial ports, which this server does not have): not for the device
@@ -56,6 +59,7 @@ function parseArguments(args) {
         if (name == "--version" || name == "-v") return { version: true };
         let argument = ARGUMENTS.find(a => a[0] == name);
         if (!argument) return { error: `Unknown option ${args[i]}` };
+        if (argument[2] == "flag") { options[argument[1]] = value === undefined || !["0", "false", "no"].includes(value); continue; }
         if (value === undefined) value = args[++i];
         if (value === undefined) return { error: `${name} needs a value` };
         let [, key, type] = argument;
@@ -75,7 +79,7 @@ function parseArguments(args) {
 function helpText() {
     let lines = ["Teleplot server: relays the telemetry received as UDP packets to the Teleplot web page.", "", "Usage: teleplot [options]", ""];
     for (let [name, key, , value, description] of ARGUMENTS) {
-        let byDefault = DEFAULTS[key] === "" || Array.isArray(DEFAULTS[key]) ? "" : ` (default: ${DEFAULTS[key]})`;
+        let byDefault = DEFAULTS[key] === "" || DEFAULTS[key] === false || Array.isArray(DEFAULTS[key]) ? "" : ` (default: ${DEFAULTS[key]})`;
         lines.push(`  ${(name + " " + value).padEnd(26)}${description}${byDefault}`);
     }
     lines.push(`  ${"--help, --version".padEnd(26)}`);
@@ -166,6 +170,8 @@ function startServer(userOptions = {}) {
 
     app.ws('/', (page) => {
         page.dropped = 0; // Packets not sent to this page since it was last told (it was too slow)
+        // Tell the page it can send commands back, and who sent what (it will be told of new senders as they come)
+        page.send(JSON.stringify({ hello: { readOnly: options.readOnly, senders: senderTable() } }));
         // Without a listener, an invalid frame from one page stops the whole server
         page.on('error', (error) => {
             warn("page error", `A page was disconnected: ${error.message}`);
@@ -175,8 +181,20 @@ function startServer(userOptions = {}) {
             let message;
             try { message = JSON.parse(text); }
             catch (e) { return warn("command json", "Ignored a message from a page: it is not JSON."); }
-            if (message === null || typeof message.cmd != "string" || message.cmd == "") return warn("command format", 'Ignored a message from a page: no "cmd" text in it.');
+            if (message === null || typeof message != "object") return warn("command format", "Ignored a message from a page: not a command.");
+            // A command for the device that sent a telemetry (doc/telecmd.md): to the address its packets came from
+            if (typeof message.write == "string" || typeof message.writeBinary == "string") {
+                if (options.readOnly) return warn("read only", "Refused a command of a page: the server is read-only (--read-only).");
+                let to = senders.list[message.to];
+                if (to === undefined) return warn("command sender", "Ignored a command of a page: it is for a device this server does not know.");
+                let data = typeof message.write == "string" ? Buffer.from(message.write) : Buffer.from(message.writeBinary, "base64");
+                return udp.send(data, to.port, to.address, (error) => {
+                    if (error) warn("command send", `A command could not be sent to ${to.address}:${to.port}: ${error.message}`);
+                });
+            }
+            if (typeof message.cmd != "string" || message.cmd == "") return warn("command format", 'Ignored a message from a page: no "cmd" text in it.');
             if (SERVER_COMMANDS.has(message.cmd)) return;
+            if (options.readOnly) return warn("read only", "Refused a command of a page: the server is read-only (--read-only).");
             udp.send(message.cmd, options.cmdPort, options.cmdHost, (error) => {
                 if (error) warn("command send", `A command could not be sent to ${options.cmdHost}:${options.cmdPort}: ${error.message}`);
             });
@@ -187,16 +205,37 @@ function startServer(userOptions = {}) {
     const udp = dgram.createSocket('udp4');
     // A clock that only counts (ms), so that a change of the date of the machine does not move the samples
     const clock = () => Math.round(performance.now() * 1000) / 1000;
-    let textPackets = [];   // [time it was received, text]
+    let textPackets = [];   // [time it was received, text, sender]
     let binaryPackets = []; // Buffers
+    let binarySenders = []; // Sender of each of them
     let someDropped = false; // A page has not been told yet about packets dropped for it
+    // Who sent packets: an index per address and port, given with each packet. Commands of the pages go back there.
+    const senders = { byKey: new Map(), list: [], announced: 0 };
+    const MAX_SENDERS = 1000;
+    function senderOf(info) {
+        let key = `${info.address}:${info.port}`;
+        let index = senders.byKey.get(key);
+        if (index === undefined) {
+            if (senders.list.length >= MAX_SENDERS) { senders.byKey.clear(); senders.list = []; senders.announced = 0; } // (a flood of senders: start again)
+            index = senders.list.length;
+            senders.list.push({ address: info.address, port: info.port, key });
+            senders.byKey.set(key, index);
+        }
+        return index;
+    }
+    function senderTable(from = 0) {
+        let table = {};
+        for (let i = from; i < senders.list.length; i++) table[i] = senders.list[i].key;
+        return table;
+    }
 
-    udp.on('message', (packet) => {
+    udp.on('message', (packet, info) => {
         if (packet.length == 0 || pages.size == 0) return;
+        let sender = senderOf(info);
         // Only the marker is looked at: a packet of a version of the protocol this server does not know is still relayed, and
         // the page says what it cannot read
-        if (packet[0] == BINARY_MARKER) binaryPackets.push(packet);
-        else textPackets.push([clock(), packet.toString()]);
+        if (packet[0] == BINARY_MARKER) { binaryPackets.push(packet); binarySenders.push(sender); }
+        else textPackets.push([clock(), packet.toString(), sender]);
         if (!(options.batch > 0)) flush();
     });
 
@@ -206,7 +245,10 @@ function startServer(userOptions = {}) {
         if (count == 0 && !someDropped) return;
         // Text: each packet with the time it was received, and the time of this message on the same clock. Timestamps the device
         // did not give are the time of reception: the page works it out from these two, which a batch alone would not tell
-        let textStart = `{"time":${clock()},"packets":${JSON.stringify(textPackets)}`;
+        // New senders, and the senders of the binary packets of the binary message that follows (in its order)
+        let newSenders = senders.announced < senders.list.length ? `,"senders":${JSON.stringify(senderTable(senders.announced))}` : "";
+        senders.announced = senders.list.length;
+        let textStart = `{"time":${clock()}${newSenders}${binarySenders.length ? `,"binary":${JSON.stringify(binarySenders)}` : ""},"packets":${JSON.stringify(textPackets)}`;
         let binary;
         if (binaryPackets.length == 1) binary = binaryPackets[0];
         else if (binaryPackets.length > 1) {
@@ -218,9 +260,10 @@ function startServer(userOptions = {}) {
             }
             binary = Buffer.concat(parts);
         }
-        let hasText = textPackets.length > 0;
+        let hasText = textPackets.length > 0 || binarySenders.length > 0 || newSenders !== "";
         textPackets = [];
         binaryPackets = [];
+        binarySenders = [];
         someDropped = false;
 
         for (let page of pages) {

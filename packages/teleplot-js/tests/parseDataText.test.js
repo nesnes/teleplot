@@ -303,7 +303,7 @@ test('ATTR lines: the range of a telemetry, set, completed and forgotten; unknow
     assert.deepEqual([entry(T, 'battery').data[0], range('battery')], [[11.4], { min: 9, max: 12.6 }]);
     // Not understood: counted, nothing changed
     const out = captureConsole(() => {
-        assert.equal(parse(T, 'ATTR|battery|color=red'), 1);
+        assert.equal(parse(T, 'ATTR|battery|colour=red'), 1);
         assert.equal(parse(T, 'ATTR|battery|min=low'), 1);
         assert.equal(parse(T, 'ATTR||min=1'), 1);
         assert.equal(parse(T, 'ATTR|battery|min=0|oops=1'), 1, 'a line is taken as a whole');

@@ -39,6 +39,9 @@ TELEPLOT.parseDataText = function(msgIn){
                 _parseDataText_parseAttributes(msg);
             else if (msg.substring(0,3) == "TH|")
                 _parseDataText_parseThresholds(msg, now);
+            // Answer of a device to a command (doc/telecmd.md)
+            else if (msg.substring(0,4) == "ACK|")
+                _parseDataText_parseAnswer(msg, now);
             // JPG
             else if (msg.substring(0,4) == "JPG|" || msg.substring(0,4) == "PNG|")
                 _parseDataText_parseImage(msg, now);
@@ -222,10 +225,21 @@ function _parseDataText_unescape(text) {
 
 /*
  * Attributes of a telemetry: "ATTR|name|key=value|key=value". They describe the telemetry, they are not samples: sent once (again
- * at will), before or after its data.
+ * at will), before or after its data. In the values, % | , = : and line feeds are written %XX.
  *   min, max   the values a number is expected between (TELEM_ATTR_RANGE); one of them is enough, given empty it is forgotten
+ *   unit, color, desc (a short description)
+ * Commands (doc/telecmd.md):
+ *   write[=type]   the page may write it (type: number, bool, text, xy, xyz, pose2d; none: the type of its data); "write=" removes it
+ *   action         the page may call it; "action=" removes it
+ *   step, rate (writes per second of a continuous control), hold (ms the device waits before stopping), axes=x,yaw, confirm,
+ *   longpress, choices=a,b,c, title (the text of the button of an action)
+ *   arg=name       the line is about an argument of the action: type, optional, default, min, max, step, unit, choices, desc
+ *                  ("type=" removes the argument)
  * Throws on an unknown key (the line is counted as not understood).
  */
+const _parseDataText_WRITE_KEYS = ["step", "rate", "hold", "axes", "confirm", "longpress"];
+const _parseDataText_ARG_KEYS = ["type", "optional", "default", "min", "max", "step", "unit", "choices", "desc"];
+
 function _parseDataText_parseAttributes(msg)
 {
     const P = TELEPLOT.protocol;
@@ -236,17 +250,116 @@ function _parseDataText_parseAttributes(msg)
     for(let part of parts) {
         if(part.trim() === "") continue;
         let at = part.indexOf("=");
-        let key = (at < 0 ? part : part.substring(0, at)).trim(), value = at < 0 ? "" : _parseDataText_unescape(part.substring(at + 1)).trim();
-        if(key !== "min" && key !== "max") throw new Error("Unknown attribute : " + key);
-        let number = value === "" ? undefined : Number(value);
-        if(number !== undefined && !Number.isFinite(number)) throw new Error("Attribute " + key + " needs a number");
-        options.push([key, number]);
+        let key = (at < 0 ? part : part.substring(0, at)).trim();
+        let raw = at < 0 ? undefined : part.substring(at + 1).trim(); // undefined: the key alone ("write", "confirm")
+        options.push([key, raw]);
     }
+    let text = (raw) => raw === undefined ? "" : _parseDataText_unescape(raw);
+    let number = (key, raw) => {
+        let value = text(raw);
+        if(value === "") return undefined;
+        let n = Number(value);
+        if(!Number.isFinite(n)) throw new Error("Attribute " + key + " needs a number");
+        return n;
+    };
+    let flag = (raw) => raw === undefined || !["0", "false", "no"].includes(text(raw).toLowerCase());
+    let list = (raw) => raw === undefined || raw === "" ? undefined : raw.split(",").map((v) => _parseDataText_unescape(v).trim()).filter((v) => v !== "");
+    let type = (raw) => {
+        let value = text(raw).toLowerCase();
+        if(!P.WRITE_TYPES.includes(value)) throw new Error("Unknown type : " + value + " (number, bool, text, xy, xyz, pose2d)");
+        return value;
+    };
     let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(name);
-    if(!options.length) return;
-    let range = Object.assign({ min: undefined, max: undefined }, telemetry.getAttribute(P.TELEM_ATTR_RANGE));
-    for(let [key, number] of options) range[key] = number;
-    telemetry.setAttribute(P.TELEM_ATTR_RANGE, (range.min === undefined && range.max === undefined) ? undefined : range);
+
+    // An argument of an action
+    let argOption = options.find(([key]) => key === "arg");
+    if(argOption !== undefined) {
+        let argName = text(argOption[1]).trim();
+        if(argName === "") throw new Error("Argument: arg=name");
+        let args = (telemetry.getAttribute(P.TELEM_ATTR_ARGS) || []).slice();
+        let index = args.findIndex((a) => a.name === argName);
+        let arg = Object.assign({ name: argName, type: "number", optional: false }, index >= 0 ? args[index] : {});
+        for(let [key, raw] of options) {
+            if(key === "arg") continue;
+            if(!_parseDataText_ARG_KEYS.includes(key)) throw new Error("Unknown attribute of an argument : " + key);
+            if(key === "type") {
+                if(raw !== undefined && text(raw) === "") { arg = undefined; break; } // "type=": the argument is removed
+                arg.type = type(raw);
+            }
+            else if(key === "optional") arg.optional = flag(raw);
+            else if(key === "min" || key === "max" || key === "step") arg[key] = number(key, raw);
+            else if(key === "choices") arg.choices = list(raw);
+            else arg[key] = text(raw); // default, unit, desc
+        }
+        if(arg === undefined) { if(index >= 0) args.splice(index, 1); }
+        else if(index >= 0) args[index] = arg;
+        else args.push(arg);
+        telemetry.setAttribute(P.TELEM_ATTR_ARGS, args.length ? args : undefined);
+        return;
+    }
+
+    // A line is taken as a whole: a key that is not known, and nothing of it is applied
+    for(let [key] of options) {
+        if(!["min", "max", "unit", "color", "desc", "title", "choices", "write", "action"].includes(key) && !_parseDataText_WRITE_KEYS.includes(key)) throw new Error("Unknown attribute : " + key);
+    }
+    let range = undefined, write = undefined, writeChanged = false;
+    let current = telemetry.getAttribute(P.TELEM_ATTR_WRITE);
+    for(let [key, raw] of options) {
+        if(key === "min" || key === "max") {
+            if(range === undefined) range = Object.assign({ min: undefined, max: undefined }, telemetry.getAttribute(P.TELEM_ATTR_RANGE));
+            range[key] = number(key, raw);
+        }
+        else if(key === "unit") telemetry.setAttribute(P.TELEM_ATTR_UNIT, text(raw));
+        else if(key === "color") telemetry.setAttribute(P.TELEM_ATTR_COLOR, text(raw) || undefined);
+        else if(key === "desc") telemetry.setAttribute(P.TELEM_ATTR_DESC, text(raw) || undefined);
+        else if(key === "title") telemetry.setAttribute(P.TELEM_ATTR_TITLE, text(raw) || undefined);
+        else if(key === "choices") telemetry.setAttribute(P.TELEM_ATTR_CHOICES, list(raw));
+        else if(key === "write" || key === "action") {
+            writeChanged = true;
+            if(raw !== undefined && raw === "") { write = null; continue; } // "write=", "action=": no more
+            write = Object.assign({}, write || current, { kind: key === "write" ? "setting" : "action", type: key === "write" && raw !== undefined ? type(raw) : "" });
+        }
+        else if(_parseDataText_WRITE_KEYS.includes(key)) {
+            if(write === null) continue;
+            if(write === undefined) {
+                if(current === undefined) throw new Error("Attribute " + key + " needs write or action");
+                write = Object.assign({}, current);
+            }
+            writeChanged = true;
+            if(key === "axes") {
+                let axes = list(raw);
+                if(axes !== undefined && axes.some((a) => !P.WRITE_AXES.includes(a))) throw new Error("axes: " + P.WRITE_AXES.join(", "));
+                write.axes = axes;
+            }
+            else if(key === "confirm" || key === "longpress") write[key] = flag(raw);
+            else write[key] = number(key, raw);
+        }
+        else throw new Error("Unknown attribute : " + key);
+    }
+    if(range !== undefined) telemetry.setAttribute(P.TELEM_ATTR_RANGE, (range.min === undefined && range.max === undefined) ? undefined : range);
+    if(writeChanged) telemetry.setAttribute(P.TELEM_ATTR_WRITE, write === null ? undefined : write);
+}
+
+/*
+ * What a device answers to a command (doc/telecmd.md):
+ *   ACK|robot.goto#21:run           ACK|robot.goto#21:ok[:result]      ACK|robot.goto#21:err:reason      a call (its id after #)
+ *   ACK|robot.mode:err:motors off   a setting the device refused
+ */
+function _parseDataText_parseAnswer(msg, now)
+{
+    let body = msg.substring(4);
+    let nameEnd = body.indexOf(":");
+    if(nameEnd < 1) throw new Error("Answer: ACK|name#id:status");
+    let target = body.substring(0, nameEnd), fields = body.substring(nameEnd + 1).split(":");
+    let id = undefined, hash = target.lastIndexOf("#");
+    if(hash > 0) {
+        id = Number(target.substring(hash + 1));
+        if(!Number.isInteger(id)) throw new Error("Answer: the id of a call is a number");
+        target = target.substring(0, hash);
+    }
+    let status = fields.shift().trim();
+    if(!["run", "ok", "err"].includes(status)) throw new Error("Answer: run, ok or err, not " + status);
+    TELEPLOT.commands.__answer(TELEPLOT.datastore.getOrCreateTelemetry(target), id, status, _parseDataText_unescape(fields.join(":")), now);
 }
 
 /*

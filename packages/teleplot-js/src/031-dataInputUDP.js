@@ -9,14 +9,15 @@ class DataInputUDP extends DataInput{
     connect(){}
     disconnect(){}
 
-    onMessage(msg){
+    // sender: which device sent it (the index the Teleplot server gives), undefined when not known
+    onMessage(msg, sender=undefined){
         if (msg instanceof ArrayBuffer) {
-            this.connection.receive(() => TELEPLOT.parseDataBinary(msg), msg.byteLength);
+            this.connection.receive(() => TELEPLOT.parseDataBinary(msg), msg.byteLength, sender);
         }
         else if("data" in msg) {
             msg.input = this;
             // The server sends the text of the packets it received (several at once): their size is the size of that text
-            this.connection.receive(() => TELEPLOT.parseDataText(msg), Connection.byteLength(String(msg.data)));
+            this.connection.receive(() => TELEPLOT.parseDataText(msg), Connection.byteLength(String(msg.data)), sender);
         }
         else if("cmd" in msg) {
             //nope

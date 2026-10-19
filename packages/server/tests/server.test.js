@@ -26,15 +26,22 @@ async function start(options = {}) {
     const printed = [];
     const server = await startServer({ port: 0, udpPort: 0, host: '127.0.0.1', cmdPort: device.address().port, batch: 10, www: __dirname, log: (line) => printed.push(line), ...options });
     const sender = dgram.createSocket('udp4');
+    const received = []; // What the server sent back to the sender (commands for it)
+    sender.on('message', (m) => received.push(m));
+    await new Promise(done => sender.bind(0, '127.0.0.1', done));
     const pages = [];
     return {
-        server, printed, commands,
+        server, printed, commands, received, senderPort: sender.address().port,
         send: (data) => new Promise(done => sender.send(data, server.udpPort, '127.0.0.1', done)),
         // A page: its messages are in .received (text ones parsed)
         page: async (headers = {}) => {
             const page = new WebSocket(`ws://127.0.0.1:${server.port}`, { headers });
             page.received = [];
-            page.on('message', (data) => page.received.push(typeof data == 'string' ? JSON.parse(data) : data));
+            page.on('message', (data) => {
+                const message = typeof data == 'string' ? JSON.parse(data) : data;
+                if (message.hello) page.hello = message.hello; // (said once, when the page connects)
+                else page.received.push(message);
+            });
             pages.push(page);
             await new Promise((done, failed) => { page.on('open', done); page.on('error', failed); });
             return page;
@@ -110,18 +117,23 @@ test('binary packets: one as it is, several in one message framed like a binary 
         await t.send(Buffer.from([0x10, 1, 0, 0]));
         await sleep(20);
         const page = await t.page();
+        const binaries = () => page.received.filter((m) => Buffer.isBuffer(m));
         const one = Buffer.from([0x10, 1, 2, 3, 4]);
         await t.send(one);
-        await until(() => page.received.length == 1, 'a packet');
-        assert.deepEqual([...page.received[0]], [...one]);
+        await until(() => binaries().length == 1, 'a packet');
+        assert.deepEqual([...binaries()[0]], [...one]);
+        // The text message before it says who sent it
+        assert.deepEqual(page.received[0].binary, [0]);
+        assert.deepEqual(Object.values(page.received[0].senders), [`127.0.0.1:${t.senderPort}`]);
         await sleep(70);
         await t.send(one);
         await t.send(Buffer.from([0x10, 9]));
         await t.send(Buffer.alloc(0));
-        await until(() => page.received.length == 2, 'a batch');
-        assert.deepEqual([...page.received[1]], [0x54, 0x50, 0x4C, 0x54, 0x0A, 0x01, 0, 0, 5, 0, 0, 0, ...one, 2, 0, 0, 0, 0x10, 9]);
+        await until(() => binaries().length == 2, 'a batch');
+        assert.deepEqual([...binaries()[1]], [0x54, 0x50, 0x4C, 0x54, 0x0A, 0x01, 0, 0, 5, 0, 0, 0, ...one, 2, 0, 0, 0, 0x10, 9]);
+        assert.deepEqual(page.received[2].binary, [0, 0], 'one sender per packet');
         await sleep(80);
-        assert.equal(page.received.length, 2);
+        assert.equal(binaries().length, 2);
     } finally { await t.stop(); }
 });
 
@@ -269,4 +281,53 @@ test('other folders are served: at an address of their own, or next to the webap
         assert.equal((await get('/lib/tests/nope.js'))[0], 404);
         assert.equal((await get('/lib/tests/..%2f..%2f..%2fserver/main.js'))[0] == 200, false, 'nothing outside the folder');
     } finally { await t.stop(); }
+});
+
+test('commands of a page go back to the device that sent the telemetry; --read-only refuses them', async () => {
+    const t = await start();
+    try {
+        const page = await t.page();
+        await until(() => page.hello, 'the hello');
+        assert.deepEqual(page.hello, { readOnly: false, senders: {} });
+        await t.send('ATTR|kp|write\nkp:0.4');
+        await until(() => page.received.length, 'the packet');
+        const [time, text, sender] = page.received[0].packets[0];
+        assert.equal(text, 'ATTR|kp|write\nkp:0.4');
+        assert.equal(page.received[0].senders[sender], `127.0.0.1:${t.senderPort}`);
+        page.send(JSON.stringify({ write: 'kp:0.42', to: sender }));
+        page.send(JSON.stringify({ writeBinary: Buffer.from([0x10, 1, 2, 0]).toString('base64'), to: sender }));
+        page.send(JSON.stringify({ write: 'kp:1', to: 99 }));
+        await until(() => t.received.length == 2, 'the commands');
+        assert.deepEqual(t.received.map((m) => [...m]), [[...Buffer.from('kp:0.42')], [0x10, 1, 2, 0]]);
+        await until(() => t.printed.some((line) => /device this server does not know/.test(line)), 'the warning');
+        // A page that connects later is told of the senders known
+        const later = await t.page();
+        await until(() => later.hello, 'the hello');
+        assert.deepEqual(later.hello.senders, { [sender]: `127.0.0.1:${t.senderPort}` });
+        // Through the library: the telemetry knows its sender, a write goes to it
+        const T = loadTeleplot();
+        T.connection.addConnectionTeleplotServer('localhost', 8080);
+        const conn = T.connection.connections[0];
+        conn.connected = true;
+        conn.socket.onmessage({ data: JSON.stringify({ hello: later.hello }) });
+        conn.socket.onmessage({ data: JSON.stringify(page.received[0]) });
+        T.commands.setEnabled(true);
+        assert.equal(T.commands.write(T.datastore.getTelemetry('kp'), 0.5), '');
+        assert.deepEqual(JSON.parse(conn.socket.sent.at(-1)), { write: 'kp:0.5', to: sender });
+    } finally { await t.stop(); }
+    const readOnly = await start({ readOnly: true });
+    try {
+        const page = await readOnly.page();
+        await until(() => page.hello, 'the hello');
+        assert.equal(page.hello.readOnly, true);
+        await readOnly.send('kp:1');
+        await until(() => page.received.length, 'the packet');
+        page.send(JSON.stringify({ write: 'kp:2', to: 0 }));
+        page.send(JSON.stringify({ cmd: 'kp:2' }));
+        await until(() => readOnly.printed.some((line) => /read-only/.test(line)), 'the refusal');
+        await sleep(30);
+        assert.deepEqual([readOnly.received, readOnly.commands], [[], []]);
+    } finally { await readOnly.stop(); }
+    assert.equal(parseArguments(['--read-only']).options.readOnly, true);
+    assert.ok(helpText().includes('--read-only'));
 });

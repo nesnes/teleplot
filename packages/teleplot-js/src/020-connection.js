@@ -34,11 +34,12 @@ class Connection{
 
     // A message of this connection is parsed by fn(): what it creates is attributed to the connection, and it is counted.
     // fn returns false or a number of problems when (part of) the message could not be read. bytes: its size, when it is known here.
-    receive(fn, bytes=0) {
+    // endpoint: which device of the connection sent it, when the connection reaches several (see write).
+    receive(fn, bytes=0, endpoint=undefined) {
         this.stats.bytes += bytes;
         this.stats.messages++;
         this.stats.lastMessage = Date.now();
-        let result = TELEPLOT.datastore.withSource(this.id, fn);
+        let result = TELEPLOT.datastore.withSource(this.id, fn, endpoint);
         let problems = result === false ? 1 : (typeof result === "number" ? result : 0);
         this.stats.problems += problems;
         return problems;
@@ -47,6 +48,14 @@ class Connection{
     disconnect(){
 
     }
+
+    // Commands (doc/telecmd.md): can something be sent back to the devices of this connection now ? And why not ("" when it can).
+    canWrite() { return this.whyNotWritable() === ""; }
+    whyNotWritable() { return "This source cannot send anything back"; }
+
+    // Sends a command to the device that sent a telemetry: {telemetry, text, bytes} (text: lines of the text protocol, bytes: a
+    // packet of the binary protocol, as the device speaks). Returns true when it went out.
+    write(message) { return false; }
 
     connect(){
 

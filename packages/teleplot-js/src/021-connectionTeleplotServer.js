@@ -15,6 +15,11 @@ class ConnectionTeleplotServer extends Connection{
         this.retryTimer = undefined;
         this.clockOffset = undefined; // What to add to a time of the server to get a date here (ms), see __serverClockOffset
         this.clockCheckedAt = 0;
+        // Commands (doc/telecmd.md): the server tells who sent each packet (a sender index), writes go back to that sender
+        this.senders = {};        // sender index -> its address ("192.168.1.12:50123"), for display
+        this.writes = false;      // The server said hello: it can send commands back (a V1 server cannot)
+        this.readOnly = false;    // It was started with --read-only
+        this.__binarySenders = []; // Senders of the packets of the binary messages to come, as the text messages announced them
     }
 
     connect(_address, _port){
@@ -25,6 +30,8 @@ class ConnectionTeleplotServer extends Connection{
         this.closed = false;
         this.nextRetryAt = 0;
         this.clockOffset = undefined; // (a server that restarted counts its time from zero again)
+        this.writes = false;
+        this.__binarySenders = [];
         clearTimeout(this.retryTimer);
         if(this.socket) { this.socket.onclose = null; this.socket.close(); } // A try that is replaced must not plan another one
         this.socket = new WebSocket("ws://"+this.address+":"+this.port, );
@@ -56,6 +63,14 @@ class ConnectionTeleplotServer extends Connection{
             }
             // Text message reformated to json by teleplot server
             let msg = JSON.parse(msgWS.data);
+            if(msg.hello) {
+                this.writes = true;
+                this.readOnly = msg.hello.readOnly === true;
+                this.senders = Object.assign({}, msg.hello.senders);
+                return;
+            }
+            if(msg.senders) Object.assign(this.senders, msg.senders);
+            if(Array.isArray(msg.binary)) this.__binarySenders.push(...msg.binary);
             if(Array.isArray(msg.packets)) {
                 this.__receivePackets(msg);
             }
@@ -77,15 +92,15 @@ class ConnectionTeleplotServer extends Connection{
         return true;
     }
 
-    // Text packets from the server: { time, packets: [[time, text]...], dropped }. Each packet comes with the time the server
+    // Text packets from the server: { time, packets: [[time, text, sender]...], dropped }. Each packet comes with the time the server
     // received it and the message with the time it was sent, both on the clock of the server: a sample without a timestamp is
-    // dated when the server received it, not when the batch reached the page.
+    // dated when the server received it, not when the batch reached the page. "sender": who sent it (an index, see write).
     __receivePackets(msg, now=Date.now()) {
         if(msg.dropped > 0) this.stats.dropped += msg.dropped;
         if(typeof msg.time != "number") return;
         let offset = this.__serverClockOffset(msg.time, now);
         for(let packet of msg.packets) {
-            this.udp.onMessage({ data: packet[1], timestamp: packet[0] + offset });
+            this.udp.onMessage({ data: packet[1], timestamp: packet[0] + offset }, packet[2]);
         }
     }
 
@@ -108,14 +123,14 @@ class ConnectionTeleplotServer extends Connection{
         let bytes = new Uint8Array(buffer);
         let framed = bytes.length >= magic.length;
         for(let i = 0; framed && i < 5; i++) framed = bytes[i] === magic[i]; // "TPLT" and the line feed, as files (160-files.js)
-        if(!framed) return this.udp.onMessage(buffer);
+        if(!framed) return this.udp.onMessage(buffer, this.__binarySenders.shift());
         let view = new DataView(buffer);
         let at = magic.length;
         while(at < buffer.byteLength) {
             let length = at + 4 <= buffer.byteLength ? view.getUint32(at, true) : Infinity;
             at += 4;
             if(at + length > buffer.byteLength) { this.receive(() => false); break; } // cut short: counted as a problem
-            this.udp.onMessage(buffer.slice(at, at + length)); // (a copy: what a packet stores must not keep the whole batch alive)
+            this.udp.onMessage(buffer.slice(at, at + length), this.__binarySenders.shift()); // (a copy: what a packet stores must not keep the whole batch alive)
             at += length;
         }
     }
@@ -140,6 +155,27 @@ class ConnectionTeleplotServer extends Connection{
 
     sendServerCommand(command){
         if(this.socket) this.socket.send(JSON.stringify(command));
+    }
+
+    whyNotWritable() {
+        if(!this.connected) return "Not connected to the server";
+        if(!this.writes) return "This server cannot send commands back: it is older than the commands";
+        if(this.readOnly) return "The server is read-only (started with --read-only)";
+        return "";
+    }
+
+    // A command goes back to the device that sent the telemetry (its sender index), through the server
+    write(message) {
+        if(!this.canWrite() || !this.socket) return false;
+        let to = message.telemetry ? message.telemetry.endpoint : undefined;
+        if(to === undefined) return false; // (a telemetry the server did not say the sender of)
+        if(message.bytes) {
+            let text = "";
+            for(let byte of message.bytes) text += String.fromCharCode(byte);
+            this.socket.send(JSON.stringify({ writeBinary: btoa(text), to }));
+        }
+        else this.socket.send(JSON.stringify({ write: message.text, to }));
+        return true;
     }
 
     updateCMDList(){

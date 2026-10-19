@@ -1,5 +1,6 @@
 TELEPLOT.state = {
     isPaused: false,
+    commands: false, // The page may send commands to the devices (the CMD button, off at every start): see 025-commands.js
     dataTimeout: 300.0, // seconds of data kept per telemetry (0: everything)
     // bytes the stored data may take (estimated, see TELEPLOT.datastore.getMemoryUsage), 0: no limit. 1 GB, half of it on a device
     // that says it has little memory (navigator.deviceMemory, Chromium only): see doc/performance.md, "Memory"
