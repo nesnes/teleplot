@@ -181,6 +181,7 @@ class ViewChart extends ViewTelemetries{
         let list = new TELEPLOT.view.ViewCurrentValue(this.popoverDivId, this.getSeriesTelemetries().map(t => t.id), this.group);
         list.options.displayNumberDecimals = this.options.displayNumberDecimals;
         list.options.displayScale = false; // (a list of series: rows stay short)
+        list.commandsUI = false; // (a list to pick series from: nothing is edited there)
         list.dimmed = this.hidden;
         list.rowHandlers = { click: (id) => this.toggleSeries(id), enter: (id) => this.highlightSeries(id), leave: () => this.highlightSeries(undefined) };
         this.popoverView = list;

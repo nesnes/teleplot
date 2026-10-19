@@ -351,3 +351,111 @@ test('summary: what can be commanded, per device', () => {
     const { T } = setup('ATTR|kp|write\nATTR|ki|write\nATTR|reset|action');
     assert.deepEqual(T.commands.summary(), { settings: 2, actions: 1, devices: [{ name: 'Robot', settings: 2, actions: 1 }] });
 });
+
+test('views: settings and actions go to a values view (one "Commands" view in the auto dashboard), continuous ones to a joystick', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.connection.addConnectionLocal('Robot', () => {}).sendText([
+        'speed:1', 'ATTR|kp|write\nkp:0.4', 'ATTR|reset|action', 'ATTR|drive|write=pose2d|rate=20|hold=200', 'ATTR|pose|write=pose2d\npose:1:2:0|xyz', 'ATTR|gain|write\ngain,arm:2',
+    ].join('\n'));
+    T.__timers.run();
+    const suggest = (name) => T.view.suggestViewType(name);
+    assert.deepEqual(['speed', 'kp', 'reset', 'drive', 'pose', 'gain'].map(suggest), ['chart', 'values', 'values', 'joystick', '2d', 'values']);
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const views = T.dashboards.getDashboard('Live').getView().views.map((v) => [v.type, v.getOption('title'), Array.from(v.telemetryIdOrNameList)]);
+    assert.deepEqual(views, [
+        ['teleplot-chart', '', [id('speed')]],
+        ['teleplot-current-value', 'Commands', [id('kp'), id('reset')]],
+        ['teleplot-joystick', '', [id('drive')]],
+        ['teleplot-2d', '', [id('pose')]],
+        ['teleplot-current-value', 'arm', [id('gain')]],
+    ]);
+    // Text dashboards know the joystick
+    assert.ok(T.dashboards.receiveLine('DASH|Robot/Drive:joystick:drive|keyboard=wasd'));
+    const drive = T.dashboards.getDashboard('Robot').getView();
+    assert.equal(drive.views[0].type, 'teleplot-joystick');
+    assert.equal(drive.views[0].options.keyboard, 'wasd');
+    // A values view with only an action is not empty
+    const values = T.view.createView('values', [id('reset')]);
+    assert.equal(values.getEmptyState().text, '');
+});
+
+test('joystick: how a setting is driven, values from the pad and the rocker and back, keys', () => {
+    const T = loadTeleplot();
+    const J = T.view.ViewJoystick;
+    assert.deepEqual([J.modeOf({ kind: 'setting', type: 'xy' }), J.modeOf({ kind: 'setting', type: 'pose2d' }), J.modeOf({ kind: 'setting', type: 'pose2d', axes: ['x', 'yaw'] }),
+        J.modeOf({ kind: 'setting', type: 'number' }), J.modeOf({ kind: 'setting', type: 'text' }), J.modeOf({ kind: 'action' })], ['pad', 'pad+rocker', 'stick', 'rocker', '', '']);
+    const range = { min: -0.5, max: 2 };
+    // pose2d: pad up = +x (forward), left = +y; rocker left = +wz
+    assert.deepEqual(J.toValue('pad+rocker', [-0.5, 1], 0.5, range), [2, 1, -0.25]);
+    assert.deepEqual(J.toValue('stick', [0.5, -1], 0, undefined), [-1, 0, -0.5]);
+    assert.deepEqual(J.toValue('pad', [1, -1], 0, undefined), [1, -1]);
+    assert.equal(J.toValue('rocker', [0, 0], -0.5, { min: -4, max: 4 }), -2);
+    assert.deepEqual(J.toValue('pad+rocker', [0, 0], 0, undefined), [0, 0, 0], 'rest: zeros, no -0');
+    // And back, where the report is drawn
+    assert.deepEqual(J.toPlace('pad+rocker', [2, 1, -0.25], range), { pad: [-0.5, 1], rocker: 0.5 });
+    assert.deepEqual(J.toPlace('stick', [-1, 0, -0.5], undefined), { pad: [0.5, -1], rocker: 0 });
+    assert.deepEqual(J.inCircle(3, 4), [0.6, 0.8]);
+    // Keys: by position
+    assert.deepEqual(J.fromKeys('pad+rocker', new Set(['KeyW', 'KeyD']), 'wasd'), { pad: [0, 1], rocker: 1 }, 'D turns');
+    assert.deepEqual(J.fromKeys('pad', new Set(['ArrowUp', 'ArrowRight']), 'arrows').pad.map((v) => Math.round(v * 1000) / 1000), [0.707, 0.707]);
+    assert.deepEqual(J.fromKeys('rocker', new Set(['ArrowLeft']), 'arrows'), { pad: [0, 0], rocker: -1 });
+});
+
+test('values view: what a row shows of a setting or an action (no DOM)', () => {
+    const { T, device, telem } = setup('ATTR|kp|write|min=0|max=10|desc=Gain\nkp:4\nATTR|go|action|title=Go|confirm\nATTR|go|arg=to|type=xy\nATTR|led|write=bool\nled:1');
+    const V = T.view.ViewCurrentValue;
+    const bar = { min: 0, max: 10 };
+    assert.deepEqual(V.commandState(telem('kp'), bar), { kind: 'setting', type: 'number', on: false, why: '', editable: false, continuous: false, choices: [],
+        title: 'kp', desc: 'Gain', confirm: false, longpress: false, color: '', reportedText: '4', status: '' }, 'CMD off: nothing asked, nothing editable');
+    T.commands.setEnabled(true);
+    T.commands.write(telem('kp'), 5);
+    let state = V.commandState(telem('kp'), bar);
+    assert.deepEqual([state.editable, state.status, state.targetAt, state.reason], [true, 'pending', 0.5, 'Sent: 5, waiting for the device']);
+    assert.equal(V.commandState(telem('led'), undefined).reportedText, 'on');
+    assert.deepEqual([V.commandState(telem('go')).title, V.commandState(telem('go')).confirm, V.commandState(telem('go')).call], ['Go', true, undefined]);
+    const { id } = T.commands.call(telem('go'), { to: '1,2' });
+    device.sendText(`ACK|go#${id}:run`, 1000);
+    device.sendText(`ACK|go#${id}:ok`, 4800);
+    assert.deepEqual(V.commandState(telem('go')).call, { id, status: 'ok', text: '', duration: '3.8 s' });
+    // The value under the pointer, on the step of the setting
+    assert.equal(V.valueAt({ min: 0, max: 10 }, 0.4321, 0.5), 4.5);
+    assert.equal(V.valueAt({ min: 0, max: 2 }, 0.61234), 1.225);
+    assert.equal(V.valueAt({ min: -1, max: 1 }, 2), 1);
+    assert.deepEqual([V.formatDuration(0.05), V.formatDuration(12.34), V.formatDuration(75)], ['0.05 s', '12.3 s', '1 min 15 s']);
+});
+
+test('timeline: a band per call (from run to its end, growing while it runs), a tick per request of a setting', () => {
+    const { T, device, telem } = setup('ATTR|goto|action\nATTR|kp|write\nkp:1');
+    const TL = T.view.ViewTimeline;
+    const calls = [{ id: 1, sent: 10, run: 10.2, end: 14, status: 'ok' }, { id: 2, sent: 20, status: 'noanswer' }, { id: 3, run: 30, status: 'run' }, { id: 4, sent: 1, run: 1, end: 2, status: 'ok' }];
+    assert.deepEqual(TL.buildCalls(calls, 5, 40, 33).map((c) => [c.id, c.from, c.to, c.status]), [[1, 10, 14, 'ok'], [2, 20, 20, 'noanswer'], [3, 30, 33, 'run']]);
+    T.commands.setEnabled(true);
+    T.commands.write(telem('kp'), 2);
+    const t = Date.now() / 1000;
+    assert.deepEqual(TL.buildRequests(T.commands.history(telem('kp')), 'number', t - 10, t + 10).map((r) => [r.status, r.target]), [['pending', '2']]);
+    assert.deepEqual(TL.buildRequests(T.commands.history(telem('kp')), 'number', t + 5, t + 10), []);
+    // The lanes of a timeline: "calls" for an action, a number keeps its kind and gets the requests
+    const view = T.view.createView('timeline', [telem('goto').id, telem('kp').id]);
+    assert.deepEqual(view.getSources().map((s) => s.kind), ['calls', 'line']);
+    const { id } = T.commands.call(telem('goto'));
+    device.sendText(`ACK|goto#${id}:run`);
+    view.update();
+    assert.deepEqual(view.lanes.map((l) => [l.kind, (l.calls || []).length, (l.requests || []).length]), [['calls', 1, 0], ['line', 0, 1]]);
+});
+
+test('2D view: a writable pose2d is drawn as a pose (not a point with z = yaw); a ghost gives the value to send', () => {
+    const { T } = setup('ATTR|robot.pose|write=pose2d\nrobot.pose:1:2:1.5707963|xyz\ngoal:3:4|xy');
+    const view = new T.view.ViewScene2D('', ['robot.pose', 'goal']);
+    const items = T.view.ViewScene2D.buildItems(view.__collectSources(-1).sources, { timestamp: -1, since: -Infinity, trailLength: 200 });
+    const pose = items.find((i) => i.kind === 'pose');
+    assert.deepEqual(pose.at, [1, 2]);
+    assert.ok(Math.abs(pose.dir[0]) < 1e-6 && Math.abs(pose.dir[1] - 1) < 1e-6, 'looks along +y');
+    assert.ok(items.some((i) => i.kind === 'dot'), 'a plain point stays a point');
+    const S = T.view.ViewScene2D, axes = S.axes(), side = S.axes('-y', 'x');
+    assert.deepEqual(S.ghostValue('pose2d', [3.21234, 2.3], 0.6123456, axes), [3.212, 2.3, 0.612]);
+    assert.deepEqual(S.ghostValue('xy', [3, 2], 0, axes), [3, 2]);
+    assert.deepEqual(S.ghostValue('xy', [1, 2], 0, side), [2, -1], 'seen with x up and -y to the right');
+    assert.ok(Math.abs(S.yawOf(0, 1, axes) - Math.PI / 2) < 1e-9);
+    assert.ok(Math.abs(S.yawOf(0, 1, side)) < 1e-9, 'up is x');
+});

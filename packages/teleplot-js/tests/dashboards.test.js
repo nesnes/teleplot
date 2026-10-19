@@ -87,7 +87,8 @@ test('createView builds a view of a known type with its telemetries and a size t
     assert.ok(T.view.createView('image', ['a']) instanceof T.view.ViewImage);
     assert.ok(T.view.createView('2d', ['a']) instanceof T.view.ViewScene2D);
     assert.ok(T.view.createView('timeline', ['a']) instanceof T.view.ViewTimeline);
-    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', 'timeline', '2d', '3d', 'image']);
+    assert.ok(T.view.createView('joystick', ['a']) instanceof T.view.ViewJoystick);
+    assert.deepEqual(T.view.VIEW_TYPES, ['chart', 'values', 'log', 'timeline', '2d', '3d', 'image', 'joystick']);
 });
 
 test('auto dashboard: telemetries with the same view label share a view per kind of view, titled with the label', () => {

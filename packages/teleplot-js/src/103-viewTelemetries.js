@@ -77,7 +77,7 @@ class ViewTelemetries extends Views {
         // A 3D scene also takes the image telemetries of its label: they are its cameras (drawn once they have their parameters)
         if(this.type == "teleplot-3d" && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return true;
         // (a timeline that follows a label takes its texts, stacks included; a values view takes its states, but a stack has its timeline)
-        let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-3d": "3d" }[this.type];
+        let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-3d": "3d", "teleplot-joystick": "joystick" }[this.type];
         return kind !== undefined && TELEPLOT.view.suggestViewType(telem.id) === kind;
     }
 
@@ -129,7 +129,8 @@ class ViewTelemetries extends Views {
         }
         if(!found.length) return { text: "Waiting for data", hint: list(missing) };
 
-        let hasData = (telem) => Object.keys(telem.data).some((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds alone are limits of data to come)
+        // (thresholds alone are limits of data to come; an action has nothing to show until it is called, but its button)
+        let hasData = (telem) => Object.keys(telem.data).some((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) || TELEPLOT.commands.declaration(telem) !== undefined;
         if(!found.some(hasData)) return { text: "Waiting for data", hint: list(found.map(nameOf)) };
         if(this.supportedDataTypes && !found.some((telem) => Object.keys(telem.data).some((type) => this.supportedDataTypes.includes(type)))) {
             let others = found.filter(hasData).map(nameOf);

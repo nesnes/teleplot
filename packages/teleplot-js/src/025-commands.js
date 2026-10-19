@@ -23,7 +23,9 @@ let _commands_history = new Map();  // telemetry id -> [request or call], oldest
 let _commands_holds = new Map();    // telemetry id -> {telemetry, getValue, sentAt, rest}
 let _commands_nextId = 1 + Math.floor(Math.random() * 60000); // Call ids: a page that reloads does not reuse those of the previous one
 
-TELEPLOT.commands = {};
+TELEPLOT.commands = {
+    keyboardCaptured: false, // A joystick view that has the focus drives with the keyboard: the page's own shortcuts keep quiet meanwhile
+};
 
 // ---------------------------------------------------------------------------------------------------------- what can be written
 

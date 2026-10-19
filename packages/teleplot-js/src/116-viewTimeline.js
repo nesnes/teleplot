@@ -166,7 +166,7 @@ class ViewTimeline extends ViewTelemetries{
     // What the telemetries of the view give a lane, in the order of its list: [{telem, entry, kind}]. A text is a "state", a "stack"
     // (a state whose text is a path: a row per level) or a "log".
     // A number (of a telemetry without text) is "limits" (it has thresholds: bands of the one it is past), "line", or "values"
-    // (option "numbers": "text": a band per value).
+    // (option "numbers": "text": a band per value). An action (doc/telecmd.md) is "calls": a band per call.
     getSources() {
         const P = TELEPLOT.protocol;
         let sources = [];
@@ -174,7 +174,8 @@ class ViewTimeline extends ViewTelemetries{
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
             if(telem === undefined || sources.some((source) => source.telem.id === telem.id)) continue;
             let text = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT], number = telem.data[P.SECTION_TYPE_TELEM_DATA_NUMBER];
-            if(text !== undefined) sources.push({ telem, entry: text, kind: telem.getAttribute(P.TELEM_ATTR_LOG) === true ? "log" : (telem.getAttribute(P.TELEM_ATTR_STACK) === true ? "stack" : "state") });
+            if(TELEPLOT.commands.isAction(telem)) sources.push({ telem, entry: text || ViewTimeline.NO_DATA, kind: "calls" });
+            else if(text !== undefined) sources.push({ telem, entry: text, kind: telem.getAttribute(P.TELEM_ATTR_LOG) === true ? "log" : (telem.getAttribute(P.TELEM_ATTR_STACK) === true ? "stack" : "state") });
             else if(number !== undefined) {
                 let kind = this.getOption("numbers", telem.id) === "text" ? "values" : (telem.data[P.SECTION_TYPE_TELEM_DATA_THRESHOLD] !== undefined ? "limits" : "line");
                 sources.push({ telem, entry: number, kind });
@@ -303,6 +304,31 @@ class ViewTimeline extends ViewTelemetries{
         return { from, to };
     }
     static TIME_TYPES = [20, 21, 22, 23]; // Numbers (1, 2 or 3 of them) and texts: what is sent as time passes
+    static NO_DATA = Object.freeze({ timestamps: [], data: [[]], lastUpdate: 0 }); // (an action that was never called)
+
+    // The calls of an action as bands of a lane: [{from (sent, else run), run, to (end; now while it runs), status, id, text, args}],
+    // those that reach the period. Times come from the answers of the device (run, ok, err) and from when the page sent it.
+    static buildCalls(calls, from, to, now) {
+        let items = [];
+        for(let call of calls) {
+            let start = call.sent !== undefined ? call.sent : (call.run !== undefined ? call.run : call.end);
+            if(start === undefined) continue;
+            let end = call.end !== undefined ? call.end : (call.status === "run" ? Math.max(start, now) : (call.run !== undefined ? call.run : start));
+            if(end < from || start > to) continue;
+            items.push({ from: start, run: call.run, to: end, status: call.status, id: call.id, text: call.text || "", args: call.args });
+        }
+        return items;
+    }
+
+    // What the page asked a setting, as ticks above its lane: [{at, status, target}] within the period
+    static buildRequests(history, type, from, to) {
+        let ticks = [];
+        for(let request of history) {
+            if(request.target === undefined || request.t < from || request.t > to) continue;
+            ticks.push({ at: request.t, status: request.status, target: TELEPLOT.commands.formatValue(type, request.target), reason: request.reason || "" });
+        }
+        return ticks;
+    }
     static LATEST_ROOM = 0.04;            // Part of the period the latest state is given at least
 
     // Width of the plot in pixels (what the period is spread over): without a page (not mounted), a usual one
@@ -317,8 +343,13 @@ class ViewTimeline extends ViewTelemetries{
         let period = this.getTimeWindow();
         let width = this.getPlotWidth();
         let key = (period ? period.from + "," + period.to : "none") + "|" + width + "|" + (this.page ? this.page.width + "x" + this.page.height : "") + "|" + TELEPLOT.theme.key() + "|" + (this.options.displayTelemetryName ? 1 : 0) + "|" + this.options.stackDepth;
+        let now = Date.now() / 1000;
         for(let { telem, entry, kind } of sources) {
             key += `|${telem.id}:${kind}:${entry.lastUpdate}:${entry.timestamps.length}:${telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME)}`;
+            // Commands: what the page asked (requests of a setting, calls of an action), and a call that runs grows with the time
+            let history = TELEPLOT.commands.history(telem);
+            if(history.length) { let last = history[history.length - 1]; key += `:${history.length}:${last.status}`; if(last.status === "run" || last.status === "sent" || last.status === "pending") key += `:${Math.floor(now * 4)}`; }
+            if(kind === "calls") { let last = TELEPLOT.commands.lastCall(telem); if(last && last.status === "run") key += `:${Math.floor(now * 4)}`; }
             let limits = kind === "limits" ? telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD] : undefined;
             if(limits !== undefined) key += `:${limits.lastUpdate}:${limits.timestamps.length}`;
             if(kind === "line") { let range = telem.getRange(); if(range !== undefined) key += `:${range.min}:${range.max}`; }
@@ -333,7 +364,10 @@ class ViewTimeline extends ViewTelemetries{
             this.lanes.length = 0;
             for(let { telem, entry, kind } of sources) {
                 let lane = { id: telem.id, kind, isLog: kind === "log", name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), items: [], runs: undefined, line: undefined, color: "" };
-                if(kind === "stack") { // A row per level of the stack: the bands of a level are the runs of the path down to it
+                let declaration = TELEPLOT.commands.declaration(telem);
+                if(declaration && declaration.kind === "setting" && period) lane.requests = ViewTimeline.buildRequests(TELEPLOT.commands.history(telem), declaration.type, period.from, period.to);
+                if(kind === "calls") lane.calls = period ? ViewTimeline.buildCalls(TELEPLOT.commands.calls(telem), period.from, period.to, now) : [];
+                else if(kind === "stack") { // A row per level of the stack: the bands of a level are the runs of the path down to it
                     lane.levels = TELEPLOT.stackRuns(entry).levels;
                     lane.rows = [];
                     if(period) for(let level of lane.levels) lane.rows.push(ViewTimeline.buildLane(level, false, period.from, period.to, minDuration));
@@ -580,6 +614,21 @@ class ViewTimeline extends ViewTelemetries{
             tip.text = String(entry.data[0][index]) + (unit ? " " + unit : "");
             tip.detail = "at " + TELEPLOT.view.ViewLog.formatTime(entry.timestamps[index]);
         }
+        else if(lane && lane.calls) { // An action: the call under the pointer
+            let call = undefined;
+            for(let candidate of lane.calls) if(time >= candidate.from - perPixel * 4 && time <= candidate.to + perPixel * 4) call = candidate;
+            if(call === undefined) { tip.shown = false; return; }
+            let args = call.args ? Object.keys(call.args).map((name) => name + "=" + TELEPLOT.commands.formatValue("", call.args[name])).join("  ") : "";
+            tip.name = lane.name + " #" + call.id;
+            tip.text = { ok: "Done", err: "Failed" + (call.text ? ": " + call.text : ""), run: "Running", sent: "Sent", noanswer: "No answer" }[call.status] + (call.status === "ok" && call.text ? ": " + call.text : "") + (args ? " · " + args : "");
+            tip.detail = (call.run !== undefined ? "ran from " + TELEPLOT.view.ViewLog.formatTime(call.run) : "sent at " + TELEPLOT.view.ViewLog.formatTime(call.from)) + (call.status === "ok" || call.status === "err" ? (call.run !== undefined ? ", for " + ViewTimeline.formatDuration(call.to - call.run) : "") : "");
+        }
+        else if(lane && lane.requests && lane.requests.length && at.y < lane.top + 7 && lane.requests.some((r) => Math.abs(r.at - time) <= perPixel * 5)) { // A request of the page
+            let request = lane.requests.reduce((best, r) => Math.abs(r.at - time) < Math.abs(best.at - time) ? r : best);
+            tip.name = lane.name;
+            tip.text = "Asked " + request.target + ": " + ({ pending: "waiting", applied: "applied", kept: "not applied", refused: "refused", noanswer: "no answer" }[request.status] || request.status);
+            tip.detail = TELEPLOT.view.ViewLog.formatTime(request.at) + (request.reason ? " · " + request.reason : "");
+        }
         else {
         item = lane ? ViewTimeline.itemAt(lane.rows ? { items: lane.rows[row] || [] } : lane, time, perPixel * 5) : undefined;
         if(item === undefined) { tip.shown = false; return; }
@@ -660,6 +709,48 @@ class ViewTimeline extends ViewTelemetries{
                 context.stroke();
                 if(line.timestamps.length === 1) { context.fillStyle = lane.color; context.fillRect(x(line.timestamps[0]) - 1.5, y(line.values[0]) - 1.5, 3, 3); } // (a lone sample is a dot)
                 context.restore();
+            }
+            // An action: a band per call, from its "run" to its end, a dotted line before (the call travelling, or waiting)
+            if(lane.calls) for(let call of lane.calls) {
+                let left = Math.max(gutter, x(call.from)), runX = call.run !== undefined ? Math.max(gutter, x(call.run)) : undefined;
+                let right = Math.min(width, x(call.to));
+                let paint = call.status === "ok" ? "#1e9e5a" : (call.status === "err" || call.status === "noanswer" ? style.error : style.primary);
+                context.strokeStyle = style.muted;
+                context.fillStyle = style.muted;
+                if(runX !== undefined && runX > left + 1) {
+                    context.setLineDash([2, 2]); context.beginPath(); context.moveTo(left, middle); context.lineTo(runX, middle); context.stroke(); context.setLineDash([]);
+                }
+                context.beginPath(); context.arc(left, middle, 2.5, 0, Math.PI * 2); context.fill();
+                if(runX === undefined) { // Never started: the call alone (no answer, or still on its way)
+                    if(call.status === "noanswer" || call.status === "err") { context.strokeStyle = paint; context.lineWidth = 1.5; context.strokeRect(left - 3, top + 3, 6, laneHeight - 6); context.lineWidth = 1; }
+                    continue;
+                }
+                let bandWidth = Math.max(2, right - runX);
+                context.fillStyle = paint;
+                context.globalAlpha = call.status === "run" ? 0.2 : 0.35;
+                context.fillRect(runX, top, bandWidth, laneHeight);
+                context.globalAlpha = 1;
+                if(call.status === "run") { // Still running: hatched
+                    context.save(); context.beginPath(); context.rect(runX, top, bandWidth, laneHeight); context.clip();
+                    context.strokeStyle = paint; context.globalAlpha = 0.5;
+                    for(let hx = runX - laneHeight; hx < runX + bandWidth; hx += 6) { context.beginPath(); context.moveTo(hx, top + laneHeight); context.lineTo(hx + laneHeight, top); context.stroke(); }
+                    context.restore();
+                }
+                context.fillStyle = paint;
+                context.fillRect(runX, top, Math.min(2, bandWidth), laneHeight);
+                let label = (call.status === "ok" ? "✓ " : call.status === "err" ? "✕ " : "") + ViewTimeline.formatDuration(call.to - call.run) + (call.status === "run" ? "…" : "");
+                if(bandWidth > 30 && laneHeight >= 11) { context.fillStyle = style.text; context.textAlign = "left"; context.fillText(ViewTimeline.fitText(context, label, bandWidth - 8), runX + 5, top + laneHeight / 2 + 0.5); }
+                else if(call.status !== "run") { context.fillStyle = paint; context.textAlign = "left"; context.fillText(label, Math.min(width - 40, runX + bandWidth + 4), top + laneHeight / 2 + 0.5); }
+            }
+            // Requests of the page on a setting: a small triangle at the top of its lane (filled: applied or waiting; hollow: not applied, refused)
+            if(lane.requests) for(let request of lane.requests) {
+                let tx = x(request.at);
+                if(tx < gutter) continue;
+                let hollow = request.status === "kept" || request.status === "refused" || request.status === "noanswer";
+                let paint = request.status === "kept" ? style.warn : (hollow ? style.error : style.primary);
+                context.beginPath(); context.moveTo(tx - 4, top); context.lineTo(tx + 4, top); context.lineTo(tx, top + 6); context.closePath();
+                if(hollow) { context.strokeStyle = paint; context.lineWidth = 1.5; context.stroke(); context.lineWidth = 1; }
+                else { context.fillStyle = paint; context.fill(); }
             }
             // Bands and ticks: of the lane, or of each row of a stack (thin rows are not written in: the pointer tells them)
             let rows = lane.rows || [lane.items];

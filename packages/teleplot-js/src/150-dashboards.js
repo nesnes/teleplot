@@ -177,7 +177,7 @@ TELEPLOT.dashboards.createDashboard = function(name = "") {
  * add views (drop a telemetry on a dashboard...).
  * View types: "chart", "values", "log", "timeline", "2d", "3d", "image".
  */
-TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "timeline", "2d", "3d", "image"];
+TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "timeline", "2d", "3d", "image", "joystick"];
 
 // Numbers are plotted, shapes, 3D numbers and point clouds go to a 3D scene, images to an image view, text emitted as a log
 // (TELEM_ATTR_LOG) to a log view, anything else (text emitted as a state, 2D...) is shown as values.
@@ -185,6 +185,14 @@ TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "timeline", "2d", "3d", "i
 TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
     if(telem === undefined) return "chart";
+    // Commands (doc/telecmd.md): settings and actions are changed and called from a values view, a pose or a point on a map, what is
+    // driven continuously from a joystick
+    let declaration = TELEPLOT.commands.declaration(telem);
+    if(declaration !== undefined) {
+        if(declaration.kind === "setting" && TELEPLOT.commands.isContinuous(telem)) return "joystick";
+        if(declaration.kind === "setting" && (declaration.type === "pose2d" || declaration.type === "xy")) return "2d";
+        return "values";
+    }
     if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return "image";
     if(TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined) return "image"; // Drawn in the pixels of a picture: with that picture
     if(TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined) return TELEPLOT.view.ViewScene3D.isFlat(telem) ? "2d" : "3d"; // (both views show both: this is only the default)
@@ -205,6 +213,7 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
     else if(type == "3d") view = new TELEPLOT.view.ViewScene3D("", telemetries, group);
     else if(type == "2d") view = new TELEPLOT.view.ViewScene2D("", telemetries, group);
     else if(type == "image") view = new TELEPLOT.view.ViewImage("", telemetries, group);
+    else if(type == "joystick") view = new TELEPLOT.view.ViewJoystick("", telemetries, group);
     return view;
 }
 
@@ -226,6 +235,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
     let map = undefined;   // The 2D view everything flat without label goes to, for the same reason
     let logs = undefined;  // The log view every log without label goes to: one place to read what happened, in order
     let stacks = undefined; // The timeline every stack without label goes to: what runs at the same time is seen side by side
+    let commands = undefined; // The values view every setting and action without label goes to: what can be changed, in one place
     let labelled = {};     // "label|view type" -> the view of the telemetries of that label
     TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
@@ -235,7 +245,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
         // scene is in the 3D view of its label, and still gets its image view.)
         if (TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return; // Drawn in the pixels of a picture: the image views of that picture take it
-        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", timeline: "teleplot-timeline", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image" }[TELEPLOT.view.suggestViewType(telem.id)];
+        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", timeline: "teleplot-timeline", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image", joystick: "teleplot-joystick" }[TELEPLOT.view.suggestViewType(telem.id)];
         if (layout !== undefined && layout.views.some((v) => v.type === ownViewType && v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
 
         let isNew = layout === undefined;
@@ -253,7 +263,8 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
 
         let type = TELEPLOT.view.suggestViewType(telem.id);
         let label = type == "image" ? undefined : telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL); // An image view shows one picture: images are not grouped
-        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : (type == "2d" ? map : (type == "log" ? logs : (type == "timeline" ? stacks : undefined))));
+        let isCommand = type == "values" && TELEPLOT.commands.declaration(telem) !== undefined;
+        let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : (type == "2d" ? map : (type == "log" ? logs : (type == "timeline" ? stacks : (isCommand ? commands : undefined)))));
         if (shared !== undefined && layout.getViewFromId(shared.id) !== undefined) shared.addTelemetry(telem.id); // (a view the user removed is not used anymore)
         else {
             let view = TELEPLOT.view.createView(type, [telem.id], dashboard.getGroupName());
@@ -272,6 +283,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
             else if (type == "2d") map = view;
             else if (type == "log") logs = view;
             else if (type == "timeline") stacks = view;
+            else if (isCommand) { commands = view; view.setOption("title", "Commands"); }
             layout.addView(view);
         }
         if (isNew) onCreated(dashboard);

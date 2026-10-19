@@ -32,6 +32,11 @@ class ViewScene2D extends ViewScene3D {
         this.stl2D = new Map();    // url -> {points (Float32Array, some of its vertices), failed}
         this.images2D = new Map(); // url -> {image, ready}
         this.items = TELEPLOT.Vue.markRaw([]);
+        // Commands (doc/telecmd.md): writable poses and points can be moved and turned. editables: what can be, as last drawn;
+        // ghost: what the user is placing, before it is sent ({id, at: [u, v], yaw, drag: "move" | "turn" | undefined})
+        this.editables = TELEPLOT.Vue.markRaw([]);
+        this.ghost = undefined;
+        this.pointer = undefined; // Where the pointer is (pixels of the page), to show the handles of what is under it
     }
 
     getOptionsSchema() {
@@ -160,6 +165,14 @@ class ViewScene2D extends ViewScene3D {
                     items.push({ id, kind: "points", positions: out, colors, color: source.color, opacity: fade, z: depth(pose.position) });
                 });
             }
+            else if(source.kind == "point" && ViewScene2D.isPose(telem)) { // A pose (x, y, yaw: a writable pose2d): where it is and which way it looks
+                let entry = ViewScene3D.pointEntry(telem);
+                let index = ViewScene3D.sampleIndex(entry, options.timestamp);
+                if(index < 0) continue;
+                let pose = ViewScene2D.poseAt(entry, index);
+                let at = project([pose[0], pose[1], 0]), ahead = project([pose[0] + Math.cos(pose[2]), pose[1] + Math.sin(pose[2]), 0]);
+                items.push({ id, kind: "pose", at, dir: [ahead[0] - at[0], ahead[1] - at[1]], color: source.color, opacity: fade, z: 0 });
+            }
             else if(source.kind == "point") {
                 let entry = ViewScene3D.pointEntry(telem);
                 let range = ViewScene3D.trailRange(entry, options.timestamp, options.trailLength, options.since);
@@ -202,6 +215,32 @@ class ViewScene2D extends ViewScene3D {
             items = items.map((item, index) => ({ item, index })).sort((a, b) => (a.item.z - b.item.z) || (rank(a.item) - rank(b.item)) || (a.index - b.index)).map((entry) => entry.item);
         }
         return items;
+    }
+
+    // A telemetry whose three numbers are a pose (x, y, yaw), not a point: a pose2d setting (doc/telecmd.md)
+    static isPose(telem) {
+        let declaration = TELEPLOT.commands.declaration(telem);
+        return declaration !== undefined && declaration.type === "pose2d" && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_3D] !== undefined;
+    }
+    static poseAt(entry, index) {
+        return [Number(entry.data[0][index]) || 0, Number(entry.data[1][index]) || 0, entry.data[2] ? Number(entry.data[2][index]) || 0 : 0];
+    }
+
+    // The value a setting gets from where its ghost was placed: [x, y] or [x, y, yaw], rounded to the millimeter / milliradian
+    static ghostValue(type, at, yaw, axes) {
+        let world = [0, 0, 0];
+        world[axes.right[0]] = at[0] * axes.right[1];
+        world[axes.up[0]] = at[1] * axes.up[1];
+        let r = (v) => Math.round(v * 1000) / 1000 + 0;
+        return type === "pose2d" ? [r(world[0]), r(world[1]), r(yaw)] : [r(world[0]), r(world[1])];
+    }
+
+    // The yaw of a direction on screen (du, dv in the plane of the view) in the scene, for the default and the other ways of looking
+    static yawOf(du, dv, axes) {
+        let world = [0, 0, 0];
+        world[axes.right[0]] = du * axes.right[1];
+        world[axes.up[0]] = dv * axes.up[1];
+        return Math.atan2(world[1], world[0]);
     }
 
     // Box around items, in the plane of the view: {min: [u, v], max: [u, v]}, undefined when there is nothing
@@ -262,6 +301,11 @@ class ViewScene2D extends ViewScene3D {
                 else { trace(item.points, true); stroke(item); }
             }
             else if(item.kind == "line") { trace(item.points, item.closed); stroke(item); }
+            else if(item.kind == "pose") { // A dot and an arrow along the heading, of a steady size on screen
+                let x = sx(item.at[0]), y = sy(item.at[1]);
+                let length = Math.hypot(item.dir[0], item.dir[1]) || 1, dx = item.dir[0] / length, dy = (view.down ? 1 : -1) * item.dir[1] / length;
+                ViewScene2D.drawPose(context, x, y, dx, dy, item.dashed);
+            }
             else if(item.kind == "dot") {
                 context.beginPath();
                 context.arc(sx(item.at[0]), sy(item.at[1]), 4.5, 0, 2 * Math.PI);
@@ -285,6 +329,27 @@ class ViewScene2D extends ViewScene3D {
             }
         }
         context.globalAlpha = 1;
+    }
+
+    // A pose glyph at a place of the page, looking along (dx, dy) (pixels, y down)
+    static drawPose(context, x, y, dx, dy, dashed=false) {
+        const LENGTH = 24, HEAD = 7;
+        context.beginPath();
+        context.arc(x, y, 5, 0, 2 * Math.PI);
+        if(dashed) { context.setLineDash([3, 2]); context.lineWidth = 1.5; context.stroke(); } else context.fill();
+        context.beginPath();
+        context.moveTo(x, y);
+        context.lineTo(x + dx * LENGTH, y + dy * LENGTH);
+        context.lineWidth = 2.2; context.lineCap = "round";
+        context.stroke();
+        context.setLineDash([]);
+        context.beginPath();
+        let tx = x + dx * LENGTH, ty = y + dy * LENGTH;
+        context.moveTo(tx, ty);
+        context.lineTo(tx - dx * HEAD - dy * HEAD * 0.6, ty - dy * HEAD + dx * HEAD * 0.6);
+        context.lineTo(tx - dx * HEAD + dy * HEAD * 0.6, ty - dy * HEAD - dx * HEAD * 0.6);
+        context.closePath();
+        context.fill();
     }
 
     // Many points (a large cloud): written pixel by pixel in a picture of the size of the canvas, which is then laid over what is
@@ -394,9 +459,16 @@ class ViewScene2D extends ViewScene3D {
             this.__requestDraw();
         }, { passive: false });
         let drag = undefined;
-        listen(host, "pointerdown", (event) => { drag = { x: event.clientX, y: event.clientY }; try { host.setPointerCapture(event.pointerId); } catch(e) {} });
+        let local = (event) => { let rect = host.getBoundingClientRect(); return [event.clientX - rect.left, event.clientY - rect.top]; };
+        listen(host, "pointerdown", (event) => {
+            try { host.setPointerCapture(event.pointerId); } catch(e) {}
+            if(this.__commandDown(local(event))) { drag = undefined; return; } // (a writable pose or point is grabbed: not a move of the map)
+            drag = { x: event.clientX, y: event.clientY };
+        });
         listen(host, "pointermove", (event) => {
-            if(!drag) return;
+            this.pointer = local(event);
+            if(this.ghost && this.ghost.drag) { this.__commandMove(this.pointer); return; }
+            if(!drag) { if(this.editables.length && TELEPLOT.state.commands) this.__requestDraw(); return; } // (handles of what is under the pointer)
             let camera = this.camera2D;
             camera.u -= (event.clientX - drag.x) / camera.scale;
             camera.v += (event.clientY - drag.y) / camera.scale;
@@ -404,9 +476,27 @@ class ViewScene2D extends ViewScene3D {
             camera.userMoved = true;
             this.__requestDraw();
         });
-        let release = () => { drag = undefined; };
+        let release = () => { drag = undefined; if(this.ghost && this.ghost.drag) { this.ghost.drag = undefined; this.__requestDraw(); } };
         listen(host, "pointerup", release);
         listen(host, "pointercancel", release);
+        listen(host, "pointerleave", () => { this.pointer = undefined; if(this.editables.length) this.__requestDraw(); });
+        // A ghost being placed: Enter sends it, Esc drops it (the map takes the focus when it is clicked)
+        host.tabIndex = -1;
+        listen(host, "keydown", (event) => {
+            if(!this.ghost) return;
+            if(event.key === "Enter") { event.preventDefault(); this.__sendGhost(); }
+            else if(event.key === "Escape") { event.preventDefault(); event.stopPropagation(); this.ghost = undefined; this.__syncGhostButtons(); this.__requestDraw(); }
+        });
+        // Send / Cancel next to a ghost
+        let buttons = document.createElement("div");
+        buttons.className = "teleplot-js-2d-ghost-buttons";
+        buttons.hidden = true;
+        buttons.innerHTML = '<button type="button" class="teleplot-js-cmd-button">Cancel</button><button type="button" class="teleplot-js-cmd-button teleplot-js-cmd-primary">Send</button>';
+        buttons.children[0].addEventListener("click", (e) => { e.stopPropagation(); this.ghost = undefined; this.__syncGhostButtons(); this.__requestDraw(); });
+        buttons.children[1].addEventListener("click", (e) => { e.stopPropagation(); this.__sendGhost(); });
+        for(let b of buttons.children) b.addEventListener("pointerdown", (e) => e.stopPropagation());
+        host.appendChild(buttons);
+        page.ghostButtons = buttons;
         page.observer = new ResizeObserver(() => this.__resize2D());
         page.observer.observe(host);
         this.__resize2D();
@@ -509,6 +599,8 @@ class ViewScene2D extends ViewScene3D {
             else if(source.state.texture.type == P.TEXTURE_TYPE_IMAGE && source.image) source.textureUrl = source.image.url;
         }
         key += `|${since},${TELEPLOT.theme.key()},${this.options.displayGrid},${this.options.displayAxes},${this.options.axisRight},${this.options.axisUp},${page.width}x${page.height}`;
+        key += `|cmd:${TELEPLOT.state.commands}`; // Commands: what is asked of the writable poses and points
+        for(let source of sources) { let request = TELEPLOT.commands.request(source.telem); if(request) key += `:${source.telem.id}=${request.status}`; }
         if(key == this.lastKey) return;
         this.lastKey = key;
 
@@ -516,8 +608,148 @@ class ViewScene2D extends ViewScene3D {
         this.items = TELEPLOT.Vue.markRaw(ViewScene2D.buildItems(sources, { axes: ViewScene2D.axes(this.options.axisRight, this.options.axisUp), timestamp, since, trailLength: this.options.trailLength,
             pointColorByHeight: this.options.pointColorByHeight, stl: (url) => this.__stl2D(url) }));
         this.__updateLegend(sources, element);
+        this.editables = TELEPLOT.Vue.markRaw(this.__editables(sources));
         if(!this.camera2D.userMoved) this.__keepInFrame2D();
         this.__draw();
+    }
+
+    // ------------------------------------------------------------------ Commands: writable poses and points
+
+    // What can be placed (CMD on, writable pose2d or xy settings drawn here): [{id, telem, type, at: [u, v], yaw, request}]
+    __editables(sources) {
+        let list = [];
+        if(!TELEPLOT.state.commands) return list;
+        let axes = ViewScene2D.axes(this.options.axisRight, this.options.axisUp);
+        for(let source of sources) {
+            let telem = source.telem, declaration = TELEPLOT.commands.declaration(telem);
+            if(source.hidden || !declaration || declaration.kind !== "setting" || TELEPLOT.commands.isContinuous(telem) || (declaration.type !== "pose2d" && declaration.type !== "xy")) continue;
+            if(!TELEPLOT.commands.canWrite(telem)) continue;
+            let reported = TELEPLOT.commands.reported(telem);
+            if(!reported) continue;
+            let v = reported.value;
+            list.push({ id: telem.id, telem, type: declaration.type, at: ViewScene2D.project([v[0], v[1], 0], axes), yaw: declaration.type === "pose2d" ? Number(v[2]) || 0 : 0,
+                request: TELEPLOT.commands.request(telem) });
+        }
+        return list;
+    }
+
+    // Pixels of the page of a place of the view, and back
+    __toPage(at) { let c = this.camera2D, p = this.page2D; return [p.width / 2 + (at[0] - c.u) * c.scale, p.height / 2 - (at[1] - c.v) * c.scale]; }
+    __fromPage(px) { let c = this.camera2D, p = this.page2D; return [c.u + (px[0] - p.width / 2) / c.scale, c.v - (px[1] - p.height / 2) / c.scale]; }
+
+    static TURN_RADIUS = 28; // Pixels from a pose to its turn handle
+    // Where the turn handle of a pose is, on the page: along its heading
+    __turnHandle(at, yaw) {
+        let axes = ViewScene2D.axes(this.options.axisRight, this.options.axisUp);
+        let ahead = ViewScene2D.project([Math.cos(yaw), Math.sin(yaw), 0], axes), origin = ViewScene2D.project([0, 0, 0], axes);
+        let du = ahead[0] - origin[0], dv = ahead[1] - origin[1], length = Math.hypot(du, dv) || 1;
+        let center = this.__toPage(at);
+        return [center[0] + du / length * ViewScene2D.TURN_RADIUS, center[1] - dv / length * ViewScene2D.TURN_RADIUS];
+    }
+
+    // A press on the map: grabs the ghost (its center to move it, its handle to turn it) or a writable pose / point (a ghost starts
+    // from where it is). Returns true when something was grabbed.
+    __commandDown(px) {
+        if(!TELEPLOT.state.commands || !this.page2D) return false;
+        let near = (a, b, r) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= r;
+        let ghost = this.ghost;
+        if(ghost) {
+            if(ghost.type === "pose2d" && near(px, this.__turnHandle(ghost.at, ghost.yaw), 9)) { ghost.drag = "turn"; return true; }
+            if(near(px, this.__toPage(ghost.at), 12)) { ghost.drag = "move"; ghost.offset = [ghost.at[0] - this.__fromPage(px)[0], ghost.at[1] - this.__fromPage(px)[1]]; return true; }
+        }
+        for(let editable of this.editables) {
+            let turn = editable.type === "pose2d" && near(px, this.__turnHandle(editable.at, editable.yaw), 9);
+            if(!turn && !near(px, this.__toPage(editable.at), 12)) continue;
+            this.ghost = { id: editable.id, type: editable.type, at: editable.at.slice(), yaw: editable.yaw, drag: turn ? "turn" : "move", offset: [0, 0] };
+            if(!turn) { let w = this.__fromPage(px); this.ghost.offset = [editable.at[0] - w[0], editable.at[1] - w[1]]; }
+            this.__syncGhostButtons();
+            this.__requestDraw();
+            return true;
+        }
+        return false;
+    }
+
+    __commandMove(px) {
+        let ghost = this.ghost;
+        if(ghost.drag === "move") { let w = this.__fromPage(px); ghost.at = [w[0] + ghost.offset[0], w[1] + ghost.offset[1]]; }
+        else if(ghost.drag === "turn") {
+            let center = this.__toPage(ghost.at);
+            ghost.yaw = ViewScene2D.yawOf(px[0] - center[0], -(px[1] - center[1]), ViewScene2D.axes(this.options.axisRight, this.options.axisUp));
+        }
+        this.__syncGhostButtons();
+        this.__requestDraw();
+    }
+
+    __sendGhost() {
+        let ghost = this.ghost;
+        if(!ghost) return;
+        let telem = TELEPLOT.datastore.getTelemetry(ghost.id);
+        if(telem) TELEPLOT.commands.write(telem, ViewScene2D.ghostValue(ghost.type, ghost.at, ghost.yaw, ViewScene2D.axes(this.options.axisRight, this.options.axisUp)));
+        this.ghost = undefined;
+        this.__syncGhostButtons();
+        this.__requestDraw();
+    }
+
+    __syncGhostButtons() {
+        let page = this.page2D;
+        if(!page || !page.ghostButtons) return;
+        let buttons = page.ghostButtons, ghost = this.ghost;
+        buttons.hidden = !ghost;
+        if(!ghost) return;
+        let at = this.__toPage(ghost.at);
+        buttons.style.left = Math.max(4, Math.min(page.width - 130, at[0] + 18)) + "px";
+        buttons.style.top = Math.max(4, Math.min(page.height - 30, at[1] + 16)) + "px";
+    }
+
+    // Handles of what can be placed (under the pointer), what was asked and not yet applied (dashed), the ghost being placed
+    __drawCommands(context, element) {
+        if(!this.editables.length && !this.ghost) return;
+        let primary = TELEPLOT.theme.color("--teleplot-primary", element, "#2980b9"), warn = TELEPLOT.theme.color("--teleplot-warn", element, "#b87500");
+        let axes = ViewScene2D.axes(this.options.axisRight, this.options.axisUp);
+        let glyph = (at, yaw, type, color, dashed) => {
+            let p = this.__toPage(at);
+            context.fillStyle = context.strokeStyle = color;
+            if(type === "pose2d") {
+                let h = this.__turnHandle(at, yaw), length = Math.hypot(h[0] - p[0], h[1] - p[1]) || 1;
+                ViewScene2D.drawPose(context, p[0], p[1], (h[0] - p[0]) / length, (h[1] - p[1]) / length, dashed);
+            }
+            else { context.beginPath(); context.arc(p[0], p[1], 6, 0, 2 * Math.PI); context.setLineDash(dashed ? [3, 2] : []); context.lineWidth = 2; context.stroke(); context.setLineDash([]); }
+        };
+        let handles = (at, yaw, type) => {
+            let p = this.__toPage(at);
+            context.strokeStyle = primary;
+            context.lineWidth = 1;
+            context.setLineDash([2, 3]);
+            context.beginPath(); context.arc(p[0], p[1], ViewScene2D.TURN_RADIUS, 0, 2 * Math.PI); context.stroke();
+            context.setLineDash([]);
+            if(type === "pose2d") { let h = this.__turnHandle(at, yaw); context.fillStyle = TELEPLOT.theme.color("--teleplot-surface", element, "#fff"); context.lineWidth = 1.5; context.beginPath(); context.arc(h[0], h[1], 4.5, 0, 2 * Math.PI); context.fill(); context.stroke(); }
+        };
+        for(let editable of this.editables) {
+            let request = editable.request;
+            if(request && (request.status === "pending" || request.status === "kept") && Array.isArray(request.target)) {
+                let at = ViewScene2D.project([request.target[0], request.target[1], 0], axes);
+                glyph(at, request.target[2] || 0, editable.type, request.status === "kept" ? warn : primary, true);
+            }
+            let p = this.__toPage(editable.at);
+            if(!this.ghost && this.pointer && Math.hypot(this.pointer[0] - p[0], this.pointer[1] - p[1]) < ViewScene2D.TURN_RADIUS + 12) handles(editable.at, editable.yaw, editable.type);
+        }
+        let ghost = this.ghost;
+        if(ghost) {
+            context.globalAlpha = 0.9;
+            glyph(ghost.at, ghost.yaw, ghost.type, primary, true);
+            context.globalAlpha = 1;
+            handles(ghost.at, ghost.yaw, ghost.type);
+            let value = ViewScene2D.ghostValue(ghost.type, ghost.at, ghost.yaw, axes);
+            let label = ghost.type === "pose2d" ? value[0] + ", " + value[1] + " · " + value[2] : value.join(", ");
+            let p = this.__toPage(ghost.at);
+            context.font = "600 11px system-ui, sans-serif";
+            let width = context.measureText(label).width + 12;
+            context.fillStyle = primary;
+            context.beginPath(); context.roundRect ? context.roundRect(p[0] - width / 2, p[1] - 44, width, 16, 8) : context.rect(p[0] - width / 2, p[1] - 44, width, 16); context.fill();
+            context.fillStyle = "#fff"; context.textAlign = "center"; context.textBaseline = "middle";
+            context.fillText(label, p[0], p[1] - 36);
+            context.textAlign = "start";
+        }
     }
 
     // The view shows everything drawn so far: when something gets out of what it frames, it steps back (it never zooms in by itself)
@@ -553,7 +785,16 @@ class ViewScene2D extends ViewScene3D {
         ViewScene2D.draw(context, grounds, view, images, size);
         if(this.options.displayGrid || this.options.displayAxes) ViewScene2D.drawGrid(context, view, style, ViewScene2D.axes(this.options.axisRight, this.options.axisUp), !!this.options.displayGrid, !!this.options.displayAxes);
         ViewScene2D.draw(context, others, view, images, size);
+        this.__drawCommands(context, element);
+        this.__syncGhostButtons();
     }
 }
 
 TELEPLOT.view.ViewScene2D = ViewScene2D;
+
+// The buttons next to a ghost (a pose or a point being placed, see __drawCommands)
+{
+    let elem = document.createElement('style');
+    elem.textContent = `@scope (.teleplot-js-style) { .teleplot-js-2d-ghost-buttons { position: absolute; z-index: 3; display: flex; gap: 0.3em; } .teleplot-js-2d-ghost-buttons[hidden] { display: none; } }`;
+    document.head.appendChild(elem);
+}
