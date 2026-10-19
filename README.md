@@ -449,47 +449,58 @@ You just need to send a UDP packet with the proper text in it. Open your web bro
 - port: `47269`
 - your test message: `myValue:1234|g` 
 
-# Remote function calls
+# Commands: settings and actions
 
-Remote function calls is an optional feature that opens an UDP socket between the program and the Teleplot server to pull the list of registered functions and call them.
+The page can also change settings of your program and call its functions (telecmd, see `doc/telecmd.md`). Declare them once with
+`ATTR|` lines, keep sending the values, and switch **CMD** on in the top menu of the page (it is off at every start, and only shown
+when something can be commanded). The page sends back the line your program would send: read it from the socket you send from (the
+Teleplot server answers to the address and port your packets come from), or from the serial port.
 
-# Register a function
+```
+ATTR|kp|write|min=0|max=10|step=0.01          a setting: the page shows a slider; it sends kp:0.42
+kp:0.4                                        keep sending the value: when it comes back as asked, the page knows it was applied
+ATTR|mode|write|choices=auto,manual           a text among choices
+ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200    driven by a joystick view; stop when nothing came for 200 ms
+ATTR|goto|action|title=Go to                  an action: a button
+ATTR|goto|arg=target|type=xy                  its arguments, one line each: the button opens a form
+                                              the page sends !goto#12:target=1.5,2 (a call and its number)
+ACK|goto#12:run                               answer run when it starts, then ok (or err:why)
+ACK|goto#12:ok
+```
+
+## Python
+
+`clients/python/teleplot.py` does all of it (declarations, echo, clamping, answers):
+
+```python
+import teleplot
+tp = teleplot.Teleplot()
+kp = tp.param("kp", 0.4, min=0, max=10, step=0.01)
+
+@tp.action("goto", title="Go to", args=[teleplot.Arg("target", "xy")])
+def goto(target):
+    drive_to(*target)          # return a text (a result) or raise (an error)
+
+while True:
+    tp.poll()                  # reads what the page wrote, answers, publishes the settings
+    controller.kp = kp.value
+```
 
 ## C++
 
-Copy `Telecmd.h` (from `clients/cpp`) in your project and use its object.
-`Telecmd.h` and `Teleplot.h` can be used at the same time.
+`Teleplot.h` (binary protocol):
 
 ```cpp
-#include "Telecmd.h"
-
-int main(int argc, char* argv[])
-{
-    bool keepRunning = true;
-
-    Telecmd::localhost().registerCmd("sayHello",[](std::string params){
-        std::cout << "Hello " << params << std::endl;
-    });
-
-    Telecmd::localhost().registerCmd("stop",[&](std::string){
-        std::cout << "Stopping..." << std::endl;
-        keepRunning = false
-    });
-
-    // Main program loop
-    while(keepRunning){
-        Telecmd::localhost().run();
-    }
-    return 0;
-}
+float kp = 0.4f;
+Teleplot::ParamOptions gain; gain.min = 0; gain.max = 10; gain.step = 0.01;
+Teleplot::instance().param("kp", &kp, gain);
+Teleplot::instance().action("reset", [](Teleplot::Args const&) { resetOdometry(); return Teleplot::ok(); });
+for (;;) { Teleplot::instance().poll(); /* use kp */ }
 ```
 
-## Call a function
+## Serial port (Arduino...)
 
-Functions can be called from the Teleplot interface and will be auto-discovered, however, they can also be triggered by a simple UDP packet:
-
-- With a string as parameter: `echo "|sayHello|world|" | nc -u -w0 127.0.0.1 47268`
-- Without parameters: `echo "|stop|" | nc -u -w0 127.0.0.1 47268`
+Lines written by the page arrive on the serial port; see `clients/arduino/commands/commands.ino`.
 
 ## Send a text log
 

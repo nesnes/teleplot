@@ -32,6 +32,24 @@ int main(int, char*[])
 
     Teleplot::instance().flush();
 
+    // Commands (doc/telecmd.md): a setting and an action the page can use (switch CMD on in the page). poll() reads what the
+    // page wrote (it comes back to the socket the telemetry is sent from), applies it, answers, and publishes the settings.
+    float gain = 0.4f;
+    Teleplot::ParamOptions gainOptions;
+    gainOptions.min = 0.0; gainOptions.max = 10.0; gainOptions.step = 0.1;
+    gainOptions.desc = "A gain the page can change";
+    Teleplot::instance().param("sample.gain", &gain, gainOptions);
+    bool keepRunning = true;
+    Teleplot::ActionOptions stopOptions;
+    stopOptions.title = "Stop the sample";
+    stopOptions.confirm = true;
+    Teleplot::instance().action("sample.stop", [&](Teleplot::Args const&) { keepRunning = false; return Teleplot::ok(); }, stopOptions);
+    for (int i = 0; keepRunning && i < 600; ++i) { // A minute at most
+        Teleplot::instance().update("sample.output", gain * std::sin(i * 0.1f));
+        Teleplot::instance().poll();
+        usleep(100000);
+    }
+
     /*float i = 0;
     int state_arr_length = 3;
     std::string state_arr[state_arr_length] = {"standing", "sitting", "walking"};

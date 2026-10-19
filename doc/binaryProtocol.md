@@ -59,6 +59,12 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
           - `0` **FRAME_TYPE_POSE**: the pose of that telemetry (a shape, a camera, the sensor of a point cloud, a point): positions, orientations, vectors and points are in its frame and follow it.
           - `1` **FRAME_TYPE_PIXELS**: the pixels of the pictures of that image telemetry (u to the right, v down): the telemetry is drawn on those pictures, without any camera model.
         - `10` **TELEM_ATTR_STACK**(uint8, 0 or 1): for a text telemetry, 1 tells that its text is a stack: the path of what is running, a `/` between levels (`loop/plan/search`). It is a state like any other, displayed by default on a timeline, which draws it as a row per level (see `time-views.md`). The timestamp of each text sample (**TIME_REFERENCE** + **TIMEDIFF**, nanoseconds) is the time of the device: what function timing needs. `stack` flag of the text protocol.
+        - `11` **TELEM_ATTR_WRITE** `{KIND[8]} {TYPE[8]} {FLAGS[8]} {STEP[64]} {RATE[16]} {HOLD[16]} {AXES[8]}`: what the page may write (a setting) or call (an action), see `telecmd.md`. **KIND**: `0` none (removes it), `1` setting, `2` action. **TYPE**: `0` the type of the data, `1` number, `2` bool, `3` text, `4` xy, `5` xyz, `6` pose2d (x, y, yaw). **FLAGS**: bit 0 confirm, bit 1 longpress (actions). **STEP** (float64, NaN: none). **RATE** (writes per second) and **HOLD** (ms the device waits before stopping): a continuous setting, driven by a joystick (0: none). **AXES**: bits x (1), y (2), yaw (4) of an xy or pose2d that the device uses, 0 = all. Same as `ATTR|name|write=...|step=..|rate=..|hold=..|axes=..` and `ATTR|name|action|confirm|longpress` in the text protocol.
+        - `12` **TELEM_ATTR_CHOICES** (null terminated string): the texts a setting can take, separated by line feeds (`choices=a,b,c` in text). Empty: no choices.
+        - `13` **TELEM_ATTR_ARGS** `{INDEX[8]} {TYPE[8]} {FLAGS[8]} {MIN[64]} {MAX[64]} {STEP[64]} {NAME} {UNIT} {DEFAULT} {CHOICES} {DESC}`: one argument of an action (an attribute per argument, in a section that may hold several). **TYPE** as above (`0` removes the argument at INDEX); **FLAGS** bit 0: optional; MIN, MAX, STEP float64 (NaN: none); strings null terminated, CHOICES separated by line feeds. `ATTR|name|arg=..|type=..|optional|default=..` in text.
+        - `14` **TELEM_ATTR_DESC** (null terminated string): a short description, shown in tooltips (`desc=` in text).
+        - `15` **TELEM_ATTR_TITLE** (null terminated string): the text of the button of an action (`title=` in text).
+        - Attributes `11` to `15` are newer than the others: a viewer that does not know them stops reading the packet there (sections have no length). Send them last in a packet, or in a packet of their own.
         - `9` **TELEM_ATTR_RANGE** `{MIN[64] - MAX[64]}` (float64): the values a number telemetry is expected between. A side that is not a number (NaN) is open. It changes nothing to the data: views use it as an extent (the bar of a value, the scale of a chart). `ATTR|name|min=..|max=..` in the text protocol, see `time-views.md`.
         - `5` **TELEM_ATTR_SHAPE** `{TELEM_ATTR_SHAPE_TYPE[8] - TELEM_ATTR_SHAPE_DATA[x]}`:
           - `0` **TELEM_ATTR_SHAPE_TYPE_CUBE**: the 2D object is a square, and the 3D object is a cube. (no **TELEM_ATTR_SHAPE_DATA**)
@@ -218,6 +224,14 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
       - **COLOR**: a CSS color (`red`, `#e74c3c`), or an empty string for the default one.
       - Sent to the telemetry whose numbers it limits, at any time and at its own rate: once when the device starts, or whenever a limit moves. What is displayed for a past moment uses the limits in force at that moment.
       - Same as `TH|name:threshold<value,color` in the text protocol.
+
+  - `41` **CALL** (page to device, `telecmd.md`): a call of an action.
+    - **SECTION_DATA**: `{TELEM_ID[16]} - {CALL_ID[16]} - {COUNT[8]} - ({INDEX[8]} - {VALUE})...`
+      - **TELEM_ID**: the id the device gave the action, in a packet that has the client id of the device. **CALL_ID**: increases with each call of the page; a call sent again (the answer did not come) has the same id: run it once, answer it again.
+      - One **INDEX** (of the argument in the declaration) and **VALUE** per argument given (optional ones left empty are not sent): number float64, bool uint8, text null terminated, xy two float64, xyz and pose2d three float64.
+    - A setting is written with the usual data section of its telemetry (`20`, `21`, `22` or `23`), one sample, time reference 0 (the page does not know the clock of the device: ignore it).
+
+  - `42` **CALL_ANSWER** (device to page): `{TELEM_ID[16]} - {CALL_ID[16]} - {STATUS[8]} - {TEXT[null terminated string]}`. **STATUS**: `2` running (send it when the call starts), `0` done (TEXT: a short result, or empty), `1` failed or refused (TEXT: why). **CALL_ID** `0xFFFF`: a setting was refused (`ACK|name:err:why` in text).
 
   - `36` **TELEM_DATA_FLOAT64**: Samples of a data type made of numbers, each number as a float64. For values that the section of the data type would round (its float32, or its integers): what Teleplot writes to a binary file uses it when needed, a device can use it too.
     - **SECTION_DATA**: `{TELEM_DATA_HEADER} - {DATA_TYPE[8]} - ({TIMEDIFF[32]} - {VALUE[64]}...)...`

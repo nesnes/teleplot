@@ -46,4 +46,6 @@ The older server-side serial input (`src/032-dataInputSerial.js`, commands sent 
 
 Rates, ages and consoles are not reactive (they change on every message): the panel refreshes four times per second. The rate history is sampled once per second from the start of the application (`startSourcesMonitor`), so the panel has it even when opened later.
 
-Not there yet: remote commands (telecmd, designed in `telecmd.md`), and an automated test of the panel itself (the library side is covered by `tests/connection.test.js` and `tests/connectionSerial.test.js`, with a fake serial port).
+Commands (`telecmd.md`): a card lists what each device of its source accepts, the last result of each, and the round trip of a setting (from sending to the device's echo). Connections can write back (`connection.write`, `canWrite`, `whyNotWritable`): the server connection through the server to the sender of the telemetry, a serial port as lines written to it, and `TELEPLOT.connection.addConnectionLocal(name, onWrite)`, a source that lives in the page (the robot sample, demos, tests: `sendText` / `sendBinary` feed the parsers as a device would, `onWrite` gets what the page writes).
+
+Not there yet: an automated test of the panel itself (the library side is covered by `tests/connection.test.js` and `tests/connectionSerial.test.js`, with a fake serial port).

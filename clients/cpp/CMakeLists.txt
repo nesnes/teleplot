@@ -17,3 +17,6 @@ file(GLOB_RECURSE TELEPLOT_SOURCES CONFIGURE_DEPENDS
 )
 
 add_executable(teleplot_sample "sample.cpp")
+
+# Commands (doc/telecmd.md): settings and actions, against packets written as the page writes them
+add_executable(teleplot_test_commands "test_commands.cpp")

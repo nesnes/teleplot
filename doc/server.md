@@ -1,6 +1,6 @@
 # Server
 
-`packages/server/main.js` receives telemetry as UDP packets and relays it to the pages connected to it through a WebSocket. It also forwards the commands of the pages to the device, and serves the webapp. Browsers cannot receive UDP: this is what the server is for. A serial port needs no server (see `doc/sources.md`).
+`packages/server/main.js` receives telemetry as UDP packets and relays it to the pages connected to it through a WebSocket. It also sends the commands of the pages back to the device that sent the telemetry (see `telecmd.md`), and serves the webapp. Browsers cannot receive UDP: this is what the server is for. A serial port needs no server (see `doc/sources.md`).
 
 ```bash
 cd packages/server
@@ -18,8 +18,9 @@ Releases also have it as one executable per platform (`teleplot-<os>-<arch>`), w
 | `--host <address>` | every network interface | Address they listen on. `--host 127.0.0.1`: this machine only |
 | `--udp-port <port>` | 47269 | UDP port the telemetry is received on |
 | `--udp-host <address>` | every network interface | Address the telemetry is received on |
-| `--cmd-port <port>` | 47268 | UDP port the commands sent from the pages are forwarded to |
-| `--cmd-host <address>` | 127.0.0.1 | Address they are forwarded to: the device that runs them |
+| `--cmd-port <port>` | 47268 | UDP port the raw `{"cmd": text}` messages of the pages are forwarded to (commands of `telecmd.md` go back to their sender) |
+| `--cmd-host <address>` | 127.0.0.1 | Address they are forwarded to |
+| `--read-only` | | Refuse the commands of the pages: the devices are only watched. Pages are told (`hello`) |
 | `--allow-origin <origin>` | | Also accept the pages of this origin. Can be repeated, or a list separated by commas |
 | `--batch <ms>` | 50 | Packets are grouped and sent to the pages every `<ms>`. 0: each packet as it arrives |
 | `--max-buffer <MB>` | 64 | Data waiting for a page that is too slow, above which packets are dropped for it |
@@ -56,13 +57,17 @@ This protects against other web sites, not against the network: by default the p
 
 Server to page:
 
+- **Hello**: first, `{"hello": {"readOnly": false, "senders": {"0": "192.168.1.12:50123"}}}`: the page can send commands (unless
+  read-only), and the senders known so far.
 - **Text packets**: one text message per batch, JSON.
 
   ```json
-  {"time": 5050.12, "packets": [[5001.004, "speed:12.5"], [5002.51, "speed:12.7\ntemp:24"]], "dropped": 3}
+  {"time": 5050.12, "senders": {"1": "192.168.1.13:4000"}, "binary": [1, 1], "packets": [[5001.004, "speed:12.5", 0], [5002.51, "speed:12.7\ntemp:24", 0]], "dropped": 3}
   ```
 
-  `packets`: each UDP packet as it came, after the time the server received it. `time`: when the message was sent. Both in ms on a clock of the server that only counts (it is not a date, and starts again with the server). `dropped`: only when packets were not sent to this page since the last message (see below).
+  `packets`: each UDP packet as it came, after the time the server received it, and who sent it (an index: the address and port
+  are in `senders`, given once, when a sender shows up). `binary`: the senders of the packets of the binary message that follows,
+  in its order (the text message is then sent even without text packets). `time`: when the message was sent. Both in ms on a clock of the server that only counts (it is not a date, and starts again with the server). `dropped`: only when packets were not sent to this page since the last message (see below).
 
   A sample without a timestamp is dated when the server received its packet. The page cannot use the clock of the server as it is (another machine, another clock): the library keeps the smallest `receive time - time` it saw, the message that travelled the fastest, as the difference between the two clocks (`ConnectionTeleplotServer.__serverClockOffset`). Samples are then as far apart as the packets were at the server, whatever each message took to come, and never in the future. What it cannot know is the shortest travel time itself: every sample is late by that much (under a millisecond on one machine).
 
@@ -70,6 +75,9 @@ Server to page:
 
 Page to server:
 
+- `{"write": "kp:0.42", "to": sender}` and `{"writeBinary": "<base64>", "to": sender}`: a command (`telecmd.md`), sent as a UDP packet
+  from the telemetry port to the address and port of that sender (an index the server gave, see below). Refused with `--read-only`;
+  a sender the server does not know is reported and ignored.
 - `{"cmd": "text"}`: the text is sent as a UDP packet to `--cmd-host`:`--cmd-port`. Other fields are ignored. The commands Teleplot V1 pages send to their server (`listSerialPorts`, `connectSerialPort`, `disconnectSerialPort`, `sendToSerial`) are not forwarded; a message that is not JSON, or without a `cmd` text, is ignored and reported in the output of the server. A message of more than 64 kB closes the connection.
 
 The library still reads what a Teleplot V1 server sends (`{"data": "...", "timestamp": ...}`: one text for a whole batch, dated when the page receives it).
@@ -83,7 +91,8 @@ The server does not wait for a page. When more than `--max-buffer` is waiting to
 - Text packets wait up to `--batch` ms before they are sent (their timestamps do not depend on it). Binary packets too, since they are grouped: before, each was sent at once. `--batch 0` sends everything as it arrives, one message per packet.
 - The time of reception is taken when Node reads the packet, not when the network card got it: packets that queued in the system during a busy moment get close times.
 - JSON for text packets costs an escape of each text and its parsing in the page. It was kept because it is one line to read anywhere; a binary envelope would be faster for very high text rates, where the binary protocol is the better answer anyway.
-- Commands go to one address (`--cmd-host`), not back to whichever device sent telemetry. The design of telecmd (`telecmd.md`) sends writes back to the sender of the data instead.
+- Commands go back to the address and port a device sends from: a device that sends from one socket and listens on another does
+  not get them (the client libraries use one socket). Senders are kept until there are 1000 of them, then the list starts again.
 - No TLS, no password.
 
 ## Tests

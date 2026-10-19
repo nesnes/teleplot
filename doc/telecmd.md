@@ -1,6 +1,6 @@
 # Commands: writable telemetries (telecmd)
 
-**Status: designed, not implemented.** This page is the spec and the implementation plan. Reference design:
+**Status: implemented (2026-10-19).** This page is the spec, and how it was built ("Implementation"). Reference design:
 `telecmd-reference.html` (one design per element, with what the device sends for each screen). The design studies that led to it:
 `telecmd-mockups.html` (round 1) and `telecmd-mockups-2.html` (round 2).
 
@@ -29,7 +29,8 @@ What it gives:
   problem.
 - **"Never invent" holds.** A view displays the value the device reported, never the one typed. What was asked is a target only
   until the device answers.
-- **What the page sent is telemetry too**: kept, shown on timelines and in logs, exported.
+- **What the page sent is telemetry too**: every setting written and call made is a line of the log telemetry `commands.sent`
+  (source "page"), shown and exported like the rest; the answers of the devices are log samples of their actions.
 
 ## Protocol
 
@@ -91,8 +92,10 @@ mode:auto
 pose:3.2:2.3:0.61
 ```
 
-A call: `!`, the name, `#` and an id (increasing per action), then the arguments **by name**, those left empty not sent. Values of
-several numbers are separated by `,`; texts escape `% : , = |` as `%XX`.
+A call: `!`, the name, `#` and an id (increasing; a page starts from a random one, so that a reloaded page does not reuse the ids of
+the previous one), then the arguments **by name**, those left empty not sent. Values of several numbers are separated by `,`; in
+the texts of a call, `% : , = |` and line feeds are written `%XX`. A text setting only escapes `%` and line feeds (it is the rest of
+its line).
 
 ```
 !robot.odometry.reset#17
@@ -162,10 +165,11 @@ the sender address for text), in the protocol that device speaks.
 | UDP, through the server | Sent back to the address and port the device's packets came from. |
 | Imported file | None: telemetries of a file are not writable. |
 
-- **Server.** It learns the address of each sender: text packets become `[time, text, sender]` (`sender` an index in a `senders`
-  table, sent when it grows), binary batches carry it in their framing. The page writes with `{"write": "kp:0.42", "to": sender}`
-  (text) or a binary message with its sender. `{"cmd": text}` and `--cmd-host` / `--cmd-port` stay, as a forced destination for
-  devices that cannot receive where they send from. New option `--read-only`: writes are refused.
+- **Server** (`server.md`). It learns the address of each sender: text packets become `[time, text, sender]` (`sender` an index,
+  its address in `senders`, given once), and the text message before a binary one lists the senders of its packets (`binary`). A
+  page is greeted with `{"hello": {readOnly, senders}}`: an older server never says hello, and the page knows it cannot send
+  commands through it. The page writes with `{"write": "kp:0.42", "to": sender}` or `{"writeBinary": base64, "to": sender}`.
+  `{"cmd": text}` and `--cmd-host` / `--cmd-port` stay for raw messages. Option `--read-only`: writes are refused.
 - **Devices** receive on the socket they send from (across NAT and firewalls, several devices on one machine). The client
   libraries do it by default.
 - **Several pages** can write: the last write wins, every page sees it through the echo.
@@ -244,84 +248,53 @@ the telemetry.
 command palette, requests drawn on charts, reserved action names, a toolbar of actions, progress of a call, a special drag for
 command views, a "controls" kind of values view (the joystick view replaces it).
 
-## Implementation plan
+## Implementation
 
-Five steps, each one usable and tested before the next. Every step: lib tests (`packages/teleplot-js/test.sh`), a `test.html`
-demo, the performance page still fine (`test-performance.html`: commands must cost nothing to ingestion when nobody writes), docs
-and `CLAUDE.md` updated, then checked in the webapp in a browser while data flows (inputs use `v-value`, never `:value`).
+Built in five steps, each tested before the next (plan of 2026-10-19). Where things are:
 
-### Step 1: the path back
+- **Protocol** (`011-protocol.js`): `TELEM_ATTR_WRITE` 11 `{kind, type, step, rate, hold, axes, confirm, longpress}`, `TELEM_ATTR_CHOICES`
+  12, `TELEM_ATTR_ARGS` 13 (the list of arguments), `TELEM_ATTR_DESC` 14, `TELEM_ATTR_TITLE` 15, `SECTION_TYPE_CALL` 41,
+  `SECTION_TYPE_CALL_ANSWER` 42, `WRITE_TYPES`, `WRITE_AXES`. Parsing: `ATTR|` keys and `ACK|` lines in `040`, the attributes and
+  section 42 in `041`.
+- **Path back**: telemetries remember the sender they came from (`telemetry.endpoint`, set through `datastore.withSource(source, fn,
+  endpoint)` / `connection.receive(fn, bytes, endpoint)`); connections have `canWrite()`, `whyNotWritable()`, `write({telemetry,
+  text, bytes})` (`020`; server `021`, serial `022`); `023-connectionLocal.js`: `TELEPLOT.connection.addConnectionLocal(name,
+  onWrite)` for sources of the page (`sendText`, `sendBinary`). The server: `packages/server/main.js` (senders, hello, `write` /
+  `writeBinary`, `--read-only`).
+- **`025-commands.js`** (`TELEPLOT.commands`): `declaration(telem)`, `isWritable`, `isAction`, `isContinuous`, `args`, `whyNot`,
+  `canWrite`, `setEnabled` (the state is `TELEPLOT.state.commands`), `summary()`, `deviceName`; settings: `write(telem, value)`
+  (returns "" or why not), `request(telem)` (`{target, status, reason, reported}`), `dismiss`, `reported`, `history(telem)`;
+  actions: `validate(telem, inputs)`, `call(telem, inputs)` (`{id, reason, errors}`), `calls(telem)` / `lastCall(telem)` (read back
+  from the answers, completed with what this page sent); continuous: `hold(telem, getValue)`, `release`, `isHeld`, `restValue`;
+  encoders `settingLine`, `callLine`, `settingPacket`, `callPacket`; `keyboardCaptured` (a joystick drives with the keys). The
+  work is done by `__update` in the update loop (`998`), never on the ingestion path. What the page sent is logged as
+  `commands.sent`; the requests of the settings are kept in memory (`history`, for timelines: not exported).
+- **Views**: values view (`110`: `commandState`, `valueAt`, the editors, the action row and form, `commandsUI` false in a chart
+  legend), joystick (`117-viewJoystick.js`: `modeOf`, `toValue`, `toPlace`, `fromKeys`), timeline (`116`: lane kind "calls",
+  `buildCalls`, `buildRequests`), 2D view (`115`: `isPose`, a "pose" item, the ghost: `ghostValue`, `yawOf`, `__commandDown`...).
+  `suggestViewType`: actions and settings "values", continuous ones "joystick", pose2d / xy settings "2d"; the auto dashboard puts
+  settings and actions without label in one values view titled "Commands". A telemetry that only declares something is announced
+  (`hasContent`) and is not "empty" for views.
+- **Webapp**: CMD button (`top-menu.js`), pens (`panel-telemetries.js`), commands of each source (`panel-sources.js`), Help step
+  (`panel-help.js`), joystick in the editor menus, the robot sample (`sample-robot.js`: a local connection that declares its
+  commands, reads them like a device and answers).
+- **Tests**: `packages/teleplot-js/tests/commands.test.js` (parsing, settings, actions, binary, continuous, server and serial
+  connections, views), `parseDataText.test.js`, `dashboards.test.js`; `packages/server/tests/server.test.js` (senders, writes back,
+  read-only); `packages/webapp/tests/help.test.js`; `clients/python/test_teleplot.py`; `clients/cpp/test_commands.cpp`.
+  `test.html` has a section "Commands".
+- **Clients**: Python `clients/python/teleplot.py` (text protocol: `param`, `action`, `Arg`, `poll`), C++ `clients/cpp/Teleplot.h`
+  (binary: `param`, `action`, `poll`, `handlePacket`; it also gained the range attribute), Arduino `clients/arduino/commands`
+  (serial). The V1 `Telecmd.h` is removed.
 
-The page can send something to the device that sent a telemetry. Nothing visible yet.
-
-- **Protocol** (`011-protocol.js`): attribute codes 11 to 15, sections 41 and 42, the types, `CLIENT_ID_PAGE`.
-- **Server** (`packages/server/main.js`): senders table, `[time, text, sender]`, sender in binary framing, `{write, to}`,
-  `--read-only` (and announced to the page). Tests in `packages/server/test.sh`; `doc/server.md`.
-- **Connections** (`020`, `021`, `022`): `connection.canWrite`, `connection.write(target, payload)`; the server connection reads
-  senders and remembers, per client, the sender it came from (`telemetry.sourceId` + sender); serial writes to the port. A new
-  **local connection** (`023-connectionLocal.js`): a source living in the page, with a handler for writes, for `test.html`, the
-  tests and the robot sample (which then sends its data through it).
-- **Encoding**: a write in the protocol the device speaks (text if its telemetries came as text, binary otherwise).
-- Tests: `connection.test.js`, `connectionSerial.test.js` (fake port receives the lines), new `commands.test.js` (local
-  connection round trip).
-
-### Step 2: settings
-
-- **Parsing** (`040`, `041`): the `ATTR|` keys `write`, `choices`, `step`, `rate`, `hold`, `axes`, `desc`, `unit`, `color`;
-  `ACK|` lines (a setting's `err`); the binary attributes. Tests in `parseDataText.test.js`, `parseDataBinary.test.js`.
-- **Datastore** (`012`): `telemetry.getWrite()`, `isWritable()`, `getDescription()`; the requests of the page stored as samples of
-  telemetries of `CLIENT_ID_PAGE` with the same name (exported with the rest).
-- **Commands** (new `025-commands.js`, `TELEPLOT.commands`): `TELEPLOT.state.commands` (off), `write(telemetry, value)`,
-  `request(telemetry)` (state, target, reason), resends, throttling, the echo check (only for telemetries with a pending request,
-  run from the update loop in `998`, never on the ingestion path), "no answer", not writable from files or a `--read-only` server.
-- **Values view** (`110`): pen, caret on the bar, click-to-edit, switch, choices list, status icons and tooltips.
-- **Webapp**: the CMD button in `top-menu.js` (shown when something is writable, green, tooltip with counts, `C`, no fade while
-  on); pens in `panel-telemetries.js`; Commands section in `panel-sources.js`; Help step and its tests (`tests/help.test.js`).
-- **Samples**: `test.html` section "Commands" (a simulated device on a local connection that clamps one value and refuses
-  another); robot sample: speed limit, motors, mode.
-
-### Step 3: actions
-
-- **Parsing**: `action`, `arg` lines (and binary 13), `title`, `confirm`, `longpress`; `ACK|` with run / ok / err and result
-  text; section 42.
-- **Commands**: `call(telemetry, args)` (validated against the declaration; a promise of the answer), call ids, resends, the calls
-  of an action (`TELEPLOT.commands.calls(telemetry)`: id, arguments, sent, run, end, status, text; cached like `textRuns` and
-  completed as answers come).
-- **Values view**: the action row, the form (fields by type, descriptions, optional / default, validation), confirm, longpress,
-  color, the running button.
-- **Timeline** (`116`): request ticks on a setting's lane; the action lane with a band per call. **Log** (`112`): requests and
-  answers. Tests in `viewTimeline.test.js`, `viewLog.test.js`.
-- **Samples**: reset odometry (confirm), go to (target + optional speed and avoid), dock (longpress), stop (red).
-
-### Step 4: driving
-
-- **Commands**: `hold(telemetry, getValue)` / `release(telemetry)`, rest value, stop on hidden / blur / CMD off.
-- **Joystick view** (new `117-viewJoystick.js`): pad, rocker, pad + rocker (`axes`), the reported ring, `keyboard` and
-  `orientation` options (and a flag the webapp's shortcut handler checks); `suggestViewType`, `createView`, `VIEW_TYPES`, `DASH|`
-  type `joystick`, editor menus. Tests in `viewJoystick.test.js` (the geometry of the pad without a canvas).
-- **2D view** (`115`): the ghost of a writable `pose2d` / `xy`, move and turn handles, Send / Enter / Esc, dashed until the echo.
-  Tests in `viewScene2D.test.js` (`buildItems` with a ghost).
-- **Samples**: robot `cmd_vel` in a joystick view, and "set pose" on the Map.
-
-### Step 5: clients and documents
-
-- **C++** (`clients/cpp/Teleplot.h`): `param`, `action` with arguments, `poll`, text and binary; `clients/cpp/Telecmd.h` (V1) is
-  removed.
-- **Python**: a small client library (`clients/python/teleplot.py`, none exists yet: the folder holds examples) with `param`,
-  `action`, `poll`.
-- **Arduino**: an example over serial.
-- What a client library does: declares at start and every few seconds; publishes the applied value after each write and
-  periodically (the echo); clamps to the range and rounds to the step before applying; runs a call id once and answers again when
-  it comes back; stops a continuous control after `hold`; ignores names it did not declare.
-- Docs: `binaryProtocol.md`, `sources.md`, `README.md` (V2 part), this page.
+Not done: commands in 3D and image views; picking an action's argument on a map; the C++ client still lacks view labels, logs and
+the other newer attributes.
 
 ## Open questions
 
 1. **Pause.** Pause ignores data, so a write cannot be confirmed while paused. For now: writing is disabled while paused. Or pause
    could freeze the display only, data still stored.
 2. **Requests of other pages**: should the server relay them, so every page sees who changed what?
-3. **Names of the requests in exports**: in binary they are telemetries of `CLIENT_ID_PAGE`; in text they need a name of their own
-   (`kp.requested`?).
+3. **Requests in exports**: `commands.sent` is exported (a log); the state of each request (applied, kept...) is not. Is that enough?
 4. **Initial values**: is the periodic publishing enough, or should the page ask for all attributes and values at once (useful for
    ranges and frames too)?
 5. **Section lengths**: a version 2 of the binary protocol with a length per section would make every future addition safe.
