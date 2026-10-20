@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help sheet: the message first</title>
+<style>
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 13px; }
+:root {
+    --bg: hsl(192 15% 94%); --panel: hsl(192 15% 97%); --card: #fff; --line: hsl(0 0% 86%);
+    --text: hsl(0 0% 10%); --muted: hsl(0 0% 42%); --primary: hsl(204 64% 44%); --ok: hsl(145 63% 38%); --bad: hsl(6 78% 52%);
+    --k-name: hsl(204 64% 44%); --k-value: hsl(145 55% 36%); --k-time: hsl(170 70% 33%); --k-unit: hsl(36 90% 40%); --k-flags: hsl(282 44% 47%); --k-prefix: hsl(330 55% 45%); --k-label: hsl(220 15% 45%);
+    --mono: ui-monospace, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+    --bg: hsl(210 17% 7%); --panel: hsl(210 15% 11%); --card: hsl(210 17% 14%); --line: hsl(0 0% 24%);
+    --text: hsl(0 0% 90%); --muted: hsl(0 0% 62%); --primary: hsl(204 70% 58%); --ok: hsl(145 55% 52%); --bad: hsl(6 78% 62%);
+    --k-name: hsl(204 75% 62%); --k-value: hsl(145 55% 55%); --k-time: hsl(170 60% 50%); --k-unit: hsl(40 90% 58%); --k-flags: hsl(282 55% 70%); --k-prefix: hsl(330 65% 68%); --k-label: hsl(220 15% 70%);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: hsl(210 17% 7%); --panel: hsl(210 15% 11%); --card: hsl(210 17% 14%); --line: hsl(0 0% 24%);
+    --text: hsl(0 0% 90%); --muted: hsl(0 0% 62%); --primary: hsl(204 70% 58%); --ok: hsl(145 55% 52%); --bad: hsl(6 78% 62%);
+    --k-name: hsl(204 75% 62%); --k-value: hsl(145 55% 55%); --k-time: hsl(170 60% 50%); --k-unit: hsl(40 90% 58%); --k-flags: hsl(282 55% 70%); --k-prefix: hsl(330 65% 68%); --k-label: hsl(220 15% 70%);
+} }
+body { margin: 0; background: var(--bg); color: var(--text); }
+header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.2rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+header nav { display: flex; gap: 0.8rem; flex-wrap: wrap; } header a { color: var(--primary); text-decoration: none; font-weight: 600; }
+header .grow { flex: 1; }
+button { font: inherit; }
+main { max-width: 1500px; margin: 0 auto; padding: 1rem 1.2rem 4rem; }
+section { margin: 2rem 0; }
+section > h2 { font-size: 1.3rem; margin: 0 0 0.3rem; }
+section > p.lead { max-width: 60rem; color: var(--muted); line-height: 1.5; margin: 0 0 1rem; }
+.row { display: flex; gap: 1.4rem; flex-wrap: wrap; align-items: flex-start; }
+.frame { display: flex; flex-direction: column; gap: 0.4rem; }
+.cap { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.cap .n { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; margin-right: 0.3rem; border-radius: 50%; background: var(--primary); color: #fff; letter-spacing: 0; }
+.cap .rec { color: var(--ok); }
+.fnote { max-width: 30rem; font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
+.notes { max-width: 60rem; line-height: 1.55; }
+.notes li { margin: 0.25rem 0; }
+
+/* The panel */
+.panel { width: 34rem; box-sizing: border-box; padding: 0.8rem 1rem 0; background: var(--panel); border: 1px solid var(--line); border-radius: 0.8rem; box-shadow: 0 6px 20px hsl(0 0% 0% / 12%); display: flex; flex-direction: column; }
+.ph { display: flex; align-items: baseline; gap: 0.6rem; } .ph h3 { margin: 0; font-size: 1.35rem; font-weight: 400; } .ph .x { margin-left: auto; color: var(--muted); }
+.tools { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0 0.4rem; }
+.search { padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--card); color: var(--muted); }
+.seg { display: flex; padding: 0.15rem; border-radius: 0.55rem; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.seg span { flex: 1; text-align: center; padding: 0.3rem 0; border-radius: 0.45rem; color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+.seg span.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px hsl(0 0% 0% / 15%); }
+.seglabel { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); } .seglabel .seg { flex: 1; }
+.body { padding: 0.6rem 0 1rem; }
+.crumb { color: var(--primary); font-weight: 600; font-size: 0.9rem; }
+.title { display: flex; align-items: center; gap: 0.8rem; margin: 0.35rem 0 0.2rem; }
+.title h4 { margin: 0; font-size: 1.4rem; }
+.title .thumb { margin-left: auto; width: 7.5rem; border-radius: 0.4rem; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.thumb svg, .pic svg { display: block; width: 100%; }
+.pic { border-radius: 0.6rem; background: var(--card); border: 1px solid var(--line); overflow: hidden; margin: 0.6rem 0; }
+.sub { color: var(--muted); margin: 0 0 0.8rem; }
+.sec { margin: 1.1rem 0 0.5rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+.sec .act { margin-left: auto; letter-spacing: 0; text-transform: none; }
+.how { line-height: 1.5; margin: 0 0 0.5rem; }
+.fold { color: var(--muted); font-weight: 600; margin-top: 0.6rem; }
+.act { color: var(--primary); font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.8rem; border-radius: 0.5rem; border: 1px solid var(--primary); color: var(--primary); font-weight: 600; font-size: 0.9rem; }
+.btn.p { background: var(--primary); color: #fff; }
+.trybar { display: flex; gap: 0.4rem; padding: 0.6rem 0 0.8rem; border-top: 1px solid var(--line); margin-top: auto; }
+.trybar .f { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 0.45rem; background: var(--card); color: var(--muted); font-family: var(--mono); }
+
+/* Parts of a message */
+.k-name { --k: var(--k-name); } .k-value { --k: var(--k-value); } .k-time { --k: var(--k-time); } .k-unit { --k: var(--k-unit); } .k-flags { --k: var(--k-flags); } .k-prefix { --k: var(--k-prefix); } .k-label { --k: var(--k-label); } .k-bad { --k: var(--bad); }
+.msgcard { padding: 0.9rem 0.9rem 0.7rem; border-radius: 0.7rem; background: var(--card); border: 1px solid var(--line); }
+.msgcard + .msgcard { margin-top: 0.6rem; }
+.msgcard .note { margin: 0 0 0.6rem; line-height: 1.4; }
+.msgcard .note b.num { color: var(--primary); margin-right: 0.3rem; }
+/* A: names under the parts */
+.anat { display: flex; flex-wrap: wrap; align-items: flex-start; row-gap: 0.6rem; font: 1.25rem/1.2 var(--mono); }
+.anat .p { display: flex; flex-direction: column; align-items: center; }
+.anat .p .t { color: var(--k, var(--muted)); font-weight: 600; white-space: pre; }
+.anat .p.sep .t { color: var(--muted); font-weight: 400; }
+.anat .p:not(.sep) .t { border-bottom: 2px solid var(--k); padding-bottom: 0.1rem; }
+.anat .p .l { margin-top: 0.2rem; font: 0.68rem/1 Verdana, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; color: var(--k); white-space: nowrap; }
+.anat .p.hl .t { background: color-mix(in srgb, var(--k) 16%, transparent); border-radius: 0.2rem 0.2rem 0 0; }
+.anat .p.dim { opacity: 0.35; }
+/* B: chips */
+.chips { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: stretch; }
+.chips .p { display: flex; flex-direction: column; padding: 0.25rem 0.5rem 0.35rem; border-radius: 0.4rem; background: color-mix(in srgb, var(--k) 14%, transparent); }
+.chips .p .l { font-size: 0.65rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.chips .p .t { font: 600 1.3rem/1.25 var(--mono); color: var(--text); white-space: pre; }
+.chips .p.sep { background: none; padding: 0.25rem 0; justify-content: flex-end; } .chips .p.sep .t { color: var(--muted); font-weight: 400; }
+/* C: colored line + legend */
+.big { font: 600 1.35rem/1.3 var(--mono); word-break: break-all; }
+.big .c { color: var(--k); } .big .s { color: var(--muted); font-weight: 400; }
+.legend { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 0.8rem; margin-top: 0.7rem; font-size: 0.9rem; align-items: baseline; }
+.legend dt { font: 600 0.95rem var(--mono); color: var(--k); } .legend dd { margin: 0; color: var(--text); line-height: 1.35; } .legend dd i { color: var(--muted); font-style: normal; }
+/* The command of the language: small, under the message */
+.cmd { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; padding-top: 0.55rem; border-top: 1px dashed var(--line); }
+.cmd .lang { flex: none; font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+.cmd code { flex: 1; min-width: 0; font: 0.78rem/1.4 var(--mono); color: var(--muted); word-break: break-all; }
+.cmd code b { color: var(--text); font-weight: 400; }
+.cmd .acts { display: flex; gap: 0.6rem; flex: none; }
+.cmd .ico { color: var(--muted); }
+.status { display: flex; align-items: baseline; gap: 0.45rem; margin-top: 0.5rem; font-size: 0.88rem; line-height: 1.35; }
+.status i { flex: none; width: 1.05rem; height: 1.05rem; border-radius: 50%; background: var(--ok); color: #fff; font: 700 0.7rem/1.05rem Verdana; font-style: normal; text-align: center; }
+.status.bad i { background: var(--bad); }
+/* The way of the language, once per sheet */
+.howsend { padding: 0.6rem 0.7rem; border-radius: 0.55rem; background: color-mix(in srgb, var(--text) 5%, transparent); font-size: 0.85rem; line-height: 1.45; }
+.howsend code { font: 0.8rem/1.5 var(--mono); }
+.howsend .msgslot { padding: 0 0.25rem; border-radius: 0.2rem; background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--text); }
+.howsend pre { margin: 0.35rem 0 0; font: 0.8rem/1.5 var(--mono); white-space: pre-wrap; color: var(--muted); }
+.tip { position: relative; margin-top: 0.7rem; padding: 0.5rem 0.65rem; border-radius: 0.45rem; border-left: 3px solid var(--k); background: color-mix(in srgb, var(--k) 8%, transparent); font-size: 0.88rem; line-height: 1.4; }
+.tip b { color: var(--k); }
+.cursor { display: inline-block; width: 0; height: 0; border-left: 7px solid var(--text); border-top: 5px solid transparent; border-bottom: 5px solid transparent; transform: rotate(-35deg); margin-left: -0.2rem; }
+
+table.cmp { border-collapse: collapse; max-width: 70rem; font-size: 0.92rem; }
+table.cmp th, table.cmp td { text-align: left; padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.4; }
+table.cmp th { color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+    <h1>Help sheet · the message first</h1>
+    <nav><a href="#before">Before / after</a><a href="#anatomy">Naming the parts</a><a href="#lang">The language</a><a href="#recipe">Several lines</a><a href="#long">Long lines</a><a href="#states">Rest, hover, sent</a><a href="#notes">Notes</a></nav>
+    <span class="grow"></span>
+    <button onclick="const r=document.documentElement; r.dataset.theme = (r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) == 'dark' ? 'light' : 'dark'">Light / dark</button>
+</header>
+<main>
+    <section>
+        <p class="lead">Feedback on the first implementation: the message was lost among pictures, tabs, buttons and related tiles. These sheets are about the text protocol: the message is the biggest thing, each part is named, and the way to send it from a language comes second, small. The language is chosen once, at the top of the panel. "Related" is gone; the picture shrinks to a thumbnail.</p>
+    </section>
+
+    <section id="before"><h2>1 · Before and after</h2>
+        <p class="lead">Same tile, "A curve". Left: what is implemented today. Right: proposal A (names under the parts), the one recommended.</p>
+        <div class="row" data-build="before"></div>
+    </section>
+
+    <section id="anatomy"><h2>2 · Naming the parts of a message</h2>
+        <p class="lead">Three ways to say what each part is. The colors are the ones of the try field and of every line of the panel, so they are learned once.</p>
+        <div class="row" data-build="anatomy"></div>
+    </section>
+
+    <section id="lang"><h2>3 · The language: chosen once, at the top</h2>
+        <p class="lead">One control, always in the same place, under the search. The command of the language is a small line under each message (D), or is explained once per sheet as a template where the message goes (E).</p>
+        <div class="row" data-build="lang"></div>
+    </section>
+
+    <section id="recipe"><h2>4 · Several lines: "A gauge"</h2>
+        <p class="lead">A tile that needs several messages. Each line is a card of its own, numbered, with what it does in one sentence. Parts already explained in an earlier line are not named again (the name), so new parts stand out.</p>
+        <div class="row" data-build="recipe"></div>
+    </section>
+
+    <section id="long"><h2>5 · Long lines: shapes</h2>
+        <p class="lead">A <code>3D|</code> or <code>2D|</code> line has many fields. They are named by property (a property and its values are one part), and the line wraps between parts, never inside one.</p>
+        <div class="row" data-build="long"></div>
+    </section>
+
+    <section id="states"><h2>6 · Rest, hover, sent</h2>
+        <p class="lead">Pointing at a part says what it accepts (what the parser takes). Send gives the message to the page; what Teleplot made of it comes under the card, with an icon.</p>
+        <div class="row" data-build="states"></div>
+    </section>
+
+    <section id="notes"><h2>7 · Notes for the implementation</h2>
+        <div data-build="notes"></div>
+    </section>
+</main>
+
+<script>
+// A message as its parts: [text, kind, label]. Separators have no kind. Written by hand here; in the webapp helpColorize() gives the kinds
+// and a helpParts() (new) would give the names (property names for 3D| / 2D|, keys for ATTR|, threshold parts for TH|).
+const M = {
+    curve: [["temperature", "name", "name"], [":"], ["25.3", "value", "value"]],
+    curveFull: [["temperature", "name", "name"], [":"], ["1627551892437", "time", "time"], [":"], ["25.3", "value", "value"], ["§"], ["°C", "unit", "unit"], ["|"], ["np", "flags", "flags"]],
+    attr: [["ATTR|", "prefix", "attributes"], ["battery", "name", "name"], ["|"], ["min=9", "value", "lowest"], ["|"], ["max=12.6", "value", "highest"]],
+    th: [["TH|", "prefix", "thresholds"], ["battery", "name", "name"], [":"], ["low<10.5", "value", "limit"], [":"], ["empty<9.9", "value", "limit"], [","], ["red", "unit", "color"]],
+    battery: [["battery", "name", "name"], [":"], ["10.2", "value", "value"], ["§"], ["V", "unit", "unit"]],
+    state: [["mode", "name", "name"], [":"], ["driving", "value", "text"], ["|"], ["t", "flags", "state"]],
+    shape: [["3D|", "prefix", "3D shape"], ["box", "name", "name"], [","], ["scene", "label", "label"], [":"], ["S:cube", "value", "kind"], [":"], ["P:1:0:0.5", "time", "position x:y:z"], [":"], ["W:1:D:1:H:1", "unit", "size"], [":"], ["C:orange", "flags", "color"]],
+};
+const TIPS = {
+    name: "<b>Name</b>: any text without <code>: | , §</code>. The same name again adds a sample to the same telemetry.",
+    value: "<b>Value</b>: a number, with a point for decimals (25.3, -4, 1e3).",
+    time: "<b>Time</b>: optional, milliseconds since 1970, before the value. Without it, the value is dated when it arrives.",
+    unit: "<b>Unit</b>: optional, after §. Shown next to the value.",
+    flags: "<b>Flags</b>: optional, after |. np: not charted automatically; t: a text state; xy: a position…",
+};
+const text = (m) => m.map((p) => p[0]).join("");
+const LANG = {
+    Terminal: (m) => `echo "<b>${m}</b>" | nc -u -w0 127.0.0.1 47269`,
+    Python: (m) => `sock.sendto(b"<b>${m}</b>", ("127.0.0.1", 47269))`,
+    "C++": (m) => `Teleplot::instance().update("temperature", 25.3);`,
+    Arduino: (m) => `Serial.println("&gt;<b>${m}</b>");`,
+};
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function anat(m, o = {}) {
+    return `<div class="anat">${m.map(([t, k, l], i) => k
+        ? `<span class="p k-${k}${o.hl == i ? " hl" : ""}${o.dimFrom !== undefined && i != o.hl ? " dim" : ""}${o.known && o.known.includes(l) ? " known" : ""}"><span class="t">${esc(t)}</span><span class="l">${o.known && o.known.includes(l) ? "&nbsp;" : l}</span></span>${o.hl == i ? '<span class="cursor" style="margin-top:1.4rem"></span>' : ""}`
+        : `<span class="p sep"><span class="t">${esc(t)}</span><span class="l">&nbsp;</span></span>`).join("")}</div>`;
+}
+function chips(m) {
+    return `<div class="chips">${m.map(([t, k, l]) => k ? `<span class="p k-${k}"><span class="l">${l}</span><span class="t">${esc(t)}</span></span>` : `<span class="p sep"><span class="t">${esc(t)}</span></span>`).join("")}</div>`;
+}
+function legend(m, desc) {
+    return `<div class="big">${m.map(([t, k]) => k ? `<span class="c k-${k}">${esc(t)}</span>` : `<span class="s">${esc(t)}</span>`).join("")}</div>`
+        + `<dl class="legend">${m.filter((p) => p[1]).map(([t, k, l]) => `<dt class="k-${k}">${esc(t)}</dt><dd>${l}${desc && desc[l] ? ` <i>· ${desc[l]}</i>` : ""}</dd>`).join("")}</dl>`;
+}
+function cmd(m, lang = "Terminal", o = {}) {
+    return `<div class="cmd"><span class="lang">${lang}</span><code>${LANG[lang](esc(text(m)))}</code><span class="acts">${o.noSend ? "" : '<span class="act">▶ Send</span>'}<span class="act">✎</span><span class="ico">⧉</span></span></div>`;
+}
+function card(m, note, o = {}) {
+    return `<div class="msgcard">${note ? `<p class="note">${o.num ? `<b class="num">${o.num}</b>` : ""}${note}</p>` : ""}${(o.style || anat)(m, o)}${o.tip ? `<div class="tip k-${o.tip}">${TIPS[o.tip]}</div>` : ""}${o.noCmd ? "" : cmd(m, o.lang)}${o.status ? `<div class="status${o.bad ? " bad" : ""}"><i>${o.bad ? "!" : "✓"}</i><span>${o.status}</span></div>` : ""}</div>`;
+}
+
+// Pictures (small)
+const curveSvg = (w = 240, h = 90) => { const p = []; for (let i = 0; i <= 40; i++) p.push(`${i / 40 * w},${h / 2 - Math.sin(i / 5) * h * 0.3}`); return `<svg viewBox="0 0 ${w} ${h}"><g stroke="color-mix(in srgb, var(--text) 10%, transparent)">${[0.25, 0.5, 0.75].map((f) => `<line x1="0" y1="${h * f}" x2="${w}" y2="${h * f}"/>`).join("")}</g><polyline points="${p.join(" ")}" fill="none" stroke="rgb(52,152,219)" stroke-width="2.5"/></svg>`; };
+const gaugeSvg = (w = 240, h = 90) => `<svg viewBox="0 0 ${w} ${h}"><text x="10" y="34" font-size="12" fill="var(--muted)">battery</text><text x="${w - 30}" y="38" font-size="26" font-weight="700" text-anchor="end" fill="var(--text)">10.2</text><text x="${w - 26}" y="38" font-size="11" fill="var(--muted)">V</text><rect x="${w - 64}" y="46" width="54" height="15" rx="7" fill="hsl(36 90% 45%)"/><text x="${w - 37}" y="57" font-size="10" fill="#fff" text-anchor="middle">low</text><rect x="10" y="72" width="${w - 20}" height="6" rx="3" fill="color-mix(in srgb, var(--text) 10%, transparent)"/><rect x="10" y="72" width="${(w - 20) * 0.33}" height="6" rx="3" fill="hsl(36 90% 45%)"/></svg>`;
+const shapeSvg = (w = 240, h = 90) => `<svg viewBox="0 0 ${w} ${h}"><path d="M${w * 0.12} ${h * 0.72} L${w * 0.5} ${h * 0.45} L${w * 0.88} ${h * 0.64} L${w * 0.5} ${h * 0.94} Z" fill="color-mix(in srgb, var(--text) 8%, transparent)" stroke="rgb(46,204,113)"/><path d="M${w * 0.44} ${h * 0.64} l16 -9 l16 7 l-16 9 z" fill="rgb(230,126,34)"/><path d="M${w * 0.44} ${h * 0.64} v-18 l16 -9 v18 z M${w * 0.44 + 16} ${h * 0.64 + 7} v-18 l16 -7 v18z" fill="rgb(230,126,34)" opacity="0.7"/></svg>`;
+
+// The panel around a sheet
+function panel(inner, o = {}) {
+    const lang = o.lang || "Terminal";
+    const seg = `<div class="seg">${Object.keys(LANG).map((l) => `<span class="${l == lang ? "on" : ""}">${l}</span>`).join("")}</div>`;
+    const tools = o.oldTools ? `<div class="row" style="gap:0.5rem;flex-wrap:nowrap"><div class="search" style="flex:1">⌕ Find: map, button, lidar…</div><span class="seglabel">I send with <b style="color:var(--text)">Terminal ▾</b></span></div>`
+        : o.select ? `<div class="row" style="gap:0.5rem;flex-wrap:nowrap"><div class="search" style="flex:1">⌕ Find: map, button, lidar…</div><span class="seglabel">I send with <b style="color:var(--text);padding:0.3rem 0.5rem;border:1px solid var(--line);border-radius:0.45rem;background:var(--card)">${lang} ▾</b></span></div>`
+        : `<div class="search">⌕ Find: map, button, lidar…</div><div class="seglabel">I send with ${seg}</div>`;
+    return `<div class="panel" style="${o.h ? `height:${o.h}rem;` : ""}"><div class="ph"><h3>Help</h3><span class="muted" style="color:var(--muted)">What do you want to see?</span><span class="x">✕</span></div><div class="tools">${tools}</div><div class="body" style="overflow:hidden;flex:1">${inner}</div><div class="trybar"><div class="f">Try a message: temperature:25.3</div><span class="btn">Send</span></div></div>`;
+}
+const titleRow = (title, svg, family = "Numbers") => `<div class="crumb">‹ All <span style="color:var(--muted);font-weight:400">· ${family}</span></div><div class="title"><h4>${title}</h4><div class="thumb">${svg}</div></div>`;
+const frame = (n, cap, html, note, rec) => `<div class="frame"><div class="cap">${n ? `<span class="n">${n}</span>` : ""}${cap}${rec ? ' <span class="rec">· recommended</span>' : ""}</div>${html}${note ? `<div class="fnote">${note}</div>` : ""}</div>`;
+const howCurve = `<div class="sec">How it works</div><p class="how">Send it again whenever the value changes: each message is a point of the curve, dated when it arrives. It goes to the Live dashboard by itself.</p><div class="fold">▸ More ways (4): your own time · several values · a unit · clear</div>`;
+
+const B = {};
+B.before = () => {
+    const old = `<div class="crumb">‹ All <span style="color:var(--muted);font-weight:400">· Numbers</span></div><h4 style="margin:0.3rem 0;font-size:1.3rem">A curve</h4><div class="pic">${curveSvg(380, 120)}</div>`
+        + `<div class="sec">Send</div><div class="seg" style="background:none;border-bottom:1px solid var(--line);border-radius:0">${Object.keys(LANG).map((l, i) => `<span class="${i ? "" : "on"}" style="flex:none;padding:0.3rem 0.6rem;${i ? "" : "box-shadow:none;border-bottom:2px solid var(--primary);border-radius:0"}">${l}</span>`).join("")}</div>`
+        + `<div class="fold" style="margin:0.4rem 0">▸ Set up, once</div><div class="msgcard" style="border-left:3px solid var(--primary)"><p class="note">It is charted as it arrives, at the time it arrives.</p><code style="font:0.85rem var(--mono)">echo "<span style="background:color-mix(in srgb,var(--k-name) 20%,transparent)">temperature</span>:<span style="background:color-mix(in srgb,var(--k-value) 22%,transparent)">25.3</span>" | nc -u -w0 127.0.0.1 47269</code><div style="text-align:right;margin-top:0.3rem"><span class="act">✎ Edit</span> <span class="act">➤ Send</span> ⧉</div></div>`
+        + `<div class="sec">How it works</div><p class="how">A name, a colon, a value: that is a whole message…</p><div class="fold">▸ More ways (4)</div><div class="sec">Related</div><div class="row" style="gap:0.5rem">${[curveSvg, gaugeSvg].map((f) => `<div style="width:47%" class="pic">${f(200, 80)}</div>`).join("")}</div>`;
+    const neu = titleRow("A curve", curveSvg(150, 60)) + `<p class="sub">A number over time.</p>`
+        + `<div class="sec">The message</div>` + card(M.curve, "")
+        + howCurve;
+    return frame("", "Today", panel(old, { oldTools: true, h: 52 }), "The message is a third of a line in the middle; the command around it is as loud as it is; the picture and the related tiles take most of the height.")
+        + frame("A", "Proposed", panel(neu, { h: 52 }), "The message is the biggest thing on the sheet, its parts named under it. The language is chosen at the top, its command is one small line. The picture is a thumbnail next to the title: it says what the tile is, nothing more.", true);
+};
+
+B.anatomy = () => {
+    const desc = { name: "any text, no : | , §", value: "a number", time: "optional, ms since 1970", unit: "optional", flags: "optional, np: not charted" };
+    return frame("A", "Names under the parts", `<div class="panel" style="padding:1rem">${card(M.curveFull, "Everything a number can have.", { noCmd: true })}${card(M.curve, "The shortest message.", { noCmd: true })}</div>`, "Reads like a diagram: the line keeps its shape, the names do not move it. Long names (time (ms)) widen their part a little; a line wraps between parts.", true)
+        + frame("B", "Chips", `<div class="panel" style="padding:1rem">${card(M.curveFull, "Everything a number can have.", { noCmd: true, style: chips })}${card(M.curve, "The shortest message.", { noCmd: true, style: chips })}</div>`, "Each part is a block with its name above. Very clear, but the line no longer looks like what is typed: the gaps are not in the message.")
+        + frame("C", "Colored line and a legend", `<div class="panel" style="padding:1rem">${card(M.curveFull, "Everything a number can have.", { noCmd: true, style: (m) => legend(m, desc) })}</div>`, "The line exactly as typed, then a list part by part with what it accepts. The most explicit, and the tallest; good for the first tile only?");
+};
+
+B.lang = () => {
+    const sheetD = (lang) => titleRow("A curve", curveSvg(150, 60)) + `<div class="sec">The message</div>` + card(M.curve, "", { lang }) + `<div class="sec">How it works</div><p class="how">Send it again whenever the value changes…</p>`;
+    const sheetE = (lang) => titleRow("A curve", curveSvg(150, 60)) + `<div class="sec">The message <span class="act">▶ Send to this page</span></div>` + card(M.curve, "", { noCmd: true })
+        + `<div class="sec">From ${lang}</div><div class="howsend">${lang == "Python" ? `Once: <code>sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)</code>, then each message:<pre>sock.sendto(b"<span class="msgslot">temperature:25.3</span>", ("127.0.0.1", 47269))</pre>` : lang == "Arduino" ? `Once: <code>Serial.begin(115200);</code> and open the port in Sources. Then each message, after a <code>&gt;</code>:<pre>Serial.println("&gt;<span class="msgslot">temperature:25.3</span>");</pre>` : `Each message, as one UDP packet to port 47269:<pre>echo "<span class="msgslot">temperature:25.3</span>" | nc -u -w0 127.0.0.1 47269</pre>`}<div style="margin-top:0.35rem;text-align:right"><span class="ico">⧉ Copy</span></div></div>`
+        + `<div class="sec">How it works</div><p class="how">Send it again whenever the value changes…</p>`;
+    return frame("D", "A small line under each message", panel(sheetD("Terminal"), { h: 34 }), "The command is right where the message is, in small grey type, the message in it in normal color. Send and Edit live on that line.", true)
+        + frame("", "D with Arduino", panel(sheetD("Arduino"), { lang: "Arduino", h: 34 }), "Switching the language at the top changes every command line of every sheet; the message above stays the same.")
+        + frame("E", "Once per sheet, as a template", panel(sheetE("Python"), { lang: "Python", h: 38 }), "The language is explained once, with the place of the message highlighted; messages have no command around them at all. Purest protocol view; one more step to copy a ready line.")
+        + frame("F", "Language as a select", panel(sheetD("Terminal"), { select: true, h: 34 }), "Same as D with a select next to the search: one row less, but the choice is less visible (and newcomers often do not know it changes the lines).");
+};
+
+B.recipe = () => {
+    const body = titleRow("A gauge", gaugeSvg(150, 60)) + `<p class="sub">A range and limits for a number.</p>`
+        + `<div class="sec">The messages <span class="act">▶ Send all 3</span></div>`
+        + card(M.attr, "The range: the bar goes from 9 to 12.6.", { num: "1" })
+        + card(M.th, "Two limits: a name, &lt; or &gt; (the side that is past it), a value; a color if you want one.", { num: "2" })
+        + card(M.battery, "The number itself, as usual: here below \"low\".", { num: "3", known: ["name"] })
+        + `<div class="sec">How it works</div><p class="how">ATTR| and TH| describe a telemetry: send them once, before or after the values.</p>`;
+    const after = titleRow("A gauge", gaugeSvg(150, 60))
+        + `<div class="sec">The messages <span class="act" style="color:var(--ok)">✓ Sent</span></div>`
+        + card(M.attr, "", { num: "1", status: "battery is expected between 9 and 12.6." })
+        + card(M.th, "", { num: "2", status: "Thresholds of battery: empty below 9.9, low below 10.5." })
+        + card(M.battery, "", { num: "3", known: ["name"], status: "A number named battery, below low. It is on the Live dashboard." });
+    return frame("", "A gauge", panel(body, { h: 66 }), "The name is not labelled again on line 3: what is new on a line is what is named.")
+        + frame("", "After Send all", panel(after, { h: 66 }), "Notes fold away after sending; each card says what the page understood.");
+};
+
+B.long = () => {
+    const body = titleRow("A 3D scene", shapeSvg(150, 60), "Space") + `<p class="sub">Shapes in space.</p><div class="sec">The message</div>`
+        + card(M.shape, "A cube named box, in the scene of the label scene.")
+        + `<div class="sec">Properties</div><dl class="legend" style="margin-top:0"><dt class="k-value">S</dt><dd>kind: cube, sphere, cylinder, stl</dd><dt class="k-time">P</dt><dd>position x:y:z (x forward, y left, z up)</dd><dt class="k-unit">W D H</dt><dd>width, depth, height (RA: radius)</dd><dt class="k-flags">C</dt><dd>color: a name or #rrggbb</dd><dt style="color:var(--muted)">R Q O</dt><dd>rotation, quaternion, opacity: in More ways</dd></dl>`;
+    return frame("", "Named by property", panel(body, { h: 50 }), "A property and its values are one part (P:1:0:0.5 = position). For lines with many properties, a short table of the keys follows: it is the reference people come back for.", true);
+};
+
+B.states = () => {
+    const base = (o) => `<div class="panel" style="padding:1rem;width:30rem">${card(M.curve, "", o)}</div>`;
+    return frame(1, "Rest", base({}))
+        + frame(2, "Pointing at a part", base({ hl: 2, tip: "value" }), "The part is highlighted, the others stay; what it accepts appears under the line (the rule of the parser, one sentence). Same on the name, the unit…")
+        + frame(3, "Sent", base({ status: "A number named temperature. It is in the Telemetries panel and on the Live dashboard." }))
+        + frame(4, "Edited in the try field, wrong", `<div class="panel" style="padding:1rem;width:30rem"><div class="msgcard">${anat([["temperature", "name", "name"], [":"], ["hot", "bad", "not a number"]])}<div class="status bad"><i>!</i><span>The value of "temperature" is not a number. To send text, add the t flag: temperature:hot|t</span></div></div></div>`, "The try field at the bottom uses the same anatomy as it is typed: a newcomer sees which part is wrong.");
+};
+
+B.notes = () => `<table class="cmp">
+<tr><th>Change</th><th>What it needs</th></tr>
+<tr><td>Language: one segmented control under the search (D), every command follows it</td><td>Remove the tabs of the sheet and the select of the tools row; the setup moves to the command line's ⓘ or to a small "Set up, once" line under the first message</td></tr>
+<tr><td>Message anatomy (A)</td><td><code>helpParts(message)</code>: helpColorize's parts + a name per part. Names for <code>3D|/2D|</code> properties (S, P, R, Q, W, D, H, RA, C, O, F, FPX, PT, V, TX, K, DC…), <code>ATTR|</code> keys (min, max, write, action, arg, type…), <code>TH|</code> limits and colors, <code>DASH|</code> path / type / telemetries / options. Tested like helpColorize: the parts join back to the message.</td></tr>
+<tr><td>Hint on a part</td><td>One sentence per kind of part, from the rules of the parser (<code>TIPS</code>); shown on hover and focus (keyboard reachable)</td></tr>
+<tr><td>Command line, small</td><td>helpLine() as today, rendered in 0.78rem grey, the message inside in normal color; Send / Edit / Copy on that line; C++ keeps its own call when there is one, else the text line and a note</td></tr>
+<tr><td>Picture → thumbnail next to the title; "Related" removed</td><td>Template only</td></tr>
+<tr><td>Parts already named in the sheet are not named again</td><td>Per sheet: a set of labels seen in earlier lines</td></tr>
+<tr><td>Property table for long lines</td><td><code>keys</code> on the tiles of shapes: [key, meaning]</td></tr>
+<tr><td>Try field with the anatomy</td><td>Same component as the cards, live; the wrong part outlined in red when helpDescribe says which</td></tr>
+</table>`;
+
+for (const el of document.querySelectorAll("[data-build]")) el.innerHTML = B[el.dataset.build]();
+</script>
+</body>
+</html>

@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help as a gallery</title>
+<style>
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%); --color-success: hsl(145, 63%, 42%); --color-danger: hsl(6, 78%, 57%); --color-warning: hsl(41, 100%, 47%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --tp-text: #1d2329; --tp-muted: #66717c; --tp-surface: #ffffff; --tp-bg: #f4f5f7; --tp-line: #d5dbe0; --tp-grid: rgba(0,0,0,.08);
+    --s1: #2980b9; --s2: #16a085; --s3: #8e44ad; --s4: #d35400; --s5: #c0392b; --warn: #b87500; --ok: #1e9e5a;
+    --k-name: #16a085; --k-value: #d35400; --k-flags: #8e44ad; --k-time: #7f8c8d; --k-label: #2980b9; --k-prefix: #c0392b;
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+    --tp-text: #e8ebee; --tp-muted: #8d98a3; --tp-surface: #15191d; --tp-bg: #0f1215; --tp-line: #2c343b; --tp-grid: rgba(255,255,255,.09);
+    --s1: #3498db; --s2: #1abc9c; --s3: #b07cd8; --s4: #e67e22; --s5: #ff6b63; --warn: #e0a800; --ok: #3ccf7f;
+    --k-name: #1abc9c; --k-value: #f39c4b; --k-flags: #b07cd8; --k-time: #95a5a6; --k-label: #5dade2; --k-prefix: #ff7b72;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.5; }
+code, .mono { font-family: var(--mono); }
+kbd { font: 600 0.75rem var(--mono); padding: 0 0.3rem; border-radius: 0.25rem; border: 1px solid var(--color-bg-dark); }
+header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); }
+header h1 { margin: 0 auto 0 0; font-size: 1.35rem; font-weight: 500; white-space: nowrap; }
+header nav { display: flex; gap: 0.1rem; flex-wrap: wrap; }
+header nav a { color: var(--color-text-muted); text-decoration: none; padding: 0.1rem 0.4rem; border-radius: 0.6rem; font-weight: 600; }
+header nav a:hover { color: var(--color-primary); }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 122rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.6rem; font-weight: 500; margin: 2.4rem 0 0.3rem; scroll-margin-top: 4rem; }
+.lead { color: var(--color-text-muted); max-width: 92rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 0.6rem; padding: 0; margin: 0; list-style: none; }
+.needs li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.5rem 0.8rem; border-bottom: 2px solid var(--color-primary); }
+.needs b { display: block; } .needs span { color: var(--color-text-muted); }
+.block { display: grid; grid-template-columns: 24rem minmax(0, 1fr); gap: 1.6rem; align-items: start; padding: 1.5rem 0; border-top: 2px solid var(--color-bg-dark); scroll-margin-top: 4rem; }
+.block h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.block h3 i { font-style: normal; color: var(--color-primary); font-weight: 700; margin-right: 0.4rem; }
+.block p { margin: 0 0 0.6rem; font-size: 1.02rem; }
+.block ul { margin: 0 0 0.6rem; padding-left: 1.2rem; }
+.block li { margin-bottom: 0.2rem; }
+.tags { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.tag { font-size: 0.75rem; font-weight: 700; padding: 0.05rem 0.55rem; border-radius: 1rem; color: #fff; background: var(--color-primary); }
+.tag.size { background: #7f8c8d; } .tag.good { background: #1e8f55; } .tag.risk { background: #b87500; }
+.stage { background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.8rem; padding: 0.8rem; display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-start; min-width: 0; }
+.caption { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); margin: 0 0 0.3rem; display: flex; gap: 0.35rem; align-items: center; }
+.num { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: var(--color-text-muted); color: var(--color-bg); font-size: 0.7rem; letter-spacing: 0; }
+.frame { display: flex; flex-direction: column; min-width: 0; }
+.fnote { font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.3rem; max-width: 24rem; }
+@media (max-width: 1000px) { .block { grid-template-columns: 1fr; } }
+
+/* ---- The pieces the proposals are made of ---- */
+.panel { background: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-radius: 0 1em 1em 0; padding: 0.8rem 0.9rem 1rem; position: relative; width: 24rem; }
+.panel.wide { width: 44rem; } .panel.right { border-radius: 1em 0 0 1em; }
+.panel h4 { margin: 0 0 0.6rem; font-size: 1.45rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+.panel h4 small { font-size: 0.9rem; color: var(--color-text-muted); font-weight: 400; }
+.x { margin-left: auto; color: var(--color-text-muted); font-size: 1rem; }
+.card { background: var(--color-bg-light); border-radius: 0.6rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.7rem 0.8rem; margin-bottom: 0.6rem; }
+.card h5 { margin: 0 0 0.3rem; font-size: 1.05rem; display: flex; gap: 0.4rem; align-items: center; }
+.muted { color: var(--color-text-muted); } .small { font-size: 0.88rem; } .grow { flex: 1; }
+.row { display: flex; gap: 0.5rem; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 0.4rem; }
+.sec { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); margin: 0.6rem 0 0.25rem; display: flex; align-items: center; gap: 0.35rem; }
+.sec .ico { font-size: 0.9rem; }
+.msg { display: flex; align-items: center; gap: 0.4rem; background: var(--color-bg); border: 1px solid var(--color-bg-dark); border-radius: 0.45rem; padding: 0.35rem 0.5rem; font: 0.95rem var(--mono); }
+.msg code { flex: 1; overflow-x: auto; white-space: nowrap; }
+.msg.big { font-size: 1.25rem; padding: 0.6rem 0.8rem; }
+.btn { font: 600 0.82rem Verdana, sans-serif; padding: 0.15rem 0.6rem; border-radius: 0.45rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text); white-space: nowrap; display: inline-flex; gap: 0.3rem; align-items: center; }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: none; color: var(--color-text-muted); }
+.btn.ok { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.k-name { color: var(--k-name); } .k-value { color: var(--k-value); } .k-flags { color: var(--k-flags); } .k-time { color: var(--k-time); } .k-label { color: var(--k-label); } .k-prefix { color: var(--k-prefix); font-weight: 700; } .k-sep { color: var(--color-text-muted); }
+.preview { background: var(--tp-surface); border: 1px solid var(--tp-line); border-top: 2px solid var(--s1); border-radius: 0.45rem; overflow: hidden; color: var(--tp-text); }
+.preview .pt { font: 700 0.68rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--tp-muted); padding: 0.2rem 0.45rem 0; }
+.how { font-size: 0.92rem; color: var(--color-text-muted); border-left: 3px solid var(--color-primary); padding: 0.1rem 0 0.1rem 0.6rem; margin: 0.4rem 0; }
+.how b { color: var(--color-text); }
+.trio { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; align-items: start; }
+.pill { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.82rem; font-weight: 600; padding: 0.08rem 0.55rem; border-radius: 1rem; border: 1px solid var(--color-bg-dark); color: var(--color-text-muted); background: var(--color-bg-light); white-space: nowrap; }
+.pill.on { color: var(--color-primary); border-color: var(--color-primary); }
+.pill.done { color: var(--color-success); border-color: var(--color-success); }
+.pill.new { color: #fff; background: var(--s3); border-color: var(--s3); }
+.chk { display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; border-radius: 50%; font-size: 0.7rem; font-weight: 700; flex: none; border: 2px solid var(--color-bg-dark); color: transparent; }
+.chk.done { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.chk.now { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent); }
+.lock { opacity: 0.45; }
+.progress { height: 0.4rem; border-radius: 1rem; background: var(--color-bg-dark); overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--color-success); }
+.tile { background: var(--color-bg-light); border-radius: 0.6rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.tile b { font-size: 0.92rem; padding: 0 0.2rem; } .tile span { font-size: 0.78rem; color: var(--color-text-muted); padding: 0 0.2rem 0.2rem; }
+.tile.sel { outline: 2px solid var(--color-primary); }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+.app { width: 46rem; height: 25rem; position: relative; background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.6rem; overflow: hidden; }
+.app .island { position: absolute; left: 50%; top: 0.5rem; transform: translateX(-50%); display: flex; gap: 0.4rem; align-items: center; padding: 0.3rem 0.6rem; border-radius: 1rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); font-size: 0.85rem; font-weight: 600; white-space: nowrap; z-index: 2; }
+.app .dash { position: absolute; inset: 3rem 0.6rem 0.6rem 0.6rem; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 0.5rem; }
+.toast { position: absolute; z-index: 3; background: var(--color-bg-light); border: 1px solid var(--color-primary); border-radius: 0.7rem; box-shadow: 0 10px 30px var(--color-shadow); padding: 0.6rem 0.7rem; width: 19rem; font-size: 0.9rem; }
+.toast > b { display: block; margin-bottom: 0.2rem; }
+.spot { position: absolute; border: 2px solid var(--color-primary); border-radius: 0.6rem; box-shadow: 0 0 0 9999px rgba(0,0,0,.45); z-index: 2; }
+.anat { font: 1.6rem var(--mono); text-align: center; padding: 1.2rem 0 0.4rem; letter-spacing: 0.02em; }
+.anat span { padding: 0 0.05rem; border-bottom: 3px solid currentColor; }
+.callouts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.4rem; font-size: 0.8rem; text-align: center; }
+.callouts div { border-top: 2px solid currentColor; padding-top: 0.25rem; }
+.chat { display: flex; flex-direction: column; gap: 0.45rem; }
+.bubble { max-width: 85%; padding: 0.45rem 0.6rem; border-radius: 0.8rem; font-size: 0.92rem; }
+.bubble.me { align-self: flex-end; background: var(--color-primary); color: #fff; border-bottom-right-radius: 0.2rem; }
+.bubble.it { align-self: flex-start; background: var(--color-bg-light); box-shadow: 0 0 3px var(--color-shadow); border-bottom-left-radius: 0.2rem; }
+.search { display: flex; align-items: center; gap: 0.4rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); border-radius: 0.6rem; padding: 0.4rem 0.6rem; font-size: 1rem; }
+.flip { perspective: 600px; }
+.codebox { background: var(--color-bg); border: 1px solid var(--color-bg-dark); border-radius: 0.45rem; padding: 0.5rem 0.6rem; font: 0.85rem/1.55 var(--mono); white-space: pre; overflow-x: auto; }
+.codebox .c { color: var(--color-text-muted); }
+.seg { display: flex; gap: 0.15rem; padding: 0.2rem; border-radius: 0.8rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.seg span { flex: 1; text-align: center; padding: 0.12rem 0.4rem; border-radius: 0.6rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; font-size: 0.85rem; }
+.seg .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.compare { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.compare th, .compare td { text-align: left; padding: 0.35rem 0.5rem; border-top: 1px solid var(--color-bg-dark); vertical-align: top; }
+.compare th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+svg text { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<style>
+/* ---- Gallery ---- */
+.ex .msg code, .panel.help .msg code { white-space: pre-wrap; word-break: break-all; }
+.panel.help { width: 30rem; border-radius: 1em 0 0 1em; padding: 0.7rem 0.8rem 0; display: flex; flex-direction: column; max-height: 52rem; }
+.panel.help .scroll { overflow: hidden; flex: 1; padding-bottom: 0.6rem; }
+.hhead { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.hhead h4 { margin: 0; font-size: 1.45rem; font-weight: 500; }
+.hsub { color: var(--color-text-muted); font-size: 0.95rem; }
+.tools { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.6rem; }
+.filter { flex: 1; display: flex; align-items: center; gap: 0.35rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); border-radius: 0.55rem; padding: 0.3rem 0.5rem; color: var(--color-text-muted); font-size: 0.92rem; }
+.sender { display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); border-radius: 0.55rem; padding: 0.3rem 0.5rem; font-size: 0.88rem; white-space: nowrap; }
+.fam { display: flex; align-items: baseline; gap: 0.4rem; margin: 0.8rem 0 0.35rem; }
+.fam b { font-size: 0.95rem; } .fam span { font-size: 0.8rem; color: var(--color-text-muted); }
+.gal { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.gal.c3 { grid-template-columns: 1fr 1fr 1fr; }
+.gt { position: relative; background: var(--color-bg-light); border-radius: 0.6rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.35rem; display: flex; flex-direction: column; gap: 0.2rem; cursor: pointer; border: 1px solid transparent; }
+.gt:hover, .gt.hov { border-color: var(--color-primary); }
+.gt b { font-size: 0.92rem; padding: 0 0.2rem; } .gt span.s { font-size: 0.78rem; color: var(--color-text-muted); padding: 0 0.2rem 0.15rem; }
+.gt .mark { position: absolute; top: 0.45rem; right: 0.45rem; z-index: 1; }
+.gt.page .preview { border-top-color: var(--color-text-muted); }
+.ok-dot { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--color-success); color: #fff; font-size: 0.65rem; font-weight: 700; box-shadow: 0 0 0 2px var(--color-bg-light); }
+.newb { font-size: 0.62rem; font-weight: 700; color: #fff; background: var(--s3); border-radius: 0.5rem; padding: 0 0.35rem; box-shadow: 0 0 0 2px var(--color-bg-light); }
+.hero { background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 18%, var(--color-bg-light)), var(--color-bg-light)); border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent); border-radius: 0.8rem; padding: 0.7rem 0.8rem; margin-bottom: 0.4rem; }
+.hero .k { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-primary); }
+.hero h5 { margin: 0.1rem 0 0.4rem; font-size: 1.2rem; font-weight: 600; }
+.trybar { position: sticky; bottom: 0; margin: 0 -0.8rem; padding: 0.55rem 0.8rem; border-top: 1px solid var(--color-bg-dark); background: var(--color-bg-panel); display: flex; gap: 0.4rem; align-items: center; border-radius: 0 0 0 1em; }
+.trybar .field { flex: 1; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); border-radius: 0.5rem; padding: 0.3rem 0.5rem; font: 0.9rem var(--mono); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; }
+.foot { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px solid var(--color-bg-dark); }
+.crumb { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--color-text-muted); }
+.crumb b { color: var(--color-text); font-size: 1.3rem; font-weight: 500; }
+.tabs { display: flex; gap: 0.15rem; border-bottom: 1px solid var(--color-bg-dark); margin: 0.2rem 0 0.4rem; }
+.tabs span { padding: 0.2rem 0.6rem; font-size: 0.85rem; font-weight: 600; color: var(--color-text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs .on { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.ex { margin: 0.3rem 0 0.6rem; }
+.ex .note { font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 0.2rem; }
+.ex .acts { display: flex; gap: 0.3rem; margin-top: 0.25rem; }
+.status { display: flex; gap: 0.4rem; align-items: flex-start; font-size: 0.88rem; padding: 0.35rem 0.5rem; border-radius: 0.45rem; background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-text); margin-top: 0.3rem; }
+.status i { font-style: normal; color: var(--color-success); font-weight: 700; }
+.who { font: 700 0.65rem Verdana, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; padding: 0 0.35rem; border-radius: 0.3rem; flex: none; }
+.who.dev { color: var(--s2); border: 1px solid var(--s2); } .who.page { color: var(--s4); border: 1px solid var(--s4); }
+.folded { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.5rem; border-radius: 0.5rem; border: 1px dashed var(--color-bg-dark); color: var(--color-text-muted); font-size: 0.88rem; margin-top: 0.3rem; }
+.mini-row { display: flex; gap: 0.4rem; }
+.mini-row .gt { flex: 1; }
+.spec { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.spec th, .spec td { text-align: left; padding: 0.3rem 0.45rem; border-top: 1px solid var(--color-bg-dark); vertical-align: top; }
+.spec th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+.spec td code { font-size: 0.82rem; }
+.spec tr.famrow td { background: color-mix(in srgb, var(--color-text) 5%, transparent); font-weight: 700; }
+.listrow { display: flex; gap: 0.5rem; align-items: center; background: var(--color-bg-light); border-radius: 0.5rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.3rem; margin-bottom: 0.35rem; }
+.listrow .preview { width: 6rem; flex: none; }
+.cmdhint { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 0.5rem; background: color-mix(in srgb, var(--color-success) 10%, transparent); border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent); font-size: 0.88rem; }
+.cmdb { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; padding: 0.15rem 0.4rem; border-radius: 0.5rem; background: color-mix(in srgb, var(--color-text) 8%, transparent); font: 700 0.75rem Verdana; }
+.cmdb small { font-size: 0.55rem; color: var(--color-text-muted); }
+</style>
+<header>
+    <h1>Help as a gallery · refined</h1>
+    <nav>
+        <a href="#tiles">The tiles</a><a href="#states">The panel, step by step</a><a href="#sheets">Sheets</a><a href="#variants">Variants</a><a href="#spec">Spec</a><a href="#impl">Implementation</a>
+    </nav>
+    <button onclick="toggleTheme()">Light / dark</button>
+</header>
+<main>
+<p class="lead" style="margin-top:1rem">Proposal 3 of <code>help-panel-mockups-4.html</code>, made concrete. The Help panel (right dock, 30 rem as today) opens on <b>what
+can be seen</b>: a gallery of results, grouped in families. A tile opens its <b>sheet</b>: the picture large, the lines to send (in the language the user
+sends with), how it works, more ways, related tiles. Every message and every result shown here exists in Teleplot today; the help tests keep checking
+that each line is understood.</p>
+<ul class="needs">
+    <li><b>Start from the result</b><span>A newcomer recognizes "a gauge" before knowing <code>ATTR|</code>.</span></li>
+    <li><b>Discovered, for real</b><span>A tile gets a check when the page has received data that gives that result: from a device, a file, or the Send button.</span></li>
+    <li><b>One next step</b><span>"Suggested next" shows two tiles, picked from what was received (a number without range → a gauge).</span></li>
+    <li><b>Room</b><span>The grid shows titles and pictures only; text is in the sheet, one tile at a time.</span></li>
+    <li><b>Same actions as today</b><span>Send to this page, Edit in the try bar, Copy; the try bar stays one line at the bottom.</span></li>
+    <li><b>Not only messages</b><span>"In the page" tiles explain what is done with the mouse: arrange, zoom, save, serial ports, commands.</span></li>
+</ul>
+
+<h2 id="tiles">The tiles: every feature, as a result</h2>
+<p class="lead">22 tiles from messages in 6 families, and 6 tiles for what is done in the page. Hover one: the light border is the only decoration a tile has.</p>
+<div class="stage" data-build="allTiles"></div>
+
+<h2 id="states">The panel, step by step</h2>
+<p class="lead">How it looks the first time, and after a while. The grid is the same; what changes is the hero, the checks and the suggestions.</p>
+<div class="block"><div>
+    <h3><i>1</i>First open: nothing received yet</h3>
+    <p>A <b>Start here</b> card on top, the first tile already open in it: the line, Send, and a sentence. Below, the whole gallery, so that nothing is hidden;
+    families keep their order from simple to advanced.</p>
+    <ul><li>The sender ("Terminal") is asked by the chip at the top, remembered.</li>
+    <li>The search filters tiles by words of their title, description and lines ("map", "lidar", "button").</li>
+    <li>Bottom: the try bar (one line); above the footer: sample data, shortcuts, documentation.</li></ul>
+</div><div class="stage" data-build="first"></div></div>
+
+<div class="block"><div>
+    <h3><i>2</i>After a while: checks and suggestions</h3>
+    <p>The hero is gone (it comes back with "Start again" in the footer). <b>Suggested next</b>: two tiles chosen from what came in, with the reason
+    under them. A count says how much has been discovered. Tiles of features new since the last visit carry <span class="newb">new</span> (here: Control).</p>
+    <p class="muted">Rules of suggestion, in order: a number without range → A gauge; a text state → A timeline; 2 or 3 numbers → A map or 3D; an image → Through a camera;
+    many telemetries → Your dashboard; anything for a while → Settings (once).</p>
+</div><div class="stage" data-build="later"></div></div>
+
+<h2 id="sheets">Sheets</h2>
+<p class="lead">A tile opens its sheet in place of the grid (‹ All goes back, Esc too). Same structure for every tile: picture, lines, how, more, related.</p>
+<div class="block"><div>
+    <h3><i>3</i>A gauge, before and after Send</h3>
+    <p>Lines are the steps of a recipe, in order, numbered when there are several. <b>Send</b> sends that line to this page; <b>Send all</b> sends the recipe.
+    The result comes back under the line (the text of <code>helpDescribe</code> today), with <b>Show me</b>: the view that displays it blinks on the dashboard.</p>
+    <p>The check of the tile and the progress update at once.</p>
+</div><div class="stage" data-build="gauge"></div></div>
+
+<div class="block"><div>
+    <h3><i>4</i>The same sheet, for each sender</h3>
+    <p>The tabs above the lines are the senders. The line becomes what that sender writes: an <code>nc</code> command, a Python call, a C++ call, an Arduino
+    <code>Serial.println</code>. When a sender needs a setup (Python's socket, Arduino's <code>Serial.begin</code>), a "Set up, once" line comes first, folded
+    after the first time.</p>
+</div><div class="stage" data-build="senders"></div></div>
+
+<div class="block"><div>
+    <h3><i>5</i>Control: what the device sends, what it answers</h3>
+    <p>For commands, lines go both ways: they are tagged <span class="who dev">device</span> (sends) and <span class="who page">page</span> (what your device will
+    receive). A hint reminds that <b>CMD</b> has to be on, with the button to switch it.</p>
+</div><div class="stage" data-build="control"></div></div>
+
+<div class="block"><div>
+    <h3><i>6</i>"In the page": no message, a gesture</h3>
+    <p>Tiles about the interface show what to do (keys, where to click) and open the right place: Edit mode, the Export panel, the data menu, the Sources
+    panel. Their picture is the interface, not data.</p>
+</div><div class="stage" data-build="page"></div></div>
+
+<div class="block"><div>
+    <h3><i>7</i>Searching</h3>
+    <p>Typing filters the grid as you type; the families of the tiles found stay as headings. Nothing found: the closest words, and the try bar
+    ("Paste a line you have: we tell you what it is").</p>
+</div><div class="stage" data-build="search"></div></div>
+
+<h2 id="variants">Variants</h2>
+<div class="block"><div>
+    <h3><i>A</i>Tile density</h3>
+    <p><b>2 columns</b> (recommended in a 30 rem dock): pictures large enough to recognize, a title and a few words. <b>3 columns</b>: everything on one
+    screen, but pictures too small to tell a map from a scan. <b>A list</b>: the densest, closest to today, the least visual.</p>
+</div><div class="stage" data-build="density"></div></div>
+
+<div class="block"><div>
+    <h3><i>B</i>Where the sheet opens</h3>
+    <p><b>In place</b> (recommended): the grid gives way, ‹ All comes back to the same scroll position. <b>Under its row</b>: the grid stays, the sheet pushes
+    the next rows down (good on a tall screen, jumpy). <b>Next to the panel</b>: a sheet floats over the dashboard, the grid stays visible (more room for the
+    picture, hides data).</p>
+</div><div class="stage" data-build="where"></div></div>
+
+<div class="block"><div>
+    <h3><i>C</i>Pictures: drawn, or live</h3>
+    <p><b>Drawn</b> (the grid): small illustrations, the same for everyone, cheap. <b>Live</b> (suggested for the sheet): a real view of the library fed with
+    the lines of the recipe, so what is shown is exactly what the user will get, theme included; editing a line in the try bar updates it. This needs a
+    second library instance (the bundle already initializes from a given object: to be confirmed for its update loop and its styles).</p>
+</div><div class="stage" data-build="live"></div></div>
+
+<div class="block"><div>
+    <h3><i>D</i>Progressive: suggest, or unfold</h3>
+    <p><b>Everything visible, suggestions on top</b> (recommended): nothing is hidden, the path is a hint. <b>Unfold</b>: only Numbers and Text at first, the other
+    families as one line each ("Space · 5 results") that open when one basic tile is discovered or on click. Calmer at first, but features can be missed.</p>
+</div><div class="stage" data-build="unfold"></div></div>
+
+<div class="block"><div>
+    <h3><i>E</i>The try bar</h3>
+    <p><b>At the bottom</b> (recommended), like the input of a chat: always at hand, never in the way of the gallery; it grows to show what was understood.
+    <b>At the top</b> (today): visible first, but it pushes the gallery down and reads as the main thing to do.</p>
+</div><div class="stage" data-build="trybar"></div></div>
+
+<h2 id="spec">Spec of the tiles</h2>
+<p class="lead">What each tile shows and when it counts as discovered. The rules read the datastore (and the views for timelines and marks), checked once per
+second while the panel is open; a check is kept (localStorage) once earned.</p>
+<div class="stage" style="display:block" data-build="spec"></div>
+
+<h2 id="impl">Implementation notes</h2>
+<div class="stage" style="display:block">
+<table class="spec">
+<tr><th>What</th><th>Today</th><th>With the gallery</th></tr>
+<tr><td>Content</td><td><code>HELP_STEPS</code>: 15 steps of examples (<code>code</code>, <code>note</code>, <code>expect</code>)</td><td><code>HELP_TILES</code>: <code>{id, family, title, sub, picture, recipe: [examples], how, more: [examples], related, discovered(TP)}</code>. The examples keep their format: <code>help.test.js</code> keeps parsing every line, and gets a test per <code>discovered</code> rule (send the recipe to a fresh library: the tile is discovered; before: it is not).</td></tr>
+<tr><td>Senders</td><td><code>HELP_SENDERS</code>, <code>helpLine</code></td><td>Unchanged; a chip at the top instead of a row of buttons. Python could use the client library (<code>teleplot.py</code>) for commands.</td></tr>
+<tr><td>Try field</td><td>At the top, opens on focus</td><td>The same component, at the bottom (sticky).</td></tr>
+<tr><td>Send / Edit / Copy, result</td><td><code>sendExample</code>, <code>helpDescribe</code></td><td>Unchanged; "Send all" for a recipe; "Show me" finds the view showing the telemetry on the active dashboard and flashes it (a CSS class for 1 s).</td></tr>
+<tr><td>Pictures</td><td>None</td><td>Small inline SVG per picture kind (about 15), colored with the theme variables; a live view in the sheet is variant C.</td></tr>
+<tr><td>Progress</td><td>None</td><td><code>discovered</code> rules; checks kept in <code>localStorage</code> (best effort, try/catch); "new" from the version of the last visit.</td></tr>
+<tr><td>Shortcuts</td><td>Space T S H E Esc</td><td>Same list, in the footer; it misses <kbd>X</kbd> (export) and <kbd>C</kbd> (commands) today.</td></tr>
+<tr><td>Size</td><td>Right dock, <code>min(30rem, 38vw)</code></td><td>Unchanged.</td></tr>
+</table>
+</div>
+</main>
+
+<script>
+function toggleTheme() { const r = document.documentElement; r.dataset.theme = r.dataset.theme == "dark" ? "light" : "dark"; }
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// A message, colored by its parts: prefix|, name, ,label, :time, :value, §unit, |flags
+function colored(line) {
+    let out = "", rest = line;
+    const pre = /^(ATTR|TH|3D|2D|DASH|ACK|JPG|PNG)\|/.exec(rest) || (/^!/.test(rest) ? ["!"] : null);
+    if (pre) { out += `<span class="k-prefix">${esc(pre[0])}</span>`; rest = rest.slice(pre[0].length); }
+    let flags = "";
+    if (!/^(ATTR|DASH)/.test(pre ? pre[0] : "")) { const bar = rest.lastIndexOf("|"); if (bar >= 0) { flags = rest.slice(bar); rest = rest.slice(0, bar); } }
+    else { const bar = rest.indexOf("|"); if (bar >= 0) { flags = rest.slice(bar); rest = rest.slice(0, bar); } }
+    const colon = rest.indexOf(":");
+    let head = colon < 0 ? rest : rest.slice(0, colon), body = colon < 0 ? "" : rest.slice(colon + 1);
+    const comma = head.indexOf(",");
+    out += comma < 0 ? `<span class="k-name">${esc(head)}</span>` : `<span class="k-name">${esc(head.slice(0, comma))}</span><span class="k-label">${esc(head.slice(comma))}</span>`;
+    if (colon >= 0) {
+        out += `<span class="k-sep">:</span>`;
+        const parts = body.split(":");
+        parts.forEach((p, i) => {
+            if (i) out += `<span class="k-sep">:</span>`;
+            const unit = p.indexOf("§");
+            const isTime = parts.length > 1 && i == 0 && /^\d{10,}$/.test(p);
+            if (unit >= 0) out += `<span class="k-value">${esc(p.slice(0, unit))}</span><span class="k-flags">${esc(p.slice(unit))}</span>`;
+            else out += `<span class="${isTime ? "k-time" : "k-value"}">${esc(p)}</span>`;
+        });
+    }
+    if (flags) out += `<span class="k-flags">${esc(flags)}</span>`;
+    return out;
+}
+const msg = (line, big = false, actions = true) => `<div class="msg${big ? " big" : ""}"><code>${colored(line)}</code>${actions ? `<span class="btn ghost" title="Copy">⧉</span><span class="btn primary">Send ▸</span>` : ""}</div>`;
+
+// Small pictures of the views (what a message gives)
+function pic(kind, w = 220, h = 90, title = "") {
+    const W = w, H = h;
+    let s = "";
+    const g = `<g stroke="var(--tp-grid)">${[0.25, 0.5, 0.75].map((f) => `<line x1="0" y1="${H * f}" x2="${W}" y2="${H * f}"/>`).join("")}</g>`;
+    if (kind == "chart") {
+        let pts = [], pts2 = [];
+        for (let i = 0; i <= 40; i++) { pts.push(`${i / 40 * W},${H / 2 - Math.sin(i / 5) * H * 0.3}`); pts2.push(`${i / 40 * W},${H / 2 - Math.cos(i / 7) * H * 0.2 + 8}`); }
+        s = g + `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--s1)" stroke-width="2"/><polyline points="${pts2.join(" ")}" fill="none" stroke="var(--s4)" stroke-width="1.5"/>`;
+    }
+    else if (kind == "value") {
+        s = `<text x="10" y="${H * 0.4}" font-size="11" fill="var(--tp-muted)">battery</text><text x="${W - 10}" y="${H * 0.42}" font-size="22" font-weight="700" text-anchor="end" fill="var(--tp-text)">11.4<tspan font-size="10" fill="var(--tp-muted)"> V</tspan></text>`
+            + `<rect x="10" y="${H * 0.6}" width="${W - 20}" height="6" rx="3" fill="var(--tp-grid)"/><rect x="10" y="${H * 0.6}" width="${(W - 20) * 0.62}" height="6" rx="3" fill="var(--s2)"/>`
+            + `<rect x="${10 + (W - 20) * 0.4}" y="${H * 0.6 - 3}" width="2" height="12" fill="var(--warn)"/><text x="${10 + (W - 20) * 0.4}" y="${H * 0.6 + 20}" font-size="8" fill="var(--warn)" text-anchor="middle">LOW</text>`;
+    }
+    else if (kind == "gauge-warn") {
+        s = `<text x="10" y="${H * 0.4}" font-size="11" fill="var(--tp-muted)">battery</text><text x="${W - 10}" y="${H * 0.42}" font-size="22" font-weight="700" text-anchor="end" fill="var(--warn)">10.2<tspan font-size="10" fill="var(--tp-muted)"> V</tspan></text>`
+            + `<rect x="10" y="${H * 0.6}" width="${W - 20}" height="6" rx="3" fill="var(--tp-grid)"/><rect x="10" y="${H * 0.6}" width="${(W - 20) * 0.3}" height="6" rx="3" fill="var(--warn)"/><rect x="${10 + (W - 20) * 0.4}" y="${H * 0.6 - 3}" width="2" height="12" fill="var(--warn)"/>`;
+    }
+    else if (kind == "timeline") {
+        const bands = [[0, 0.3, "var(--s1)", "idle"], [0.31, 0.62, "var(--s2)", "driving"], [0.63, 0.75, "var(--s5)", "error"], [0.76, 1, "var(--s2)", "driving"]];
+        s = bands.map(([a, b, c, t]) => `<rect x="${a * W}" y="${H * 0.2}" width="${(b - a) * W}" height="${H * 0.25}" fill="${c}" opacity="0.4"/><text x="${a * W + 4}" y="${H * 0.37}" font-size="9" fill="var(--tp-text)">${t}</text>`).join("")
+            + [0.1, 0.35, 0.5, 0.66, 0.9].map((x) => `<rect x="${x * W}" y="${H * 0.58}" width="1.5" height="${H * 0.22}" fill="var(--tp-muted)"/>`).join("");
+    }
+    else if (kind == "stack") {
+        s = [[0, 1, 0.1, "loop"], [0.05, 0.45, 0.38, "plan"], [0.5, 0.9, 0.38, "act"], [0.08, 0.3, 0.66, "search"]].map(([a, b, y, t], i) => `<rect x="${a * W}" y="${H * y}" width="${(b - a) * W}" height="${H * 0.24}" fill="var(--s${i + 1})" opacity="0.45"/><text x="${a * W + 4}" y="${H * y + 13}" font-size="9" fill="var(--tp-text)">${t}</text>`).join("");
+    }
+    else if (kind == "log") {
+        s = ["12:00:01 Path clear", "12:00:03 [WARN] motor current 1.9 A", "12:00:04 Turning left", "12:00:06 Battery 24.8 V"].map((t, i) => `<text x="8" y="${16 + i * 17}" font-size="9" fill="${/WARN/.test(t) ? "var(--warn)" : "var(--tp-text)"}">${t}</text>`).join("");
+    }
+    else if (kind == "map") {
+        let trail = []; for (let i = 0; i < 30; i++) trail.push(`${W * 0.2 + i * 3},${H * 0.7 - Math.sin(i / 6) * 20}`);
+        s = `<rect x="${W * 0.08}" y="${H * 0.1}" width="${W * 0.84}" height="${H * 0.8}" fill="none" stroke="var(--s2)" stroke-width="2"/><polyline points="${trail.join(" ")}" fill="none" stroke="var(--s1)" stroke-width="1.5" opacity="0.7"/>`
+            + `<g transform="translate(${W * 0.2 + 90},${H * 0.7 - Math.sin(29 / 6) * 20}) rotate(-20)"><rect x="-9" y="-6" width="18" height="12" rx="2" fill="var(--s1)"/><path d="M9 0 h6" stroke="var(--tp-text)" stroke-width="2"/></g>`;
+    }
+    else if (kind == "3d") {
+        s = `<path d="M${W * 0.15} ${H * 0.7} L${W * 0.5} ${H * 0.45} L${W * 0.85} ${H * 0.62} L${W * 0.5} ${H * 0.9} Z" fill="var(--tp-grid)" stroke="var(--s2)"/>`
+            + `<path d="M${W * 0.45} ${H * 0.62} l14 -8 l14 6 l-14 8 z" fill="var(--s4)"/><path d="M${W * 0.45} ${H * 0.62} v-14 l14 -8 v14 z M${W * 0.45 + 14} ${H * 0.62 + 6} v-14 l14 -6 v14z" fill="var(--s4)" opacity="0.7"/>`
+            + `<circle cx="${W * 0.68}" cy="${H * 0.5}" r="8" fill="var(--s5)" opacity="0.8"/>`;
+    }
+    else if (kind == "cloud") {
+        for (let i = 0; i < 120; i++) { const a = i / 120 * Math.PI * 2, r = 25 + (i % 7) * 2 + (Math.abs(Math.cos(a * 2)) * 12); s += `<circle cx="${W / 2 + Math.cos(a) * r * 1.6}" cy="${H / 2 + Math.sin(a) * r * 0.9}" r="1.3" fill="hsl(${i * 3} 70% 55%)"/>`; }
+        s += `<circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--tp-text)"/>`;
+    }
+    else if (kind == "image") {
+        s = `<defs><linearGradient id="sky${W}${H}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fa3b3"/><stop offset="0.5" stop-color="#c9d1d8"/><stop offset="0.52" stop-color="#6d747b"/><stop offset="1" stop-color="#4c5156"/></linearGradient></defs>`
+            + `<rect width="${W}" height="${H}" fill="url(#sky${W}${H})"/><rect x="${W * 0.35}" y="${H * 0.3}" width="${W * 0.18}" height="${H * 0.35}" fill="none" stroke="#f1c40f" stroke-width="2"/><text x="${W * 0.35}" y="${H * 0.27}" font-size="9" fill="#f1c40f">obstacle</text>`;
+    }
+    else if (kind == "dashboard") {
+        const cells = [[0, 0, 2, 1], [2, 0, 1, 1], [0, 1, 1, 1], [1, 1, 2, 1]];
+        s = cells.map(([x, y, w2, h2], i) => `<rect x="${4 + x * W / 3}" y="${4 + y * H / 2}" width="${w2 * W / 3 - 8}" height="${h2 * H / 2 - 8}" rx="3" fill="var(--tp-grid)" stroke="var(--s${i + 1})"/>`).join("");
+    }
+    else if (kind == "controls") {
+        s = `<text x="10" y="18" font-size="10" fill="var(--tp-muted)">speed ✎</text><text x="${W - 10}" y="18" font-size="13" font-weight="700" text-anchor="end" fill="var(--tp-text)">0.40</text>`
+            + `<rect x="10" y="28" width="${W - 20}" height="5" rx="2" fill="var(--tp-grid)"/><rect x="10" y="28" width="${(W - 20) * 0.4}" height="5" rx="2" fill="var(--s2)"/><path d="M${10 + (W - 20) * 0.6 - 4} 20 h8 l-4 6z" fill="var(--s1)"/>`
+            + `<text x="10" y="54" font-size="10" fill="var(--tp-muted)">motors ✎</text><rect x="${W - 42}" y="44" width="32" height="15" rx="8" fill="var(--s1)"/><circle cx="${W - 18}" cy="51.5" r="5.5" fill="#fff"/>`
+            + `<rect x="10" y="${H - 22}" width="70" height="17" rx="4" fill="var(--tp-grid)" stroke="var(--tp-line)"/><text x="45" y="${H - 10}" font-size="9" fill="var(--tp-text)" text-anchor="middle">Reset</text>`
+            + `<rect x="88" y="${H - 22}" width="60" height="17" rx="4" fill="var(--s5)"/><text x="118" y="${H - 10}" font-size="9" fill="#fff" text-anchor="middle">Stop</text>`;
+    }
+    else if (kind == "joystick") {
+        s = `<circle cx="${W / 2}" cy="${H / 2}" r="${H * 0.42}" fill="var(--tp-bg)" stroke="var(--tp-line)" stroke-width="2"/><circle cx="${W / 2 + 10}" cy="${H / 2 - 14}" r="${H * 0.13}" fill="var(--s1)"/><circle cx="${W / 2 + 8}" cy="${H / 2 - 11}" r="4" fill="none" stroke="var(--ok)" stroke-width="2"/>`;
+    }
+    else if (kind == "text") {
+        s = `<text x="10" y="${H * 0.45}" font-size="11" fill="var(--tp-muted)">robot.state</text><text x="${W - 10}" y="${H * 0.47}" font-size="18" font-weight="700" text-anchor="end" fill="var(--tp-text)">driving</text>`;
+    }
+    else if (kind == "xy") {
+        let pts = []; for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; pts.push(`${W / 2 + Math.sin(a * 2) * W * 0.3},${H / 2 + Math.sin(a * 3) * H * 0.3}`); }
+        s = g + `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--s3)" stroke-width="1.5"/><circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--s3)"/>`;
+    }
+    return `<div class="preview">${title ? `<div class="pt">${title}</div>` : ""}<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${s}</svg></div>`;
+}
+const frame = (n, cap, html, note) => `<div class="frame"><div class="caption">${n ? `<span class="num">${n}</span>` : ""}${cap}</div>${html}${note ? `<div class="fnote">${note}</div>` : ""}</div>`;
+// The lesson card shared by every proposal: send / see / how
+function lesson(o) {
+    return `<div class="card">${o.title ? `<h5>${o.title}${o.badge || ""}</h5>` : ""}`
+        + `<div class="sec"><span class="ico">➊</span>Send</div>${msg(o.line)}`
+        + (o.more ? `<div class="small muted" style="margin-top:0.3rem">${o.more}</div>` : "")
+        + `<div class="sec"><span class="ico">➋</span>You will see</div>${pic(o.pic, 260, 90, o.picTitle || "")}`
+        + `<div class="sec"><span class="ico">➌</span>How it works</div><div class="how">${o.how}</div>`
+        + (o.next ? `<div class="row" style="margin-top:0.5rem"><span class="small muted">Next:</span><span class="pill on">${o.next} →</span></div>` : "")
+        + `</div>`;
+}
+
+
+// ---- Pictures that the round 4 helpers do not have
+function pic2(kind, w = 220, h = 90, title = "") {
+    const W = w, H = h;
+    const wrap = (s) => `<div class="preview">${title ? `<div class="pt">${title}</div>` : ""}<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${s}</svg></div>`;
+    const curve = (f, color, width = 2) => { let p = []; for (let i = 0; i <= 40; i++) p.push(`${i / 40 * W},${H / 2 - f(i) * H * 0.3}`); return `<polyline points="${p.join(" ")}" fill="none" stroke="${color}" stroke-width="${width}"/>`; };
+    if (kind == "marks") return wrap(curve((i) => Math.sin(i / 6), "var(--s1)") + [0.3, 0.62].map((x) => `<line x1="${x * W}" y1="4" x2="${x * W}" y2="${H}" stroke="var(--s3)" stroke-dasharray="3 2"/><text x="${x * W + 3}" y="12" font-size="9" fill="var(--s3)">${x < 0.5 ? "turning" : "forward"}</text>`).join(""));
+    if (kind == "frames") return wrap(`<g transform="translate(${W * 0.45},${H * 0.55}) rotate(-15)"><rect x="-30" y="-14" width="60" height="28" rx="4" fill="var(--s1)" opacity="0.85"/><rect x="-24" y="-20" width="14" height="6" rx="2" fill="var(--tp-text)"/><rect x="10" y="-20" width="14" height="6" rx="2" fill="var(--tp-text)"/><rect x="-24" y="14" width="14" height="6" rx="2" fill="var(--tp-text)"/><rect x="10" y="14" width="14" height="6" rx="2" fill="var(--tp-text)"/><path d="M30 0 h22" stroke="var(--s4)" stroke-width="2"/><path d="M52 0 l-6 -4 v8z" fill="var(--s4)"/></g><text x="6" y="${H - 6}" font-size="9" fill="var(--tp-muted)">wheels, arrow: in the frame of the body</text>`);
+    if (kind == "camera") return pic("image", W, H, title).replace("</svg>", `<path d="M${W * 0.05} ${H * 0.9} L${W * 0.3} ${H * 0.52} M${W * 0.95} ${H * 0.9} L${W * 0.7} ${H * 0.52}" stroke="var(--s2)" stroke-width="2"/><path d="M${W * 0.3} ${H * 0.52} H${W * 0.7}" stroke="var(--s2)" stroke-width="2" stroke-dasharray="3 2"/></svg>`);
+    if (kind == "place") return wrap(`<rect x="4" y="4" width="${W - 8}" height="14" rx="3" fill="var(--tp-grid)"/><text x="10" y="14" font-size="9" fill="var(--tp-text)">Robot  ▸  Motion</text>` + [[4, 22, 0.6], [W * 0.62, 22, 0.36]].map(([x, y, f], i) => `<rect x="${x}" y="${y}" width="${W * f}" height="${H - 26}" rx="3" fill="var(--tp-grid)" stroke="var(--s${i + 1})"/>`).join(""));
+    if (kind == "edit") return pic("dashboard", W, H, title).replace("</svg>", `<rect x="5" y="5" width="${W * 0.64}" height="${H / 2 - 9}" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="4 2"/><circle cx="${W * 0.66}" cy="${H / 2 - 4}" r="4" fill="#e67e22"/><text x="${W * 0.32}" y="${H / 4 + 3}" font-size="10" fill="#e67e22" text-anchor="middle">drag · resize</text></svg>`);
+    if (kind == "zoom") return wrap(curve((i) => Math.sin(i / 5), "var(--s1)") + `<rect x="${W * 0.35}" y="2" width="${W * 0.25}" height="${H - 4}" fill="var(--s1)" opacity="0.18"/><text x="${W * 0.47}" y="${H - 6}" font-size="9" fill="var(--tp-muted)" text-anchor="middle">drag ↔</text>`);
+    if (kind == "files") return wrap([["data.teleplot", 0.1], ["data.teleplot.txt", 0.4], ["data.teleplot.csv", 0.7]].map(([n, x]) => `<path d="M${x * W} ${H * 0.2} h${W * 0.16} l${W * 0.05} ${H * 0.1} v${H * 0.45} h-${W * 0.21}z" fill="var(--tp-grid)" stroke="var(--tp-line)"/><text x="${x * W + 2}" y="${H * 0.9}" font-size="7" fill="var(--tp-muted)">${n.split(".").slice(1).join(".")}</text>`).join(""));
+    if (kind == "memory") return wrap(`<text x="8" y="18" font-size="10" fill="var(--tp-muted)">data window 5 min · memory</text><rect x="8" y="30" width="${W - 16}" height="10" rx="4" fill="var(--tp-grid)"/><rect x="8" y="30" width="${(W - 16) * 0.35}" height="10" rx="4" fill="var(--s2)"/><rect x="${8 + (W - 16) * 0.35}" y="30" width="${(W - 16) * 0.15}" height="10" fill="var(--s4)"/><circle cx="${W - 24}" cy="${H - 22}" r="12" fill="none" stroke="var(--tp-grid)" stroke-width="5"/><circle cx="${W - 24}" cy="${H - 22}" r="12" fill="none" stroke="var(--ok)" stroke-width="5" stroke-dasharray="30 80" transform="rotate(-90 ${W - 24} ${H - 22})"/>`);
+    if (kind == "serial") return wrap(`<rect x="${W * 0.1}" y="${H * 0.3}" width="${W * 0.3}" height="${H * 0.4}" rx="4" fill="var(--s1)" opacity="0.7"/><path d="M${W * 0.4} ${H * 0.5} C ${W * 0.55} ${H * 0.5}, ${W * 0.5} ${H * 0.2}, ${W * 0.7} ${H * 0.25}" fill="none" stroke="var(--tp-muted)" stroke-width="3"/><rect x="${W * 0.7}" y="${H * 0.15}" width="${W * 0.2}" height="${H * 0.2}" rx="2" fill="var(--tp-grid)" stroke="var(--tp-line)"/><text x="${W * 0.12}" y="${H * 0.85}" font-size="9" fill="var(--tp-muted)">&gt;temp:24.5</text>`);
+    if (kind == "cmdbtn") return wrap(`<rect x="${W / 2 - 34}" y="${H / 2 - 22}" width="68" height="44" rx="10" fill="color-mix(in srgb, var(--ok) 20%, transparent)" stroke="var(--ok)" stroke-width="2"/><text x="${W / 2}" y="${H / 2}" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ok)">CMD</text><text x="${W / 2}" y="${H / 2 + 14}" font-size="9" font-weight="700" text-anchor="middle" fill="var(--ok)">ON</text>`);
+    if (kind == "actions") return wrap(`<text x="10" y="22" font-size="10" fill="var(--tp-muted)">robot.goto</text><rect x="${W - 82}" y="10" width="72" height="18" rx="4" fill="var(--tp-grid)" stroke="var(--tp-line)"/><text x="${W - 46}" y="23" font-size="9" text-anchor="middle" fill="var(--tp-text)">Go to …</text><circle cx="${W - 100}" cy="19" r="6" fill="var(--ok)"/><text x="${W - 100}" y="22" font-size="8" fill="#fff" text-anchor="middle">✓</text>`
+        + `<text x="10" y="54" font-size="10" fill="var(--tp-muted)">robot.stop</text><rect x="${W - 82}" y="42" width="72" height="18" rx="4" fill="var(--s5)"/><text x="${W - 46}" y="55" font-size="9" text-anchor="middle" fill="#fff">■ Stop</text>`
+        + `<rect x="10" y="${H - 18}" width="${W - 20}" height="12" rx="2" fill="var(--ok)" opacity="0.35"/><text x="14" y="${H - 9}" font-size="8" fill="var(--tp-text)">#21 ✓ 3.8 s</text>`);
+    if (kind == "settings") return pic("controls", W, H, title);
+    return pic(kind, W, H, title);
+}
+
+// ---- The tiles: every result Teleplot gives today, the message for it, how it works, and when it counts as discovered
+const F = [
+    ["numbers", "Numbers", "the basics"], ["text", "Text over time", "states, logs, what runs"], ["space", "Space", "positions, shapes, scans"],
+    ["pictures", "Pictures", "images and cameras"], ["dashboards", "Dashboards", "where things go"], ["control", "Control", "from the page to your device", true],
+    ["page", "In the page", "with the mouse and the keyboard"],
+];
+const T = [
+    { id: "curve", f: "numbers", t: "A curve", s: "a number over time", p: "chart", recipe: ["temperature:25.3"], how: "A name, a colon, a value: that is a whole message. Send it again whenever the value changes: each one is a point, dated when it arrives.",
+      more: [["temperature:1627551892437:25.3", "With your own time (ms), first"], ["temperature:25.3;25.4;25.6", "Several values at once"], ["temperature:25.3§°C", "With a unit"]], rel: ["together", "gauge", "marks"], rule: "a number" },
+    { id: "together", f: "numbers", t: "Shown together", s: "a label groups them", p: "chart", recipe: ["speed,motors:12.5", "current,motors:1.2"], how: "A label after a comma: the telemetries of a label share a view on the Live dashboard. Drag the label from the Telemetries panel to put them anywhere.",
+      more: [["3D|arm,robot:S:cube", "Labels work for every kind of data"]], rel: ["curve", "dashboard"], rule: "a view label" },
+    { id: "gauge", f: "numbers", t: "A gauge", s: "a range and limits", p: "gauge-warn", recipe: ["ATTR|battery|min=9|max=12.6", "TH|battery:low<10.5:empty<9.9,red", "battery:10.2"], how: "ATTR| says what a number is expected between: its value gets a bar. TH| gives limits with a name: past one, the value turns its color, charts draw it dashed.",
+      more: [["TH|battery:1627551892437:low<10.8", "A limit that changes, from a time on"], ["TH|battery:low<", "Removed"]], rel: ["curve", "timeline"], rule: "a range or thresholds" },
+    { id: "state", f: "text", t: "A state", s: "the latest text", p: "text", recipe: ["mode:driving|t"], how: "The t flag: a text whose latest value matters. The same text sent again continues the state; an empty text is \"nothing\".",
+      more: [["mode:|t", "Nothing (a hole on a timeline)"], ["mode:1627551892437:parked|t", "With its time"]], rel: ["timeline", "log"], rule: "a text state" },
+    { id: "log", f: "text", t: "A log", s: "lines to read in order", p: "log", recipe: ["nav:Path clear|log"], how: "The log flag: lines to read one after the other. Logs without label share one log view; hover a line, every view goes to its time.",
+      more: [[">:Motors armed", "A line starting with > goes to the general log"]], rel: ["state", "marks"], rule: "a log line" },
+    { id: "timeline", f: "text", t: "A timeline", s: "when states changed", p: "timeline", recipe: ["mode:driving|t", "DASH|Robot/States:timeline:mode,nav"], how: "A state is a band per value, a log a tick per line. Add a Timeline view (Edit, +) or send a DASH line; a number with thresholds gets bands too.",
+      more: [["DASH|Robot/States:timeline:battery", "A number: bands where it is past a limit"]], rel: ["stack", "marks"], rule: "a timeline view with a lane" },
+    { id: "marks", f: "text", t: "Marks on a chart", s: "events over curves", p: "marks", recipe: ["DASH|Robot/Motion:chart:speed,mode"], how: "A text telemetry put in a chart has no curve: it draws a line where the state changes (a line per log line), with its text.",
+      more: [], rel: ["curve", "state"], rule: "a chart with a text telemetry" },
+    { id: "stack", f: "text", t: "What runs", s: "a profiler of your code", p: "stack", recipe: ["task:loop/plan/search|stack", "task:loop/plan|stack"], how: "The stack flag: the text is the path of what is running. A timeline draws a row per level: how long each part takes.",
+      more: [["task:1627551892437.25:loop/plan|stack", "With the device's time, finer than a ms"], ["task:|stack", "Nothing runs"]], rel: ["timeline"], rule: "a stack" },
+    { id: "trail", f: "space", t: "A trail", s: "x and y over time", p: "xy", recipe: ["position:12.5:4.2|xy"], how: "Two numbers and the xy flag: a point, drawn on a map (a 2D view) with the trail of where it went.",
+      more: [["position:12.5:4.2:1627551892437|xy", "The time comes after the coordinates"]], rel: ["map", "scene"], rule: "a 2D number" },
+    { id: "map", f: "space", t: "A map", s: "2D shapes", p: "map", recipe: ["2D|robot:S:rect:P:1.2:0.8:R:0.5:W:0.3:H:0.2:C:blue"], how: "2D| draws shapes seen from above: rect, circle, line, polygon, arrow, text. P: position, R: angle (rad), W and H: size. Send everything once, then only what changes.",
+      more: [["2D|robot:P:1.5:0.9", "Later: only what moved"], ["2D|path:S:line:PT:0:0:1:0.5:2:0.4", "A line through points"]], rel: ["frames", "scene"], rule: "a flat shape" },
+    { id: "scene", f: "space", t: "A 3D scene", s: "shapes and points", p: "3d", recipe: ["3D|box:S:cube:P:1:0:0.5:W:1:D:1:H:1:C:orange", "drone:1.5:0.2:3|xyz"], how: "3D| describes a shape: S kind, P position, R or Q orientation, sizes, C color. Three numbers with xyz make a point. x forward, y left, z up.",
+      more: [["3D|ball:S:sphere:P:0:1:0.3:RA:0.3:O:0.5", "A sphere, half transparent"]], rel: ["frames", "cloud"], rule: "a 3D shape or point" },
+    { id: "frames", f: "space", t: "Moving together", s: "relative to another", p: "frames", recipe: ["3D|wheel:S:cylinder:P:0:0.2:0:F:robot"], how: "F: the positions are in the frame of another telemetry: when it moves or turns, this one follows. Describe a robot's parts once, move only its body.",
+      more: [], rel: ["map", "scene"], rule: "a frame" },
+    { id: "cloud", f: "space", t: "A lidar scan", s: "a cloud of points", p: "cloud", recipe: ["scan:1:0:0;0:1:0;-1:0:0;0:-1:0|pc"], how: "The pc flag: all the points of the line are one sample, in the frame of the sensor. Give the sensor a pose with a 3D| line on the same name.",
+      more: [["scan:1:0:0:200;0:1:0:80|pc", "A fourth value: the intensity"]], rel: ["scene", "frames"], rule: "a point cloud" },
+    { id: "picture", f: "pictures", t: "A picture", s: "an image, as text", p: "image", recipe: ["PNG|cam:iVBORw0KGgo…"], how: "JPG| or PNG| then the picture in base64. Big ones can be cut in parts (1/4, 2/4...). An image view shows it at the time of the cursor.",
+      more: [], rel: ["camera", "pixels"], rule: "an image" },
+    { id: "camera", f: "pictures", t: "Through a camera", s: "3D drawn over it", p: "camera", recipe: ["3D|cam:K:55:55:32:24:64:48:P:0:0:1"], how: "K gives the camera of the image telemetry (fx, fy, cx, cy, width, height), P and R where it is: the image view draws the 3D telemetries over its pictures.",
+      more: [["3D|cam:DC:-0.2:0.05:0:0:0", "Lens distortion (the picture is never changed)"]], rel: ["picture", "scene"], rule: "camera intrinsics" },
+    { id: "pixels", f: "pictures", t: "Boxes on a picture", s: "in its pixels", p: "image", recipe: ["2D|found:S:rect:P:30:20:W:10:H:8:C:yellow:FPX:cam"], how: "FPX: the shape is drawn in the pixels of the pictures of cam (u right, v down): what a detector found, without any camera model.",
+      more: [], rel: ["picture", "camera"], rule: "a pixel frame" },
+    { id: "dashboard", f: "dashboards", t: "Your dashboard", s: "views where you want", p: "dashboard", recipe: ["DASH|Robot/Motion:chart:speed,current|w=3"], how: "A DASH line describes a view by its path (dashboard/view), its type, its telemetries and options. The same lines are the export file of a dashboard.",
+      more: [["DASH|Robot/Motion:none", "Removed"]], rel: ["place", "together"], rule: "a dashboard received" },
+    { id: "place", f: "dashboards", t: "Choose where", s: "a label that is a path", p: "place", recipe: ["speed,Robot/Motion:12.5"], how: "A label that is a path places the telemetry: the dashboard and the view are created, one per kind of view.",
+      more: [], rel: ["dashboard"], rule: "a label that is a path" },
+    { id: "settings", f: "control", t: "Settings", s: "values the page can change", p: "settings", newb: true, recipe: ["ATTR|kp|write|min=0|max=10|step=0.01", "kp:0.4"], how: "write: the page may change it. Keep sending the value: when it comes back as asked, the page knows it was applied.",
+      more: [["ATTR|mode|write|choices=auto,manual", "A text among choices"]], rel: ["actions", "joystick"], rule: "a writable telemetry" },
+    { id: "actions", f: "control", t: "Buttons", s: "functions of your device", p: "actions", newb: true, recipe: ["ATTR|goto|action|title=Go to", "ATTR|goto|arg=target|type=xy"], how: "action: a button; arg: its arguments, one line each, in order (the button opens a form). Your device runs the call and answers run, then ok or err.",
+      more: [["ATTR|stop|action|title=Stop|color=red|longpress", "Styled by your device: color, confirm, longpress"]], rel: ["settings"], rule: "an action" },
+    { id: "joystick", f: "control", t: "A joystick", s: "drive it", p: "joystick", newb: true, recipe: ["ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200"], how: "rate and hold: the page sends the value 20 times per second while the pad is held; your device stops by itself 200 ms after the last one.",
+      more: [], rel: ["settings"], rule: "a continuous setting" },
+    { id: "pose", f: "control", t: "A pose on the map", s: "move it, turn it", p: "map", newb: true, recipe: ["ATTR|pose|write=pose2d", "pose:1.2:0.8:0.5|xyz"], how: "A writable pose2d is drawn as a pose on a 2D view; drag its ghost to move and turn it, then Send.",
+      more: [], rel: ["map", "settings"], rule: "a writable pose" },
+    { id: "edit", f: "page", t: "Arrange", s: "Edit mode", p: "edit", page: true, how: "Press E (or Edit): drag views by their handle, resize them, add views and containers with +. Esc leaves.", keys: ["E", "Esc"], open: "Edit this dashboard" },
+    { id: "zoom", f: "page", t: "Zoom and compare", s: "a time range", p: "zoom", page: true, how: "Drag across a chart or a timeline: every view of the group shows that range. Double click (or Esc) goes back to live. Time groups (Edit) keep views apart.", keys: ["Esc"] },
+    { id: "files", f: "page", t: "Save and open", s: "export, import", p: "files", page: true, how: "X opens the Export and import panel: data, dashboards, or both, as a binary file, text lines or CSV. Drop a file on the page to open it.", keys: ["X"], open: "Open Export and import" },
+    { id: "memory", f: "page", t: "Keep more or less", s: "data window, memory", p: "memory", page: true, how: "The rate in the top menu opens the data menu: how long data is kept, how much memory it may take, and what happens when it is full.", open: "Open the data menu" },
+    { id: "serial", f: "page", t: "A serial port", s: "no server needed", p: "serial", page: true, how: "Sources, Add a source, Serial port (Chrome, Edge): lines starting with > are telemetry, the others a log of the port. You can send text back.", keys: ["S"], open: "Open Sources" },
+    { id: "cmd", f: "page", t: "Commands on", s: "the CMD button", p: "cmdbtn", page: true, newb: true, how: "Only shown when a device declares settings or actions. Off at every start: nothing is sent, no control is drawn. C switches it.", keys: ["C"] },
+];
+const byId = Object.fromEntries(T.map((t) => [t.id, t]));
+const tile = (t, o = {}) => `<div class="gt${t.page ? " page" : ""}${o.hov ? " hov" : ""}">${o.done ? '<span class="mark ok-dot">✓</span>' : (t.newb && o.showNew ? '<span class="mark newb">new</span>' : "")}${pic2(t.p, o.w || 150, o.h || 66)}<b>${t.t}</b><span class="s">${t.s}</span></div>`;
+
+// ---- The panel
+const senderChip = (name = "Terminal") => `<span class="sender">I send with <b>${name}</b> ▾</span>`;
+function panel(inner, o = {}) {
+    return `<div class="panel help" style="${o.h ? "height:" + o.h + "rem" : ""}${o.w ? ";width:" + o.w + "rem" : ""}">`
+        + `<div class="hhead"><h4>Help</h4><span class="hsub">${o.sub || "What do you want to see?"}</span><span class="grow"></span>${o.progress ? `<span class="pill done">${o.progress}</span>` : ""}<span class="x">✕</span></div>`
+        + (o.noTools ? "" : `<div class="tools"><div class="filter">⌕ ${o.filter ? `<span style="color:var(--color-text)">${o.filter}</span>` : "Find: map, button, lidar…"}</div>${senderChip(o.sender)}</div>`)
+        + `<div class="scroll">${inner}</div>`
+        + (o.noTry ? "" : `<div class="trybar"><div class="field">Try a message: temperature:25.3</div><span class="btn">Send</span></div>`) + `</div>`;
+}
+const families = (opts = {}) => F.map(([id, name, sub]) => {
+    const tiles = T.filter((t) => t.f == id && (!opts.only || opts.only.includes(t.id)));
+    if (!tiles.length) return "";
+    return `<div class="fam"><b>${name}</b><span>${sub}</span>${opts.count ? `<span class="grow"></span><span>${tiles.filter((t) => (opts.done || []).includes(t.id)).length} / ${tiles.length}</span>` : ""}</div>`
+        + `<div class="gal${opts.c3 ? " c3" : ""}">${tiles.map((t) => tile(t, { done: (opts.done || []).includes(t.id), showNew: opts.showNew, hov: opts.hov == t.id, w: opts.c3 ? 110 : 150, h: opts.c3 ? 56 : 66 })).join("")}</div>`;
+}).join("");
+const footer = `<div class="foot"><span class="btn">▶ Preview sample data</span><span class="btn ghost">Shortcuts</span><span class="btn ghost">Start again</span><span class="grow"></span><span class="btn ghost">Docs ↗</span></div>`;
+
+// A line as a sender writes it (helpLine today)
+function senderLine(sender, line) {
+    const c = colored(line);
+    if (sender == "Terminal") return `echo "${c}" | nc -u -w0 127.0.0.1 47269`;
+    if (sender == "Python") return `sock.sendto("${c}".encode(), ("127.0.0.1", 47269))`;
+    if (sender == "Arduino") return `Serial.println("&gt;${c}");`;
+    return c;
+}
+const lineBox = (sender, line, n, state) => `<div class="ex">${n ? `<div class="note">${n}</div>` : ""}<div class="msg"><code>${senderLine(sender, line)}</code></div>`
+    + `<div class="acts"><span class="btn primary">Send ▸</span><span class="btn">Edit</span><span class="btn ghost">⧉ Copy</span></div>`
+    + (state ? `<div class="status"><i>✓</i><span>${state}</span><span class="grow"></span><span class="btn">Show me</span></div>` : "") + `</div>`;
+
+function sheet(t, o = {}) {
+    const sender = o.sender || "Terminal";
+    let h = `<div class="crumb"><span class="btn ghost" style="padding:0">‹ All</span><span>·</span><span>${F.find((f) => f[0] == t.f)[1]}</span><span class="grow"></span>${o.done ? '<span class="ok-dot">✓</span>' : ""}</div>`
+        + `<div class="crumb" style="margin-top:-0.3rem"><b>${t.t}</b></div>`
+        + (o.live ? `<div style="position:relative">${pic2(t.p, 380, 130)}<span class="pill on" style="position:absolute;top:0.4rem;right:0.4rem;background:var(--color-bg-light)">● live</span></div>` : pic2(t.p, 380, 130));
+    if (t.page) {
+        h += `<div class="sec">How</div><div class="how">${t.how}</div>`
+            + (t.keys ? `<div class="row" style="margin:0.4rem 0">${t.keys.map((k) => `<kbd>${k}</kbd>`).join(" ")}</div>` : "")
+            + (t.open ? `<span class="btn primary">${t.open}</span>` : "");
+    }
+    else {
+        h += `<div class="sec">➊ Send ${t.recipe.length > 1 ? `<span class="grow"></span><span class="btn" style="text-transform:none;letter-spacing:0">Send all ${t.recipe.length}</span>` : ""}</div>`
+            + `<div class="tabs">${["Terminal", "Python", "C++", "Arduino"].map((s) => `<span class="${s == sender ? "on" : ""}">${s}</span>`).join("")}</div>`
+            + (o.setup ? `<div class="folded">⚙ Set up, once: <code>${o.setup}</code><span class="grow"></span>▾</div>` : "")
+            + (o.lines || t.recipe.map((l, i) => lineBox(sender, l, t.recipe.length > 1 ? `${i + 1}.` : "", o.states && o.states[i]))).join("")
+            + (o.cmd ? `<div class="cmdhint"><span class="cmdb">CMD<small>OFF</small></span><span>Commands are off: switch them on to change settings and press buttons.</span><span class="grow"></span><span class="btn ok">Switch on</span></div>` : "")
+            + `<div class="sec">➌ How it works</div><div class="how">${t.how}</div>`
+            + (t.more && t.more.length ? `<div class="folded">More ways (${t.more.length}): ${t.more.map((m) => m[1].toLowerCase()).join(" · ")}<span class="grow"></span>▾</div>` : "");
+    }
+    if (t.rel && t.rel.length) h += `<div class="sec">Related</div><div class="mini-row">${t.rel.slice(0, 3).map((id) => tile(byId[id], { w: 110, h: 50 })).join("")}</div>`;
+    return h;
+}
+
+const B = {};
+B.allTiles = () => F.map(([id, name, sub]) => `<div style="flex-basis:100%"><div class="fam"><b>${name}</b><span>${sub}</span></div><div class="gal" style="grid-template-columns:repeat(6, 1fr)">${T.filter((t) => t.f == id).map((t) => tile(t, { showNew: true })).join("")}</div></div>`).join("");
+
+B.first = () => frame(1, "First open", panel(`<div class="hero"><div class="k">Start here</div><h5>A curve: send one number</h5>${msg("temperature:25.3", false, false)}<div class="small muted" style="margin:0.35rem 0">From a terminal: <code>echo "temperature:25.3" | nc -u -w0 127.0.0.1 47269</code>, or straight from here:</div><div class="row"><span class="btn primary">Send it to this page ▸</span><span class="btn ghost">Show me how it works</span></div></div>` + families({ only: ["curve", "together", "gauge", "state", "log", "timeline", "marks", "stack", "trail", "map"] }) + footer, { h: 52 }), "The whole gallery is below (scroll); nothing is locked.");
+
+B.later = () => frame(2, "After a while", panel(`<div class="fam"><b>Suggested next</b><span>from what you send</span></div><div class="gal">${tile(byId.gauge, {})}${tile(byId.timeline, {})}</div>`
+    + `<div class="small muted" style="margin:0.3rem 0 0.2rem">battery is a number without range · mode is a text state</div>`
+    + families({ done: ["curve", "together", "state", "log", "trail", "map", "scene"], count: true, showNew: true, only: ["curve", "together", "gauge", "state", "log", "timeline", "marks", "stack", "trail", "map", "scene", "frames", "settings", "actions"] }), { h: 52, progress: "7 of 22" }), "Checks: what the page received. new: since the last visit.");
+
+B.gauge = () => frame(1, "The sheet", panel(sheet(byId.gauge), { sub: "", h: 52 }))
+    + frame(2, "After Send all", panel(sheet(byId.gauge, { done: true, states: ["battery is expected between 9 and 12.6.", "The thresholds of battery are empty below 9.9, low below 10.5.", "A number named battery, below low. It is on the Live dashboard."] }), { sub: "", h: 52, progress: "8 of 22" }), "Each line says what it did; Show me flashes the view.");
+
+B.senders = () => ["Terminal", "Python", "Arduino"].map((s, i) => frame(i + 1, s, `<div class="panel help" style="width:26rem;padding-bottom:0.7rem"><div class="tabs">${["Terminal", "Python", "C++", "Arduino"].map((x) => `<span class="${x == s ? "on" : ""}">${x}</span>`).join("")}</div>`
+    + (s == "Python" ? `<div class="folded">⚙ Set up, once: <code>import socket; sock = socket.socket(…)</code><span class="grow"></span>▾</div>` : s == "Arduino" ? `<div class="folded">⚙ Set up, once: <code>Serial.begin(115200);</code>, then open the port in Sources<span class="grow"></span>▾</div>` : "")
+    + lineBox(s, "ATTR|battery|min=9|max=12.6", "1.") + lineBox(s, "battery:10.2", "3.") + `</div>`)).join("");
+
+B.control = () => frame("", "Buttons", panel(sheet(byId.actions, { cmd: true, lines: [
+        `<div class="ex"><div class="note">1. Your device declares the action and its argument</div><div class="row"><span class="who dev">device</span><div class="msg" style="flex:1"><code>${senderLine("Terminal", "ATTR|goto|action|title=Go to")}</code></div></div><div class="row" style="margin-top:0.25rem"><span class="who dev">device</span><div class="msg" style="flex:1"><code>${senderLine("Terminal", "ATTR|goto|arg=target|type=xy")}</code></div></div></div>`,
+        `<div class="ex"><div class="note">2. The button opens a form; the page sends the call</div><div class="row"><span class="who page">page</span><div class="msg" style="flex:1"><code>${colored("!goto#21:target=1.5,2")}</code></div></div></div>`,
+        `<div class="ex"><div class="note">3. Your device answers: started, then done (or err:why)</div><div class="row"><span class="who dev">device</span><div class="msg" style="flex:1"><code>${colored("ACK|goto#21:run")}</code></div></div><div class="row" style="margin-top:0.25rem"><span class="who dev">device</span><div class="msg" style="flex:1"><code>${colored("ACK|goto#21:ok")}</code></div></div></div>`,
+    ] }), { sub: "", h: 56 }), "Python and C++ tabs show the client libraries instead: tp.action(...), Teleplot::instance().action(...).");
+
+B.page = () => frame("", "Save and open", panel(sheet(byId.files), { sub: "", h: 34, noTry: false })) + frame("", "Commands on", panel(sheet(byId.cmd), { sub: "", h: 34 }));
+
+B.search = () => frame(1, "Typing \"map\"", panel(families({ only: ["map", "trail", "pose", "frames"], hov: "map" }) + `<div class="small muted" style="margin-top:0.6rem">4 results · also in the text of: A lidar scan</div>`, { filter: "map", h: 30 }))
+    + frame(2, "Nothing found", panel(`<div class="card" style="text-align:center"><div style="font-size:1.05rem">Nothing about "histogram"</div><div class="small muted" style="margin:0.3rem 0">Closest: <span class="pill">A curve</span> <span class="pill">A gauge</span></div><div class="small muted">Have a line already? Paste it in the bar below: we tell you what it is.</div></div>`, { filter: "histogram", h: 22 }));
+
+B.density = () => frame("A", "2 columns (recommended)", panel(families({ only: ["curve", "together", "gauge", "state", "log", "timeline"] }), { h: 30, noTry: true }))
+    + frame("", "3 columns", panel(families({ only: ["curve", "together", "gauge", "state", "log", "timeline", "marks", "stack", "trail"], c3: true }), { h: 30, noTry: true }))
+    + frame("", "A list", panel(T.slice(0, 7).map((t) => `<div class="listrow">${pic2(t.p, 100, 44)}<div><b>${t.t}</b><div class="small muted">${t.s}</div></div></div>`).join(""), { h: 30, noTry: true }));
+
+B.where = () => {
+    const box = (label, inner) => `<div class="app" style="width:24rem;height:15rem"><div class="island" style="font-size:0.7rem">dashboard</div>${inner}<div style="position:absolute;left:0.5rem;bottom:0.4rem;font-size:0.8rem" class="muted">${label}</div></div>`;
+    const dock = (x, w, inner, style = "") => `<div style="position:absolute;top:0.3rem;bottom:1.6rem;left:${x}rem;width:${w}rem;background:var(--color-bg-panel);border:1px solid var(--color-bg-dark);border-radius:0.5rem;padding:0.3rem;font-size:0.7rem;${style}">${inner}</div>`;
+    const g = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.2rem">${"<div style='height:1.6rem;background:var(--color-bg-light);border-radius:0.2rem'></div>".repeat(6)}</div>`;
+    const s = `<div style="height:3rem;background:var(--color-bg-light);border:1px solid var(--color-primary);border-radius:0.3rem;margin:0.2rem 0"></div>`;
+    return frame("B", "In place (recommended)", box("‹ All goes back", dock(13.5, 10, `<b>‹ All · A gauge</b>${s}${s}`)))
+        + frame("", "Under its row", box("the grid stays, rows move", dock(13.5, 10, g.slice(0, g.length - 6).replace(/(<div style='height:1.6rem[^<]*<\/div>){2}/, "$&") + `</div>${s}${g}`)))
+        + frame("", "Next to the panel", box("more room, hides data", dock(13.5, 10, g) + dock(3.5, 9.6, `<b>A gauge</b>${s}${s}`, "border-color:var(--color-primary);box-shadow:0 8px 20px var(--color-shadow)")));
+};
+
+B.live = () => frame("C", "Drawn (the grid)", `<div style="width:14rem">${tile(byId.gauge, {})}</div>`)
+    + frame("", "Live (the sheet)", panel(sheet(byId.gauge, { live: true }), { sub: "", h: 38, noTry: true }), "A real view: the theme, the bar, the color of the limit, exactly as on a dashboard.");
+
+B.unfold = () => frame("D", "Unfold: only the basics at first", panel(families({ only: ["curve", "together", "gauge", "state", "log", "timeline"] })
+    + ["Space · 5 results: a trail, a map, 3D, frames, a lidar", "Pictures · 3 results", "Dashboards · 2 results", "Control · 4 results", "In the page · 6"].map((t) => `<div class="folded">${t}<span class="grow"></span>▸</div>`).join(""), { h: 40 }), "A family opens when one basic tile is discovered, or on click.");
+
+B.trybar = () => frame("E", "At the bottom (recommended)", panel(families({ only: ["curve", "together", "gauge", "state"] }) + `<div style="height:2rem"></div>`, { h: 26 }), "Like a chat input; it grows to say what it understood.")
+    + frame("", "At the top (today)", `<div class="panel help" style="height:26rem"><div class="hhead"><h4>Help</h4><span class="grow"></span><span class="x">✕</span></div><div class="trybar" style="position:static;margin:0 0 0.5rem;border:none;padding:0"><div class="field">Try a message: temperature:25.3</div><span class="btn">Send</span></div><div class="scroll">${families({ only: ["curve", "together", "gauge", "state"] })}</div></div>`);
+
+B.spec = () => `<table class="spec"><tr><th>Tile</th><th>Sub</th><th>First line of the recipe</th><th>Discovered when the page has</th><th>Related</th></tr>`
+    + F.map(([id, name]) => `<tr class="famrow"><td colspan="5">${name}</td></tr>` + T.filter((t) => t.f == id).map((t) => `<tr><td>${t.t}${t.newb ? ' <span class="newb">new</span>' : ""}</td><td class="muted">${t.s}</td><td>${t.recipe ? `<code>${colored(t.recipe[0])}</code>${t.recipe.length > 1 ? ` <span class="muted">+${t.recipe.length - 1}</span>` : ""}` : `<span class="muted">${t.keys ? t.keys.map((k) => `<kbd>${k}</kbd>`).join(" ") : "—"}</span>`}</td><td>${t.rule || '<span class="muted">opened once</span>'}</td><td class="muted">${(t.rel || []).map((r) => byId[r].t).join(", ")}</td></tr>`).join("")).join("") + `</table>`;
+
+for (const el of document.querySelectorAll("[data-build]")) el.innerHTML = B[el.dataset.build]();
+
+</script>
+</body>
+</html>

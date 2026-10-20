@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help, round 4: ten ways to learn Teleplot</title>
+<!-- Design study (round 4 after help-panel-mockups.html, -2, -3): the Help panel grew to 15 accordion steps (numbers, labels,
+     time, text, ranges and thresholds, positions, 3D, 2D, frames, clouds, images, dashboards, timelines, stacks, commands). Ten
+     proposals for a help that gives each piece of information room, shows what to send, what it gives and how it works, and
+     reveals features progressively. Static mock-ups built by the script at the end; not wired to the library. -->
+<style>
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-bg-panel: color-mix(in srgb, var(--color-bg), var(--color-bg-light) 40%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%); --color-success: hsl(145, 63%, 42%); --color-danger: hsl(6, 78%, 57%); --color-warning: hsl(41, 100%, 47%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --tp-text: #1d2329; --tp-muted: #66717c; --tp-surface: #ffffff; --tp-bg: #f4f5f7; --tp-line: #d5dbe0; --tp-grid: rgba(0,0,0,.08);
+    --s1: #2980b9; --s2: #16a085; --s3: #8e44ad; --s4: #d35400; --s5: #c0392b; --warn: #b87500; --ok: #1e9e5a;
+    --k-name: #16a085; --k-value: #d35400; --k-flags: #8e44ad; --k-time: #7f8c8d; --k-label: #2980b9; --k-prefix: #c0392b;
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+    --tp-text: #e8ebee; --tp-muted: #8d98a3; --tp-surface: #15191d; --tp-bg: #0f1215; --tp-line: #2c343b; --tp-grid: rgba(255,255,255,.09);
+    --s1: #3498db; --s2: #1abc9c; --s3: #b07cd8; --s4: #e67e22; --s5: #ff6b63; --warn: #e0a800; --ok: #3ccf7f;
+    --k-name: #1abc9c; --k-value: #f39c4b; --k-flags: #b07cd8; --k-time: #95a5a6; --k-label: #5dade2; --k-prefix: #ff7b72;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.5; }
+code, .mono { font-family: var(--mono); }
+kbd { font: 600 0.75rem var(--mono); padding: 0 0.3rem; border-radius: 0.25rem; border: 1px solid var(--color-bg-dark); }
+header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); }
+header h1 { margin: 0 auto 0 0; font-size: 1.35rem; font-weight: 500; white-space: nowrap; }
+header nav { display: flex; gap: 0.1rem; flex-wrap: wrap; }
+header nav a { color: var(--color-text-muted); text-decoration: none; padding: 0.1rem 0.4rem; border-radius: 0.6rem; font-weight: 600; }
+header nav a:hover { color: var(--color-primary); }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 122rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.6rem; font-weight: 500; margin: 2.4rem 0 0.3rem; scroll-margin-top: 4rem; }
+.lead { color: var(--color-text-muted); max-width: 92rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 0.6rem; padding: 0; margin: 0; list-style: none; }
+.needs li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.5rem 0.8rem; border-bottom: 2px solid var(--color-primary); }
+.needs b { display: block; } .needs span { color: var(--color-text-muted); }
+.block { display: grid; grid-template-columns: 24rem minmax(0, 1fr); gap: 1.6rem; align-items: start; padding: 1.5rem 0; border-top: 2px solid var(--color-bg-dark); scroll-margin-top: 4rem; }
+.block h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.block h3 i { font-style: normal; color: var(--color-primary); font-weight: 700; margin-right: 0.4rem; }
+.block p { margin: 0 0 0.6rem; font-size: 1.02rem; }
+.block ul { margin: 0 0 0.6rem; padding-left: 1.2rem; }
+.block li { margin-bottom: 0.2rem; }
+.tags { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.tag { font-size: 0.75rem; font-weight: 700; padding: 0.05rem 0.55rem; border-radius: 1rem; color: #fff; background: var(--color-primary); }
+.tag.size { background: #7f8c8d; } .tag.good { background: #1e8f55; } .tag.risk { background: #b87500; }
+.stage { background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.8rem; padding: 0.8rem; display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-start; min-width: 0; }
+.caption { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); margin: 0 0 0.3rem; display: flex; gap: 0.35rem; align-items: center; }
+.num { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: var(--color-text-muted); color: var(--color-bg); font-size: 0.7rem; letter-spacing: 0; }
+.frame { display: flex; flex-direction: column; min-width: 0; }
+.fnote { font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.3rem; max-width: 24rem; }
+@media (max-width: 1000px) { .block { grid-template-columns: 1fr; } }
+
+/* ---- The pieces the proposals are made of ---- */
+.panel { background: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-radius: 0 1em 1em 0; padding: 0.8rem 0.9rem 1rem; position: relative; width: 24rem; }
+.panel.wide { width: 44rem; } .panel.right { border-radius: 1em 0 0 1em; }
+.panel h4 { margin: 0 0 0.6rem; font-size: 1.45rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+.panel h4 small { font-size: 0.9rem; color: var(--color-text-muted); font-weight: 400; }
+.x { margin-left: auto; color: var(--color-text-muted); font-size: 1rem; }
+.card { background: var(--color-bg-light); border-radius: 0.6rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.7rem 0.8rem; margin-bottom: 0.6rem; }
+.card h5 { margin: 0 0 0.3rem; font-size: 1.05rem; display: flex; gap: 0.4rem; align-items: center; }
+.muted { color: var(--color-text-muted); } .small { font-size: 0.88rem; } .grow { flex: 1; }
+.row { display: flex; gap: 0.5rem; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 0.4rem; }
+.sec { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); margin: 0.6rem 0 0.25rem; display: flex; align-items: center; gap: 0.35rem; }
+.sec .ico { font-size: 0.9rem; }
+.msg { display: flex; align-items: center; gap: 0.4rem; background: var(--color-bg); border: 1px solid var(--color-bg-dark); border-radius: 0.45rem; padding: 0.35rem 0.5rem; font: 0.95rem var(--mono); }
+.msg code { flex: 1; overflow-x: auto; white-space: nowrap; }
+.msg.big { font-size: 1.25rem; padding: 0.6rem 0.8rem; }
+.btn { font: 600 0.82rem Verdana, sans-serif; padding: 0.15rem 0.6rem; border-radius: 0.45rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); color: var(--color-text); white-space: nowrap; display: inline-flex; gap: 0.3rem; align-items: center; }
+.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: none; color: var(--color-text-muted); }
+.btn.ok { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.k-name { color: var(--k-name); } .k-value { color: var(--k-value); } .k-flags { color: var(--k-flags); } .k-time { color: var(--k-time); } .k-label { color: var(--k-label); } .k-prefix { color: var(--k-prefix); font-weight: 700; } .k-sep { color: var(--color-text-muted); }
+.preview { background: var(--tp-surface); border: 1px solid var(--tp-line); border-top: 2px solid var(--s1); border-radius: 0.45rem; overflow: hidden; color: var(--tp-text); }
+.preview .pt { font: 700 0.68rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--tp-muted); padding: 0.2rem 0.45rem 0; }
+.how { font-size: 0.92rem; color: var(--color-text-muted); border-left: 3px solid var(--color-primary); padding: 0.1rem 0 0.1rem 0.6rem; margin: 0.4rem 0; }
+.how b { color: var(--color-text); }
+.trio { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; align-items: start; }
+.pill { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.82rem; font-weight: 600; padding: 0.08rem 0.55rem; border-radius: 1rem; border: 1px solid var(--color-bg-dark); color: var(--color-text-muted); background: var(--color-bg-light); white-space: nowrap; }
+.pill.on { color: var(--color-primary); border-color: var(--color-primary); }
+.pill.done { color: var(--color-success); border-color: var(--color-success); }
+.pill.new { color: #fff; background: var(--s3); border-color: var(--s3); }
+.chk { display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; border-radius: 50%; font-size: 0.7rem; font-weight: 700; flex: none; border: 2px solid var(--color-bg-dark); color: transparent; }
+.chk.done { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.chk.now { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent); }
+.lock { opacity: 0.45; }
+.progress { height: 0.4rem; border-radius: 1rem; background: var(--color-bg-dark); overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--color-success); }
+.tile { background: var(--color-bg-light); border-radius: 0.6rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.tile b { font-size: 0.92rem; padding: 0 0.2rem; } .tile span { font-size: 0.78rem; color: var(--color-text-muted); padding: 0 0.2rem 0.2rem; }
+.tile.sel { outline: 2px solid var(--color-primary); }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+.app { width: 46rem; height: 25rem; position: relative; background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.6rem; overflow: hidden; }
+.app .island { position: absolute; left: 50%; top: 0.5rem; transform: translateX(-50%); display: flex; gap: 0.4rem; align-items: center; padding: 0.3rem 0.6rem; border-radius: 1rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); font-size: 0.85rem; font-weight: 600; white-space: nowrap; z-index: 2; }
+.app .dash { position: absolute; inset: 3rem 0.6rem 0.6rem 0.6rem; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 0.5rem; }
+.toast { position: absolute; z-index: 3; background: var(--color-bg-light); border: 1px solid var(--color-primary); border-radius: 0.7rem; box-shadow: 0 10px 30px var(--color-shadow); padding: 0.6rem 0.7rem; width: 19rem; font-size: 0.9rem; }
+.toast > b { display: block; margin-bottom: 0.2rem; }
+.spot { position: absolute; border: 2px solid var(--color-primary); border-radius: 0.6rem; box-shadow: 0 0 0 9999px rgba(0,0,0,.45); z-index: 2; }
+.anat { font: 1.6rem var(--mono); text-align: center; padding: 1.2rem 0 0.4rem; letter-spacing: 0.02em; }
+.anat span { padding: 0 0.05rem; border-bottom: 3px solid currentColor; }
+.callouts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.4rem; font-size: 0.8rem; text-align: center; }
+.callouts div { border-top: 2px solid currentColor; padding-top: 0.25rem; }
+.chat { display: flex; flex-direction: column; gap: 0.45rem; }
+.bubble { max-width: 85%; padding: 0.45rem 0.6rem; border-radius: 0.8rem; font-size: 0.92rem; }
+.bubble.me { align-self: flex-end; background: var(--color-primary); color: #fff; border-bottom-right-radius: 0.2rem; }
+.bubble.it { align-self: flex-start; background: var(--color-bg-light); box-shadow: 0 0 3px var(--color-shadow); border-bottom-left-radius: 0.2rem; }
+.search { display: flex; align-items: center; gap: 0.4rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); border-radius: 0.6rem; padding: 0.4rem 0.6rem; font-size: 1rem; }
+.flip { perspective: 600px; }
+.codebox { background: var(--color-bg); border: 1px solid var(--color-bg-dark); border-radius: 0.45rem; padding: 0.5rem 0.6rem; font: 0.85rem/1.55 var(--mono); white-space: pre; overflow-x: auto; }
+.codebox .c { color: var(--color-text-muted); }
+.seg { display: flex; gap: 0.15rem; padding: 0.2rem; border-radius: 0.8rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.seg span { flex: 1; text-align: center; padding: 0.12rem 0.4rem; border-radius: 0.6rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; font-size: 0.85rem; }
+.seg .on { background: var(--color-bg-light); color: var(--color-primary); box-shadow: 0 1px 3px var(--color-shadow); }
+.compare { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.compare th, .compare td { text-align: left; padding: 0.35rem 0.5rem; border-top: 1px solid var(--color-bg-dark); vertical-align: top; }
+.compare th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+svg text { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<header>
+    <h1>Help, round 4 · ten proposals</h1>
+    <nav>
+        <a href="#p1">1 Path</a><a href="#p2">2 Live split</a><a href="#p3">3 Gallery</a><a href="#p4">4 In context</a><a href="#p5">5 Playground</a>
+        <a href="#p6">6 Anatomy</a><a href="#p7">7 Ask</a><a href="#p8">8 Tours</a><a href="#p9">9 My stack</a><a href="#p10">10 Catalog</a><a href="#compare">Compare</a>
+    </nav>
+    <button onclick="toggleTheme()">Light / dark</button>
+</header>
+<main>
+
+<p class="lead" style="margin-top:1rem">The Help panel is now a column of 15 accordion steps, each with an intro, several examples and notes: everything is there, but
+it reads as a manual and nothing says where to start or what comes next. Ten directions, from small changes to the panel to new
+places for the help. Every one shows, for each feature, the three things a user needs:</p>
+<ul class="needs">
+    <li><b>➊ What to send</b><span>The line, colored (name, value, flags), copyable, sendable from the page; in the language the user sends with.</span></li>
+    <li><b>➋ What it looks like</b><span>A picture of the view it gives, before it is sent: people choose by the result.</span></li>
+    <li><b>➌ How it works</b><span>One or two sentences, never more on screen at once; details on demand.</span></li>
+    <li><b>Progressive</b><span>Basics first; the next thing is suggested by what the user already sends; advanced features are found, not imposed.</span></li>
+    <li><b>Room</b><span>One idea per screen (or card), generous spacing, a short line length, big previews, no walls of text.</span></li>
+    <li><b>Know where I am</b><span>Progress that is real: a lesson is done when the page has received such data, not when it was read.</span></li>
+</ul>
+
+<!-- 1 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p1">
+    <div>
+        <h3><i>1</i>A learning path</h3>
+        <div class="tags"><span class="tag size">same dock</span><span class="tag good">progressive</span><span class="tag good">real progress</span></div>
+        <p>The 15 steps become <b>4 tracks</b> of 3 to 5 short lessons: <b>Basics</b> (number, label, time, text), <b>Over time</b> (ranges and thresholds,
+        timelines, stacks), <b>In space</b> (positions, 2D, 3D, frames, clouds, images), <b>Organize and control</b> (dashboards, commands).</p>
+        <ul>
+            <li>The list shows only titles and checks. One lesson open at a time, as a card: Send / You will see / How it works.</li>
+            <li>A lesson is checked <b>when the page receives such data</b> (a number, a label, an <code>ATTR|</code> line...), from a device or from its Send button.</li>
+            <li>The next lesson is highlighted; tracks after Basics are folded with a one-line promise ("Draw your robot on a map").</li>
+        </ul>
+        <p class="muted">Cost: lessons must be rewritten short. Risk: a path feels linear to an expert (search and "jump to" help).</p>
+    </div>
+    <div class="stage" data-build="p1"></div>
+</div>
+
+<!-- 2 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p2">
+    <div>
+        <h3><i>2</i>A wider guide with a live split</h3>
+        <div class="tags"><span class="tag size">wide dock, 2 columns</span><span class="tag good">result first</span></div>
+        <p>When Help is open it takes about 40 % of the width. Left: the message and its explanation. Right: <b>a real view</b> of the library showing the
+        example, live, as it would look on the dashboard. A stepper (‹ 3 of 15 ›) walks through the steps; the line under the preview says what changed.</p>
+        <ul>
+            <li>Editing the line updates the preview as you type (the parser already exists: <code>helpDescribe</code>).</li>
+            <li>"Add to my dashboard" puts the previewed view on the current dashboard.</li>
+        </ul>
+        <p class="muted">Cost: a preview datastore separate from the real one. Risk: the dashboard shrinks while Help is open (it can be a modal instead).</p>
+    </div>
+    <div class="stage" data-build="p2"></div>
+</div>
+
+<!-- 3 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p3">
+    <div>
+        <h3><i>3</i>"What do you want to see?" gallery</h3>
+        <div class="tags"><span class="tag size">same dock</span><span class="tag good">outcome first</span><span class="tag good">scannable</span></div>
+        <p>Start from the result, not from the syntax: a grid of thumbnails (a curve, a gauge with limits, a timeline, a map, a 3D scene, a camera, a
+        dashboard, controls). A click opens a sheet: the picture large, the line to send, how it works, and "Related" (the gauge leads to thresholds, the
+        map to frames).</p>
+        <ul>
+            <li>Thumbnails that the user has already produced get a check: the gallery doubles as a map of what is left to discover.</li>
+            <li>Nothing about the syntax until a result is chosen: newcomers recognize what they want.</li>
+        </ul>
+        <p class="muted">Risk: features with no strong picture (time, labels) need a home: the sheet of the curve covers them.</p>
+    </div>
+    <div class="stage" data-build="p3"></div>
+</div>
+
+<!-- 4 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p4">
+    <div>
+        <h3><i>4</i>Help in context: the next step, where it matters</h3>
+        <div class="tags"><span class="tag size">no panel needed</span><span class="tag good">progressive by usage</span><span class="tag risk">must stay quiet</span></div>
+        <p>The help comes to the data. The empty dashboard explains the first message. When a kind of telemetry shows up, a small card offers <b>one</b> next
+        step for it ("battery is a number: give it a range to get a gauge"), with the line to send. The Help panel lists these suggestions, plus everything
+        else.</p>
+        <ul>
+            <li>One suggestion at a time, dismissable ("Not now", "Never for this"), never while the user is dragging or editing.</li>
+            <li>Suggestions follow what is sent: text → timeline; 3 numbers → 3D; an image → its camera; anything → commands, once.</li>
+        </ul>
+        <p class="muted">Risk: becomes noise if overdone: a budget of one card per minute at most, off with one click.</p>
+    </div>
+    <div class="stage" data-build="p4"></div>
+</div>
+
+<!-- 5 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p5">
+    <div>
+        <h3><i>5</i>A playground with small challenges</h3>
+        <div class="tags"><span class="tag size">full screen, on demand</span><span class="tag good">learning by doing</span><span class="tag good">engaging</span></div>
+        <p>"Open the playground" (from Help or the welcome screen): an editor of lines on the left, a small live dashboard on the right, and a goal on top:
+        <b>"Make the battery turn amber below 22 V"</b>. The user types; the playground checks the result (a threshold named low is set) and gives the
+        next challenge. Hints come in two levels: a nudge, then the line.</p>
+        <ul>
+            <li>Nothing touches the real data: a separate datastore, thrown away (or "Send all of it to my dashboard").</li>
+            <li>12 challenges, one per feature, each under a minute.</li>
+        </ul>
+        <p class="muted">Cost: the largest to build. Best for workshops and first contact; experts never need to open it.</p>
+    </div>
+    <div class="stage" data-build="p5"></div>
+</div>
+
+<!-- 6 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p6">
+    <div>
+        <h3><i>6</i>The anatomy of a message</h3>
+        <div class="tags"><span class="tag size">same dock</span><span class="tag good">one mental model</span><span class="tag good">for experts too</span></div>
+        <p>Every text message has the same shape. The top of the panel draws it once, big: <code>name,label:time:value§unit|flags</code>, each part in its
+        color with a callout. Each part is clickable: the label opens "shown together", the flags open a list of flags (chips), each with a one-line effect
+        and a mini preview. Line families that start with a prefix (<code>ATTR|</code>, <code>TH|</code>, <code>3D|</code>, <code>2D|</code>,
+        <code>DASH|</code>, <code>ACK|</code>) are a second row of chips.</p>
+        <p class="muted">Strength: a single picture explains 80 % of the protocol. Weakness: abstract for someone who wants "a chart, now" (pair it with 1 or 3).</p>
+    </div>
+    <div class="stage" data-build="p6"></div>
+</div>
+
+<!-- 7 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p7">
+    <div>
+        <h3><i>7</i>Ask: "how do I…"</h3>
+        <div class="tags"><span class="tag size">same dock</span><span class="tag good">fast for a goal</span><span class="tag risk">needs good wording</span></div>
+        <p>A search box first, phrased as a question, with suggestions under it ("draw a robot on a map", "change a value from the page", "see when a task
+        runs"). Answers are the same lesson cards (send / see / how), matched on words and synonyms from a local index (no network, no AI). Below the box,
+        the five most common questions; "Browse everything" opens the full list.</p>
+        <p class="muted">Strength: users arrive with a goal. Weakness: an empty box teaches nothing: the suggestions matter.</p>
+    </div>
+    <div class="stage" data-build="p7"></div>
+</div>
+
+<!-- 8 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p8">
+    <div>
+        <h3><i>8</i>Tours of the robot sample</h3>
+        <div class="tags"><span class="tag size">over the dashboard</span><span class="tag good">learning from a real example</span></div>
+        <p>The robot sample already uses every feature. A tour lights up its views one by one, and for each one shows <b>the line the robot sends to get
+        it</b> ("This band is robot.state: it sends <code>robot.state:turning|t</code>"). Tours by theme: "The basics" (4 stops), "Time" (3), "Space" (5),
+        "Control" (3). At the end of each stop: "Try it with your device" copies the line.</p>
+        <p class="muted">Strength: the most engaging, real data, nothing to type. Weakness: depends on the sample dashboard staying in shape.</p>
+    </div>
+    <div class="stage" data-build="p8"></div>
+</div>
+
+<!-- 9 ---------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p9">
+    <div>
+        <h3><i>9</i>Your stack first: full programs, not lines</h3>
+        <div class="tags"><span class="tag size">same dock</span><span class="tag good">copy, run, see</span></div>
+        <p>The first question is "What sends your data?" (Terminal, Python, C++, Arduino, ESP32, Node...), remembered. Then every lesson is a <b>complete,
+        runnable program</b> in that language (the setup included), 5 to 15 lines, with what to expect next to it. The text protocol line stays one click away
+        ("The line it sends").</p>
+        <ul>
+            <li>Five essentials up front (a number, text, a position, a gauge, a command); the rest under "More with Python".</li>
+            <li>Python and C++ use the client libraries (<code>teleplot.py</code>, <code>Teleplot.h</code>), so commands are 3 lines.</li>
+        </ul>
+        <p class="muted">Cost: snippets per language must be kept tested (the Help tests already parse every line).</p>
+    </div>
+    <div class="stage" data-build="p9"></div>
+</div>
+
+<!-- 10 --------------------------------------------------------------------------------------------------------------------- -->
+<div class="block" id="p10">
+    <div>
+        <h3><i>10</i>A feature catalog with levels and "new"</h3>
+        <div class="tags"><span class="tag size">same dock or a page</span><span class="tag good">discover what exists</span><span class="tag good">release notes</span></div>
+        <p>Cards grouped by family (Numbers, Text, Space, Images, Dashboards, Control), each with a level (● basic, ●● more, ●●● advanced) and a small picture.
+        Filters by level and by family; a <b>New</b> badge for what came with the last versions (commands, joystick, timelines), so returning users see what
+        changed. A card opens the same three parts as elsewhere.</p>
+        <p class="muted">Strength: a complete map, good for returning users. Weakness: a catalog does not tell a newcomer where to start (filters default to ●).</p>
+    </div>
+    <div class="stage" data-build="p10"></div>
+</div>
+
+<!-- Compare --------------------------------------------------------------------------------------------------------------- -->
+<h2 id="compare">How they compare, and a combination</h2>
+<p class="lead">They are not exclusive: they share one piece, the <b>lesson card</b> (send / see / how), and differ in how a user gets to it.</p>
+<div class="stage" style="display:block">
+<table class="compare">
+    <tr><th>Proposal</th><th>For whom</th><th>Discovery</th><th>Room per idea</th><th>Effort</th></tr>
+    <tr><td>1 Learning path</td><td>newcomers</td><td>next lesson highlighted, real progress</td><td>one card at a time</td><td>medium</td></tr>
+    <tr><td>2 Live split</td><td>everyone</td><td>stepper</td><td>large, live preview</td><td>medium</td></tr>
+    <tr><td>3 Gallery</td><td>newcomers, visual</td><td>by result</td><td>one sheet at a time</td><td>low</td></tr>
+    <tr><td>4 In context</td><td>everyone, while working</td><td>by what is sent</td><td>one card, where it matters</td><td>medium</td></tr>
+    <tr><td>5 Playground</td><td>first contact, workshops</td><td>challenges</td><td>full screen</td><td>high</td></tr>
+    <tr><td>6 Anatomy</td><td>experts, recall</td><td>by part of the message</td><td>one diagram</td><td>low</td></tr>
+    <tr><td>7 Ask</td><td>users with a goal</td><td>suggested questions</td><td>results only</td><td>low to medium</td></tr>
+    <tr><td>8 Tours</td><td>newcomers</td><td>themed tours</td><td>one view at a time</td><td>medium</td></tr>
+    <tr><td>9 My stack</td><td>developers</td><td>essentials, then more</td><td>a program per lesson</td><td>medium</td></tr>
+    <tr><td>10 Catalog</td><td>returning users</td><td>levels, "new"</td><td>cards</td><td>low</td></tr>
+</table>
+<p style="margin:0.8rem 0 0"><b>Suggested combination:</b> the panel opens on <b>1 (path)</b> with a search box on top (<b>7</b>); lessons use the cards of <b>2</b> (a live
+preview) and the language of <b>9</b>; <b>4</b> brings the next lesson to the data while working; <b>8</b> is offered next to "Preview sample data";
+the <b>anatomy (6)</b> is the header of the Reference tab. The playground (5) and the catalog (10) can come later.</p>
+</div>
+
+</main>
+<script>
+function toggleTheme() { const r = document.documentElement; r.dataset.theme = r.dataset.theme == "dark" ? "light" : "dark"; }
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// A message, colored by its parts: prefix|, name, ,label, :time, :value, §unit, |flags
+function colored(line) {
+    let out = "", rest = line;
+    const pre = /^(ATTR|TH|3D|2D|DASH|ACK|JPG|PNG)\|/.exec(rest) || (/^!/.test(rest) ? ["!"] : null);
+    if (pre) { out += `<span class="k-prefix">${esc(pre[0])}</span>`; rest = rest.slice(pre[0].length); }
+    let flags = "";
+    if (!/^(ATTR|DASH)/.test(pre ? pre[0] : "")) { const bar = rest.lastIndexOf("|"); if (bar >= 0) { flags = rest.slice(bar); rest = rest.slice(0, bar); } }
+    else { const bar = rest.indexOf("|"); if (bar >= 0) { flags = rest.slice(bar); rest = rest.slice(0, bar); } }
+    const colon = rest.indexOf(":");
+    let head = colon < 0 ? rest : rest.slice(0, colon), body = colon < 0 ? "" : rest.slice(colon + 1);
+    const comma = head.indexOf(",");
+    out += comma < 0 ? `<span class="k-name">${esc(head)}</span>` : `<span class="k-name">${esc(head.slice(0, comma))}</span><span class="k-label">${esc(head.slice(comma))}</span>`;
+    if (colon >= 0) {
+        out += `<span class="k-sep">:</span>`;
+        const parts = body.split(":");
+        parts.forEach((p, i) => {
+            if (i) out += `<span class="k-sep">:</span>`;
+            const unit = p.indexOf("§");
+            const isTime = parts.length > 1 && i == 0 && /^\d{10,}$/.test(p);
+            if (unit >= 0) out += `<span class="k-value">${esc(p.slice(0, unit))}</span><span class="k-flags">${esc(p.slice(unit))}</span>`;
+            else out += `<span class="${isTime ? "k-time" : "k-value"}">${esc(p)}</span>`;
+        });
+    }
+    if (flags) out += `<span class="k-flags">${esc(flags)}</span>`;
+    return out;
+}
+const msg = (line, big = false, actions = true) => `<div class="msg${big ? " big" : ""}"><code>${colored(line)}</code>${actions ? `<span class="btn ghost" title="Copy">⧉</span><span class="btn primary">Send ▸</span>` : ""}</div>`;
+
+// Small pictures of the views (what a message gives)
+function pic(kind, w = 220, h = 90, title = "") {
+    const W = w, H = h;
+    let s = "";
+    const g = `<g stroke="var(--tp-grid)">${[0.25, 0.5, 0.75].map((f) => `<line x1="0" y1="${H * f}" x2="${W}" y2="${H * f}"/>`).join("")}</g>`;
+    if (kind == "chart") {
+        let pts = [], pts2 = [];
+        for (let i = 0; i <= 40; i++) { pts.push(`${i / 40 * W},${H / 2 - Math.sin(i / 5) * H * 0.3}`); pts2.push(`${i / 40 * W},${H / 2 - Math.cos(i / 7) * H * 0.2 + 8}`); }
+        s = g + `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--s1)" stroke-width="2"/><polyline points="${pts2.join(" ")}" fill="none" stroke="var(--s4)" stroke-width="1.5"/>`;
+    }
+    else if (kind == "value") {
+        s = `<text x="10" y="${H * 0.4}" font-size="11" fill="var(--tp-muted)">battery</text><text x="${W - 10}" y="${H * 0.42}" font-size="22" font-weight="700" text-anchor="end" fill="var(--tp-text)">11.4<tspan font-size="10" fill="var(--tp-muted)"> V</tspan></text>`
+            + `<rect x="10" y="${H * 0.6}" width="${W - 20}" height="6" rx="3" fill="var(--tp-grid)"/><rect x="10" y="${H * 0.6}" width="${(W - 20) * 0.62}" height="6" rx="3" fill="var(--s2)"/>`
+            + `<rect x="${10 + (W - 20) * 0.4}" y="${H * 0.6 - 3}" width="2" height="12" fill="var(--warn)"/><text x="${10 + (W - 20) * 0.4}" y="${H * 0.6 + 20}" font-size="8" fill="var(--warn)" text-anchor="middle">LOW</text>`;
+    }
+    else if (kind == "gauge-warn") {
+        s = `<text x="10" y="${H * 0.4}" font-size="11" fill="var(--tp-muted)">battery</text><text x="${W - 10}" y="${H * 0.42}" font-size="22" font-weight="700" text-anchor="end" fill="var(--warn)">10.2<tspan font-size="10" fill="var(--tp-muted)"> V</tspan></text>`
+            + `<rect x="10" y="${H * 0.6}" width="${W - 20}" height="6" rx="3" fill="var(--tp-grid)"/><rect x="10" y="${H * 0.6}" width="${(W - 20) * 0.3}" height="6" rx="3" fill="var(--warn)"/><rect x="${10 + (W - 20) * 0.4}" y="${H * 0.6 - 3}" width="2" height="12" fill="var(--warn)"/>`;
+    }
+    else if (kind == "timeline") {
+        const bands = [[0, 0.3, "var(--s1)", "idle"], [0.31, 0.62, "var(--s2)", "driving"], [0.63, 0.75, "var(--s5)", "error"], [0.76, 1, "var(--s2)", "driving"]];
+        s = bands.map(([a, b, c, t]) => `<rect x="${a * W}" y="${H * 0.2}" width="${(b - a) * W}" height="${H * 0.25}" fill="${c}" opacity="0.4"/><text x="${a * W + 4}" y="${H * 0.37}" font-size="9" fill="var(--tp-text)">${t}</text>`).join("")
+            + [0.1, 0.35, 0.5, 0.66, 0.9].map((x) => `<rect x="${x * W}" y="${H * 0.58}" width="1.5" height="${H * 0.22}" fill="var(--tp-muted)"/>`).join("");
+    }
+    else if (kind == "stack") {
+        s = [[0, 1, 0.1, "loop"], [0.05, 0.45, 0.38, "plan"], [0.5, 0.9, 0.38, "act"], [0.08, 0.3, 0.66, "search"]].map(([a, b, y, t], i) => `<rect x="${a * W}" y="${H * y}" width="${(b - a) * W}" height="${H * 0.24}" fill="var(--s${i + 1})" opacity="0.45"/><text x="${a * W + 4}" y="${H * y + 13}" font-size="9" fill="var(--tp-text)">${t}</text>`).join("");
+    }
+    else if (kind == "log") {
+        s = ["12:00:01 Path clear", "12:00:03 [WARN] motor current 1.9 A", "12:00:04 Turning left", "12:00:06 Battery 24.8 V"].map((t, i) => `<text x="8" y="${16 + i * 17}" font-size="9" fill="${/WARN/.test(t) ? "var(--warn)" : "var(--tp-text)"}">${t}</text>`).join("");
+    }
+    else if (kind == "map") {
+        let trail = []; for (let i = 0; i < 30; i++) trail.push(`${W * 0.2 + i * 3},${H * 0.7 - Math.sin(i / 6) * 20}`);
+        s = `<rect x="${W * 0.08}" y="${H * 0.1}" width="${W * 0.84}" height="${H * 0.8}" fill="none" stroke="var(--s2)" stroke-width="2"/><polyline points="${trail.join(" ")}" fill="none" stroke="var(--s1)" stroke-width="1.5" opacity="0.7"/>`
+            + `<g transform="translate(${W * 0.2 + 90},${H * 0.7 - Math.sin(29 / 6) * 20}) rotate(-20)"><rect x="-9" y="-6" width="18" height="12" rx="2" fill="var(--s1)"/><path d="M9 0 h6" stroke="var(--tp-text)" stroke-width="2"/></g>`;
+    }
+    else if (kind == "3d") {
+        s = `<path d="M${W * 0.15} ${H * 0.7} L${W * 0.5} ${H * 0.45} L${W * 0.85} ${H * 0.62} L${W * 0.5} ${H * 0.9} Z" fill="var(--tp-grid)" stroke="var(--s2)"/>`
+            + `<path d="M${W * 0.45} ${H * 0.62} l14 -8 l14 6 l-14 8 z" fill="var(--s4)"/><path d="M${W * 0.45} ${H * 0.62} v-14 l14 -8 v14 z M${W * 0.45 + 14} ${H * 0.62 + 6} v-14 l14 -6 v14z" fill="var(--s4)" opacity="0.7"/>`
+            + `<circle cx="${W * 0.68}" cy="${H * 0.5}" r="8" fill="var(--s5)" opacity="0.8"/>`;
+    }
+    else if (kind == "cloud") {
+        for (let i = 0; i < 120; i++) { const a = i / 120 * Math.PI * 2, r = 25 + (i % 7) * 2 + (Math.abs(Math.cos(a * 2)) * 12); s += `<circle cx="${W / 2 + Math.cos(a) * r * 1.6}" cy="${H / 2 + Math.sin(a) * r * 0.9}" r="1.3" fill="hsl(${i * 3} 70% 55%)"/>`; }
+        s += `<circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--tp-text)"/>`;
+    }
+    else if (kind == "image") {
+        s = `<defs><linearGradient id="sky${W}${H}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fa3b3"/><stop offset="0.5" stop-color="#c9d1d8"/><stop offset="0.52" stop-color="#6d747b"/><stop offset="1" stop-color="#4c5156"/></linearGradient></defs>`
+            + `<rect width="${W}" height="${H}" fill="url(#sky${W}${H})"/><rect x="${W * 0.35}" y="${H * 0.3}" width="${W * 0.18}" height="${H * 0.35}" fill="none" stroke="#f1c40f" stroke-width="2"/><text x="${W * 0.35}" y="${H * 0.27}" font-size="9" fill="#f1c40f">obstacle</text>`;
+    }
+    else if (kind == "dashboard") {
+        const cells = [[0, 0, 2, 1], [2, 0, 1, 1], [0, 1, 1, 1], [1, 1, 2, 1]];
+        s = cells.map(([x, y, w2, h2], i) => `<rect x="${4 + x * W / 3}" y="${4 + y * H / 2}" width="${w2 * W / 3 - 8}" height="${h2 * H / 2 - 8}" rx="3" fill="var(--tp-grid)" stroke="var(--s${i + 1})"/>`).join("");
+    }
+    else if (kind == "controls") {
+        s = `<text x="10" y="18" font-size="10" fill="var(--tp-muted)">speed ✎</text><text x="${W - 10}" y="18" font-size="13" font-weight="700" text-anchor="end" fill="var(--tp-text)">0.40</text>`
+            + `<rect x="10" y="28" width="${W - 20}" height="5" rx="2" fill="var(--tp-grid)"/><rect x="10" y="28" width="${(W - 20) * 0.4}" height="5" rx="2" fill="var(--s2)"/><path d="M${10 + (W - 20) * 0.6 - 4} 20 h8 l-4 6z" fill="var(--s1)"/>`
+            + `<text x="10" y="54" font-size="10" fill="var(--tp-muted)">motors ✎</text><rect x="${W - 42}" y="44" width="32" height="15" rx="8" fill="var(--s1)"/><circle cx="${W - 18}" cy="51.5" r="5.5" fill="#fff"/>`
+            + `<rect x="10" y="${H - 22}" width="70" height="17" rx="4" fill="var(--tp-grid)" stroke="var(--tp-line)"/><text x="45" y="${H - 10}" font-size="9" fill="var(--tp-text)" text-anchor="middle">Reset</text>`
+            + `<rect x="88" y="${H - 22}" width="60" height="17" rx="4" fill="var(--s5)"/><text x="118" y="${H - 10}" font-size="9" fill="#fff" text-anchor="middle">Stop</text>`;
+    }
+    else if (kind == "joystick") {
+        s = `<circle cx="${W / 2}" cy="${H / 2}" r="${H * 0.42}" fill="var(--tp-bg)" stroke="var(--tp-line)" stroke-width="2"/><circle cx="${W / 2 + 10}" cy="${H / 2 - 14}" r="${H * 0.13}" fill="var(--s1)"/><circle cx="${W / 2 + 8}" cy="${H / 2 - 11}" r="4" fill="none" stroke="var(--ok)" stroke-width="2"/>`;
+    }
+    else if (kind == "text") {
+        s = `<text x="10" y="${H * 0.45}" font-size="11" fill="var(--tp-muted)">robot.state</text><text x="${W - 10}" y="${H * 0.47}" font-size="18" font-weight="700" text-anchor="end" fill="var(--tp-text)">driving</text>`;
+    }
+    else if (kind == "xy") {
+        let pts = []; for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; pts.push(`${W / 2 + Math.sin(a * 2) * W * 0.3},${H / 2 + Math.sin(a * 3) * H * 0.3}`); }
+        s = g + `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--s3)" stroke-width="1.5"/><circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--s3)"/>`;
+    }
+    return `<div class="preview">${title ? `<div class="pt">${title}</div>` : ""}<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${s}</svg></div>`;
+}
+const frame = (n, cap, html, note) => `<div class="frame"><div class="caption">${n ? `<span class="num">${n}</span>` : ""}${cap}</div>${html}${note ? `<div class="fnote">${note}</div>` : ""}</div>`;
+// The lesson card shared by every proposal: send / see / how
+function lesson(o) {
+    return `<div class="card">${o.title ? `<h5>${o.title}${o.badge || ""}</h5>` : ""}`
+        + `<div class="sec"><span class="ico">➊</span>Send</div>${msg(o.line)}`
+        + (o.more ? `<div class="small muted" style="margin-top:0.3rem">${o.more}</div>` : "")
+        + `<div class="sec"><span class="ico">➋</span>You will see</div>${pic(o.pic, 260, 90, o.picTitle || "")}`
+        + `<div class="sec"><span class="ico">➌</span>How it works</div><div class="how">${o.how}</div>`
+        + (o.next ? `<div class="row" style="margin-top:0.5rem"><span class="small muted">Next:</span><span class="pill on">${o.next} →</span></div>` : "")
+        + `</div>`;
+}
+
+const B = {};
+
+// 1 A learning path
+B.p1 = () => {
+    const tracks = [
+        ["Basics", "Send a value, see it", [["A number", "done"], ["Show things together", "done"], ["Your own time", "now"], ["Text: states and logs", ""]], true],
+        ["Over time", "Know when something happened", [["Ranges and thresholds", ""], ["Timelines", ""], ["Stacks", ""]], false],
+        ["In space", "Draw your robot on a map, in 3D, on its camera", [["A position", ""], ["2D and 3D shapes", ""], ["Frames", ""], ["Point clouds", ""], ["Images and cameras", ""]], false],
+        ["Organize and control", "Your dashboards, settings and buttons", [["Dashboards", ""], ["Settings and actions", ""], ["A joystick", ""]], false],
+    ];
+    const list = tracks.map(([name, promise, lessons, open], t) => `<div class="card" style="padding:0.55rem 0.7rem">
+        <div class="row"><b style="font-size:1.02rem">${name}</b><span class="grow"></span><span class="small muted">${lessons.filter((l) => l[1] == "done").length} / ${lessons.length}</span></div>
+        <div class="progress" style="margin:0.35rem 0 0.4rem"><i style="width:${lessons.filter((l) => l[1] == "done").length / lessons.length * 100}%"></i></div>
+        ${open ? lessons.map(([l, st]) => `<div class="row" style="padding:0.22rem 0"><span class="chk ${st}">✓</span><span style="${st == "now" ? "font-weight:700;color:var(--color-primary)" : ""}">${l}</span></div>`).join("") : `<div class="small muted">${promise}</div>`}
+        </div>`).join("");
+    const panelA = `<div class="panel"><h4>Help <small>your path</small><span class="x">✕</span></h4>${list}
+        <div class="row" style="margin-top:0.4rem"><span class="btn ghost">⌕ Jump to…</span><span class="grow"></span><span class="btn ghost">Shortcuts</span><span class="btn ghost">Sample data</span></div></div>`;
+    const panelB = `<div class="panel"><h4><span class="btn ghost" style="padding:0">‹</span> Basics · 3 of 4<span class="x">✕</span></h4>
+        ${lesson({ title: "Your own time", line: "speed:1627551892437:12.5", more: "Several at once: <code>speed:12.5;12.7;12.9</code>", pic: "chart", picTitle: "speed", how: "A first number of <b>13 digits</b> is a time in milliseconds: samples are placed when they were taken, not when they arrived.", next: "Text: states and logs" })}
+        <div class="row small" style="color:var(--color-success)"><span class="chk done">✓</span>Received from your device a minute ago: this lesson is done.</div></div>`;
+    return frame(1, "The path: titles and progress", panelA, "Only Basics is open at first; the other tracks show what they bring.")
+        + frame(2, "A lesson, alone on screen", panelB, "Checked because the page received a timestamped sample.");
+};
+
+// 2 A wide guide with a live split
+B.p2 = () => `<div class="panel wide"><h4>Help <small>Ranges and thresholds</small><span class="grow"></span><span class="btn ghost">‹</span><span class="small muted">5 of 15</span><span class="btn ghost">›</span><span class="x">✕</span></h4>
+    <div class="trio">
+        <div class="col">
+            <div class="sec">➊ Send</div>
+            ${msg("ATTR|battery|min=9|max=12.6")}
+            ${msg("TH|battery:low<10.5:empty<9.9,red")}
+            ${msg("battery:10.2§V")}
+            <div class="sec">➌ How it works</div>
+            <div class="how"><b>ATTR|</b> describes the telemetry: its range, once. <b>TH|</b> gives limits it should not pass: data, so they can change over time.</div>
+            <div class="small muted">Edit a line: the preview follows as you type.</div>
+        </div>
+        <div class="col">
+            <div class="sec">➋ Live preview</div>
+            ${pic("gauge-warn", 260, 90, "battery")}
+            ${pic("chart", 260, 90, "battery, a chart")}
+            <div class="small" style="color:var(--warn)">10.2 is below <b>low</b>: the value turns amber.</div>
+            <span class="btn primary" style="align-self:flex-start">＋ Add this view to my dashboard</span>
+        </div>
+    </div></div>`;
+
+// 3 Gallery
+B.p3 = () => {
+    const tiles = [["chart", "A curve", "numbers over time", true], ["value", "A gauge", "a range, limits", true], ["timeline", "A timeline", "states, logs"], ["map", "A map", "positions, 2D shapes"], ["3d", "A 3D scene", "shapes, points"], ["cloud", "A lidar scan", "point clouds"], ["image", "A camera", "pictures, drawings on them"], ["dashboard", "My dashboard", "where views go"], ["controls", "Controls", "settings, buttons, a joystick"]];
+    const grid = `<div class="panel"><h4>Help <small>what do you want to see?</small><span class="x">✕</span></h4><div class="grid3">${tiles.map(([k, t, s, done], i) => `<div class="tile${i == 3 ? " sel" : ""}">${pic(k, 120, 66)}<b>${t}${done ? ' <span style="color:var(--color-success)">✓</span>' : ""}</b><span>${s}</span></div>`).join("")}</div></div>`;
+    const sheet = `<div class="panel"><h4><span class="btn ghost" style="padding:0">‹</span> A map<span class="x">✕</span></h4>
+        ${pic("map", 300, 130)}
+        <div class="sec">➊ Send</div>${msg("position:1.2:0.8|xy")}${msg("2D|robot:S:rect:P:1.2:0.8:R:0.5:W:0.3:H:0.2")}
+        <div class="sec">➌ How it works</div><div class="how">Two numbers and <b>xy</b> make a point (with its trail). <b>2D|</b> lines draw shapes: rectangles, circles, lines, arrows, texts.</div>
+        <div class="sec">Related</div><div class="row"><span class="pill">Frames: things that move together</span><span class="pill">A lidar on the map</span></div></div>`;
+    return frame(1, "Pick a result", grid, "Checks: what you already produced.") + frame(2, "Its sheet", sheet);
+};
+
+// 4 In context
+B.p4 = () => {
+    const app = (inner) => `<div class="app"><div class="island">Teleplot · Live ▾ · ❚❚ 120/s · ▤ 3 · Help</div><div class="dash">${inner}</div></div>`;
+    const empty = app(`<div style="grid-column:1/4;grid-row:1/3;display:grid;place-items:center"><div class="card" style="width:27rem;text-align:center">
+        <div style="font-size:1.2rem;margin-bottom:0.3rem">Send your first value</div>
+        <div class="muted small" style="margin-bottom:0.5rem">From a terminal, to the Teleplot server on this computer:</div>
+        <div class="codebox" style="text-align:left">echo "temperature:25.3" | nc -u -w0 127.0.0.1 47269</div>
+        <div class="row" style="justify-content:center;margin-top:0.6rem"><span class="btn primary">Send it from here</span><span class="btn">I use Python / C++ / Arduino</span><span class="btn ghost">Preview sample data</span></div></div></div>`);
+    const working = `<div class="app"><div class="island">Teleplot · Live ▾ · ❚❚ 120/s · ▤ 3 · Help <span class="pill on" style="padding:0 0.4rem">1</span></div><div class="dash">
+        <div style="grid-column:1/3">${pic("chart", 300, 110, "temperature")}</div><div>${pic("value", 150, 110, "battery")}</div>
+        <div style="grid-column:1/4">${pic("log", 460, 90, "logs")}</div></div>
+        <div class="toast" style="right:0.8rem;top:5.5rem"><b>battery could get a gauge</b><span class="muted">Say what it is expected between, once:</span>
+        <div style="margin:0.35rem 0">${msg("ATTR|battery|min=9|max=12.6", false, false)}</div>
+        <div class="row"><span class="btn primary">Send</span><span class="btn">Show me</span><span class="grow"></span><span class="btn ghost">Not now</span></div></div></div>`;
+    const list = `<div class="panel"><h4>Help <small>for what you send</small><span class="x">✕</span></h4>
+        <div class="sec">Suggested now</div>
+        <div class="card"><h5>battery → a gauge</h5><div class="small muted">a range and thresholds: <code>ATTR|battery|min=9|max=12.6</code></div></div>
+        <div class="card"><h5>robot.state → a timeline</h5><div class="small muted">it is text that changes: see when it did</div></div>
+        <div class="card lock"><h5>Control from the page</h5><div class="small muted">once you are comfortable: settings and buttons</div></div>
+        <div class="sec">Everything</div><div class="small muted">Basics · Over time · In space · Organize and control</div></div>`;
+    return frame(1, "No data yet: the dashboard explains", empty) + frame(2, "Data arrives: one suggestion", working, "Triggered by battery: a number without range.") + frame(3, "The panel: suggestions first", list);
+};
+
+// 5 Playground
+B.p5 = () => `<div class="app" style="width:62rem;height:27rem;background:var(--color-bg-light)">
+    <div style="padding:0.7rem 0.9rem;display:flex;align-items:center;gap:0.6rem;border-bottom:1px solid var(--color-bg-dark)"><b style="font-size:1.1rem">Playground</b>
+        <span class="pill done">1 ✓</span><span class="pill done">2 ✓</span><span class="pill done">3 ✓</span><span class="pill on">4</span><span class="pill">5</span><span class="pill">…</span><span class="pill">12</span><span class="grow"></span><span class="btn ghost">Send all to my dashboard</span><span class="btn ghost">✕</span></div>
+    <div style="padding:0.7rem 0.9rem" class="row"><span style="font-size:1.3rem">🎯</span><div><b style="font-size:1.15rem">Make the battery turn amber below 10.5 V</b><div class="small muted">It already has a range. A threshold is a limit with a name.</div></div><span class="grow"></span><span class="btn">Hint</span></div>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:0.8rem;padding:0 0.9rem">
+        <div class="codebox" style="height:14rem;font-size:0.95rem"><span class="c"># one message per line, Enter sends it</span>
+${colored("ATTR|battery|min=9|max=12.6")}
+${colored("battery:11.4")}
+${colored("TH|battery:low<10.5")}
+${colored("battery:10.2")}<span style="border-left:2px solid var(--color-primary)"> </span></div>
+        <div class="col">${pic("gauge-warn", 300, 100, "battery")}
+            <div class="card" style="border-left:4px solid var(--color-success)"><b style="color:var(--color-success)">✓ Done: battery is below low</b><div class="small muted">Thresholds are dashed lines on charts too. Next: a timeline of states.</div>
+            <div class="row" style="margin-top:0.4rem"><span class="btn ok">Next challenge →</span></div></div></div>
+    </div></div>`;
+
+// 6 Anatomy
+B.p6 = () => `<div class="panel wide"><h4>Help <small>reference</small><span class="grow"></span><div class="seg" style="width:16rem"><span>Learn</span><span class="on">Reference</span></div><span class="x">✕</span></h4>
+    <div class="card"><div class="anat"><span class="k-name">speed</span><span class="k-label">,motion</span><span class="k-sep">:</span><span class="k-time">1627551892437</span><span class="k-sep">:</span><span class="k-value">12.5</span><span class="k-flags">§km/h</span><span class="k-flags">|np</span></div>
+        <div class="callouts"><div class="k-name">name<br><span class="muted">anything but : , | ;</span></div><div class="k-label">label<br><span class="muted">shown together</span></div><div style="color:var(--color-text-muted)">: separates</div><div class="k-time">time, ms<br><span class="muted">optional</span></div><div class="k-value">value(s)<br><span class="muted">; for several</span></div><div class="k-flags">unit, flags<br><span class="muted">optional</span></div></div></div>
+    <div class="sec">Flags: what the value is</div>
+    <div class="row" style="flex-wrap:wrap"><span class="pill on">|t text state</span><span class="pill">|log text line</span><span class="pill">|stack</span><span class="pill">|xy</span><span class="pill">|xyz</span><span class="pill">|pc cloud</span><span class="pill">|np not charted</span><span class="pill">|clr clear</span></div>
+    <div class="card" style="margin-top:0.5rem"><div class="trio"><div><b>|t</b> <span class="muted">a text that is a state: its latest value matters</span>${msg("robot.state:driving|t")}</div>${pic("text", 220, 60)}</div></div>
+    <div class="sec">Lines with a prefix</div>
+    <div class="row" style="flex-wrap:wrap"><span class="pill"><span class="k-prefix">ATTR|</span> describe</span><span class="pill"><span class="k-prefix">TH|</span> limits</span><span class="pill"><span class="k-prefix">2D|</span> <span class="k-prefix">3D|</span> shapes</span><span class="pill"><span class="k-prefix">JPG|</span> pictures</span><span class="pill"><span class="k-prefix">DASH|</span> dashboards</span><span class="pill"><span class="k-prefix">ACK|</span> <span class="k-prefix">!</span> commands</span><span class="pill">&gt; log</span></div></div>`;
+
+// 7 Ask
+B.p7 = () => {
+    const start = `<div class="panel"><h4>Help<span class="x">✕</span></h4><div class="search">⌕ <span class="muted">How do I…</span></div>
+        <div class="sec">People often ask</div><div class="col">${["show a value as a gauge", "draw my robot on a map", "see when a task runs", "change a setting from the page", "send data from Python"].map((q) => `<span class="pill" style="justify-content:flex-start;font-size:0.92rem;padding:0.3rem 0.6rem">${q}</span>`).join("")}</div>
+        <div class="row" style="margin-top:0.8rem"><span class="btn ghost">Browse everything ›</span></div></div>`;
+    const results = `<div class="panel"><h4>Help<span class="x">✕</span></h4><div class="search">⌕ <span>change a value from the page</span></div>
+        <div class="small muted" style="margin:0.4rem 0">2 answers</div>
+        ${lesson({ title: "Settings the page can change", line: "ATTR|speed_limit|write|min=0|max=2", pic: "controls", how: "Declare it once, keep sending its value. Switch <b>CMD</b> on: its value gets a slider. Your device reads <code>speed_limit:1.5</code> and sends it back when applied." })}
+        <div class="card lock"><h5>Buttons: actions</h5></div></div>`;
+    return frame(1, "Opened", start) + frame(2, "An answer", results);
+};
+
+// 8 Tours
+B.p8 = () => {
+    const app = `<div class="app" style="width:52rem;height:27rem"><div class="island">Teleplot · Robot sample ▾ · ❚❚ 560/s · Help</div><div class="dash" style="grid-template-columns:2fr 1fr 1fr">
+        <div>${pic("3d", 260, 120, "scene")}</div><div>${pic("map", 130, 120, "map")}</div><div>${pic("value", 130, 120, "values")}</div>
+        <div style="grid-column:1/4">${pic("timeline", 600, 70, "timeline")}</div></div>
+        <div class="spot" data-spot></div>
+        <div class="toast" data-spot-tip style="width:26rem;border-color:var(--color-primary)"><div class="row"><b>Stop 2 of 4 · A timeline</b><span class="grow"></span><span class="small muted">Tour: the basics</span></div>
+        <div class="small" style="margin:0.25rem 0">This band is <b>robot.state</b>. The robot sends its state as text, and again only when it changes:</div>
+        ${msg("robot.state:turning|t", false, false)}
+        <div class="row" style="margin-top:0.4rem"><span class="btn">‹ Back</span><span class="btn">Copy for my device</span><span class="grow"></span><span class="btn primary">Next stop ›</span></div></div></div>`;
+    const panel = `<div class="panel" style="width:20rem"><h4>Tours<span class="x">✕</span></h4><div class="small muted" style="margin-bottom:0.4rem">The robot sample uses every feature: visit it.</div>
+        ${[["The basics", "4 stops · 2 min", "done"], ["Over time", "3 stops", "now"], ["In space", "5 stops", ""], ["Control the robot", "3 stops · new", ""]].map(([t, s, st]) => `<div class="card row"><span class="chk ${st}">✓</span><div><b>${t}</b><div class="small muted">${s}</div></div><span class="grow"></span><span class="btn">${st == "done" ? "Again" : "Start"}</span></div>`).join("")}</div>`;
+    return frame(1, "Choose a tour", panel) + frame(2, "A stop: the view and the line behind it", app);
+};
+
+// 9 My stack
+B.p9 = () => {
+    const pick = `<div class="panel"><h4>Help<span class="x">✕</span></h4><div style="font-size:1.1rem;margin-bottom:0.5rem">What sends your data?</div>
+        <div class="grid2">${[["Terminal", "nc, one line"], ["Python", "teleplot.py"], ["C++", "Teleplot.h"], ["Arduino", "serial port"], ["ESP32", "Wi-Fi, UDP"], ["Something else", "any UDP sender"]].map(([n, s], i) => `<div class="tile${i == 1 ? " sel" : ""}" style="padding:0.6rem"><b style="font-size:1rem">${n}</b><span>${s}</span></div>`).join("")}</div>
+        <div class="small muted" style="margin-top:0.5rem">Remembered; change it at any time.</div></div>`;
+    const lessonPy = `<div class="panel wide"><h4>Help <small>Python</small><span class="grow"></span><div class="seg" style="width:24rem"><span class="on">A number</span><span>Text</span><span>Position</span><span>Gauge</span><span>Command</span></div><span class="x">✕</span></h4>
+        <div class="trio"><div class="col"><div class="sec">➊ Run this</div>
+<div class="codebox"><span class="c"># pip-free: copy teleplot.py next to it</span>
+import math, time, teleplot
+tp = teleplot.Teleplot()          <span class="c"># 127.0.0.1:47269</span>
+t = 0
+while True:
+    tp.send("wave", math.sin(t))
+    t += 0.1
+    time.sleep(0.02)</div>
+            <div class="row"><span class="btn">⧉ Copy</span><span class="btn ghost">The line it sends: <code>${colored("wave:0.479")}</code></span></div></div>
+            <div class="col"><div class="sec">➋ You will see</div>${pic("chart", 280, 120, "wave")}<div class="sec">➌ How it works</div><div class="how">Every <b>send</b> is one sample, dated when it arrives. 50 per second is fine; thousands too.</div></div></div>
+        <div class="row" style="margin-top:0.5rem"><span class="small muted">More with Python:</span><span class="pill">3D shapes</span><span class="pill">Images</span><span class="pill">Dashboards</span><span class="pill new">Actions</span><span class="pill new">Joystick</span></div></div>`;
+    return frame(1, "First question", pick) + frame(2, "A lesson: a whole program", lessonPy);
+};
+
+// 10 Catalog
+B.p10 = () => {
+    const cards = [["chart", "Numbers", "●", "A number over time"], ["value", "Numbers", "●●", "Ranges and thresholds"], ["timeline", "Text", "●●", "Timelines"], ["stack", "Text", "●●●", "Stacks: what runs"], ["map", "Space", "●●", "2D drawings"], ["cloud", "Space", "●●●", "Point clouds"], ["controls", "Control", "●●", "Settings and actions", true], ["joystick", "Control", "●●●", "Joystick", true], ["dashboard", "Dashboards", "●●", "Dashboards as text"]];
+    return `<div class="panel wide"><h4>Help <small>everything Teleplot can do</small><span class="x">✕</span></h4>
+        <div class="row" style="flex-wrap:wrap;margin-bottom:0.5rem"><span class="pill on">All</span><span class="pill">Numbers</span><span class="pill">Text</span><span class="pill">Space</span><span class="pill">Images</span><span class="pill">Dashboards</span><span class="pill">Control</span><span class="grow"></span><div class="seg" style="width:12rem"><span>●</span><span class="on">●●</span><span>●●●</span></div><span class="pill new">New 3</span></div>
+        <div class="grid3">${cards.map(([k, fam, lvl, t, isNew]) => `<div class="tile">${pic(k, 160, 70)}<b>${t}${isNew ? ' <span class="pill new" style="font-size:0.65rem;padding:0 0.35rem">new</span>' : ""}</b><span>${fam} · ${lvl}</span></div>`).join("")}</div>
+        <div class="small muted" style="margin-top:0.5rem">A card opens: send / you will see / how it works. "New" lists what came since your last visit.</div></div>`;
+};
+
+for (const el of document.querySelectorAll("[data-build]")) el.innerHTML = B[el.dataset.build]();
+// The tour: the spotlight on the timeline of the mock dashboard, its callout above it
+for (const spot of document.querySelectorAll("[data-spot]")) {
+    const app = spot.parentElement, target = app.querySelector(".dash > div:last-child"), tip = app.querySelector("[data-spot-tip]");
+    const a = app.getBoundingClientRect(), t = target.getBoundingClientRect();
+    Object.assign(spot.style, { left: t.left - a.left - 4 + "px", top: t.top - a.top - 4 + "px", width: t.width + 8 + "px", height: t.height + 8 + "px" });
+    Object.assign(tip.style, { left: Math.max(8, t.left - a.left + 40) + "px", top: Math.max(8, t.top - a.top - tip.offsetHeight - 14) + "px" });
+}
+</script>
+</body>
+</html>
