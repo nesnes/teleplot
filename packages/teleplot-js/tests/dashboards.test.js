@@ -246,7 +246,7 @@ test('clearDashboard empties a dashboard and keeps it; the auto dashboard goes o
     assert.equal(T.dashboards.clearDashboard('Nope'), 0);
 });
 
-test('auto dashboard: a telemetry described before its data (range, thresholds) is charted when its data comes; thresholds do not change its view', () => {
+test('auto dashboard: a telemetry described before its data (range, thresholds) is displayed when its data comes: a number with a whole range as a gauge; thresholds do not change its view', () => {
     const T = loadTeleplot();
     T.dashboards.enableAutoDashboard('Live');
     T.parseDataText({ data: 'ATTR|battery|min=9|max=12.6\nTH|battery:low<10.5\nTH|mode.limits:x<1', timestamp: 0 });
@@ -255,14 +255,16 @@ test('auto dashboard: a telemetry described before its data (range, thresholds) 
     T.parseDataText({ data: 'battery:11.4\nstate:on|t\nTH|state:odd<1', timestamp: 1000 });
     T.__timers.run();
     const views = T.dashboards.getDashboard('Live').getView().views.map((v) => v.type.replace('teleplot-', '') + ':' + v.telemetryIdOrNameList.length);
-    assert.deepEqual(views, ['chart:1', 'current-value:1']);
-    assert.equal(T.view.suggestViewType('battery'), 'chart');
+    assert.deepEqual(views, ['current-value:1', 'current-value:1'], 'battery is expected between two values: its value with a bar');
+    assert.equal(T.view.suggestViewType('battery'), 'values');
     assert.equal(T.view.suggestViewType('state'), 'values');
     assert.equal(T.view.suggestViewType('mode.limits'), 'chart', 'limits are about numbers');
     // Sent the other way round, or again later: nothing moves
     T.parseDataText({ data: 'ATTR|battery|min=8\nbattery:11.3', timestamp: 2000 });
     T.__timers.run();
     assert.equal(T.dashboards.getDashboard('Live').getView().views.length, 2);
+    T.parseDataText({ data: 'ATTR|load|max=100\nload:40\nTH|temp:hot>70\ntemp:20\nATTR|level|min=0|max=1\nlevel:0.3', timestamp: 3000 });
+    assert.deepEqual(['load', 'temp', 'level'].map(T.view.suggestViewType), ['chart', 'chart', 'values']);
 });
 
 test('auto dashboard: a stack gets a timeline; stacks without label share one, a label gives its own', () => {

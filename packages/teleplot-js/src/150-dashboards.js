@@ -197,7 +197,11 @@ TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     if(TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined) return "image"; // Drawn in the pixels of a picture: with that picture
     if(TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined) return TELEPLOT.view.ViewScene3D.isFlat(telem) ? "2d" : "3d"; // (both views show both: this is only the default)
     let dataType = Object.keys(telem.data).find((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds are limits of its numbers)
-    if(dataType === undefined || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) return "chart";
+    if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) { // A number expected between two values is a gauge: its value with a bar (the range given before its first value decides)
+        let range = telem.getRange();
+        return range && range.min !== undefined && range.max !== undefined ? "values" : "chart";
+    }
+    if(dataType === undefined) return "chart";
     if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true) return "log";
     if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK) === true) return "timeline"; // A stack is read along the time: a row per level
     return "values";

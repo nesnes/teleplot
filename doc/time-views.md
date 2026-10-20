@@ -73,6 +73,8 @@ In the binary protocol: the attribute `TELEM_ATTR_RANGE` (9), two float64, not a
 
 A range changes nothing to the data. Views use it as an extent: the bar of a value, the scale of a chart when asked.
 
+It also decides the default view of a number: with **both ends**, a number is a gauge, so `suggestViewType` answers `"values"` (its value with a bar) instead of `"chart"`, for the Live dashboard and for a telemetry dropped on a dashboard. Like a label, it only decides the first placement: send the range before the first value. A chart is one click away (Edit mode) or a `DASH|` line.
+
 ### Thresholds: `TH|`
 
 ```
