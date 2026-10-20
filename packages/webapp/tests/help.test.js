@@ -6,7 +6,17 @@ const assert = require('node:assert/strict');
 const { loadTeleplot } = require('../../teleplot-js/tests/helpers/load');
 
 const code = fs.readFileSync(path.join(__dirname, '..', 'components', 'panel-help.js'), 'utf8');
-const { HELP_EXAMPLES, HELP_SHORTCUTS, HELP_STEPS, HELP_SENDERS, helpColorize, helpLine, helpDescribe } = new Function(code + '\nreturn { HELP_EXAMPLES, HELP_SHORTCUTS, HELP_STEPS, HELP_SENDERS, helpColorize, helpLine, helpDescribe };')();
+const { HELP_EXAMPLES, HELP_SHORTCUTS, HELP_TILES, HELP_FAMILIES, HELP_CONCEPTS, HELP_SENDERS, helpLine, helpDescribe, helpPicture, helpParts, HELP_PART_TIPS, helpVary, helpFill } = new Function(code + '\nreturn { helpVary, helpFill, HELP_EXAMPLES, HELP_SHORTCUTS, HELP_TILES, HELP_FAMILIES, HELP_CONCEPTS, HELP_SENDERS, helpLine, helpDescribe, helpPicture, helpParts, HELP_PART_TIPS };')();
+const tile = (id) => HELP_TILES.find(t => t.id == id);
+// {now} in a message is the time of the page: here a fixed one (the time the expectations use)
+const NOW = 1627551892437;
+const templates = new Map(); // filled message -> its template (with {now})
+for (const example of HELP_EXAMPLES) {
+    templates.set(helpFill(example.code, NOW), example.code);
+    example.code = helpFill(example.code, NOW);
+    if (example.cycle) example.cycle = example.cycle.map(c => helpFill(c, NOW));
+}
+const lines = (id, more) => [...tile(id).examples, ...(more ? tile(id).more || [] : [])].map(e => e.code);
 
 const find = (T, name) => Object.values(T.datastore.telemetries).find(t => t.attributes[T.protocol.TELEM_ATTR_NAME] === name);
 
@@ -86,107 +96,189 @@ for (const example of HELP_EXAMPLES) {
     });
 }
 
-test('examples of a step build on each other: sent in order, a step gives what it says', () => {
-    const run = (title) => { const T = loadTeleplot(); T.dashboards.enableAutoDashboard('Live'); const step = HELP_STEPS.find(s => s.title == title); assert.equal(T.parseDataText(step.examples.map(e => e.code).join('\n')), 0); T.__timers.run(); return T; };
-    const views = (T) => T.dashboards.getDashboard('Live').getView().views.map(v => v.type.replace('teleplot-', '') + ':' + (v.getOption('title') || '') + ':' + v.telemetryIdOrNameList.length);
-    assert.deepEqual(views(run('Shown together: labels')), ['chart:motors:2'], 'the two motors share a chart, debug is left out');
-    assert.deepEqual(views(run('3D shapes')), ['3d:scene:2'], 'both shapes in one scene');
-    assert.deepEqual(views(run('2D drawings')), ['2d:field:4'], 'the four drawings on one map');
-    let field = run('2D drawings');
-    assert.deepEqual(field.view.ViewScene3D.shapeState(find(field, 'robot')).position, [1.5, 1, 0], 'the robot moved');
-    field.parseDataText(HELP_STEPS.find(s => s.title == 'Frames: relative to something').examples.map(e => e.code).join('\n'));
-    field.__timers.run();
-    assert.deepEqual(views(field), ['2d:field:6']);
-    assert.deepEqual(field.view.ViewScene3D.shapeState(find(field, 'bumper')).position.map(v => Math.round(v * 1000) / 1000), [1.639, 1.143, 0], 'in front of the robot, where it looks');
-    let T = run('3D shapes');
-    const S = T.view.ViewScene3D;
-    assert.deepEqual([S.shapeState(find(T, 'box')).position, S.shapeState(find(T, 'box')).type, Math.round(S.shapeState(find(T, 'ball')).opacity * 10) / 10], [[2, 0, 0.5], T.protocol.TELEM_ATTR_SHAPE_TYPE_CUBE, 0.5], 'the box moved and is still a cube');
-    T = run('A point cloud');
-    assert.deepEqual([S.kindOf(find(T, 'lidar')), find(T, 'lidar').data[T.protocol.SECTION_TYPE_TELEM_DATA_POINT_CLOUD].timestamps.length, S.shapeState(find(T, 'lidar')).position], ['cloud', 2, [1, 2, 0.2]]);
-    T = run('An image and its camera');
-    assert.deepEqual(S.cameraState(find(T, 'camera')).distortion, [-0.26, 0.07, 0, 0, 0]);
-    T = run('Several values, your own time');
-    assert.deepEqual(find(T, 'speed').data[T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER].data[0], [0], 'clr forgot the samples sent before');
-    T = run('Text: states and logs');
-    assert.deepEqual(views(T), ['current-value::1', 'log:logs:1', 'log::1']);
-    // Ranges and thresholds: one telemetry, charted once, below its "low" limit; the limit sent with a time holds from that time only
-    T = run('Ranges and thresholds');
+// A tile alone, on a fresh page (the Live dashboard on, as in the webapp): its lines one after the other, a second apart. Returns the
+// library and what the dashboards show: "Dashboard: type[title](telemetries) ..."
+const runTile = (id, more) => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    lines(id, more).forEach((code, i) => { assert.equal(T.parseDataText({ data: code, timestamp: 2000 + i * 1000 }), 0, code); T.__timers.run(); });
+    const name = (id) => { const t = T.datastore.getTelemetry(id); return t ? t.getAttribute(T.protocol.TELEM_ATTR_NAME) : id; };
+    const walk = (v) => Array.isArray(v.views) ? v.views.map(walk).join(' ') : v.type.replace('teleplot-', '') + '[' + (v.getOption('title') || '') + '](' + v.telemetryIdOrNameList.map(name).join(',') + ')';
+    const shown = Object.values(T.dashboards.dashboards).map(d => d.name + ': ' + walk(d.getView())).sort();
+    return { T, shown };
+};
+
+test('each tile shows what it says by itself, on a fresh page: it never needs what another tile sent', () => {
+    const expected = {
+        curve: ['Live: chart[](temperature)'],
+        together: ['Live: chart[motors](left,right)'],
+        gauge: ['Live: current-value[](battery)'],
+        state: ['Live: current-value[](mode)'],
+        log: ['Live: log[logs](nav) log[](_text_logs)'],
+        timeline: ['Live: current-value[](mode)', 'Robot: timeline[States](mode)'],
+        marks: ['Live: chart[](velocity) current-value[](mode)', 'Robot: chart[Drive](velocity,mode)'],
+        stack: ['Live: timeline[](task)'],
+        trail: ['Live: 2d[](position)'],
+        map: ['Live: 2d[field](robot,route)'],
+        scene: ['Live: 3d[scene](box,ball)'],
+        frames: ['Live: 2d[field](robot,heading,bumper)'],
+        cloud: ['Live: 2d[](lidar)'],
+        picture: ['Live: image[](camera)'],
+        pixels: ['Live: image[](camera,found,found.name)'],
+        camera: ['Live: image[](camera,marker) 3d[scene](marker,camera)'],
+        dashboard: ['Live: chart[](voltage) log[](events)', 'Robot: chart[Power](voltage) log[Events](events)'],
+        place: ['Robot: chart[Motion](speed,accel)'],
+        settings: ['Live: current-value[Commands](speed_limit)'],
+        actions: ['Live: current-value[Commands](reset)'],
+        joystick: ['Live: joystick[](cmd_vel)'],
+        pose: ['Live: 2d[](target)'],
+    };
+    assert.deepEqual(Object.keys(expected).sort(), HELP_TILES.filter(t => t.examples).map(t => t.id).sort(), 'every tile is checked');
+    for (const id in expected) assert.deepEqual(runTile(id).shown, expected[id], id);
+    // What the lines say they do
+    let { T } = runTile('gauge');
     const battery = find(T, 'battery');
-    assert.deepEqual(views(T), ['chart::1']);
     assert.deepEqual([battery.getRange(), battery.getThresholdStatus(10.2).name, battery.getThresholds().map(t => t.name + t.value)], [{ min: 9, max: 12.6 }, 'low', ['empty9.9', 'low10.5']]);
-    assert.deepEqual(battery.getThresholds(1627551892.437).map(t => t.name + t.value), ['low10.8'], 'the one of 2021, at that time');
     assert.deepEqual(T.view.ViewCurrentValue.gauge(battery, 10.2).bar.ticks.map(t => t.name), ['empty', 'low']);
-    // States over time: a timeline and a chart described by lines, the state as bands with a hole after it, and as marks
-    T = loadTeleplot();
-    T.dashboards.enableAutoDashboard('Live');
-    assert.equal(T.parseDataText({ data: 'speed:1\nnav:Path clear|log\n' + HELP_STEPS.find(s => s.title == 'States over time, marks on a chart').examples.map(e => e.code).join('\n'), timestamp: 5000 }), 0);
-    T.parseDataText({ data: 'speed:2', timestamp: 9000 });
-    T.__timers.run();
-    const robot = T.dashboards.getDashboard('Robot').getView().views;
-    assert.deepEqual(robot.map(v => v.type), ['teleplot-timeline', 'teleplot-chart']);
-    robot.forEach(v => v.update());
-    assert.deepEqual(robot[0].lanes.map(l => [l.name, l.isLog, l.items.length]), [['mode', false, 0], ['nav', true, 1]], 'driving, then nothing at the same instant: no band');
-    T.parseDataText({ data: 'mode:6000:driving|t\nmode:7000:|t\nmode:8000:parked|t' });
-    robot.forEach(v => v.update());
-    assert.deepEqual(robot[0].lanes[0].items.map(i => [i.from, i.to, i.text]), [[6, 7, 'driving'], [8, 9, 'parked']], 'a hole between the two');
-    assert.deepEqual(robot[1].overlay.marks[0].marks.map(m => m.t + ' ' + m.text), ['5 driving', '6 driving', '8 parked'], 'the marks of the chart: where the state changes to something');
-    // Stacks: the examples sent one after the other are a stack that goes down, comes back up and ends, in a timeline with a row per level
-    T = loadTeleplot();
-    HELP_STEPS.find(s => s.title == 'Stacks: what is running').examples.forEach((example, i) => T.parseDataText({ data: example.code.replace(':1627551892437.25:', ':'), timestamp: 10000 + i * 1000 }));
-    T.__timers.run();
-    const tasks = T.dashboards.getDashboard('Robot').getView().views[0];
-    assert.deepEqual([tasks.type, tasks.getOption('stackDepth')], ['teleplot-timeline', 4]);
+    ({ T } = runTile('gauge', true));
+    assert.deepEqual(find(T, 'battery').getThresholds(NOW / 1000).map(t => t.name + t.value), ['empty9.9', 'low10.8'], 'the limit that changes, from its time on');
+    ({ T } = runTile('curve', true));
+    assert.deepEqual(find(T, 'temperature').data[T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER].data[0], [25.3], 'clr forgot the samples sent before');
+    ({ T } = runTile('together', true));
+    assert.ok(find(T, 'debug') && runTile('together', true).shown.length == 1, 'debug is kept apart');
+    ({ T } = runTile('map'));
+    assert.deepEqual(T.view.ViewScene3D.shapeState(find(T, 'robot')).position, [1.5, 1, 0], 'the robot moved');
+    ({ T } = runTile('frames'));
+    assert.deepEqual(T.view.ViewScene3D.shapeState(find(T, 'bumper')).position.map(v => Math.round(v * 1000) / 1000), [1.639, 1.143, 0], 'the bumper followed the robot: in front of it, where it looks');
+    ({ T } = runTile('scene'));
+    assert.deepEqual([T.view.ViewScene3D.shapeState(find(T, 'box')).position, T.view.ViewScene3D.shapeState(find(T, 'box')).type, Math.round(T.view.ViewScene3D.shapeState(find(T, 'ball')).opacity * 10) / 10], [[2, 0, 0.5], T.protocol.TELEM_ATTR_SHAPE_TYPE_CUBE, 0.5], 'the box moved and is still a cube');
+    ({ T } = runTile('cloud'));
+    assert.deepEqual([T.view.ViewScene3D.kindOf(find(T, 'lidar')), T.view.ViewScene3D.shapeState(find(T, 'lidar')).position], ['cloud', [1, 2, 0.2]]);
+    ({ T } = runTile('camera'));
+    assert.deepEqual(T.view.ViewScene3D.cameraState(find(T, 'camera')).distortion, [-0.26, 0.07, 0, 0, 0]);
+    ({ T } = runTile('dashboard', true));
+    assert.deepEqual(T.dashboards.exportText('Robot').split('\n'), ['DASH|Robot:grid', 'DASH|Robot/side:column', 'DASH|Robot/side/Events:log:events|maxLines=50'], 'a layout, and Power removed');
+    ({ T } = runTile('stack'));
+    const tasks = T.dashboards.getDashboard('Live').getView().views[0];
     tasks.update();
-    assert.deepEqual(tasks.lanes[0].rows.map(row => row.map(i => i.label + ' ' + i.from + '-' + i.to)), [['loop 10-14'], ['plan 11-14'], ['search 12-13']], 'loop is one band while what it runs changes; the empty text ends it');
-    // The dashboard step: the telemetries place themselves, the lines size their chart and add a column with a log
-    T = loadTeleplot();
-    T.dashboards.enableAutoDashboard('Live');
-    assert.equal(T.parseDataText(HELP_STEPS.find(s => s.title == 'Your own dashboard').examples.map(e => e.code).join('\n')), 0);
+    assert.deepEqual(tasks.lanes[0].rows.map(row => row.map(i => i.label + ' ' + i.from + '-' + i.to)), [['loop 2-5'], ['plan 3-5'], ['search 4-5']], 'loop is one band while what it runs changes; the empty text ends it');
+});
+
+test('sending a line again shows a change: texts go through their cycle, numbers are nudged', () => {
+    // (What does not change on purpose: descriptions said once, pictures, the steps of a stack, nothing, the lens of a camera)
+    const changing = HELP_EXAMPLES.filter(e => !/^(ATTR|TH|DASH|PNG|JPG)\|/.test(e.code) && !/^task:/.test(e.code) && !/:\|t$/.test(e.code) && !/:DC:/.test(e.code));
+    for (const example of changing) {
+        const again = example.cycle ? example.cycle[0] : helpVary(templates.get(example.code) || example.code);
+        assert.notEqual(helpFill(again, NOW), example.code, 'sent again, it changes: ' + example.code);
+    }
+    for (const example of HELP_EXAMPLES.filter(e => e.cycle)) for (const code of example.cycle) {
+        const T = loadTeleplot();
+        assert.equal(T.parseDataText(code), 0, code);
+        assert.equal(helpDescribe(T, code, 0).ok, true, code);
+        assert.deepEqual(helpParts(code).filter(p => p.label == 'name').map(p => p.text), helpParts(example.code).filter(p => p.label == 'name').map(p => p.text), 'the same telemetry: ' + code);
+    }
+    // A state cycled on a timeline: a band per send
+    const T = loadTeleplot();
+    const timeline = tile('timeline').examples[1];
+    T.parseDataText(tile('timeline').examples[0].code);
+    [timeline.code, ...timeline.cycle].forEach((code, i) => T.parseDataText({ data: code, timestamp: 1000 * (i + 1) }));
     T.__timers.run();
-    assert.equal(T.dashboards.getDashboard('Live'), undefined, 'nothing went to the Live dashboard');
-    assert.deepEqual(T.dashboards.exportText('Robot').split('\n'), ['DASH|Robot:grid', 'DASH|Robot/Motion:chart:speed,accel|w=4|h=3', 'DASH|Robot/side:column', 'DASH|Robot/side/Log:log:nav,state|maxLines=50']);
+    const view = T.dashboards.getDashboard('Robot').getView().views[0];
+    view.update();
+    assert.deepEqual(view.lanes[0].items.map(i => i.text), ['driving', 'turning', 'parked']);
+});
+
+test('More ways have a title each', () => {
+    for (const t of HELP_TILES) for (const m of t.more || []) assert.ok(m.title && m.title.length <= 24, t.id + ': ' + m.code);
+});
+
+test('helpFill gives {now} the time of the page', () => {
+    assert.equal(helpFill('a:{now}:1', 5000), 'a:5000:1');
+    assert.equal(helpFill('a:{now-200}:1;{now+50}:2', 5000.4), 'a:4800:1;5050:2');
+    assert.equal(helpFill('no time:1'), 'no time:1');
 });
 
 test('shortcuts listed in the help exist in the top menu', () => {
     const menu = fs.readFileSync(path.join(__dirname, '..', 'components', 'top-menu.js'), 'utf8');
-    for (const key of ['T', 'S', 'H', 'E']) assert.ok(HELP_SHORTCUTS.some(s => s.keys === key), key + ' is documented');
-    for (const key of ['T', 'S', 'H']) assert.ok(menu.includes('key: "' + key + '"'), key + ' is bound');
+    for (const key of ['T', 'S', 'X', 'H', 'E', 'C']) assert.ok(HELP_SHORTCUTS.some(s => s.keys === key), key + ' is documented');
+    for (const key of ['T', 'S', 'X', 'H']) assert.ok(menu.includes('key: "' + key + '"'), key + ' is bound');
+    assert.ok(menu.includes('key == "c"'), 'C is bound');
 });
 
 
-test('the ladder goes from one number to images, and every example belongs to a step', () => {
-    assert.equal(HELP_STEPS[0].examples[0].code, 'temperature:25.3');
-    assert.equal(HELP_EXAMPLES.length, HELP_STEPS.reduce((n, step) => n + step.examples.length, 0));
-    assert.ok(HELP_STEPS.every(step => step.title && step.examples.length > 0));
+test('the gallery starts with one number; every tile has a family, a picture, and what it needs', () => {
+    assert.equal(HELP_TILES[0].examples[0].code, 'temperature:25.3');
+    assert.equal(HELP_EXAMPLES.length, HELP_TILES.reduce((n, t) => n + (t.examples || []).length + (t.more || []).length, 0));
+    assert.equal(new Set(HELP_TILES.map(t => t.id)).size, HELP_TILES.length, 'ids are unique');
+    for (const t of HELP_TILES) {
+        assert.ok(HELP_FAMILIES.some(f => f.id == t.family), t.id + ': family');
+        assert.ok(t.title && t.sub && t.how && t.picture, t.id + ': text and picture');
+        if (t.family == 'page') assert.ok(!t.examples && (t.keys || t.action), t.id + ': a tile of the page has no message');
+        else assert.ok(t.examples.length > 0, t.id + ': lines to send');
+    }
+    for (const c of HELP_CONCEPTS) assert.ok(c.title && c.text.length && c.schema, c.id);
+    for (const f of HELP_FAMILIES) assert.ok(HELP_TILES.some(t => t.family == f.id), f.id + ' has tiles');
 });
 
-test('helpColorize cuts a message in its parts without changing it', () => {
-    const kinds = (message) => helpColorize(message).filter(p => p.kind).map(p => p.kind + '=' + p.text);
-    for (const example of HELP_EXAMPLES) assert.equal(helpColorize(example.code).map(p => p.text).join(''), example.code);
-    assert.deepEqual(kinds('temperature:25.3'), ['name=temperature', 'value=25.3']);
-    assert.deepEqual(kinds('temperature:1627551892437:25.3§°C|np'), ['name=temperature', 'time=1627551892437', 'value=25.3', 'unit=°C', 'flags=np']);
-    assert.deepEqual(kinds('speed:1000:1.2;1010:1.3'), ['name=speed', 'time=1000', 'value=1.2', 'time=1010', 'value=1.3']);
-    assert.deepEqual(kinds('position:12.5:4.2|xy'), ['name=position', 'value=12.5:4.2', 'flags=xy']);
-    assert.deepEqual(kinds('position:12.5:4.2:1000|xy'), ['name=position', 'value=12.5:4.2', 'time=1000', 'flags=xy']);
-    assert.deepEqual(kinds('drone:1:2:3:1000|xyz'), ['name=drone', 'value=1:2:3', 'time=1000', 'flags=xyz']);
-    assert.deepEqual(kinds('state:forward|t'), ['name=state', 'value=forward', 'flags=t']);
-    assert.deepEqual(kinds('events:1000:Motors armed|log'), ['name=events', 'value=1000:Motors armed', 'flags=log']);
-    assert.deepEqual(kinds('lidar:9000;1:0:0;0:1:0|pc'), ['name=lidar', 'time=9000', 'value=1:0:0', 'value=0:1:0', 'flags=pc']);
-    assert.deepEqual(kinds('3D|box:S:cube:P:1:0:0.5'), ['flags=3D|', 'name=box', 'value=S:cube:P:1:0:0.5']);
-    assert.deepEqual(kinds('2D|robot,field:S:rect:P:1:2'), ['flags=2D|', 'name=robot,field', 'value=S:rect:P:1:2']);
-    assert.deepEqual(kinds('>:Motors armed'), ['flags=>', 'value=Motors armed']);
-    assert.deepEqual(kinds('DASH|Robot/Motion:chart:speed,accel|w=2|h=3'), ['flags=DASH|', 'name=Robot/Motion', 'value=chart:speed,accel', 'flags=w=2|h=3']);
-    assert.deepEqual(kinds('DASH|Robot'), ['flags=DASH|', 'name=Robot']);
-    assert.deepEqual(kinds('left,motors:0.4'), ['name=left,motors', 'value=0.4']);
-    assert.deepEqual(kinds('ATTR|battery|min=9|max=12.6'), ['flags=ATTR|', 'name=battery', 'value=min=9|max=12.6']);
-    assert.deepEqual(kinds('ATTR|battery'), ['flags=ATTR|', 'name=battery']);
-    assert.deepEqual(kinds('TH|battery:low<10.5:empty<9.9,red'), ['flags=TH|', 'name=battery', 'value=low<10.5', 'value=empty<9.9,red']);
-    assert.deepEqual(kinds('TH|temp:1000:hot>70;2000:hot>75'), ['flags=TH|', 'name=temp', 'time=1000', 'value=hot>70', 'time=2000', 'value=hot>75']);
-    assert.deepEqual(kinds('TH|temp'), ['flags=TH|', 'name=temp']);
-    assert.deepEqual(kinds('mode:|t'), ['name=mode', 'flags=t']);
-    assert.deepEqual(kinds('task:loop/plan/search|stack'), ['name=task', 'value=loop/plan/search', 'flags=stack']);
-    assert.deepEqual(kinds('half'), ['name=half'], 'a message being typed');
-    assert.deepEqual(kinds(''), []);
+test('every picture and schematic is drawn', () => {
+    for (const kind of [...HELP_TILES.map(t => t.picture), ...HELP_CONCEPTS.map(c => c.schema)]) {
+        const svg = helpPicture(kind);
+        assert.match(svg, /^<svg [^]*<\/svg>$/, kind);
+        assert.doesNotMatch(svg, /undefined|NaN/, kind);
+        assert.ok(svg.replace(/<defs>.*?<\/defs>/g, '').length > 150, kind + ' has a drawing');
+        for (const tag of svg.match(/<text [^>]*>/g) || []) for (const attr of ['font-size', 'fill']) assert.ok((tag.match(new RegExp(' ' + attr + '=', 'g')) || []).length <= 1, kind + ': ' + attr + ' given once in ' + tag);
+    }
+});
+
+test('helpParts names the parts of a message, which join back to it', () => {
+    const named = (message) => helpParts(message).filter(p => p.label).map(p => p.label + '=' + p.text);
+    for (const example of HELP_EXAMPLES) {
+        const parts = helpParts(example.code);
+        assert.equal(parts.map(p => p.text).join(''), example.code);
+        assert.ok(parts.some(p => ['name', 'dashboard/view', 'log'].includes(p.label)), example.code + ': what it is about');
+        for (const p of parts) if (p.label) assert.ok(HELP_PART_TIPS[p.label], example.code + ': a tip for ' + p.label);
+    }
+    assert.deepEqual(named('temperature:25.3'), ['name=temperature', 'value=25.3']);
+    assert.deepEqual(named('temperature:1627551892437:25.3§°C|np'), ['name=temperature', 'time=1627551892437', 'value=25.3', 'unit=°C', 'not charted=np']);
+    assert.deepEqual(named('left,motors:0.4'), ['name=left', 'label=motors', 'value=0.4']);
+    assert.deepEqual(named('speed:1000:1.2;1010:1.3'), ['name=speed', 'time=1000', 'value=1.2'], 'only the first sample is named');
+    assert.deepEqual(named('mode:1627551892437:turning|t'), ['name=mode', 'time=1627551892437', 'text=turning', 'state=t']);
+    assert.deepEqual(named('nav:Path: clear|log'), ['name=nav', 'log line=Path: clear', 'log=log']);
+    assert.deepEqual(named('position:12.5:4.2:1000|xy'), ['name=position', 'x:y=12.5:4.2', 'time=1000', '2D point=xy']);
+    assert.deepEqual(named('lidar:9000;1:0:0;0:1:0|pc'), ['name=lidar', 'time=9000', 'x:y:z=1:0:0', 'point cloud=pc']);
+    assert.deepEqual(named('3D|box,scene:S:cube:P:1:0:0.5:W:1:C:orange'), ['3D shape=3D|', 'name=box', 'label=scene', 'kind=S:cube', 'position=P:1:0:0.5', 'width=W:1', 'color=C:orange']);
+    assert.deepEqual(named('2D|goal:S:text:P:3:2:TX:"Goal: A"'), ['2D shape=2D|', 'name=goal', 'kind=S:text', 'position=P:3:2', 'text=TX:"Goal: A"'], 'a quoted text holds its colon');
+    assert.deepEqual(named('ATTR|battery|min=9|max=12.6'), ['attributes=ATTR|', 'name=battery', 'lowest=min=9', 'highest=max=12.6']);
+    assert.deepEqual(named('TH|battery:1000:low<10.5:empty<9.9,red'), ['thresholds=TH|', 'name=battery', 'time=1000', 'limit=low<10.5', 'limit=empty<9.9', 'color=red']);
+    assert.deepEqual(named('DASH|Robot/Motion:chart:speed,mode|w=3'), ['dashboard=DASH|', 'dashboard/view=Robot/Motion', 'view type=chart', 'telemetries=speed,mode', 'option=w=3']);
+    assert.deepEqual(named('ACK|reset#12:ok'), ['answer=ACK|', 'name=reset', 'call number=#12', 'result=ok']);
+    assert.deepEqual(named('>:Motors armed'), ['log=>', 'text=Motors armed']);
+    assert.deepEqual(named('TH|temp:1000:hot>70;2000:hot>75'), ['thresholds=TH|', 'name=temp', 'time=1000', 'limit=hot>70', 'time=2000', 'limit=hot>75']);
+    assert.deepEqual(named('mode:|t'), ['name=mode', 'state=t'], 'an empty text: nothing to name');
+    assert.deepEqual(named('task:loop/plan/search|stack'), ['name=task', 'path=loop/plan/search', 'stack=stack']);
+    assert.deepEqual(named('DASH|Robot'), ['dashboard=DASH|', 'dashboard/view=Robot']);
+    assert.deepEqual(named('drone:1:2:3:1000|xyz'), ['name=drone', 'x:y:z=1:2:3', 'time=1000', '3D point=xyz']);
+    for (const typing of ['', 'te', 'temperature:', 'ATTR|', '3D|box:Q', 'TH|x:', 'a:1|']) assert.equal(helpParts(typing).map(p => p.text).join(''), typing, 'while typing: ' + typing);
+});
+
+test('helpVary nudges the numbers of a message, so that sending it again shows a change; what it changes is still understood', () => {
+    let seed = 1;
+    const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (const example of HELP_EXAMPLES) {
+        const varied = helpVary(example.code, random);
+        const T = loadTeleplot();
+        assert.equal(T.parseDataText(varied), 0, varied);
+        assert.deepEqual(helpParts(varied).map(p => p.label), helpParts(example.code).map(p => p.label), 'same parts: ' + varied);
+    }
+    const nums = (message) => helpVary(message, random);
+    assert.notEqual(nums('temperature:25.3'), 'temperature:25.3');
+    assert.match(nums('temperature:25.3'), /^temperature:[0-9]+\.[0-9]$/, 'same decimals');
+    assert.match(nums('debug:42|np'), /^debug:[0-9]+\|np$/, 'an integer stays one');
+    assert.match(nums('temperature:1627551892437:25.3§°C'), /^temperature:1627551892437:[0-9.]+§°C$/, 'the time is kept');
+    assert.match(nums('2D|robot:P:1.5:1:R:0.8'), /^2D\|robot:P:[0-9.-]+:[0-9.-]+:R:[0-9.-]+$/);
+    assert.notEqual(nums('2D|robot:P:1.5:1:R:0.8'), '2D|robot:P:1.5:1:R:0.8');
+    for (const fixed of ['ATTR|battery|min=9|max=12.6', 'TH|battery:low<10.5:empty<9.9,red', 'mode:driving|t', 'DASH|Robot/Motion:chart|w=4|h=3', 'ACK|reset#12:ok', '>:Motors armed', '3D|box,scene:S:cube:W:1:D:1:H:1:C:orange'])
+        assert.equal(nums(fixed), fixed, 'nothing to nudge: ' + fixed);
 });
 
 test('helpLine writes the line of each way to send; what a serial port receives is understood the same', () => {
@@ -261,8 +353,7 @@ test('helpDescribe tells what Teleplot made of a message sent from the panel', (
 
 
 test('the image and the camera of the help go together: sent one after the other, they make one telemetry', () => {
-    const step = HELP_STEPS.find(s => s.examples.some(e => e.expect.image));
-    const image = step.examples.find(e => e.expect.image), camera = step.examples.find(e => e.expect.camera);
+    const image = HELP_EXAMPLES.find(e => e.expect.image), camera = HELP_EXAMPLES.find(e => e.expect.camera);
     assert.equal(image.expect.name, camera.expect.name);
     const T = loadTeleplot();
     assert.equal(T.parseDataText(image.code + '\n' + camera.code), 0);
@@ -273,15 +364,3 @@ test('the image and the camera of the help go together: sent one after the other
 });
 
 
-test('the camera of the help joins the scene of the 3D shapes: one label for both steps', () => {
-    const T = loadTeleplot();
-    T.dashboards.enableAutoDashboard('Live');
-    for (const title of ['3D shapes', 'An image and its camera']) {
-        assert.equal(T.parseDataText(HELP_STEPS.find(s => s.title == title).examples.map(e => e.code).join('\n')), 0);
-        T.__timers.run();
-    }
-    const names = (view) => view.telemetryIdOrNameList.map(id => T.datastore.getTelemetry(id).getAttribute(T.protocol.TELEM_ATTR_NAME)).sort().join(',');
-    const views = T.dashboards.getDashboard('Live').getView().views;
-    assert.deepEqual(views.map(v => v.type.replace('teleplot-', '') + ' ' + names(v)).sort(), ['3d ball,box,camera', 'image ball,box,camera']);
-    assert.deepEqual(views.find(v => v.type == 'teleplot-3d').__collectSources(-1).sources.map(s => s.kind).sort(), ['camera', 'shape', 'shape'], 'the camera is drawn in the scene');
-});

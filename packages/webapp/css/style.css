@@ -78,6 +78,7 @@ button {
 .dock-right.open { width: calc(280px + 1em); } /* The width of .edit-panel (editor.css) and its margin */
 .dock-help { --side-w: min(30rem, 38vw); align-items: flex-start; } /* A little narrower than the left dock: both can be open */
 .dock-help.open { width: calc(var(--side-w) + 1em); }
+.dock-help-wide { --side-w: min(36rem, 46vw); } /* Help: two columns of tiles with room for their pictures */
 
 .side-panel {
     flex: none;
