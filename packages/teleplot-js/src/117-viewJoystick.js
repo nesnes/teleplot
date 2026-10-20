@@ -50,6 +50,7 @@ class ViewJoystick extends ViewTelemetries {
     }
 
     dispose() {
+        if(this.__releasePress) this.__releasePress();
         if(this.telem && TELEPLOT.commands.isHeld(this.telem)) TELEPLOT.commands.release(this.telem);
         TELEPLOT.commands.keyboardCaptured = false;
         super.dispose();
@@ -188,20 +189,31 @@ class ViewJoystick extends ViewTelemetries {
             }
             this.__apply();
         };
+        if(this.__releasePress) this.__releasePress(); // (a press that was never released: let it go first)
         if(which === "pad") this.input.padHeld = true; else this.input.rockerHeld = true;
         try { target.setPointerCapture(event.pointerId); } catch(e) {}
         read(event);
-        let move = (e) => read(e);
-        let up = () => {
-            target.removeEventListener("pointermove", move);
-            target.removeEventListener("pointerup", up);
-            target.removeEventListener("pointercancel", up);
+        // Followed on the window, not on the control: released anywhere (outside the pad, outside the view), it is released. Losing
+        // the pointer capture or the focus of the window releases it too: a joystick must never stay held by itself.
+        let pointerId = event.pointerId;
+        let move = (e) => { if(e.pointerId === pointerId) read(e); };
+        let up = (e) => {
+            if(e && e.pointerId !== undefined && e.pointerId !== pointerId) return;
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            window.removeEventListener("pointercancel", up);
+            window.removeEventListener("blur", up);
+            target.removeEventListener("lostpointercapture", up);
+            this.__releasePress = undefined;
             if(which === "pad") this.input.padHeld = false; else this.input.rockerHeld = false;
             this.__apply();
         };
-        target.addEventListener("pointermove", move);
-        target.addEventListener("pointerup", up);
-        target.addEventListener("pointercancel", up);
+        this.__releasePress = up;
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
+        window.addEventListener("blur", up);
+        target.addEventListener("lostpointercapture", up);
     }
 
     static KEYS = { arrows: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], wasd: ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"] };
