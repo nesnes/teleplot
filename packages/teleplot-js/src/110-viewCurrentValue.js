@@ -505,7 +505,7 @@ class ViewCurrentValue extends ViewTelemetries{
                     
                 <!-- NUMBERS & TEXT (one line per data type) -->
                 <div v-else-if="!(telem.cmd && telem.cmd.kind == 'action')" class="teleplot-js-current-value-values"
-                    v-bind:class="{'teleplot-js-cmd-editable': telem.cmd && telem.cmd.editable && telem.cmd.kind == 'setting' && !telem.cmd.continuous && telem.cmd.type != 'bool'}"
+                    v-bind:class="{'teleplot-js-cmd-editable': telem.cmd && telem.cmd.editable && telem.cmd.kind == 'setting' && !telem.cmd.continuous && telem.cmd.type != 'bool', 'teleplot-js-cmd-choosable': telem.cmd && telem.cmd.editable && telem.cmd.choices.length > 0}"
                     v-on:click="startEdit(telem, $event)">
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-text" 
                         v-bind:title="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].lastValue[0]">
@@ -738,6 +738,8 @@ class ViewCurrentValue extends ViewTelemetries{
             /* COMMANDS (doc/telecmd.md): only drawn when CMD is on, light enough not to move the layout */
             .teleplot-js-cmd-pen { color: var(--teleplot-primary); margin-left: 0.3em; font-size: 0.85em; }
             .teleplot-js-cmd-editable { cursor: text; }
+            .teleplot-js-cmd-editable.teleplot-js-cmd-choosable { cursor: pointer; } /* (choices open a list: nothing is typed) */
+            .teleplot-js-cmd-choosable .teleplot-js-current-value-text > span:first-child::after { content: " \\25BE"; font-size: 0.75em; color: var(--teleplot-primary); }
             .teleplot-js-cmd-editable .teleplot-js-current-value-value > span:not(.teleplot-js-current-value-unit):not(.teleplot-js-current-value-status) { border-bottom: 1px dashed color-mix(in srgb, var(--teleplot-primary) 70%, transparent); }
             .teleplot-js-cmd-icon { display: inline-grid; place-items: center; flex: none; width: 1.05em; height: 1.05em; border-radius: 50%; font: 700 0.7em/1 sans-serif; color: #fff; margin-right: 0.3em; }
             .teleplot-js-cmd-applied, .teleplot-js-cmd-ok { background: #1e9e5a; }
