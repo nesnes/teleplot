@@ -236,8 +236,10 @@ the telemetry.
 
 ### Panels
 
-- **Telemetries**: a pen after the name of writable telemetries, a ▶ after actions, CMD on or off. Dragging works as today (the
-  default view of the telemetry, editable in place when CMD is on): no special drag, since in-place editors need no special view.
+- **Telemetries**: a pen after the name of writable telemetries, a ▶ after actions, CMD on or off. Controls are a category of their
+  own, with their filters: a setting is tagged SET (then the type of its value), an action BUTTON, whatever its answers are stored as
+  (log lines of it), with how its last call went as its value ("#12 done", "not called yet"). Dragging works as today (the default
+  view of the telemetry, editable in place when CMD is on): no special drag, since in-place editors need no special view.
 - **Sources**: a "Commands" section per device (its settings and actions, the last result, the round trip from sending to the
   echo); the console shows what the page sent.
 - **Help**: a step "Settings and actions" (`ATTR|…|write`, then an action with an argument).

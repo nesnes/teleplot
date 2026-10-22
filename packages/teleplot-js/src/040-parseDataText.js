@@ -579,7 +579,10 @@ function _parseDataText_parseImage(msg, now)
  * to contain separators (urls). A value left empty keeps what the shape had (ex: "P::2:" only moves along y).
  *   shape/S (cube, sphere, cylinder, stl)   url/U (stl file)   position/P x:y:z   rotation/R roll:pitch:yaw (rad)   quaternion/Q x:y:z:w
  *   color/C   opacity/O (0 to 1)   texture/T type:value (url:"http://..." or telem:imageTelemetryName)
- *   width/W (x), depth/D (y), height/H (z)   radius/RA (sphere, cylinder)   precision/PR (accepted, unused)
+ *   scale/SC x:y:z (the size along the axes of the shape; every shape is 1 by default, an STL file in its own units: SC multiplies it;
+ *   one value alone = the same on every axis, two = x and y, an empty value keeps what the shape had)   radius/RA (sphere, cylinder: SC
+ *   of twice that on every axis)   width/W (x), depth/D (y), height/H (z; y in a "2D|" line): the same as SC, one axis each (V1)
+ *   precision/PR (accepted, unused)
  * Camera of an image telemetry (the line is addressed to the name of the image telemetry; P and R/Q give where the camera is):
  *   intrinsics/K fx:fy:cx:cy:width:height (pinhole model, pixels)   distortion/DC k1:k2:p1:p2:k3
  * Flat shapes and what they need:
@@ -597,7 +600,7 @@ const _parseDataText_3DProperties = {
     position: ["position", 3], P: ["position", 3], rotation: ["rotation", 3], R: ["rotation", 3], quaternion: ["quaternion", 4], Q: ["quaternion", 4],
     color: ["color", 1], C: ["color", 1], opacity: ["opacity", 1], O: ["opacity", 1], texture: ["texture", 2], T: ["texture", 2],
     width: ["width", 1], W: ["width", 1], depth: ["depth", 1], D: ["depth", 1], height: ["height", 1], H: ["height", 1],
-    radius: ["radius", 1], RA: ["radius", 1], precision: ["precision", 1], PR: ["precision", 1],
+    scale: ["scale", "*"], SC: ["scale", "*"], radius: ["radius", 1], RA: ["radius", 1], precision: ["precision", 1], PR: ["precision", 1],
     intrinsics: ["intrinsics", 6], K: ["intrinsics", 6], distortion: ["distortion", 5], DC: ["distortion", 5],
     points: ["points", "*"], PT: ["points", "*"], vector: ["vector", 3], V: ["vector", 3], text: ["text", 1], TX: ["text", 1],
     linewidth: ["lineWidth", 1], LW: ["lineWidth", 1], textsize: ["textSize", 1], TS: ["textSize", 1],
@@ -751,10 +754,15 @@ function _parseDataText_parse3D(msg, now, flat=false)
         if(properties.distortion !== undefined) {
             put(P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, timestamp, merge(latest(P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, [0, 0, 0, 0, 0]), properties.distortion));
         }
-        if(properties.radius !== undefined || properties.width !== undefined || properties.depth !== undefined || properties.height !== undefined) {
+        if(properties.scale !== undefined || properties.radius !== undefined || properties.width !== undefined || properties.depth !== undefined || properties.height !== undefined) {
             let size = latest(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, [1, 1, 1]);
             let radius = properties.radius !== undefined ? parseFloat(properties.radius[0]) : NaN;
             if(!isNaN(radius)) size = [radius * 2, radius * 2, radius * 2]; // The size of a shape is its extent along each axis
+            if(properties.scale !== undefined) { // x:y:z, x:y (z kept), or one value for every axis
+                let scale = properties.scale;
+                if(scale.length > 3 || scale.some((v) => v !== undefined && isNaN(parseFloat(v)))) throw new Error("Scale: SC:x:y:z, SC:x:y or SC:s (numbers)");
+                size = merge(size, scale.length == 1 ? [scale[0], scale[0], scale[0]] : scale);
+            }
             let sides = [properties.width, properties.depth, properties.height].map((p) => p === undefined ? undefined : p[0]); // x, y, z
             put(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, timestamp, merge(size, sides));
         }

@@ -65,9 +65,11 @@ The dashboard "Robot" and its views are created if needed, and the telemetry goe
 - telemetries of a path that are displayed the same way share one view, titled with the last name of the path (`speed` and `accel` share the chart "Motion");
 - the others get a view of their own kind next to it (`state` gets a values view, also titled "Motion"; its key is `Motion#values`);
 - as with any label, a camera joins the 3D scene of its path and shapes are drawn over the picture of the camera of their path;
-- longer paths nest the view in layouts (`side`), and a path that ends with `/` (`temp,Robot/:21`) only names the dashboard: the telemetry gets a view of its own.
+- longer paths nest the view in layouts (`side`), and a path that ends with `/` (`temp,Robot/:21`) only names the dashboard: the telemetry gets a view of its own (so does a path that ends on a layout: `temp,Robot/side:21`).
 
 Like any label it only decides where a telemetry **first** goes, and telemetries with the `np` flag are left alone. Paths and lines work together, whichever comes first: `DASH|Robot/Motion:chart|w=4|h=3` sizes the chart that `speed,Robot/Motion:...` fills.
+
+When lines also list telemetries, **the lines win**, whichever comes first: a telemetry that a line of its dashboard lists is not placed by its label path, and when the lines come after the data, it leaves the views its label path made (those left empty go, layouts too) and the views of the lines that only had it by its label. What the lines do not list stays where its label path puts it, and views made by hand are not touched. A view that a line turns into a layout (or the other way) hands its telemetries back to their label paths.
 
 Since `/` now has a meaning in a label, a V1 label that contained one is read as a path.
 

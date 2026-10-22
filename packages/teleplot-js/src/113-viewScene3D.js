@@ -40,8 +40,10 @@ class ViewScene3D extends ViewTelemetries {
         // Vue data
         this.state = TELEPLOT.Vue.reactive({
             legend: [], // [{id, name, unit, color, value, valueChars}]
-            error: ""   // Why nothing can be drawn (no WebGL)
+            error: "",  // Why nothing can be drawn (no WebGL)
+            loadNote: "" // Files that could not be loaded (STL, pictures of textures), and why: see loadNote
         });
+        this.loadFailures = TELEPLOT.Vue.markRaw(new Map()); // url -> what it is, for the files that could not be loaded (tried again once mounted again)
         this.hidden = TELEPLOT.Vue.reactive({});  // { telemetryId: true } telemetries switched off by a click on their legend entry
         this.legend = TELEPLOT.Vue.reactive({ visible: Infinity, folded: 0, open: false });
         this.highlighted = undefined;             // Telemetry whose legend entry is hovered: the others are faded
@@ -655,7 +657,50 @@ class ViewScene3D extends ViewTelemetries {
     dispose() {
         this.closeLegendList();
         this.__disposeThree();
+        this.loadFailures.clear(); // (mounted again, the files are loaded again)
+        if(this.state.loadNote) this.state.loadNote = "";
         super.dispose();
+    }
+
+    // A file the view could not load: said on the view, not only in the console (a shape that is not drawn says nothing by itself)
+    __loadFailed(url, what) {
+        url = String(url);
+        if(this.loadFailures.has(url)) return;
+        this.loadFailures.set(url, what);
+        console.warn("Teleplot: cannot load the " + what, url.slice(0, 200));
+        let note = ViewScene3D.loadNote([...this.loadFailures.keys()], typeof location !== "undefined" ? location.protocol : "");
+        if(note !== this.state.loadNote) this.state.loadNote = note;
+    }
+
+    // What to say about files that could not be loaded. A page opened from a file (file://) cannot read other files with a request
+    // (an STL file: browsers refuse it), nor give a picture of the disk to WebGL: it has to be opened from a server.
+    static loadNote(urls, protocol) {
+        if(!urls.length) return "";
+        let name = (url) => {
+            if(String(url).startsWith("data:")) return "a picture";
+            let last = String(url).split(/[?#]/)[0].split("/").filter(Boolean).pop() || String(url);
+            try { last = decodeURIComponent(last); } catch(e) {}
+            return last.length > 40 ? last.slice(0, 39) + "…" : last;
+        };
+        let names = urls.length <= 2 ? urls.map(name).join(" and ") : urls.length + " files (" + urls.slice(0, 2).map(name).join(", ") + "…)";
+        let why = protocol === "file:"
+            ? "a page opened from a file cannot read other files. Open Teleplot from a server (the Teleplot server, or any web server)."
+            : (urls.length > 1 ? "check their urls, and that their sites let this page read them" : "check its url, and that its site lets this page read it") + " (CORS). The browser console tells more.";
+        return names + " could not be loaded: " + why;
+    }
+
+    // Is a picture unusable by WebGL (from another origin, or from the disk when the page is a file)? Drawing it would throw.
+    static isTainted(image) {
+        if(typeof document === "undefined" || !image) return false;
+        try {
+            let canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 1;
+            let context = canvas.getContext("2d");
+            context.drawImage(image, 0, 0, 1, 1);
+            context.getImageData(0, 0, 1, 1);
+            return false;
+        }
+        catch(e) { return !!e && e.name === "SecurityError"; }
     }
 
     __resize() {
@@ -804,7 +849,7 @@ class ViewScene3D extends ViewTelemetries {
             if(source.kind == "cloud") value = source.points !== undefined ? source.points + " pts" : "";
             if(value.length > (this.valueChars[id] || 0)) this.valueChars[id] = value.length;
             return { id, name: source.telem.getAttribute(P.TELEM_ATTR_NAME) || String(id), unit: source.telem.getAttribute(P.TELEM_ATTR_UNIT) || "",
-                color: source.shape ? source.state.color : source.color, value, valueChars: this.valueChars[id] || 0 };
+                tip: TELEPLOT.view.telemetryTip(source.telem), color: source.shape ? source.state.color : source.color, value, valueChars: this.valueChars[id] || 0 };
         });
         if(JSON.stringify(legend) != JSON.stringify(this.state.legend)) this.state.legend = legend;
         let legendKey = legend.map((item) => `${item.id}:${item.valueChars}:${item.name}:${item.unit}`).join("|") + "|" + (element ? element.clientWidth : 0) + "|" + this.options.displayLegend;
@@ -894,10 +939,11 @@ class ViewScene3D extends ViewTelemetries {
             if(!textureUrl) this.__setTexture(object, undefined);
             else new THREE.TextureLoader().load(textureUrl, (texture) => {
                 if(object.textureKey != textureKey || !this.three) { texture.dispose(); return; } // Replaced meanwhile
+                if(!textureUrl.startsWith("data:") && ViewScene3D.isTainted(texture.image)) { texture.dispose(); this.__loadFailed(textureUrl, "picture"); return; }
                 texture.colorSpace = THREE.SRGBColorSpace;
                 this.__setTexture(object, texture);
                 this.__requestRender();
-            }, undefined, () => console.warn("Teleplot 3D: cannot load the texture", state.texture.value));
+            }, undefined, () => this.__loadFailed(textureUrl, "picture"));
         }
     }
 
@@ -928,9 +974,9 @@ class ViewScene3D extends ViewTelemetries {
                 if(this.three !== three) { geometry.dispose(); return; }
                 geometry.computeVertexNormals(); // Many files have no (or null) normals: without them the shape is black
                 entry.geometry = geometry;
-            }, undefined, (error) => {
+            }, undefined, () => {
                 entry.failed = true;
-                console.warn("Teleplot 3D: cannot load the STL file", url, error);
+                if(this.three === three) this.__loadFailed(url, "STL file");
             });
         }
         return entry.geometry;
@@ -1290,7 +1336,7 @@ class ViewScene3D extends ViewTelemetries {
                       v-bind:style="{'--chip-color': item.color}"
                       v-on:click="onLegendClick(item.id)" v-on:mouseenter="onLegendEnter(item.id)" v-on:mouseleave="onLegendLeave()">
                       <div v-if="item.value" class="teleplot-js-chart-legend-value" v-bind:style="{'min-width': item.valueChars + 'ch'}"><span>{{item.value}}</span></div>
-                      <div class="teleplot-js-chart-legend-name"><span>{{item.name}}</span><span v-if="item.unit"> ({{item.unit}})</span></div>
+                      <div class="teleplot-js-chart-legend-name" v-bind:title="item.tip"><span>{{item.name}}</span><span v-if="item.unit"> ({{item.unit}})</span></div>
                   </div>
                   <button v-if="legend.folded > 0" type="button" class="teleplot-js-chart-legend-more" v-bind:class="{'teleplot-js-chart-legend-more-open': legend.open}"
                       title="All the telemetries" v-on:click.stop="onLegendMore()">+{{legend.folded}} <span>&#9662;</span></button>
@@ -1299,7 +1345,7 @@ class ViewScene3D extends ViewTelemetries {
                   <div v-for="item in state.legend" v-bind:key="item.id" class="teleplot-js-chart-legend-block"
                       v-bind:class="{'teleplot-js-chart-legend-off': hidden[item.id]}" v-bind:style="{'--chip-color': item.color}"
                       v-on:click="onLegendClick(item.id)" v-on:mouseenter="onLegendEnter(item.id)" v-on:mouseleave="onLegendLeave()">
-                      <div class="teleplot-js-chart-legend-name"><span>{{item.name}}</span><span v-if="item.unit"> ({{item.unit}})</span></div>
+                      <div class="teleplot-js-chart-legend-name" v-bind:title="item.tip"><span>{{item.name}}</span><span v-if="item.unit"> ({{item.unit}})</span></div>
                       <div class="teleplot-js-chart-legend-value"><span>{{item.value}}</span></div>
                   </div>
               </div>
@@ -1316,12 +1362,17 @@ class ViewScene3D extends ViewTelemetries {
               <div class="teleplot-js-empty-title">{{state.error || emptyState.text}}</div>
               <div v-if="emptyState.hint && !state.error" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>
           </div>
+          <div v-if="state.loadNote && !state.error" class="teleplot-js-scene3d-note">{{state.loadNote}}</div>
         </div>
     `;
 
     static vueCSS = `
         @scope (.teleplot-js-style)
         {
+            .teleplot-js-scene3d-note { /* Files that could not be loaded: at the bottom, over the scene (as the note of an image view) */
+                position: absolute; left: 0.6em; right: 0.6em; bottom: 0.5em; z-index: 2; padding: 0.25em 0.7em; border-radius: 6px; font-size: 0.8em; line-height: 1.35; text-align: center;
+                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 85%, transparent); border: 1px solid var(--teleplot-warn); pointer-events: none;
+            }
             .teleplot-js-scene3d-container {
                 position: relative;
                 width: 100%;

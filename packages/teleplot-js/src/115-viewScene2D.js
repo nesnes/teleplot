@@ -511,6 +511,7 @@ class ViewScene2D extends ViewScene3D {
             for(let remove of page.listeners) remove();
             page.canvas.remove();
         }
+        for(let [url, entry] of [...this.stl2D, ...this.images2D]) if(entry.failed) { this.stl2D.delete(url); this.images2D.delete(url); } // (tried again once mounted again)
         super.dispose();
     }
 
@@ -557,7 +558,7 @@ class ViewScene2D extends ViewScene3D {
                 for(let i = 0; i + 2 < positions.length; i += stride) points.push(positions[i], positions[i+1], positions[i+2]);
                 entry.points = Float32Array.from(points);
                 geometry.dispose();
-            }, undefined, (error) => { entry.failed = true; console.warn("Teleplot 2D: cannot load the STL file", url, error); });
+            }, undefined, () => { entry.failed = true; this.__loadFailed(url, "STL file"); });
         }
         return entry.points;
     }
@@ -574,7 +575,7 @@ class ViewScene2D extends ViewScene3D {
             this.images2D.set(url, entry);
             if(this.images2D.size > 8) this.images2D.delete(this.images2D.keys().next().value); // (the pictures of an image telemetry go by)
             entry.image.onload = () => { entry.ready = true; this.__requestDraw(); };
-            entry.image.onerror = () => console.warn("Teleplot 2D: cannot load the texture", String(url).slice(0, 80));
+            entry.image.onerror = () => { entry.failed = true; this.__loadFailed(url, "picture"); };
             entry.image.src = url;
         }
         return entry.ready ? entry.image : undefined;

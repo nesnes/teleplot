@@ -453,7 +453,7 @@ class ViewImage extends ViewScene3D {
               </div>
           </div>
           ${ViewScene3D.legendHTML}
-          <div v-if="state.note || state.error" class="teleplot-js-image-note">{{state.error || state.note}}</div>
+          <div v-if="state.note || state.error || state.loadNote" class="teleplot-js-image-note">{{state.error || state.note || state.loadNote}}</div>
           <div v-if="emptyState.text" class="teleplot-js-empty">
               <div class="teleplot-js-empty-title">{{emptyState.text}}</div>
               <div v-if="emptyState.hint" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>

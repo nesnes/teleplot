@@ -72,7 +72,7 @@ class ViewTelemetries extends Views {
         // 2D and 3D views show the same things (flat ones lie on the ground of a 3D scene, solids are seen from above in a 2D view),
         // but for what is drawn in the pixels of a picture
         let inScene = TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined && TELEPLOT.view.ViewScene3D.pixelFrame(telem) === undefined;
-        if(this.type == "teleplot-2d") return inScene && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined;
+        if(this.type == "teleplot-2d") return inScene && (telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined || TELEPLOT.view.ViewScene3D.kindOf(telem) === "shape"); // (a camera is not, a picture with a place is)
         if(this.type == "teleplot-3d" && inScene) return true;
         // A 3D scene also takes the image telemetries of its label: they are its cameras (drawn once they have their parameters)
         if(this.type == "teleplot-3d" && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return true;

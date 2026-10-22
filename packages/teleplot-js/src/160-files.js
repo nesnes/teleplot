@@ -200,7 +200,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         property(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, (d, i) => "P:" + d[0][i] + ":" + d[1][i] + ":" + d[2][i]);
         property(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_ROTATION, (d, i) => "R:" + d[0][i] + ":" + d[1][i] + ":" + d[2][i]);
         property(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, (d, i) => "Q:" + d[1][i] + ":" + d[2][i] + ":" + d[3][i] + ":" + d[0][i]); // stored w, x, y, z; written x:y:z:w
-        property(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, (d, i) => "W:" + d[0][i] + ":D:" + d[1][i] + ":H:" + d[2][i]);
+        property(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE, (d, i) => "SC:" + d[0][i] + ":" + d[1][i] + ":" + d[2][i]);
         property(P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, (d, i) => { let color = _files_quoted(d[0][i]); return color === undefined || color === "" ? undefined : "C:" + color; });
         property(P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_RGB, (d, i) => "C:rgb(" + d[0][i] + "," + d[1][i] + "," + d[2][i] + ")");
         property(P.SECTION_TYPE_TELEM_DATA_SHAPE_OPACITY, (d, i) => "O:" + (d[0][i] / 255));

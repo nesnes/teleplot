@@ -175,7 +175,12 @@ A text telemetry in the list of a chart has no series. Its samples are vertical 
 - the text is written next to the line when there is room before the next one;
 - marks closer than 6 pixels are **folded** into one short tick at the top that counts them: a busy period reads as a row of ticks and
   the curves under it stay visible;
-- its legend entry (a bar as its key) tells the text at the cursor (the last one at or before it); click it to hide the marks.
+- its legend entry (a bar as its key) tells the text at the cursor (the last one at or before it); click it to hide the marks;
+- the marks are part of what a live chart shows: a text after the last number (or before the first) **widens the period** (`getDisplayRange`,
+  `widened`: the chart sets it on uPlot, which only knows the numbers; within the data window, so a state kept from before it does not
+  stretch it back). A mark that is the latest thing shown gets 4 % of room after it (`ViewChart.LATEST_ROOM`, as the timeline does), and
+  the text of the last mark goes on the left of its line when it fits better there. Pointing beyond the last number gives the time
+  pointed at to the group cursor; a double click (zoom reset) widens it again.
 
 A chart needs at least one number: with texts only it says so.
 

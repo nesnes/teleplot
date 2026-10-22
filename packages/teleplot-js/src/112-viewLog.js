@@ -160,10 +160,11 @@ class ViewLog extends ViewTelemetries{
             total += to - from;
             let color = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_COLOR) || TELEPLOT.colors.getColor(idx + 1).toStrRGB();
             let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
+            let tip = TELEPLOT.view.telemetryTip(telem); // (its description, when it has one: on its name)
             for (let i = Math.max(from, to - maxLines); i < to; i++) {
                 let t = entry.timestamps[i];
                 let text = ""+entry.data[0][i];
-                rows.push({ t, time: ViewLog.formatTime(t), text, color, name, level: ViewLog.getLevel(text) });
+                rows.push({ t, time: ViewLog.formatTime(t), text, color, name, tip, level: ViewLog.getLevel(text) });
             }
         });
         if (sources.length > 1) rows.sort((a, b) => a.t - b.t); // Stable: lines of the same instant keep the telemetry order
@@ -243,7 +244,7 @@ class ViewLog extends ViewTelemetries{
                 v-bind:style="state.multi && options.displayTelemetryColor ? {'border-left-color': row.color} : {}"
                 v-bind:title="row.text" @mouseenter="onRowEnter(row)">
                 <span v-if="options.displayTimestamp" class="teleplot-js-log-time">{{row.time}}</span>
-                <span v-if="state.multi && options.displayTelemetryName" class="teleplot-js-log-name">{{row.name}}</span>
+                <span v-if="state.multi && options.displayTelemetryName" class="teleplot-js-log-name" v-bind:title="row.tip">{{row.name}}</span>
                 <span class="teleplot-js-log-text">{{row.text}}</span>
             </div>
           </div>

@@ -193,6 +193,8 @@ TELEPLOT.view.suggestViewType = function(telemIdOrName) {
         if(declaration.kind === "setting" && (declaration.type === "pose2d" || declaration.type === "xy")) return "2d";
         return "values";
     }
+    // An image telemetry given a place of its own (a 2D| or 3D| line on its name, no camera) shows its pictures there: in a scene
+    if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined && TELEPLOT.view.ViewScene3D.kindOf(telem) === "shape") return TELEPLOT.view.ViewScene3D.isFlat(telem) ? "2d" : "3d";
     if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return "image";
     if(TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined) return "image"; // Drawn in the pixels of a picture: with that picture
     if(TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined) return TELEPLOT.view.ViewScene3D.isFlat(telem) ? "2d" : "3d"; // (both views show both: this is only the default)

@@ -147,6 +147,16 @@ Charts draw them as dashed lines, values tell which one is passed:
 A threshold holds from its time until another one of the same name: limits can change, and what was drawn before keeps the limit it had.
 See `doc/time-views.md`.
 
+### Unit, color, description
+
+`ATTR|` lines also describe any telemetry, once (again at will), before or after its data:
+
+- `ATTR|tank|unit=L|color=teal|desc=Water left in the tank`
+
+`unit` is shown after its values (like `§unit`), `color` is its color in every view, and `desc` is the tooltip of its name wherever it
+is shown: chart and scene legends, values, log lines, timeline lanes, joysticks, and the Telemetries, Edit, Sources and Export panels.
+In the values of `ATTR|` lines, `% | , = :` and line breaks are written `%XX`.
+
 ### Publishing multiple points
 /!\ here, many values will be received at the same time by teleplot, therefore you must precise their timestamps.
 
@@ -217,6 +227,25 @@ teleplot. The binary protocol has its file too (a short header, then each packet
 reads both: see `doc/files.md`. For spreadsheets and scripts there is also a CSV export (and CSV files can be opened), with a choice of
 separator; numbers are always written with a point. In the webapp all of this is in the "Export and import" panel of the top menu.
 
+### Images
+
+`PNG|` or `JPG|`, the name, then the file itself (the bytes of the .png or .jpg) in base64. A time in milliseconds can come before it, as for numbers:
+
+- `PNG|camera:iVBORw0KGgoAAAANSUhEUg...`
+- `JPG|camera:1627551892437:/9j/4AAQSkZJRg...`
+
+An image view shows the picture of the time shown (drag on a chart: the picture follows). A picture is often bigger than one message should be: a UDP
+packet holds 65 kB at most and is more likely lost above about 1.4 kB (a network frame), and a serial line or the buffer of a microcontroller holds
+less. Cut the base64 in parts and send each in its own message with `i/n` before it, part i of n, numbered from 1:
+
+- `PNG|camera:1627551892437:1/3:iVBORw0KGgo...`
+- `PNG|camera:1627551892437:2/3:...`
+- `PNG|camera:1627551892437:3/3:...`
+
+The parts can arrive in any order; the picture is stored when all n are there, and a lost part only loses that picture. With a time, every part of
+a picture has the same one (a part with another time starts a new picture). Pictures can also be placed in 2D and 3D scenes and drawn over
+(see below and `doc/2d.md`).
+
 ### Publishing 3D telemetries
 
 To send 3D shapes to teleplot, use this syntax : `3D|A:B:C|E`, where
@@ -267,13 +296,12 @@ LIST OF PROPERTIES :
 
 === Size ===
 
-- "width" or "W" => the size of the shape along the x axis
-- "depth" or "D" => the size of the shape along the y axis
-- "height" or "H" => the size of the shape along the z axis (up)
-- "radius" or "RA" => the radius of a sphere (same as giving twice the radius as width, depth and height)
+- "scale" or "SC" => the size of the shape along its own x, y and z axes, written like a position: `SC:x:y:z`. Every shape is 1 by default (a cube 1 per side, a sphere 1 across, a cylinder 1 across and 1 high), an STL file is in its own units: SC multiplies it. `SC:x:y` keeps z (all a 2D line needs), one value alone (`SC:2`) is the same on every axis, an empty value keeps what the shape had (`SC::2:`)
+- "radius" or "RA" => the radius of a sphere or a cylinder (the same as SC of twice the radius on every axis)
+- "width" or "W", "depth" or "D", "height" or "H" => Teleplot V1 sizes, still understood: the size along x, y and z (y in a `2D|` line for H). SC replaces them
 - "precision" or "PR" => accepted for compatibility with Teleplot V1, ignored (spheres and cylinders are always drawn smooth)
 
-A cylinder stands along the z axis: W and D are its diameters, H its height. An STL file is scaled by W, D and H (1 by default: its own units).
+A cylinder stands along the z axis: SC x and y are its diameters, z its height. An STL file is scaled by SC (1 by default: its own units; `SC:0.001` turns millimeters into meters).
 
 === Camera of an image ===
 
@@ -284,7 +312,7 @@ A `3D|` line sent to the name of an image telemetry describes its camera. 3D sha
 - "distortion" or "DC" => the lens distortion coefficients (optional)
     1st argument : k1, 2nd : k2, 3rd : p1, 4th : p2, 5th : k3
 - "position", "rotation", "quaternion" => where the camera is, in the same frame as the shapes: the camera looks along its x axis, y is to the left of the image, z to its top
-- "width" or "W" => how far the camera is drawn in 3D views (as the pyramid of what it sees)
+- "scale" or "SC" => how far the camera is drawn in 3D views (as the pyramid of what it sees), its x
 
 Intrinsics and distortion follow the usual image convention (the one of OpenCV and ROS: pixel 0,0 is the center of the top left pixel, u to the right, v down; Brown-Conrady distortion model).
 Images are displayed as received, never undistorted: what is drawn over them is distorted like the lens does.
@@ -307,7 +335,7 @@ Every property can be changed at any time, including the shape and the color.
 Creating a simple sphere and cube : 
 
     cube without timestamp :
-    - `3D|mySimpleCube:S:cube:P:1:1:1:R:0:0:0:W:2:H:2:D:2:C:#2ecc71`
+    - `3D|mySimpleCube:S:cube:P:1:1:1:R:0:0:0:SC:2:2:2:C:#2ecc71`
 
     sphere with timestamp : 
     - `3D|mySimpleSphere:1627551892437:S:sphere:P::2::RA:2:C:red`
@@ -315,12 +343,12 @@ Creating a simple sphere and cube :
 Creating a cube that grows and rotates : 
 
     In the first request we send, we need to specify the shape:
-    - `3D|my_super_cube:S:cube:W:1:D:1:H:1:C:blue`
+    - `3D|my_super_cube:S:cube:SC:1:1:1:C:blue`
 
     Then we can specify only properties that change :
-    - `3D|my_super_cube:W:1.2:R::0.2:`
-    - `3D|my_super_cube:W:1.4:R::0.4:`
-    - `3D|my_super_cube:W:1.6:R::0.6:`
+    - `3D|my_super_cube:SC:1.2::R::0.2:`
+    - `3D|my_super_cube:SC:1.4::R::0.4:`
+    - `3D|my_super_cube:SC:1.6::R::0.6:`
 
 Creating a simple sphere and cube and display them on the same widget by default :
 
@@ -333,10 +361,10 @@ Creating a simple sphere and cube and display them on the same widget by default
 Importing an STL file (needs to be downloadable by teleplot, so online or locally served with proper CORS policies) :
 
     Import online stl file:
-    - `3D|myBlueTeapot:S:stl:U:"https://upload.wikimedia.org/wikipedia/commons/9/93/Utah_teapot_%28solid%29.stl":W:0.3:H:0.3:D:0.3:C:#3498db`
+    - `3D|myBlueTeapot:S:stl:U:"https://upload.wikimedia.org/wikipedia/commons/9/93/Utah_teapot_%28solid%29.stl":SC:0.3:C:#3498db`
 
     Taller teapot with rescaling:
-    - `3D|myBlueTeapot:S:stl:U:"https://upload.wikimedia.org/wikipedia/commons/9/93/Utah_teapot_%28solid%29.stl":W:0.3:H:0.3:D:0.6:C:#3498db`
+    - `3D|myBlueTeapot:S:stl:U:"https://upload.wikimedia.org/wikipedia/commons/9/93/Utah_teapot_%28solid%29.stl":SC:0.3:0.6:0.3:C:#3498db`
 
 
 /!\ Despite the examples above, it might be a better idea to send every property everytime, as if teleplot refreshes or if it wasn't lauched 
@@ -351,7 +379,7 @@ can be seen again by hovering a chart of the same dashboard: the 3D view shows t
 A line starting with `2D|` is a `3D|` line written flat: `x:y` positions, one angle. Flat shapes (`rect`, `circle`, `line`, `polygon`, `arrow`, `text`)
 are seen from above in a 2D view, and lie on the ground of a 3D view; 3D shapes show in a 2D view as what they cover. Nothing is sent twice.
 
-- `2D|robot,field:S:rect:P:1.2:0.8:R:1.57:W:0.3:H:0.2:C:blue`
+- `2D|robot,field:S:rect:P:1.2:0.8:R:1.57:SC:0.3:0.2:C:blue`
 - `2D|route,field:S:line:PT:0:0:1:0.5:2:2:C:green` (add `LW:0.2` for a real width, in your units)
 - `2D|zone,field:S:polygon:PT:0:0:1:0:1:1:0:1:C:red:O:0.3`
 - `2D|goal,field:S:text:P:3:1:TX:"Goal A"`
@@ -362,7 +390,7 @@ With a frame, positions are relative to another telemetry, which carries them al
 
 A pixel frame draws in the pixels of the pictures of an image telemetry, without knowing anything about its camera (a box around what a detector found):
 
-- `2D|det1:S:rect:P:120:80:W:40:H:60:C:red:FPX:camera`
+- `2D|det1:S:rect:P:120:80:SC:40:60:C:red:FPX:camera`
 
 Everything is described in `doc/2d.md`.
 

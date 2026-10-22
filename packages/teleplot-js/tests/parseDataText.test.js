@@ -170,6 +170,27 @@ test('3D shapes: values left out keep what the shape had, several updates in one
     assert.equal(T.datastore.getTelemetry('cube').data[P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE], undefined);
 });
 
+test('the scale SC gives the size along x, y and z like P gives the position; one value scales every axis; W, D, H and RA still work', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    const size = (name) => T.view.ViewScene3D.shapeState(T.datastore.getTelemetry(name)).size;
+    const steps = [
+        ['3D|screen:S:cube:SC:1.6:0.05:1.2', 'screen', [1.6, 0.05, 1.2]],
+        ['3D|screen:SC::2:', 'screen', [1.6, 2, 1.2], 'an empty value keeps what the shape had'],
+        ['3D|screen:SC:0.5:0.25', 'screen', [0.5, 0.25, 1.2], 'two values: x and y'],
+        ['3D|pawn:S:stl:U:"pawn.stl":SC:2:C:red', 'pawn', [2, 2, 2], 'one value: every axis (a mesh twice as big)'],
+        ['2D|plan:S:rect:SC:4:3', 'plan', [4, 3, 1], 'a 2D line: x and y'],
+        ['3D|ball:S:sphere:RA:0.5:SC:::3', 'ball', [1, 1, 3], 'with RA: the radius first, then the scale'],
+        ['3D|old:W:2:D:3:H:4', 'old', [2, 3, 4], 'V1: W, D, H'],
+        ['2D|old2:W:2:H:3', 'old2', [2, 3, 1], 'V1 in a 2D line: H is along y'],
+    ];
+    for (const [line, name, expected, why] of steps) { assert.equal(parse(T, line), 0, line); assert.deepEqual(size(name), expected, why || line); }
+    for (const bad of ['3D|x:SC:big', '3D|x:SC:1:2:3:4']) captureConsole(() => assert.equal(T.parseDataText(bad), 1, 'not understood: ' + bad));
+    // A file writes the scale with SC, and reads it back
+    assert.match(T.files.exportText({ telemetries: [T.datastore.getTelemetry('screen').id] }).parts.join(''), /SC:0\.5:0\.25:1\.2/);
+    assert.ok(P.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE);
+});
+
 test('3D shapes: the widget label is ignored, a shape alone is enough, invalid lines store nothing and never throw', () => {
     const T = loadTeleplot();
     const P = T.protocol;

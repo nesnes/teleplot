@@ -301,8 +301,11 @@ class ViewChart extends ViewTelemetries{
                         }
                         // Mouse hover
                         const idx = u.posToIdx(u.cursor.left);
-                        if (idx != null)
-                            TELEPLOT.view.groups[this.group].cursorTimestamp = u.data[0][idx];
+                        if (idx != null) {
+                            // (beyond the last number, where marks widened the chart: the time pointed at, so that the views show what was then)
+                            const times = u.data[0], at = u.posToVal(u.cursor.left, "x");
+                            TELEPLOT.view.groups[this.group].cursorTimestamp = times.length && at > times[times.length - 1] ? at : times[idx];
+                        }
                         }
                 ],
                 setScale: [
@@ -315,6 +318,7 @@ class ViewChart extends ViewTelemetries{
                         if(times && times.length && s.min <= times[0] && s.max >= times[times.length - 1]) {
                             TELEPLOT.view.groups[this.group].cursorActive = false;
                             TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+                            this.updateForced = true; // (uPlot went back to the extent of the numbers: the marks widen it again)
                             return;
                         }
                         // Zoom selected: kept until it is reset, also when the pointer leaves the chart
@@ -408,6 +412,8 @@ class ViewChart extends ViewTelemetries{
         }
         return (min === undefined && max === undefined) ? undefined : { min, max };
     }
+
+    static LATEST_ROOM = 0.04; // Part of the period given after a mark that is the latest thing shown
 
     // Text telemetries of the view: they have no series, their samples are marks on the time axis
     getMarkTelemetries() {
@@ -538,14 +544,18 @@ class ViewChart extends ViewTelemetries{
             for(let i = 0; i < xs.length; i++) { ctx.moveTo(xs[i], box.top); ctx.lineTo(xs[i], item.marks[i].count > 1 ? box.top + 7 * ratio : bottom); }
             ctx.stroke();
             ctx.globalAlpha = 1;
+            let used = box.left; // Where the text of the mark before ends
             for(let i = 0; i < item.marks.length; i++) {
                 let mark = item.marks[i];
                 let room = (i + 1 < xs.length ? xs[i + 1] : right) - xs[i] - 8 * ratio;
                 let text = mark.count > 1 ? mark.text + " +" + (mark.count - 1) : mark.text;
-                let chars = Math.floor(room / charWidth);
+                // The last mark, near the right end: its text goes on the left of its line when it fits better there
+                let leftRoom = xs[i] - used - 8 * ratio, toLeft = i + 1 === xs.length && text.length * charWidth > room && leftRoom > room;
+                let chars = Math.floor((toLeft ? leftRoom : room) / charWidth);
                 if(chars < 3) continue;
                 if(text.length > chars) text = mark.count > 1 && chars < 8 ? "+" + mark.count : text.slice(0, chars - 1) + "\u2026";
-                label(text, xs[i] + ratio, mark.count > 1 ? y + 8 * ratio : y, color, "left");
+                label(text, toLeft ? xs[i] - ratio : xs[i] + ratio, mark.count > 1 ? y + 8 * ratio : y, color, toLeft ? "right" : "left");
+                used = xs[i] + (toLeft ? 0 : text.length * charWidth + 4 * ratio);
             }
         }
         ctx.restore();
@@ -622,6 +632,7 @@ class ViewChart extends ViewTelemetries{
             }
             this.telemetries[telem.id].name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
             this.telemetries[telem.id].unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
+            this.telemetries[telem.id].tip = TELEPLOT.view.telemetryTip(telem); // (its description, when it has one)
 
             // Resolve color
             this.telemetries[telem.id].color = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_COLOR);
@@ -723,6 +734,7 @@ class ViewChart extends ViewTelemetries{
                             max: TELEPLOT.view.groups[this.group].timestampTo
                         });
                     }
+                    else if(displayRange.widened) this.chart.setScale("x", { min: displayRange.from, max: displayRange.to }); // (uPlot only knows the numbers: the marks widen it)
                 });// Allows a single chart redraw even if we call multiple updates (data and scale)
             }
         }
@@ -766,6 +778,28 @@ class ViewChart extends ViewTelemetries{
                 if(dataEntry === undefined || dataEntry.timestamps.length == 0) continue;
                 from = Math.min(from, dataEntry.timestamps[0]);
                 to = Math.max(to, dataEntry.timestamps.at(-1));
+            }
+            // The marks are part of what is shown: a text that comes after the last number (or before the first) widens the period.
+            // (Only when there are numbers to chart; a state kept from before the data window does not stretch it back.)
+            if(from <= to) {
+                let markFrom = Infinity, markTo = -Infinity;
+                for(let telem of this.getMarkTelemetries()) {
+                    let entry = telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
+                    if(!entry.timestamps.length) continue;
+                    markFrom = Math.min(markFrom, entry.timestamps[0]);
+                    markTo = Math.max(markTo, entry.timestamps.at(-1));
+                }
+                let numbers = { from, to };
+                to = Math.max(to, markTo);
+                let window = TELEPLOT.state.dataTimeout;
+                from = Math.min(from, window > 0 ? Math.max(markFrom, to - window) : markFrom);
+                // A mark that is the latest thing shown gets some room after it, as a timeline gives its latest state: on the very edge
+                // its line would be the frame and its text would be cut. (The axis tells what time that is: nothing is said to have happened there.)
+                if(markTo > numbers.to) to += (to - from) * ViewChart.LATEST_ROOM;
+                if(from < numbers.from || to > numbers.to) {
+                    let maxBuckets = Math.max(this.chartOptions.width || 0, 100);
+                    return { from, to, maxBuckets, key: `${from},${to},${maxBuckets}`, widened: true };
+                }
             }
         }
         let maxBuckets = Math.max(this.chartOptions.width || 0, 100);
@@ -811,7 +845,7 @@ class ViewChart extends ViewTelemetries{
                         <span>{{telem.actualStrValue.join(",")}}</span>
                     </div>
 
-                    <div class="teleplot-js-chart-legend-name" v-bind:class="{'teleplot-js-chart-legend-name-unsupported': !telem.isMarks && (!telem.actualStrValue || !telem.actualStrValue.length)}">
+                    <div class="teleplot-js-chart-legend-name" v-bind:class="{'teleplot-js-chart-legend-name-unsupported': !telem.isMarks && (!telem.actualStrValue || !telem.actualStrValue.length)}" v-bind:title="telem.tip">
                         <span>{{telem.name}}</span>
                         <span v-if="telem.unit"> ({{telem.unit}})</span>
                     </div>

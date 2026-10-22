@@ -136,14 +136,14 @@ function initComponent_panel_edit(vue) {
                     draggable="true" title="Drag to reorder"
                     @dragstart="onTelemDragStart($event, i)" @dragover="onTelemDragOver($event, i)" @dragleave="dropAt === i && (dropAt = -1)"
                     @drop.prevent="onTelemDrop(i)" @dragend="dragFrom = -1; dropAt = -1">
-                    <span class="edit-telem" :title="t.name"><i class="edit-swatch" :style="{background: t.color}"></i> {{ t.name }}</span>
+                    <span class="edit-telem" :title="t.tip"><i class="edit-swatch" :style="{background: t.color}"></i> {{ t.name }}</span>
                     <button class="edit-icon small" title="Remove" aria-label="Remove" @click="selected.removeTelemetry(t.key); tick++"><i class="icofont-close"></i></button>
                   </div>
                   <div class="edit-combo">
                     <input type="search" class="edit-input edit-add" v-model="addQuery" placeholder="＋ add telemetry… (search)" spellcheck="false" autocomplete="off"
                       @focus="addOpen = true" @blur="addOpen = false" @keydown.enter.prevent="matches.length && addTelemetry(matches[0].id)" @keydown.esc.stop="addOpen = false; $event.target.blur()">
                     <div v-if="addOpen" class="edit-combo-list">
-                      <div v-for="c in matches.slice(0, 100)" :key="c.id" class="edit-combo-item" :title="c.name" @mousedown.prevent="addTelemetry(c.id)">{{ c.name }}</div>
+                      <div v-for="c in matches.slice(0, 100)" :key="c.id" class="edit-combo-item" :title="c.tip" @mousedown.prevent="addTelemetry(c.id)">{{ c.name }}</div>
                       <div v-if="!matches.length" class="edit-hint edit-combo-empty">{{ candidates.length ? 'No telemetry matches.' : 'No other compatible telemetry.' }}</div>
                       <div v-else-if="matches.length > 100" class="edit-hint edit-combo-empty">{{ matches.length - 100 }} more, refine the search.</div>
                     </div>
@@ -235,10 +235,10 @@ function initComponent_panel_edit(vue) {
                 if (!view || !view.telemetryIdOrNameList) return [];
                 return Array.from(view.telemetryIdOrNameList).map((key, i) => {
                     const telem = this.TP.datastore.getTelemetry(key);
-                    if (!telem) return { key, name: String(key) + " (no data yet)", color: "gray" };
+                    if (!telem) return { key, name: String(key) + " (no data yet)", tip: String(key) + " (no data yet)", color: "gray" };
                     let color = telem.getAttribute(this.TP.protocol.TELEM_ATTR_COLOR);
                     if (!color) color = this.TP.colors.getColor(i + 1).toStrRGB();
-                    return { key, name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(key), color };
+                    return { key, name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(key), tip: this.TP.view.telemetryTip(telem), color };
                 });
             },
             // Candidates containing every word of the search (case-insensitive)
@@ -256,7 +256,7 @@ function initComponent_panel_edit(vue) {
                     if (used.has(telem.id)) continue;
                     const types = view.acceptedDataTypes || view.supportedDataTypes; // (a chart also takes texts: they are its marks)
                     if (types && !Object.keys(telem.data).some((t) => types.includes(t))) continue;
-                    list.push({ id: telem.id, name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(telem.id) });
+                    list.push({ id: telem.id, name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(telem.id), tip: this.TP.view.telemetryTip(telem) });
                 }
                 return list.sort((a, b) => a.name.localeCompare(b.name));
             }

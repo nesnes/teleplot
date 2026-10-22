@@ -297,7 +297,8 @@ test('an image telemetry that is given a place shows its own pictures there, in 
     const get = (name) => T.datastore.getTelemetry(name);
     assert.deepEqual([S.kindOf(get('map')), S.kindOf(get('plain')), S.kindOf(get('cam'))], ['shape', undefined, 'camera']);
     assert.deepEqual(S.shapeState(get('map')).texture, { type: P.TEXTURE_TYPE_IMAGE, value: 'map', own: true });
-    assert.equal(T.view.suggestViewType('map'), 'image', 'its default view is still an image view');
+    assert.deepEqual([T.view.suggestViewType('map'), T.view.suggestViewType('plain'), T.view.suggestViewType('cam')], ['2d', 'image', 'image'], 'with a place, its default view is the scene: the same whether the picture or its place came first');
+    assert.ok(new T.view.ViewScene2D('', []).suitsTelemetry(get('map')) && !new T.view.ViewScene2D('', []).suitsTelemetry(get('cam')), 'a 2D view that follows its label takes it, not a camera');
     for (const View of [T.view.ViewScene2D, T.view.ViewScene3D]) {
         const view = new View('', ['map', 'plan', 'plain']);
         const at = (t) => view.__collectSources(t).sources.map((s) => [s.telem.getAttribute(0), s.image && s.image.url]);

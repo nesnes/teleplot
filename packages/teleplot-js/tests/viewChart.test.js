@@ -161,6 +161,36 @@ test('a text telemetry in a chart is drawn as marks: a log gives one per line, a
     assert.equal(marksOf(chart, telems[2]).length, 3);
 });
 
+test('marks widen the period of a live chart: a text that comes after the last number (or before the first) is shown', () => {
+    const { T, telems, chart } = setup(['a', 'state']);
+    telems[0].addData(NUMBER, [100, 200], [[1, 2]]);
+    chart.update();
+    assert.deepEqual([chart.getDisplayRange().widened, chart.chart.scales.x], [undefined, undefined], 'numbers only: uPlot takes their extent');
+    telems[1].addData(TEXT, [250], [['turning']]);
+    chart.update();
+    assert.deepEqual([chart.getDisplayRange().from, chart.getDisplayRange().to], [100, 256]);
+    assert.deepEqual(chart.chart.scales.x, { min: 100, max: 256 }, 'the chart goes as far as the mark, with 4 % of room after it (on the edge it would not be seen)');
+    assert.deepEqual(marksOf(chart, telems[1]), [[250, 'turning', 1]], 'and the mark is drawn');
+    telems[1].addData(TEXT, [50], [['parked']]);
+    chart.update();
+    assert.deepEqual(chart.chart.scales.x, { min: 50, max: 258 }, 'a mark before the first number too');
+    // A state kept from before the data window does not stretch the period back
+    T.state.dataTimeout = 120;
+    chart.update();
+    assert.deepEqual(chart.chart.scales.x, { min: 100, max: 256 }, 'the numbers start within the window: from them');
+    telems[0].addData(NUMBER, [300], [[3]]);
+    chart.update();
+    assert.deepEqual([chart.getDisplayRange().widened, chart.getDisplayRange().to], [undefined, 300], 'a number after the marks: no room, uPlot takes the extent again');
+    T.state.dataTimeout = 0;
+    // Zoomed: the zoom decides
+    Object.assign(T.view.groups.default, { cursorActive: true, timestampFrom: 120, timestampTo: 180 });
+    chart.update();
+    assert.deepEqual(chart.chart.scales.x, { min: 120, max: 180 });
+    T.view.backToLive();
+    // A chart with marks only says it has no number to chart (nothing widened)
+    assert.equal(new T.view.ViewChart('l', ['state']).getDisplayRange().widened, undefined);
+});
+
 test('marks: only those of the period displayed, the state before it tells what a change is, close ones are folded and counted', () => {
     const T = loadTeleplot();
     const build = T.view.ViewChart.buildMarks;
@@ -455,11 +485,14 @@ test('a zoom stays when the pointer leaves the chart, and is reset when the char
     chart.createChart();
     const group = T.view.groups[chart.group];
     const hooks = chart.chartOptions.hooks;
-    const u = { data: [[10, 11, 12, 13, 14]], scales: { x: { min: 11, max: 12 } }, cursor: { left: 40 }, posToIdx: () => 1 };
+    const u = { data: [[10, 11, 12, 13, 14]], scales: { x: { min: 11, max: 12 } }, cursor: { left: 40 }, posToIdx: () => 1, posToVal: () => 11.2 };
     hooks.setScale[0](u, 'x');
     assert.deepEqual([group.cursorActive, group.timestampFrom, group.timestampTo], [true, 11, 12]);
     hooks.setCursor[0](u);
-    assert.equal(group.cursorTimestamp, 11);
+    assert.equal(group.cursorTimestamp, 11, 'the sample under the pointer');
+    hooks.setCursor[0](Object.assign({}, u, { posToIdx: () => 4, posToVal: () => 16.5 }));
+    assert.equal(group.cursorTimestamp, 16.5, 'beyond the last number (where marks widened the chart): the time pointed at');
+    hooks.setCursor[0](u);
     u.cursor.left = -10; // The pointer leaves
     hooks.setCursor[0](u);
     assert.equal(group.cursorActive, true, 'still zoomed');

@@ -125,6 +125,8 @@ class ViewCurrentValue extends ViewTelemetries{
             // Extract telem attributes
             this.telemetries[telem.id].telem = telem;
             this.telemetries[telem.id].name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
+            let tip = TELEPLOT.view.telemetryTip(telem); // (its description, when it has one)
+            if(this.telemetries[telem.id].tip !== tip) this.telemetries[telem.id].tip = tip;
             this.telemetries[telem.id].unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
             let dataTypes = Object.keys(telem.data).filter((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds are not a value: they qualify the number)
             this.telemetries[telem.id].empty = dataTypes.length == 0;
@@ -464,7 +466,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 <div v-if="options.displayTelemetryColor && ordered.length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>
                 
                 <!-- NAME (the unit is written after the value); a pen when it can be written (CMD on) -->
-                <div v-if="options.displayTelemetryName && !telem.imageOnly" class="teleplot-js-current-value-name" v-bind:title="telem.cmd && telem.cmd.desc ? telem.name + ': ' + telem.cmd.desc : telem.name">
+                <div v-if="options.displayTelemetryName && !telem.imageOnly" class="teleplot-js-current-value-name" v-bind:title="telem.tip">
                     <span>{{telem.name}}</span><span v-if="telem.cmd && telem.cmd.on && telem.cmd.kind == 'setting'" class="teleplot-js-cmd-pen"
                         v-bind:title="telem.cmd.why || (telem.cmd.continuous ? 'Driven from a joystick view' : 'Can be changed: drag the bar or click the value')">✎</span>
                 </div>
@@ -588,7 +590,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 <!-- IMAGE -->
                 <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE}] != undefined" class="teleplot-js-current-value-image">
                     <img v-bind:src="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE}].lastDisplayValue[1]"/>
-                    <div v-if="telem.imageOnly && options.displayTelemetryName" class="teleplot-js-current-value-name" v-bind:title="telem.name">
+                    <div v-if="telem.imageOnly && options.displayTelemetryName" class="teleplot-js-current-value-name" v-bind:title="telem.tip">
                         <span>{{telem.name}}</span>
                         <span v-if="telem.unit"> ({{telem.unit}})</span>
                     </div>

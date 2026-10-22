@@ -161,10 +161,14 @@ test('a setting not applied (the device keeps another value), refused (err), or 
     device.sendText('ACK|mode:err:motors off');
     assert.deepEqual([T.commands.request(telem('mode')).status, T.commands.request(telem('mode')).reason], ['refused', 'motors off']);
     assert.match(T.commands.write(telem('mode'), 'fast'), /One of idle, auto, manual/);
-    // No answer
-    T.commands.write(telem('silent'), true);
-    assert.equal(texts(written).at(-1), 'silent:1');
-    for (let ms = 250; ms <= 2500; ms += 250) T.commands.__update(later(ms));
+    // No answer (on a clock that does not move by itself: a millisecond passing between two readings would move the 2 s boundary)
+    const realNow = Date.now, start = realNow();
+    Date.now = () => start;
+    try {
+        T.commands.write(telem('silent'), true);
+        assert.equal(texts(written).at(-1), 'silent:1');
+        for (let ms = 250; ms <= 2500; ms += 250) T.commands.__update(start + ms);
+    } finally { Date.now = realNow; }
     assert.equal(T.commands.request(telem('silent')).status, 'noanswer');
     assert.equal(texts(written).filter((t) => t === 'silent:1').length, 9, 'sent again every 250 ms for 2 s');
 });

@@ -113,8 +113,16 @@ test('period: the zoom of the group, or what the views of the group cover, withi
     assert.deepEqual(view.getTimeWindow(), { from: 1700, to: 2000 });
     view.update();
     assert.deepEqual(view.lanes[0].items.map(i => [i.from, i.to, i.text]), [[1700, 2000, 'idle']]);
+    // The room of the latest state is measured on the window, not on the data older than it (kept, or not pruned yet after the
+    // window was lowered): it stays a small part of the period
+    telems[0].addData(TEXT, [2000], [['run']]);
+    T.state.dataTimeout = 10;
+    let period = view.getTimeWindow();
+    assert.deepEqual([period.to - period.from, Math.round((period.to - 2000) * 1000) / 1000], [10, 0.4], 'before: 40 of room (4 % of 1000), the whole window');
+    T.state.dataTimeout = 300;
+    assert.deepEqual(view.getTimeWindow(), { from: 1712, to: 2012 }, 'a latest state that started near the end: 4 % of the window');
     T.state.dataTimeout = 0;
-    assert.deepEqual(view.getTimeWindow(), { from: 1000, to: 2000 }, 'no data window: everything');
+    assert.deepEqual(view.getTimeWindow(), { from: 1000, to: 2040 }, 'no data window: everything (and 4 % of it for the latest state)');
     // Zoomed
     Object.assign(T.view.groups.default, { cursorActive: true, timestampFrom: 1500, timestampTo: 1600 });
     assert.deepEqual(view.getTimeWindow(), { from: 1500, to: 1600 });

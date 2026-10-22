@@ -48,7 +48,7 @@ class ViewTimeline extends ViewTelemetries{
         this.lastCursor = -2;
         this.page = undefined;      // Canvas and listeners, once mounted
         this.selection = undefined; // Drag in progress: {from, to} in pixels of the plot
-        this.tip = TELEPLOT.Vue.reactive({ shown: false, left: 0, top: 0, flip: false, name: "", text: "", detail: "" }); // What is under the pointer
+        this.tip = TELEPLOT.Vue.reactive({ shown: false, left: 0, top: 0, flip: false, name: "", desc: "", text: "", detail: "" }); // What is under the pointer
     }
 
     init(){
@@ -290,18 +290,22 @@ class ViewTimeline extends ViewTelemetries{
         for(let view of TELEPLOT.view.views) if(view.group === this.group && view.id !== this.id && view.telemetryIdOrNameList) cover(view.telemetryIdOrNameList);
         if(to === -Infinity) return undefined;
         if(!(from < to)) return { from: to - 1, to: to + 9 };
+        // Within the data window: a state kept from before it is shown from where the window starts. (Cut before the room below is
+        // measured: data that is older than the window, kept or not pruned yet after the window was lowered, would make it huge.)
+        let dataWindow = TELEPLOT.state.dataTimeout;
+        if(dataWindow > 0 && to - from > dataWindow) from = to - dataWindow;
         // The latest state gets some room at the end: when it just showed up and nothing else makes time pass, it would have no
         // width at all, and it is the one people look for. (The axis tells what time that is: nothing is said to have happened there.)
         let room = (to - from) * ViewTimeline.LATEST_ROOM;
+        let end = to;
         for(let { entry, kind } of this.getSources()) {
             let last = entry.timestamps.length - 1;
             if(last < 0 || (kind !== "state" && kind !== "stack") || String(entry.data[0][last]) === "") continue;
             let extent = ViewTimeline.extentOf(entry, entry.timestamps[last]);
-            if(extent !== undefined && extent.start + room > to) to = extent.start + room;
+            if(extent !== undefined && extent.start + room > end) end = extent.start + room;
         }
-        let dataWindow = TELEPLOT.state.dataTimeout;
-        if(dataWindow > 0 && to - from > dataWindow) from = to - dataWindow; // (a state kept from before the window is shown from where the window starts)
-        return { from, to };
+        if(dataWindow > 0 && end - from > dataWindow) from = end - dataWindow; // (the period stays as long as the window)
+        return { from, to: end };
     }
     static TIME_TYPES = [20, 21, 22, 23]; // Numbers (1, 2 or 3 of them) and texts: what is sent as time passes
     static NO_DATA = Object.freeze({ timestamps: [], data: [[]], lastUpdate: 0 }); // (an action that was never called)
@@ -595,15 +599,25 @@ class ViewTimeline extends ViewTelemetries{
     // The pointer is at a place of the canvas: the cursor of the group follows, and what is under it is told
     __hover(at) {
         let page = this.page;
-        if(!page || !(this.period.from < this.period.to) || at.x < page.gutter) { this.tip.shown = false; return; }
+        if(!page || !(this.period.from < this.period.to)) { this.tip.shown = false; return; }
+        let tip = this.tip;
+        if(at.x < page.gutter) { // The names of the lanes: what each telemetry is (its unit and description)
+            let lane = this.lanes.find((candidate) => at.y >= candidate.top && at.y < candidate.top + candidate.height);
+            let telem = lane ? TELEPLOT.datastore.getTelemetry(lane.id) : undefined;
+            if(!telem) { tip.shown = false; return; }
+            let unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
+            Object.assign(tip, { name: lane.name, desc: telem.getDescription(), text: unit ? "in " + unit : "", detail: "", flip: false,
+                left: Math.round(at.x + page.host.offsetLeft), top: Math.round(at.y - page.host.scrollTop + page.host.offsetTop), shown: true });
+            return;
+        }
         let time = this.__timeAt(at.x);
         TELEPLOT.view.hoveredGroup = this.group;
         TELEPLOT.view.groups[this.group].cursorTimestamp = time;
         let lane = this.lanes.find((candidate) => at.y >= candidate.top && at.y < candidate.top + candidate.height);
         let row = lane && lane.rows ? Math.min(lane.rows.length - 1, Math.floor((at.y - lane.top) / lane.rowHeight)) : -1; // (of a stack: the level under the pointer)
         let perPixel = (this.period.to - this.period.from) / Math.max(1, page.width - page.gutter);
-        let tip = this.tip;
         let telem = lane ? TELEPLOT.datastore.getTelemetry(lane.id) : undefined;
+        tip.desc = telem ? telem.getDescription() : "";
         let item = undefined;
         if(lane && lane.kind === "line") { // A line: the value it has at that time (the last sample at or before it)
             let entry = telem && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER];
@@ -833,6 +847,7 @@ class ViewTimeline extends ViewTelemetries{
             <div class="teleplot-js-timeline-canvas"></div>
             <div v-if="tip.shown" class="teleplot-js-timeline-tip" v-bind:class="{'teleplot-js-timeline-tip-flip': tip.flip}" v-bind:style="{ left: tip.left + 'px', top: tip.top + 'px' }">
                 <div class="teleplot-js-timeline-tip-name">{{tip.name}}</div>
+                <div v-if="tip.desc" class="teleplot-js-timeline-tip-desc">{{tip.desc}}</div>
                 <div class="teleplot-js-timeline-tip-text">{{tip.text}}</div>
                 <div class="teleplot-js-timeline-tip-detail">{{tip.detail}}</div>
             </div>
@@ -870,6 +885,7 @@ class ViewTimeline extends ViewTelemetries{
             }
             .teleplot-js-timeline-tip-flip { transform: translateX(-100%); margin-left: 0.2em; }
             .teleplot-js-timeline-tip-name, .teleplot-js-timeline-tip-detail { color: var(--teleplot-muted); }
+            .teleplot-js-timeline-tip-desc { margin-bottom: 0.15em; font-style: italic; overflow-wrap: anywhere; }
             .teleplot-js-timeline-tip-text { font-weight: 650; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
         }
     `;

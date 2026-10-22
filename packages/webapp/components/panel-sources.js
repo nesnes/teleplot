@@ -433,16 +433,17 @@ function initComponent_panel_sources(vue) {
                     let device = devices.find((d) => d.name == deviceName);
                     if (!device) devices.push(device = { name: deviceName, rows: [], roundTrips: [] });
                     const name = telem.getAttribute(this.TP.protocol.TELEM_ATTR_NAME) || String(telem.id);
+                    const desc = telem.getDescription() ? " · " + telem.getDescription() : ""; // (in the tooltip of its row)
                     if (declaration.kind == "action") {
                         const call = C.lastCall(telem);
                         const duration = call && call.end !== undefined && call.run !== undefined ? this.TP.view.ViewCurrentValue.formatDuration(call.end - call.run) : "";
                         device.rows.push({ key: telem.id, icon: "\u25B6", name: telem.getAttribute(this.TP.protocol.TELEM_ATTR_TITLE) || name, value: duration, status: call ? call.status : "", mark: call ? marks[call.status] || "" : "",
-                            title: name + (call ? " · last call #" + call.id + ": " + call.status + (call.text ? " (" + call.text + ")" : "") : " · never called") });
+                            title: name + desc + (call ? " · last call #" + call.id + ": " + call.status + (call.text ? " (" + call.text + ")" : "") : " · never called") });
                     }
                     else {
                         const reported = C.reported(telem), request = C.request(telem);
                         device.rows.push({ key: telem.id, icon: "\u270E", name, value: reported ? C.formatValue(declaration.type, reported.value) : "", status: request ? request.status : "", mark: request ? marks[request.status] || "" : "",
-                            title: name + (request ? " · " + (request.reason || request.status) : "") + (C.isContinuous(telem) ? " · continuous (a joystick)" : "") });
+                            title: name + desc + (request ? " · " + (request.reason || request.status) : "") + (C.isContinuous(telem) ? " · continuous (a joystick)" : "") });
                         for (const r of C.history(telem)) if (r.status == "applied" && r.endedAt) device.roundTrips.push(r.endedAt - r.firstSentAt);
                     }
                 }

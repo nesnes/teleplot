@@ -299,3 +299,37 @@ test('a dashboard received after its telemetries: the views it describes take th
     T.__timers.run();
     assert.deepEqual(namesOf(T, motion), ['speed', 'accel', 'jerk']);
 });
+
+test('a layout received after (or before) telemetries placed by their label path: they are where the layout says, the views the label made go', () => {
+    const DASH = ['DASH|Robot:grid', 'DASH|Robot/top:row', 'DASH|Robot/top/Motion:chart:speed,accel', 'DASH|Robot/top/State:values:mode,battery', 'DASH|Robot/Log:log:events'].join('\n');
+    const expected = { grid: [{ row: ['chart(speed,accel)', 'values(mode,battery)'] }, 'log(events)'] };
+    for (const label of ['Robot/Motion', 'Robot/top/Motion', 'Robot/', 'Robot/top']) {
+        for (const layoutFirst of [false, true]) {
+            const T = loadTeleplot();
+            T.dashboards.enableAutoDashboard('Live');
+            if (layoutFirst) T.parseDataText(DASH);
+            T.parseDataText(['speed', 'accel', 'battery'].map((n, i) => n + ',' + label + ':' + i).concat(['mode,' + label + ':idle|t', 'events,' + label + ':hello|log']).join('\n'));
+            T.__timers.run();
+            if (!layoutFirst) T.parseDataText(DASH);
+            const result = JSON.stringify(tree(T, T.dashboards.getDashboard('Robot').getView())).replace(/current-value/g, 'values');
+            assert.equal(result, JSON.stringify(expected), label + (layoutFirst ? ', layout first' : ', layout after'));
+        }
+    }
+    // What the layout does not list still goes where its label says, and a view made by hand stays
+    const T = loadTeleplot();
+    T.parseDataText('speed,Robot/Motion:1\ntemp,Robot/Temp:20');
+    T.__timers.run();
+    const mine = T.view.createView('values', ['speed'], 'g');
+    T.dashboards.getDashboard('Robot').getView().addView(mine);
+    T.parseDataText('DASH|Robot/Motion:chart:speed');
+    assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView()), { grid: ['chart(speed)', 'chart(temp)', 'current-value(speed)'] });
+
+    // A label path whose view becomes a layout: what the layout does not list gets a view of its own in it; the layout does not take
+    // the width of the chart
+    const U = loadTeleplot();
+    U.parseDataText('speed,Robot/top:1\nextra,Robot/top:2');
+    U.__timers.run();
+    U.parseDataText(['DASH|Robot:grid', 'DASH|Robot/top:row', 'DASH|Robot/top/Motion:chart:speed'].join('\n'));
+    assert.deepEqual(tree(U, U.dashboards.getDashboard('Robot').getView()), { grid: [{ row: ['chart(extra)', 'chart(speed)'] }] });
+    assert.equal(U.dashboards.exportText('Robot').split('\n')[1], 'DASH|Robot/top:row');
+});

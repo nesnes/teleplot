@@ -30,6 +30,11 @@ class Telemetry {
     getAttribute(code) {
         return this.attributes[code];
     }
+    // What the telemetry is, in a sentence (ATTR|name|desc=...; TELEM_ATTR_DESC in binary): "" when it was not given
+    getDescription() {
+        let desc = this.attributes[TELEPLOT.protocol.TELEM_ATTR_DESC];
+        return typeof desc === "string" ? desc : "";
+    }
     addData(dataType, timestamps, dataList) { // addData(TELEM_DATA_SHAPE_COLOR_RGB, [t1,t2], [[r1,r2], [g1,g2], [b1,b2]])
         if(TELEPLOT.state.isPaused) return; // Do not handle incoming data while paused
         if(_datastore_dry) { if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps); return; }

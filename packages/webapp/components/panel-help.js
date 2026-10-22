@@ -17,7 +17,7 @@
 const HELP_FAMILIES = [
     { id: "numbers", title: "Numbers", sub: "the basics" },
     { id: "text", title: "Text over time", sub: "states, logs, what runs" },
-    { id: "space", title: "Space", sub: "positions, shapes, scans" },
+    { id: "space", title: "Space", sub: "positions, shapes, meshes, scans" },
     { id: "pictures", title: "Pictures", sub: "images and cameras" },
     { id: "dashboards", title: "Dashboards", sub: "where things go" },
     { id: "control", title: "Control", sub: "from the page to your device" },
@@ -27,205 +27,610 @@ const HELP_FAMILIES = [
 // The picture of the help: 64 x 48 pixels, a cone on a floor (a camera of the scene "scene")
 const HELP_PICTURE = "PNG|camera,scene:iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAMAAACWlYwtAAAAD1BMVEXP6P+Kj5jmfiLAOSv///9A9kpQAAAAVElEQVR42u3MQQrAIBBDUfud+5+5uChF6BQhIgTmb0Nea1VVGYY9AJgDIAoyECP1rwgqECEKPG0HrrV4mwcbADLBBYBUOANALiwA/aujwH8FFDC6AfBCBoyP9FOtAAAAAElFTkSuQmCC";
 
-// Every result Teleplot gives. `examples` are the lines to send, in order (a recipe): each tile is complete by itself (it never needs
-// what another tile sent), every line shows something on a dashboard when it can, and sending it again shows a change (numbers are
-// nudged by helpVary, texts go through `cycle`). `more` are other ways, folded, each with a short `title`. In a `code`, {now} is the time
-// of the page in ms (helpFill), so that times given by a message are recent. `code` is exactly what to send (checked against the
-// library's parser in tests/help.test.js). `cpp` is the same with the C++ client, for what its sample (clients/cpp/sample.cpp) shows.
-// Tiles of the page have no message: `keys` and `action` (what their button opens).
+// The same picture as a JPEG (optimized tables, no metadata: about 500 bytes)
+const HELP_PICTURE_JPG = "JPG|camera,scene:/9j/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//wAARCAAwAEADASIAAhEAAxEA/8QAGgABAAIDAQAAAAAAAAAAAAAAAAMFAgQGAf/EACsQAAIBAgQEBAcAAAAAAAAAAAABAgMRFWSj4QQFEhMUITHRIkFRYWOS8P/EABgBAAMBAQAAAAAAAAAAAAAAAAABBAID/8QAIxEAAgIBBAEFAQAAAAAAAAAAAQIAAxEEEjFRBRMUISJBYf/aAAwDAQACEQMRAD8A70AFUmgABCADFzipqDfxNNpfZW90IkDkxgE8TIADigFLj2V1Nhj2V1NjO9e5rY3UugUuPZXU2GPZXU2DevcNjdS6NOrw/Hy5nTr06MnQium/cSun6u396Gjj2V1NiBc75klZcRpx9iHyWrpq9NHazO4P9MfneZb4/S22+o6rXjaU++f3rE6EFJHnslFKfD9UkvOXXa7+trHuPZXU2LK7ksrV1PwwyJI9T1uyMPlTgylABibgABCRSr9E3HtVZW+cY3Q8X+Cv+hKCTUaCvUWmyx2zwP4Jbp/Ie3qFaUr2Tk/JkS4nqkl2ayu7XcfIlAO9FQoqFYYlRxn8k+puF9ps2BCecHmf/9k=";
+// The same picture in two parts, as a device sends a picture too big for one message
+const HELP_PICTURE_PARTS = (() => { const b64 = HELP_PICTURE.slice(HELP_PICTURE.indexOf(":") + 1), half = Math.ceil(b64.length / 2); return ["PNG|camera,scene:1/2:" + b64.slice(0, half), "PNG|camera,scene:2/2:" + b64.slice(half)]; })();
+// A picture that is shown in its own place on a map (see the tile "A picture in the scene")
+const HELP_SNAPSHOT = HELP_PICTURE.replace("PNG|camera,scene:", "PNG|snapshot,field:");
+
+// Every result Teleplot gives, and the reference of the text protocol: the Help is also the documentation, so a tile says everything
+// about its kind of message. A sheet reads from the top: `format` (the general form of the messages), `fields` (every part of them:
+// [part, what it is]), `examples` (the lines to send, in order, a recipe: "Send all" sends them), `more` (other examples, shown too),
+// `notes` (good to know, short points). Every example has a `title` (what this message is for). Each tile is complete by itself (it
+// never needs what another tile sent), every line shows something on a dashboard when it can, and sending it again shows a change
+// (numbers are nudged by helpVary, texts go through `cycle`). In a `code`, {now} is the time of the page in ms (helpFill), so that
+// times given by a message are recent. `code` is exactly what to send (checked against the library's parser in tests/help.test.js,
+// which also checks that the fields name every property, flag and key the parser knows). `cpp` is the same with the C++ client.
+// Tiles of the page have no message: `notes`, `keys` and `action` (what their button opens).
 const HELP_TILES = [
     { id: "curve", family: "numbers", title: "A curve", sub: "a number over time", picture: "chart",
-      how: "A name, a colon, a value: that is a whole message. Send it again whenever the value changes: each one is a point of the curve, dated when it arrives. It goes to the Live dashboard by itself.",
+      format: ["name:value", "name[,label]:[time:]value[;[time:]value…][§unit][|flags]"],
+      fields: [
+          ["name", "What the telemetry is called: any text without : | , §. The same name again adds a sample to it."],
+          [",label", "Optional: telemetries with the same label share a view (see Shown together)."],
+          ["time:", "Optional: milliseconds since 1970, decimals allowed. Without it, the sample is dated when it arrives."],
+          ["value", "A number, with a point for decimals: 25.3, -4, 1e3."],
+          [";", "Several samples in one message, each with its own time."],
+          ["§unit", "Optional: shown after the value. Kept: sending it once is enough."],
+          ["|np", "Flag: not put on the Live dashboard by itself (it stays in the Telemetries panel)."],
+          ["|clr", "Flag: what the telemetry held before this message is forgotten (a new run)."],
+          ["|t |log |stack |xy |xyz |pc", "Flags of other kinds of data: a text, a log line, a stack, a position, a point in space, a point cloud (their own tiles)."],
+      ],
       examples: [
-        { code: "temperature:25.3", note: "It is charted as it arrives, at the time it arrives. Send it again: a new point.", expect: { name: "temperature", type: "number" },
+        { title: "A value", code: "temperature:25.3", note: "Charted as it arrives, at the time it arrives. Send it again: a new point.", expect: { name: "temperature", type: "number" },
           cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [");"]] },
       ], more: [
         { title: "A unit", code: "temperature:25.3§°C", note: "After §: displayed next to the value.", expect: { name: "temperature", type: "number", unit: "°C" },
           cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [", std::nullopt, { .unit = \""], ["°C", "unit"], ["\" });"]] },
-        { title: "Your own time", code: "temperature:{now}:25.3", note: "Before the value, in milliseconds since 1970 (here the time of this page): without one, a value is dated when it arrives.", expect: { name: "temperature", type: "number", timestamp: 1627551892.437 },
+        { title: "Your own time", code: "temperature:{now}:25.3", note: "Before the value, in milliseconds since 1970 (here the time of this page).", expect: { name: "temperature", type: "number", timestamp: 1627551892.437 },
           cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [", "], ["timestamp", "time"], [");  // std::chrono::nanoseconds"]] },
-        { title: "Several values", code: "temperature:{now-200}:25.1;{now-100}:25.4;{now}:25.2", note: "Several samples in one message, separated by semicolons: nothing is lost between two sends.", expect: { name: "temperature", type: "number", samples: 3 } },
-        { title: "Start again", code: "temperature:25.3|clr", note: "The clr flag forgets what the telemetry held before this value (a new run, for example).", expect: { name: "temperature", type: "number", samples: 1 } },
+        { title: "Several values", code: "temperature:{now-200}:25.1;{now-100}:25.4;{now}:25.2", note: "Three samples in one message: nothing is lost between two sends.", expect: { name: "temperature", type: "number", samples: 3 } },
+        { title: "Start again", code: "temperature:25.3|clr", note: "Forgets what the telemetry held before this value.", expect: { name: "temperature", type: "number", samples: 1 } },
+      ],
+      notes: [
+          "One message is one line. Several lines can travel in one UDP packet, or one after the other on a serial port.",
+          "The Live dashboard charts every new number by itself.",
+          "A line Teleplot does not understand is ignored: paste it in the field at the bottom of this panel to know why.",
       ] },
     { id: "together", family: "numbers", title: "Shown together", sub: "a label groups them", picture: "chart2",
-      how: "A label after the name, behind a comma, says what belongs together: telemetries with the same label share a view of the Live dashboard, titled with the label. It works with every kind of message. In the Telemetries panel, a label is one card to drag them all at once.",
+      format: ["name,label:value"],
+      fields: [
+          [",label", "After the name, behind a comma: any text without : | §. Telemetries with the same label share a view of the Live dashboard (one per kind of view), titled with the label."],
+          ["Robot/Motion", "A label with a slash is a path: it chooses the dashboard and the view (see Choose where)."],
+      ],
       examples: [
-        { code: "left,motors:0.4", note: "The label is motors: a chart titled motors.", expect: { name: "left", type: "number", label: "motors" } },
-        { code: "right,motors:0.38", note: "Same label: this one joins the chart of the first.", expect: { name: "right", type: "number", label: "motors" } },
+        { title: "A first one", code: "left,motors:0.4", note: "The label is motors: a chart titled motors.", expect: { name: "left", type: "number", label: "motors" } },
+        { title: "Same label", code: "right,motors:0.38", note: "This one joins the chart of the first.", expect: { name: "right", type: "number", label: "motors" } },
       ], more: [
-        { title: "Kept apart", code: "debug:42|np", note: "The np flag: the telemetry stays out of the Live dashboard (it is in the Telemetries panel) until you add it to a view yourself.", expect: { name: "debug", type: "number", autoplot: false } },
+        { title: "Kept apart", code: "debug:42|np", note: "The np flag: it stays out of the Live dashboard (it is in the Telemetries panel) until you add it to a view.", expect: { name: "debug", type: "number", autoplot: false } },
+      ],
+      notes: [
+          "Every kind of message takes a label: numbers, texts, shapes, pictures.",
+          "A label is kept: it can come with the first sample only.",
+          "It decides where a telemetry first goes; you can move it afterwards.",
+          "In the Telemetries panel a label is one card: drop it on a view to add all its telemetries, and the view takes the ones to come.",
+          "A label also ties a camera to its 3D scene (see Through a camera).",
+      ] },
+    { id: "describe", family: "numbers", title: "Its description", sub: "unit, color, text", picture: "describe",
+      format: ["ATTR|name|key=value|key=value…"],
+      fields: [
+          ["ATTR|", "Describes a telemetry: no sample, what does not change. Sent once (again at will), before or after its data."],
+          ["unit=", "Its unit, shown after its values (like §unit)."],
+          ["color=", "Its color in every view: a color name or #rrggbb. color= alone gives it back its own."],
+          ["desc=", "A sentence about it: the tooltip of its name wherever it is shown (legends, values, logs, timelines, panels)."],
+          ["min= max=", "The values it is expected between (see A gauge)."],
+          ["write, action, arg=…", "What the page may change or call (see Settings and Buttons)."],
+          ["%XX", "In the values, % | , = : and line breaks are written %XX, their code in hexadecimal (%7C for |)."],
+      ],
+      examples: [
+        { title: "Its unit", code: "ATTR|tank|unit=L", note: "Liters: nothing shows yet, it describes the values to come.", expect: { name: "tank", attrs: { unit: "L" } } },
+        { title: "Its color", code: "ATTR|tank|color=teal", note: "Its curve and its value are teal.", expect: { name: "tank", attrs: { color: "teal" } } },
+        { title: "Its value", code: "tank:42.5", note: "The number itself: a teal curve, in liters.", expect: { name: "tank", type: "number" } },
+      ], more: [
+        { title: "All at once", code: "ATTR|tank|unit=L|color=teal|desc=Water left in the tank", note: "Keys can come together on one line. Point at the name tank: its description.", expect: { name: "tank", attrs: { unit: "L", color: "teal", desc: "Water left in the tank" } } },
+      ],
+      notes: [
+          "A library repeats ATTR| lines every few seconds: a page opened later learns them too.",
+          "A line with a key Teleplot does not know is not understood, and nothing of it is applied.",
       ] },
     { id: "gauge", family: "numbers", title: "A gauge", sub: "a range and limits", picture: "gauge",
-      how: "ATTR| describes a telemetry: here what it is expected between. Send it once, before the first value: a number with both ends of its range is shown as a gauge, its value with a bar (a chart can take the range as its scale too). TH| is optional: limits with a name; past one, the value says which one, in its color, and charts draw them as dashed lines.",
+      format: ["ATTR|name|min=value|max=value", "TH|name:[time:]limit<value:limit>value[,color][;time:…]"],
+      fields: [
+          ["min= max=", "The values the number is expected between. One side alone is fine; empty (min=) forgets it."],
+          ["TH|", "Thresholds: limits with a name, from their time on."],
+          ["limit<value", "Past the limit when the number is below the value."],
+          ["limit>value", "Past the limit when the number is above the value."],
+          [",color", "Optional: a color name or #rrggbb (else the theme's)."],
+          ["time:", "Optional, before the limits: when they start to hold (ms). ; separates groups with other times."],
+          ["limit<", "Without a value: that limit is removed from then on. The same name again replaces it."],
+          ["%XX", "In limit names, % : ; | < > , are written %XX."],
+      ],
       examples: [
-        { code: "ATTR|battery|min=9|max=12.6", note: "The range: from 9 to 12.6. Nothing shows yet: it describes the values to come.", expect: { name: "battery", range: [9, 12.6] } },
-        { code: "battery:10.2§V", note: "The number itself, as usual: shown as a gauge.", expect: { name: "battery", type: "number", unit: "V" } },
-        { code: "TH|battery:low<10.5:empty<9.9,red", optional: true, note: "Limits: a name, < or > (the side that is past the limit), a value, and a color if you want one. Past one, the value says which one.", expect: { name: "battery", thresholds: ["empty<9.9,red", "low<10.5"] } },
+        { title: "Its range", code: "ATTR|battery|min=9|max=12.6", note: "From 9 to 12.6. Nothing shows yet: it describes the values to come.", expect: { name: "battery", range: [9, 12.6] } },
+        { title: "Its value", code: "battery:10.2§V", note: "The number itself: shown as a gauge.", expect: { name: "battery", type: "number", unit: "V" } },
+        { title: "Its limits", code: "TH|battery:low<10.5:empty<9.9,red", optional: true, note: "Past one, the value says which one, in its color.", expect: { name: "battery", thresholds: ["empty<9.9,red", "low<10.5"] } },
       ], more: [
-        { title: "A limit that changes", code: "TH|battery:{now}:low<10.8", note: "With a time (before its name) a limit holds from then on, and what was drawn before keeps the limit it had. low< without a value removes it.", expect: { name: "battery", thresholds: ["low<10.8"] } },
+        { title: "A limit that changes", code: "TH|battery:{now}:low<10.8", note: "From this time on; what was drawn before keeps the limit it had.", expect: { name: "battery", thresholds: ["low<10.8"] } },
+        { title: "Remove a limit", code: "TH|battery:empty<", note: "No value: empty is no longer a limit.", expect: { name: "battery", thresholds: [] } },
+        { title: "Only a maximum", code: "ATTR|load|max=100", note: "One end is enough for a chart's scale; a gauge needs both.", expect: { name: "load", range: [undefined, 100] } },
+      ],
+      notes: [
+          "A number with both ends of its range, given before its first value, is a gauge on the Live dashboard; otherwise a chart.",
+          "A chart can take the range as its scale (option scale=range) and draws the limits as dashed lines (option thresholds).",
+          "On a timeline, a number with limits gets a lane of bands: where it is past one.",
+          "Limits are kept by the data window and written in exports.",
       ] },
     { id: "state", family: "text", title: "A state", sub: "the latest text", picture: "text",
-      how: "The t flag: a text whose latest value matters (a mode, a status). It lasts until a different text comes: the same text sent again continues it. An empty text is a state too: nothing.",
+      format: ["name[,label]:[time:]text|t"],
+      fields: [
+          ["text", "Any text, colons included. The same text again continues the state; a different one starts another."],
+          ["time:", "Optional: a first field that is a number (ms). A text that starts with a number and a colon needs its time."],
+          ["|t", "The flag of a state: its latest value matters (a mode, a status)."],
+          ["name:|t", "An empty text is a state too: nothing (a hole in a timeline)."],
+      ],
       examples: [
-        { code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A state, shown as a value. Send again: the next state.", expect: { name: "mode", type: "text", text: "driving", logText: undefined, view: "values" } },
+        { title: "A state", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "Shown as a value. Send again: the next state.", expect: { name: "mode", type: "text", text: "driving", logText: undefined, view: "values" } },
       ], more: [
         { title: "Your own time", code: "mode:{now}:turning|t", cycle: ["mode:{now}:parked|t", "mode:{now}:driving|t"], note: "With its own time, like a number.", expect: { name: "mode", type: "text", timestamp: 1627551892.437 } },
-        { title: "Nothing", code: "mode:|t", note: "An empty text: no state. On a timeline it leaves a hole.", expect: { name: "mode", type: "text", text: "" } },
+        { title: "Nothing", code: "mode:|t", note: "An empty text: no state.", expect: { name: "mode", type: "text", text: "" } },
+      ],
+      notes: [
+          "A state is a value on the Live dashboard, a band on a timeline, a mark on a chart.",
+          "t, log and stack are the same data: the last flag used decides how it is shown by default.",
       ] },
     { id: "log", family: "text", title: "A log", sub: "lines to read in order", picture: "log",
-      how: "The log flag: lines to read one after the other, shown in a Log view. Logs without a label share one log view; with a label, the logs of several parts of a system are read together. Hover a line: every view goes to its time.",
+      format: ["name[,label]:[time:]text|log", ">:text", ">time:text"],
+      fields: [
+          ["|log", "The flag of a log line: lines to read one after the other, each an instant."],
+          [">:text", "A line of the general log, without a name."],
+          [">time:", "Its time (ms), when it has one."],
+          ["Serial port", "There, a line that does not start with > is a log line of the port; telemetry starts with >."],
+      ],
       examples: [
-        { code: "nav,logs:Path clear|log", cycle: ["nav,logs:Obstacle ahead|log", "nav,logs:Turning left|log"], note: "A line of the log of nav, with the label logs: a Log view titled logs.", expect: { name: "nav", type: "text", logText: true, view: "log", label: "logs" } },
-        { code: ">:Motors armed", cycle: [">:Motors disarmed"], note: "A line starting with > goes to the general log, without a name.", expect: { log: true } },
+        { title: "A named log", code: "nav,logs:Path clear|log", cycle: ["nav,logs:Obstacle ahead|log", "nav,logs:Turning left|log"], note: "A line of the log of nav, label logs: a Log view titled logs.", expect: { name: "nav", type: "text", logText: true, view: "log", label: "logs" } },
+        { title: "The general log", code: ">:Motors armed", cycle: [">:Motors disarmed"], note: "A line starting with >: the general log.", expect: { log: true } },
+      ], more: [
+        { title: "Your own time", code: "nav:{now}:Battery low|log", cycle: ["nav:{now}:Battery charged|log"], note: "Its time first, as for a state.", expect: { name: "nav", type: "text", logText: true, timestamp: 1627551892.437 } },
+      ],
+      notes: [
+          "Logs without a label share one Log view on the Live dashboard; with a label, several parts of a system are read together.",
+          "Lines with error or warning words are colored. Hover a line: every view goes to its time.",
+          "Log view options: maxLines, displayTimestamp, displayTelemetryName, displayTelemetryColor.",
       ] },
     { id: "timeline", family: "text", title: "A timeline", sub: "when states changed", picture: "timeline",
-      how: "A timeline has a lane per telemetry: a band per state, a tick per log line, and for a number with thresholds a band where it is past a limit. It is a view you ask for: in Edit mode (+), or with a DASH| line. Drag to zoom, as on a chart.",
+      format: ["DASH|dashboard/view:timeline:telemetry,telemetry…"],
+      fields: [
+          ["a state", "A band per state, from its sample to the next different one."],
+          ["a log", "A tick per line."],
+          ["a stack", "A row per level (see What runs)."],
+          ["a number with limits", "A band where it is past a limit (see A gauge)."],
+          ["another number", "A small line of its values; numbers=text shows them as states."],
+      ],
       examples: [
-        { code: "DASH|Robot/States:timeline:mode", note: "A Timeline view States in the dashboard Robot, with a lane for mode.", expect: { dashboard: "Robot" } },
-        { code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A state: a band from this message until the state changes. Send again: the next state, the next band.", expect: { name: "mode", type: "text", text: "driving" } },
+        { title: "The timeline", code: "DASH|Robot/States:timeline:mode", note: "A Timeline view States in the dashboard Robot, with a lane for mode.", expect: { dashboard: "Robot" } },
+        { title: "A state", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A band from now until the state changes. Send again: the next band.", expect: { name: "mode", type: "text", text: "driving" } },
+      ],
+      notes: [
+          "A timeline is asked for: in Edit mode (+), or with a DASH| line (see Your dashboard). Stacks get one by themselves.",
+          "Drag to zoom, as on a chart; double click to go back to live.",
+          "Options: displayTelemetryName, stackDepth, numbers (auto, text).",
       ] },
     { id: "marks", family: "text", title: "Marks on a chart", sub: "events over curves", picture: "marks",
-      how: "In a chart, a text telemetry has no curve: it is drawn as marks, a line where the state changes with its text next to it (for a log, a mark per line). Drop a text telemetry on a chart, or name it in a DASH| line.",
+      format: ["DASH|dashboard/view:chart:number,text…"],
+      fields: [
+          ["a state", "A mark where it changes to a text, with the text next to it."],
+          ["a log", "A mark per line."],
+          ["close marks", "Closer than a few pixels: folded into short ticks without text (zoom to read them)."],
+      ],
       examples: [
-        { code: "DASH|Robot/Drive:chart:velocity,mode", note: "A chart Drive in the dashboard Robot, for velocity and mode.", expect: { dashboard: "Robot" } },
-        { code: "velocity:1.2", note: "The curve.", expect: { name: "velocity", type: "number" } },
-        { code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A mark where the state changes. Send again: the next state, a new mark.", expect: { name: "mode", type: "text", text: "driving" } },
+        { title: "The chart", code: "DASH|Robot/Drive:chart:velocity,mode", note: "A chart Drive in the dashboard Robot, for velocity and mode.", expect: { dashboard: "Robot" } },
+        { title: "The curve", code: "velocity:1.2", note: "A number: the curve.", expect: { name: "velocity", type: "number" } },
+        { title: "A state", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A mark where the state changes. Send again: a new mark.", expect: { name: "mode", type: "text", text: "driving" } },
+      ],
+      notes: [
+          "A text telemetry has no curve: in a chart it is drawn as marks. Drop one on a chart, or name it in a DASH| line.",
       ] },
     { id: "stack", family: "text", title: "What runs", sub: "a profiler of your code", picture: "stack",
-      how: "To see what a program spends its time in, send the path of what is running: a state whose text has a slash between levels. A timeline draws a row per level, like a profiler. Send a message each time something starts or ends; hover a band: what it is, what it runs in, and for how long.",
+      format: ["name:[time:]level/level/level|stack"],
+      fields: [
+          ["level/level", "What is running: a path, outer level first, separated by /."],
+          ["time:", "The time of the device (ms, with decimals when it measures finer). Short calls need it."],
+          ["|stack", "The flag of a stack: still a state, read as a path."],
+          ["name:|stack", "Empty: nothing runs."],
+      ],
       examples: [
-        { code: "task:loop|stack", note: "The stack flag: the text is a path. Here one level: loop is running.", expect: { name: "task", type: "text", text: "loop", stack: true, view: "timeline" } },
-        { code: "task:loop/plan|stack", note: "plan starts, in loop: one level deeper. loop goes on: it stays one band, with plan under it.", expect: { name: "task", type: "text", text: "loop/plan", stack: true } },
-        { code: "task:loop/plan/search|stack", note: "As deep as needed. When search is over, send loop/plan again.", expect: { name: "task", type: "text", text: "loop/plan/search", stack: true } },
-        { code: "task:|stack", note: "An empty text: nothing runs.", expect: { name: "task", type: "text", text: "", stack: true } },
+        { title: "One level", code: "task:loop|stack", note: "loop is running.", expect: { name: "task", type: "text", text: "loop", stack: true, view: "timeline" } },
+        { title: "Deeper", code: "task:loop/plan|stack", note: "plan starts, in loop: loop stays one band, plan under it.", expect: { name: "task", type: "text", text: "loop/plan", stack: true } },
+        { title: "Deeper still", code: "task:loop/plan/search|stack", note: "As deep as needed. When search ends, send loop/plan again.", expect: { name: "task", type: "text", text: "loop/plan/search", stack: true } },
+        { title: "Nothing runs", code: "task:|stack", note: "An empty text.", expect: { name: "task", type: "text", text: "", stack: true } },
       ], more: [
-        { title: "Your own time", code: "task:{now}.25:loop/plan|stack", note: "The time of the device, before the path: milliseconds, with decimals when it measures finer than that. Short calls need it.", expect: { name: "task", type: "text", timestamp: 1627551892.43725, stack: true } },
-        { title: "Where you want", code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A stack gets a timeline by itself on the Live dashboard; this line puts one in the dashboard Robot. stackDepth: how many rows of full height its lane opens to.", expect: { dashboard: "Robot" } },
+        { title: "Your own time", code: "task:{now}.25:loop/plan|stack", note: "The time of the device, before the path.", expect: { name: "task", type: "text", timestamp: 1627551892.43725, stack: true } },
+        { title: "Where you want", code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A timeline in the dashboard Robot; stackDepth: rows of full height before they get thinner.", expect: { dashboard: "Robot" } },
+      ],
+      notes: [
+          "Send a message each time something starts or ends. Hover a band: what it is, what it runs in, for how long.",
+          "Stacks without a label share one timeline on the Live dashboard.",
       ] },
     { id: "trail", family: "space", title: "A trail", sub: "x and y over time", picture: "xy",
-      how: "Two numbers and the xy flag: a position instead of a curve, shown on a map (a 2D view) with the trail of where it went. Three numbers and xyz: a point in space, in a 3D view.",
+      format: ["name[,label]:x:y[:time][;x:y[:time]…]|xy", "name[,label]:x:y:z[:time][;…]|xyz"],
+      fields: [
+          ["x:y", "A position, in your units: x forward, y to the left."],
+          ["x:y:z", "A point in space, z up."],
+          [":time", "Optional, after the coordinates (ms)."],
+          ["|xy |xyz", "The flags: a position on a map (2D view), a point in a 3D view, each with the trail of where it went."],
+      ],
       examples: [
-        { code: "position:12.5:4.2|xy", note: "A position. Send again: it moves, its trail follows.", expect: { name: "position", type: "2d", view: "2d" } },
+        { title: "A position", code: "position:12.5:4.2|xy", note: "Send again: it moves, its trail follows.", expect: { name: "position", type: "2d", view: "2d" } },
       ], more: [
-        { title: "Your own time", code: "position:12.5:4.2:{now}|xy", note: "The time, when there is one, comes after the coordinates.", expect: { name: "position", type: "2d", timestamp: 1627551892.437 } },
-        { title: "In space", code: "drone:1.5:0.2:3|xyz", note: "Three numbers and xyz: a point in space, with the trail of its last positions.", expect: { name: "drone", type: "3d" } },
+        { title: "Your own time", code: "position:12.5:4.2:{now}|xy", note: "The time comes after the coordinates.", expect: { name: "position", type: "2d", timestamp: 1627551892.437 } },
+        { title: "In space", code: "drone:1.5:0.2:3|xyz", note: "Three numbers and xyz: a point in space.", expect: { name: "drone", type: "3d" } },
+      ],
+      notes: [
+          "The trail is the last positions received (option trailLength, 200 by default, 0 for none).",
+          "A point can be in the frame of another telemetry: 2D|position:F:robot (see Moving together).",
       ] },
     { id: "map", family: "space", title: "A map", sub: "2D shapes", picture: "map",
-      how: "A line starting with 2D| draws shapes seen from above: rect, circle, line, polygon, arrow, text. P: position (x:y), R: one angle in radians, W and H: width and height, C and O: color and opacity. Send everything once, then only what changes. Flat shapes also lie on the ground of a 3D view.",
+      format: ["2D|name[,label]:[time:]property:values:property:values…[;time:…][|flags]"],
+      fields: [
+          ["S:kind", "rect (default), circle, line, polygon, arrow, text; cube, sphere, cylinder, stl are seen from above."],
+          ["P:x:y", "Position of its center (of the start of a line or an arrow), in your units."],
+          ["R:angle", "Rotation in radians, counterclockwise."],
+          ["SC:x:y", "Its size along its x and y (a shape is 1 by default). SC:s alone: the same on both."],
+          ["RA:r", "Radius of a circle (SC of twice that)."],
+          ["C:color", "A color name or #rrggbb."],
+          ["O:opacity", "From 0 (invisible) to 1."],
+          ["PT:x:y:x:y…", "The points of a line or a polygon, as many as needed, in the frame of the shape."],
+          ["V:x:y", "The vector of an arrow, from its position."],
+          ["TX:\"text\"", "The text of a text shape; quotes let it hold : and |."],
+          ["TS:size", "Height of a text in your units (else a steady size on screen)."],
+          ["LW:width", "Width of lines in your units (else as thin as the screen draws)."],
+          ["T:…", "A picture on a rect (see A picture in the scene)."],
+          ["F:name", "In the frame of another telemetry (see Moving together); FPX:name in the pixels of a picture."],
+          ["shape, position…", "Long names work too: shape, position, rotation, scale, radius, color, opacity, points, vector, text, textsize, linewidth, texture, frame, pixels."],
+          ["P::2", "An empty value keeps what the shape had: here only y changes."],
+          ["W:x H:y", "Teleplot V1 sizes, still understood: SC:x:y is the same."],
+          ["|np |clr", "Flags, as for numbers."],
+      ],
       examples: [
-        { code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:W:0.3:H:0.2:C:blue", note: "A rectangle, turned by 0.5 rad. The label field puts the shapes on one map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
-        { code: "2D|route,field:S:line:PT:0:0:1:0.5:2:2:3:2:C:green", note: "PT: the points of a line, as many x:y as needed. It is as thin as the screen draws; add LW:0.2 for a real width, in your units.", expect: { name: "route", shape: "line", label: "field", view: "2d" } },
-        { code: "2D|robot:P:1.5:1:R:0.8", note: "Later: only what changes. Send again: it moves.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
+        { title: "A rectangle", code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue", note: "Turned by 0.5 rad. The label field puts the shapes on one map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
+        { title: "A line", code: "2D|route,field:S:line:PT:0:0:1:0.5:2:2:3:2:C:green", note: "Through these points. Add LW:0.2 for a real width.", expect: { name: "route", shape: "line", label: "field", view: "2d" } },
+        { title: "Move it", code: "2D|robot:P:1.5:1:R:0.8", note: "Later: only what changes. Send again: it moves.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
       ], more: [
         { title: "A surface", code: "2D|zone,field:S:polygon:PT:0:0:1:0:1:1:0:1:C:red:O:0.3", note: "A polygon is the surface inside its points.", expect: { name: "zone", shape: "polygon", label: "field", view: "2d" } },
-        { title: "A text", code: "2D|goal,field:S:text:P:3:2:TX:\"Goal A\"", note: "TX: a text, at a position. TS:0.2 gives it a height in your units; without, it keeps a readable size.", expect: { name: "goal", shape: "text", position: [3, 2, 0], label: "field", view: "2d" } },
+        { title: "A circle", code: "2D|spot,field:S:circle:P:2.5:1.5:RA:0.3:C:orange:O:0.5", note: "RA: its radius.", expect: { name: "spot", shape: "circle", position: [2.5, 1.5, 0], label: "field", view: "2d" } },
+        { title: "An arrow", code: "2D|wind,field:S:arrow:P:0.5:2:V:0.8:0.3:C:purple", note: "From its position, along V.", expect: { name: "wind", shape: "arrow", position: [0.5, 2, 0], label: "field", view: "2d" } },
+        { title: "A text", code: "2D|goal,field:S:text:P:3:2:TX:\"Goal A\"", note: "TS:0.2 would give it a height in your units.", expect: { name: "goal", shape: "text", position: [3, 2, 0], label: "field", view: "2d" } },
+      ],
+      notes: [
+          "Send everything once, then only what changes.",
+          "A 2D| line is a 3D| line with z = 0: flat shapes also lie on the ground of 3D views, and the same properties work in both.",
+          "What is higher is drawn over what is lower. Without a label, everything flat shares one 2D view on the Live dashboard.",
+          "2D view options: displayGrid, displayAxes, axisRight / axisUp (how the scene is looked at), displayLegend, trailLength.",
       ] },
     { id: "scene", family: "space", title: "A 3D scene", sub: "shapes in space", picture: "3d",
-      how: "A line starting with 3D| describes a shape by its properties: S its kind (cube, sphere, cylinder, stl), P its position, R (roll, pitch, yaw in radians) or Q (a quaternion) its orientation, its size, C its color, O its opacity. x is forward, y to the left, z up. Send everything once, then only what changes.",
+      format: ["3D|name[,label]:[time:]property:values:property:values…[;time:…][|flags]"],
+      fields: [
+          ["S:kind", "cube (default), sphere, cylinder, stl (see A mesh); the flat kinds of A map lie on the ground."],
+          ["P:x:y:z", "Position of its center, in your units: x forward, y to the left, z up."],
+          ["R:roll:pitch:yaw", "Rotation in radians, around x, y, z."],
+          ["Q:x:y:z:w", "Or a quaternion, w last. The latest of R and Q is used."],
+          ["SC:x:y:z", "Its size along its own x, y, z: every shape is 1 by default (a cube 1 per side, a sphere 1 across, a cylinder 1 across and 1 high). SC:x:y keeps z, SC:s alone is the same on every axis."],
+          ["RA:r", "Radius of a sphere or a cylinder (SC of twice that)."],
+          ["C:color", "A color name or #rrggbb."],
+          ["O:opacity", "From 0 (invisible) to 1."],
+          ["T:…", "A picture on its faces (see A picture in the scene)."],
+          ["F:name", "In the frame of another telemetry (see Moving together)."],
+          ["shape, position…", "Long names work too: shape, url, position, rotation, quaternion, scale, radius, color, opacity, texture, frame."],
+          ["P::2:", "An empty value keeps what the shape had: here only y changes."],
+          ["time:…;time:…", "Several updates with their times (ms) in one line."],
+          ["W:x D:y H:z", "Teleplot V1 sizes, still understood: SC:x:y:z is the same. PR (precision) is accepted and ignored."],
+          ["|np |clr", "Flags, as for numbers."],
+      ],
       examples: [
-        { code: "3D|box,scene:S:cube:P:1:0:0.5:W:1:D:1:H:1:C:orange", note: "W, D, H: width, depth, height.", expect: { name: "box", shape: "cube", position: [1, 0, 0.5], label: "scene" } },
-        { code: "3D|ball,scene:S:sphere:P:0:1:0.3:RA:0.3:C:red:O:0.5", note: "RA: radius. The same label puts both shapes in one scene.", expect: { name: "ball", shape: "sphere", position: [0, 1, 0.3], label: "scene" } },
-        { code: "3D|box:P:2:0:0.5:R:0:0:1.57", note: "Later: only the position and the rotation. Send again: it moves.", expect: { name: "box", shape: "cube", position: [2, 0, 0.5] } },
+        { title: "A box", code: "3D|box,scene:S:cube:P:1:0:0.5:SC:1:1:1:C:orange", note: "1 along x, y and z.", expect: { name: "box", shape: "cube", position: [1, 0, 0.5], label: "scene" } },
+        { title: "A ball", code: "3D|ball,scene:S:sphere:P:0:1:0.3:RA:0.3:C:red:O:0.5", note: "RA: radius. The same label puts both shapes in one scene.", expect: { name: "ball", shape: "sphere", position: [0, 1, 0.3], label: "scene" } },
+        { title: "Move it", code: "3D|box:P:2:0:0.5:R:0:0:1.57", note: "Later: only the position and the rotation. Send again: it moves.", expect: { name: "box", shape: "cube", position: [2, 0, 0.5] } },
+      ], more: [
+        { title: "A cylinder", code: "3D|can,scene:S:cylinder:P:-1:0:0.4:SC:0.4:0.4:0.8:C:green", note: "It stands along z: 0.4 across, 0.8 high.", expect: { name: "can", shape: "cylinder", position: [-1, 0, 0.4], label: "scene" } },
+        { title: "A quaternion", code: "3D|box:Q:0:0:0.38:0.92", cycle: ["3D|box:Q:0:0:0.71:0.71", "3D|box:Q:0:0:0:1"], note: "45° around z; send again: 90°, then not turned.", expect: { name: "box", quaternion: [0.92, 0, 0, 0.38] } },
+        { title: "Stretch it", code: "3D|box:SC:2:1:0.5", cycle: ["3D|box:SC:1:1:1"], note: "2 long, 1 wide, 0.5 high.", expect: { name: "box", size: [2, 1, 0.5] } },
+        { title: "Two times in a line", code: "3D|ball:{now-500}:P:0:1:0.3;{now}:P:0:1.5:0.3", note: "Where it was, then where it is.", expect: { name: "ball", position: [0, 1.5, 0.3] } },
+      ],
+      notes: [
+          "Send everything once, then only what changes.",
+          "Shapes without a label share one 3D view on the Live dashboard.",
+          "3D view options: displayGrid, displayAxes, displayLegend, trailLength, pointSize, pointColorByHeight, cloudCount, cloudInterval.",
+      ] },
+    { id: "mesh", family: "space", title: "A mesh", sub: "an STL file", picture: "mesh",
+      format: ["3D|name[,label]:S:stl:U:\"url\":property:values…"],
+      fields: [
+          ["S:stl", "The shape is a file: STL, binary or text, as CAD tools export them."],
+          ["U:\"url\"", "Where the browser fetches it, in quotes: relative to this page (a file next to it), or on a site that allows it (CORS)."],
+          ["SC:s", "The file is drawn in its own units, multiplied by SC (SC:0.001 turns millimeters into meters). SC:x:y:z per axis."],
+          ["P, R, Q, C, O, F", "Moved, turned, colored like any shape (see A 3D scene)."],
+      ],
+      examples: [
+        { title: "The pawn", code: "3D|pawn,scene:S:stl:U:\"media/pawn.stl\":P:0:0:0:C:orange", note: "1 high: media/pawn.stl comes with this page.", expect: { name: "pawn", shape: "stl", url: "media/pawn.stl", label: "scene" } },
+        { title: "Move it", code: "3D|pawn:P:1:0.5:0:R:0:0:0.8", note: "Later: only where it is. Send again: it moves.", expect: { name: "pawn", shape: "stl", position: [1, 0.5, 0] } },
+      ], more: [
+        { title: "Its size", code: "3D|pawn:SC:2", cycle: ["3D|pawn:SC:1"], note: "Twice as big; send again: back to its size.", expect: { name: "pawn", size: [2, 2, 2] } },
+      ],
+      notes: [
+          "A file that cannot be loaded is not drawn, and the view says why in a note at its bottom.",
       ] },
     { id: "frames", family: "space", title: "Moving together", sub: "relative to another", picture: "frames",
-      how: "With F, the positions of a shape are relative to another telemetry: when that one moves or turns, what is in its frame follows, without being sent again. Describe the parts of a robot once, then move only its body. A frame can be in a frame; it works the same in 3D| lines, for points and for point clouds.",
+      format: ["2D|name:…:F:other", "3D|name:…:F:other"],
+      fields: [
+          ["F:other", "The positions and rotations are relative to the telemetry named other: when it moves or turns, this one follows."],
+          ["F:", "Empty: back in the scene."],
+          ["a frame in a frame", "Up to 16 levels."],
+          ["what can have one", "Shapes, points (2D|name:F:robot on an xy telemetry), point clouds, cameras."],
+      ],
       examples: [
-        { code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:W:0.3:H:0.2:C:blue", note: "The body of a robot, on a map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
-        { code: "2D|heading,field:S:arrow:V:0.4:0:F:robot", note: "V: the vector of an arrow. F: it is in the frame of the robot: it starts at the robot and points where it looks.", expect: { name: "heading", shape: "arrow", label: "field", frame: "robot", view: "2d" } },
-        { code: "2D|bumper,field:S:rect:P:0.2:0:W:0.05:H:0.25:C:black:F:robot", note: "Its position is in the frame: 0.2 in front of the robot.", expect: { name: "bumper", shape: "rect", label: "field", frame: "robot", view: "2d" } },
-        { code: "2D|robot:P:1.5:1:R:0.8", note: "Move the body only: the arrow and the bumper follow. Send again: it moves again.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
+        { title: "The body", code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue", note: "The body of a robot, on a map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
+        { title: "An arrow on it", code: "2D|heading,field:S:arrow:V:0.4:0:F:robot", note: "In the frame of the robot: it starts at the robot and points where it looks.", expect: { name: "heading", shape: "arrow", label: "field", frame: "robot", view: "2d" } },
+        { title: "A bumper", code: "2D|bumper,field:S:rect:P:0.2:0:SC:0.05:0.25:C:black:F:robot", note: "0.2 in front of the robot.", expect: { name: "bumper", shape: "rect", label: "field", frame: "robot", view: "2d" } },
+        { title: "Move the body", code: "2D|robot:P:1.5:1:R:0.8", note: "The arrow and the bumper follow. Send again: it moves again.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
+      ],
+      notes: [
+          "Describe the parts once, then move only the body.",
+          "The pose of the frame is the one at the time shown: a trail follows where the frame was at each of its samples.",
       ] },
     { id: "cloud", family: "space", title: "A lidar scan", sub: "a cloud of points", picture: "cloud",
-      how: "The pc flag: all the points of the line are one sample, x:y:z each, in the frame of the sensor. A flat scan sets z to 0: it is shown in a 2D view. Where the sensor is, sent like the position of a shape under the same name: each scan is drawn where the sensor was.",
+      format: ["name[,label]:[time;]x:y:z;x:y:z;…|pc"],
+      fields: [
+          ["x:y:z", "A point, in the frame of the sensor. A flat scan sets z to 0: it goes to a 2D view."],
+          ["x:y:z:i", "With an intensity: points are colored from the lowest to the highest."],
+          ["x:y:z:r:g:b", "With a color: red, green, blue, from 0 to 255 each (x:y:z:i:r:g:b: both). Every point of a line has as many values."],
+          ["time;", "A field alone first: the time of the scan (ms)."],
+          ["|pc", "The flag: all the points of the line are one sample, a whole scan."],
+          ["3D|name:P…:R…", "Where the sensor is, sent like the position of a shape under the same name."],
+      ],
       examples: [
-        { code: "lidar:1:0:0;0.7:0.7:0;0:1:0;-0.7:0.7:0;-1:0:0|pc", note: "Five points. Send again: a new scan.", expect: { name: "lidar", cloud: 5, view: "2d" } },
-        { code: "3D|lidar:P:1:2:0.2:R:0:0:1.57", note: "Where the sensor is: the scan moves with it.", expect: { name: "lidar", position: [1, 2, 0.2] } },
+        { title: "A scan", code: "lidar:1:0:0;0.7:0.7:0;0:1:0;-0.7:0.7:0;-1:0:0|pc", note: "Five points. Send again: a new scan.", expect: { name: "lidar", cloud: 5, view: "2d" } },
+        { title: "The sensor", code: "3D|lidar:P:1:2:0.2:R:0:0:1.57", note: "Where it is: the scan moves with it.", expect: { name: "lidar", position: [1, 2, 0.2] } },
       ], more: [
-        { title: "Intensities", code: "lidar:1:0:0:0.9;0.7:0.7:0:0.4;0:1:0:0.1|pc", note: "A fourth value is an intensity: points are colored from the lowest to the highest. Or a color: x:y:z:r:g:b.", expect: { name: "lidar", cloud: 3, intensity: true, view: "2d" } },
+        { title: "Intensities", code: "lidar:1:0:0:0.9;0.7:0.7:0:0.4;0:1:0:0.1|pc", note: "A fourth value per point.", expect: { name: "lidar", cloud: 3, intensity: true, view: "2d" } },
+        { title: "Colors", code: "lidar:1:0:0:255:0:0;0:1:0:0:200:0;-1:0:0:0:0:255|pc", note: "r:g:b after x:y:z, from 0 to 255: a red, a green and a blue point.", expect: { name: "lidar", cloud: 3, view: "2d" } },
+        { title: "Your own time", code: "lidar:{now};1:0:0;0:1:0|pc", note: "A field alone, first.", expect: { name: "lidar", cloud: 2, view: "2d" } },
+      ],
+      notes: [
+          "Each scan is drawn where the sensor was at its time.",
+          "View options: pointSize, pointColorByHeight, cloudCount and cloudInterval (several scans drawn together).",
       ] },
     { id: "picture", family: "pictures", title: "A picture", sub: "an image, as text", picture: "image",
-      how: "PNG| or JPG|, a name, and the file in base64. An image view shows the picture of the time shown: drag on a chart and the picture follows.",
+      format: ["PNG|name[,label]:[time:]base64", "PNG|name:[time:]i/n:base64-part"],
+      fields: [
+          ["PNG| JPG|", "The format of the file."],
+          ["base64", "The file itself (the bytes of the .png or .jpg), in base64."],
+          ["time:", "Optional (ms), as for a number."],
+          ["i/n:", "Part i of n, from 1: a picture cut in parts, each in a message of its own."],
+          ["|np |clr", "Flags, as for numbers."],
+      ],
       examples: [
-        { code: HELP_PICTURE, note: "A small picture, 64 x 48 pixels: a cone on a floor.", expect: { name: "camera", image: true, label: "scene" } },
+        { title: "A picture", code: HELP_PICTURE, note: "64 x 48 pixels: a cone on a floor.", expect: { name: "camera", image: true, label: "scene" } },
+      ], more: [
+        { title: "A JPEG", code: HELP_PICTURE_JPG, note: "The same picture as a JPEG, the usual format of a camera.", expect: { name: "camera", image: "jpg", label: "scene" } },
+        { title: "In parts: 1 of 2", code: HELP_PICTURE_PARTS[0], note: "The first half of the base64: nothing shows yet.", expect: { name: "camera", part: [1, 2] } },
+        { title: "In parts: 2 of 2", code: HELP_PICTURE_PARTS[1], note: "The second half: the picture is complete and shows. The other order works too.", expect: { name: "camera", part: [2, 2] } },
+      ],
+      notes: [
+          "An image view shows the picture of the time shown: drag on a chart, the picture follows.",
+          "Why parts: a UDP packet holds 65 kB at most and is more likely lost above about 1.4 kB (one network frame); a serial line or the buffer of a microcontroller holds even less.",
+          "Parts can come in any order; the picture shows when all n are there, and a lost part only loses that picture.",
+          "With a time, give every part of a picture the same one: a part with another time starts a new picture.",
       ] },
     { id: "pixels", family: "pictures", title: "Boxes on a picture", sub: "in its pixels", picture: "pixels",
-      how: "FPX: a frame, the pixels of the pictures of an image telemetry (u to the right, v down). What a detector finds is drawn on the picture without knowing anything about the camera; the picture itself is never changed.",
+      format: ["2D|name:…:FPX:picture"],
+      fields: [
+          ["FPX:picture", "Positions are pixels of the pictures of that image telemetry: u to the right, v down, 0:0 the center of the top left pixel."],
+          ["SC, TS, LW", "In pixels too."],
+          ["any 2D shape", "rect, circle, line, polygon, arrow, text (see A map)."],
+      ],
       examples: [
-        { code: HELP_PICTURE, note: "A picture to draw on: a cone on a floor, 64 x 48 pixels.", expect: { name: "camera", image: true, label: "scene" } },
-        { code: "2D|found:S:rect:P:44:26:W:22:H:28:C:red:O:0.25:LW:1:FPX:camera", note: "A box around the cone: its center at pixel 44, 26, 22 pixels wide and 28 high.", expect: { name: "found", shape: "rect", pixels: "camera" } },
-        { code: "2D|found.name:S:text:P:33:8:TX:\"cone 0.92\":C:red:FPX:camera", note: "A text, the same way. TS:6 would make it 6 pixels of the picture high.", expect: { name: "found.name", shape: "text", pixels: "camera" } },
+        { title: "The picture", code: HELP_PICTURE, note: "A cone on a floor, 64 x 48 pixels.", expect: { name: "camera", image: true, label: "scene" } },
+        { title: "A box", code: "2D|found:S:rect:P:44:26:SC:22:28:C:red:O:0.25:LW:1:FPX:camera", note: "Around the cone: its center at pixel 44, 26, 22 wide and 28 high.", expect: { name: "found", shape: "rect", pixels: "camera" } },
+        { title: "A text", code: "2D|found.name:S:text:P:33:8:TX:\"cone 0.92\":C:red:FPX:camera", note: "TS:6 would make it 6 pixels high.", expect: { name: "found.name", shape: "text", pixels: "camera" } },
+      ],
+      notes: [
+          "What a detector finds is drawn on the picture with no knowledge of the camera; the picture itself is never changed.",
+          "Only the image views of that picture draw it, and they take it by themselves (option pixelDrawings).",
       ] },
     { id: "camera", family: "pictures", title: "Through a camera", sub: "the scene over the picture", picture: "camera",
-      how: "With the parameters of the camera of a picture, what is in the scene is drawn over it, and the camera shows in the scene. Sent to the name of the image: K gives fx, fy, cx, cy, width and height in pixels, P (and R or Q) where the camera is, looking along its x. DC is the distortion of its lens: what is drawn follows the curves of the picture.",
+      format: ["3D|picture:K:fx:fy:cx:cy:width:height:P:x:y:z:R:…", "3D|picture:DC:k1:k2:p1:p2:k3"],
+      fields: [
+          ["3D|picture", "Sent to the name of the image telemetry: it describes its camera."],
+          ["K:fx:fy:cx:cy:width:height", "Intrinsics in pixels: focal lengths, principal point, and the size of the picture they are given for."],
+          ["DC:k1:k2:p1:p2:k3", "Optional: the distortion of the lens, as OpenCV gives it."],
+          ["P, R or Q", "Where the camera is in the scene, looking along its x (y to the left of the picture, z up)."],
+          ["SC:depth", "How far its pyramid is drawn in 3D views (1 by default)."],
+          ["intrinsics, distortion", "The long names of K and DC; position, rotation, quaternion, scale too."],
+      ],
       examples: [
-        { code: HELP_PICTURE, note: "The picture, in the scene scene (its label).", expect: { name: "camera", image: true, label: "scene" } },
-        { code: "3D|marker,scene:S:sphere:P:3:0:0.3:RA:0.3:C:red", note: "Something in the scene, 3 in front of the camera.", expect: { name: "marker", shape: "sphere", position: [3, 0, 0.3], label: "scene" } },
-        { code: "3D|camera:K:55:55:32:24:64:48:P:0:0:1", note: "The camera of the picture, 1 above the ground: the sphere is drawn over the picture. Send again: the camera moves.", expect: { name: "camera", camera: true } },
-        { code: "3D|camera:DC:-0.26:0.07:0:0:0", note: "The distortion of its lens (k1, k2, p1, p2, k3).", expect: { name: "camera", distortion: [-0.26, 0.07, 0, 0, 0] } },
+        { title: "The picture", code: HELP_PICTURE, note: "In the scene scene (its label).", expect: { name: "camera", image: true, label: "scene" } },
+        { title: "Something to see", code: "3D|marker,scene:S:sphere:P:3:0:0.3:RA:0.3:C:red", note: "3 in front of the camera.", expect: { name: "marker", shape: "sphere", position: [3, 0, 0.3], label: "scene" } },
+        { title: "The camera", code: "3D|camera:K:55:55:32:24:64:48:P:0:0:1", note: "1 above the ground: the sphere is drawn over the picture. Send again: it moves.", expect: { name: "camera", camera: true } },
+        { title: "Its lens", code: "3D|camera:DC:-0.26:0.07:0:0:0", note: "What is drawn follows the curves of the picture.", expect: { name: "camera", distortion: [-0.26, 0.07, 0, 0, 0] } },
+      ],
+      notes: [
+          "The picture is never undistorted: what is drawn over it is bent like the lens bends the scene.",
+          "The scene is drawn as it was when the picture was taken. The 3D view of the label shows the camera.",
+          "Image view options: outline, outlineWidth, overlayOpacity, pixelDrawings.",
       ] },
-    { id: "dashboard", family: "dashboards", title: "Your dashboard", sub: "views where you want", picture: "dashboard",
-      how: "A DASH| line describes a view by its path (the dashboard, then the view), its type (chart, values, log, timeline, 2d, 3d, image, joystick), the telemetries it shows (they do not have to exist yet) and options. A longer path nests the view in layouts (row, column, grid or stack). The same lines are what the dashboard menu exports.",
+    { id: "onscene", family: "pictures", title: "A picture in the scene", sub: "a floor plan, a screen", picture: "texture",
+      format: ["2D|name:S:rect:…:T:url:\"url\"", "2D|name:S:rect:…:T:telem:picture", "2D|picture:P:…:SC:…"],
+      fields: [
+          ["T:url:\"url\"", "An image file on the shape, fetched by the browser like a mesh."],
+          ["T:telem:picture", "The pictures of an image telemetry: the one of the time shown."],
+          ["C:white", "The picture is multiplied by the color: white shows it as it is."],
+          ["2D|picture or 3D|picture", "A shape line under the name of an image telemetry (not a camera) gives it a place: it shows its own pictures there."],
+      ],
       examples: [
-        { code: "DASH|Robot/Power:chart:voltage|w=4|h=3", note: "A chart Power in the dashboard Robot, 4 columns wide and 3 rows high, for voltage.", expect: { dashboard: "Robot" } },
-        { code: "voltage:12.1", note: "Its data.", expect: { name: "voltage", type: "number" } },
-        { code: "DASH|Robot/side/Events:log:events|maxLines=50", note: "A log in a layout side, created on the way.", expect: { dashboard: "Robot" } },
-        { code: "events:Started|log", cycle: ["events:Docked|log", "events:Charging|log"], note: "Its data.", expect: { name: "events", type: "text", logText: true } },
+        { title: "A floor plan", code: "2D|plan,field:S:rect:P:2:1.5:SC:4:3:C:white:T:url:\"media/floor-plan.png\"", note: "4 by 3, under what the map shows. media/floor-plan.png comes with this page.", expect: { name: "plan", shape: "rect", texture: "url", label: "field", view: "2d" } },
+        { title: "A place for pictures", code: "2D|snapshot,field:S:rect:P:3.2:2.4:SC:0.8:0.6", note: "Named after the image telemetry to come. Send again: it moves.", expect: { name: "snapshot", shape: "rect", label: "field", view: "2d" } },
+        { title: "The picture", code: HELP_SNAPSHOT, note: "It shows in its rectangle; zoom on a chart: the picture of that time.", expect: { name: "snapshot", image: true, label: "field", view: "2d" } },
       ], more: [
-        { title: "A layout", code: "DASH|Robot/side:column", note: "A layout has a line too: row, column, grid or stack. Lines can come in any order.", expect: { dashboard: "Robot" } },
-        { title: "Remove a view", code: "DASH|Robot/Power:none", note: "The type none removes it.", expect: { dashboard: "Robot" } },
+        { title: "On a 3D screen", code: "3D|screen,scene:S:cube:P:0:0:0.6:SC:1.6:0.05:1.2:C:white:T:telem:snapshot", note: "A box 1.6 wide, 0.05 thin, 1.2 high, showing the pictures of snapshot.", expect: { name: "screen", shape: "cube", texture: "telem", label: "scene" } },
+      ],
+      notes: [
+          "Give the rectangle the proportions of the picture: it is stretched to it, never cut.",
+          "A picture that has camera parameters (K) stays a camera (see Through a camera).",
+      ] },
+    { id: "dashboard", family: "dashboards", title: "Your dashboard", sub: "views where you want", picture: "dashboard", viewOptions: true,
+      format: ["DASH|dashboard/layout/…/view[:type[:telemetry,telemetry…]][|option=value…]"],
+      fields: [
+          ["dashboard/…/view", "The path: the dashboard, the layouts, the view. Missing layouts are created (grids). The last name is the title of the view; #1 is a name without title."],
+          ["type", "chart, values, log, timeline, 2d, 3d, image, joystick; row, column, grid, stack (layouts); none removes it. Left out: what suits its first telemetry."],
+          ["telemetries", "Their names, separated by commas: they do not have to exist yet."],
+          ["w= h=", "Width (columns of a grid, a share of a row) and height (steps of 4 em)."],
+          ["title=", "The text in the corner, when it is not the name."],
+          ["time=", "Its time group: inherit, dashboard, or a name shared by the views that zoom together."],
+          ["follow=", "Labels it follows: their telemetries join it, those received and those to come."],
+          ["justify= align= gap=", "Of a layout: start, center, end, space-between, space-around; start, center, end, stretch; the gap in em."],
+          ["columnWidth=", "Of a grid: the minimum width of a column, in em."],
+          ["appearance= accent=", "Of a layout: card, flat or inherit; the top color on, off or inherit."],
+          ["DASH|dashboard:type", "The dashboard alone: its top layout."],
+          ["%XX", "In names and values, % / : , | = and line breaks are written %XX."],
+      ],
+      examples: [
+        { title: "A chart", code: "DASH|Robot/Power:chart:voltage|w=4|h=3", note: "Power, in the dashboard Robot, 4 columns wide and 3 high.", expect: { dashboard: "Robot" } },
+        { title: "Its data", code: "voltage:12.1", note: "A number for it.", expect: { name: "voltage", type: "number" } },
+        { title: "A log in a layout", code: "DASH|Robot/side/Events:log:events|maxLines=50", note: "The layout side is created on the way.", expect: { dashboard: "Robot" } },
+        { title: "Its data", code: "events:Started|log", cycle: ["events:Docked|log", "events:Charging|log"], note: "A log line for it.", expect: { name: "events", type: "text", logText: true } },
+      ], more: [
+        { title: "A layout", code: "DASH|Robot/side:column", note: "Layouts have lines too. Lines can come in any order.", expect: { dashboard: "Robot" } },
+        { title: "Follow a label", code: "DASH|Robot/Motors:chart|follow=motors", note: "The telemetries labelled motors join the chart.", expect: { dashboard: "Robot" } },
+        { title: "A time of its own", code: "DASH|Robot/Camera:image:camera|time=Live", note: "Stays on the latest picture while the others zoom.", expect: { dashboard: "Robot" } },
+        { title: "Remove a view", code: "DASH|Robot/Power:none", note: "The type none.", expect: { dashboard: "Robot" } },
+      ],
+      notes: [
+          "A device can send its dashboard again and again: a line only does something when it changed, and what you changed by hand stays.",
+          "A received dashboard is shown, unless you are on one of your own or editing.",
+          "The dashboard menu exports any dashboard as these lines, and imports them.",
+          "The options of each type of view are listed below.",
       ] },
     { id: "place", family: "dashboards", title: "Choose where", sub: "a label that is a path", picture: "place",
-      how: "A label that is a path places the telemetry: the dashboard, a slash, the view. Both are created if needed, one view per kind of data, and the telemetry stays off the Live dashboard.",
+      format: ["name,dashboard/layout/…/view:value", "name,dashboard/:value"],
+      fields: [
+          ["dashboard/view", "The dashboard, then the view: both are created if needed, and the telemetry stays off the Live dashboard."],
+          ["one view per kind", "Numbers share a chart, texts a values view next to it (Motion#values)…"],
+          ["dashboard/", "A path that ends with /: only the dashboard; the telemetry gets a view of its own."],
+      ],
       examples: [
-        { code: "speed,Robot/Motion:1.2", note: "speed goes to the chart Motion of the dashboard Robot.", expect: { name: "speed", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
-        { code: "accel,Robot/Motion:0.3", note: "Same path: it joins the same chart.", expect: { name: "accel", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
+        { title: "Into a chart", code: "speed,Robot/Motion:1.2", note: "speed goes to the chart Motion of the dashboard Robot.", expect: { name: "speed", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
+        { title: "The same chart", code: "accel,Robot/Motion:0.3", note: "Same path: the same chart.", expect: { name: "accel", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
+      ], more: [
+        { title: "Only the dashboard", code: "temp,Robot/:21", note: "A view of its own in Robot.", expect: { name: "temp", type: "number", label: "Robot/", dashboard: "Robot" } },
+      ],
+      notes: [
+          "With DASH| lines too, the lines win: a telemetry they list goes where they say, whichever comes first.",
+          "Since / has a meaning in a label, a Teleplot V1 label that held one is read as a path.",
       ] },
     { id: "settings", family: "control", title: "Settings", sub: "values the page can change", picture: "controls",
-      how: "write: the page may change it. With commands on (CMD, in the top menu), its value can be edited where it is displayed: a slider, a switch, a list of choices. The page sends the line your device would send; keep sending the value: when it comes back as asked, the page knows it was applied. Your device may refuse with ACK|name:err:why.",
+      format: ["ATTR|name|write[=type][|min=…|max=…|step=…|choices=a,b,c|desc=…]", "name:value          (what the page sends, then your device)", "ACK|name:err:why    (your device refuses)"],
+      fields: [
+          ["write", "The page may change it. Alone: the type of its data."],
+          ["write=type", "number, bool (a switch: 0 or 1), text, xy, xyz, pose2d (x, y and an angle in radians)."],
+          ["min= max= step=", "A slider, and what it moves by (also how close the echo must be)."],
+          ["choices=a,b,c", "A text among these."],
+          ["desc=", "A sentence: the tooltip of its name, and of its control."],
+          ["write=", "Empty: no longer writable."],
+          ["name:value", "What the page sends: the line your device would send, without a time."],
+          ["ACK|name:err:why", "Your device refuses (optional: its value already tells)."],
+      ],
       examples: [
-        { code: "ATTR|speed_limit|write|min=0|max=2|step=0.1", note: "A number from 0 to 2: a slider. The page sends speed_limit:1.5.", expect: { name: "speed_limit", write: "number" } },
-        { code: "speed_limit:1.2", note: "The value, as usual, whenever it is applied.", expect: { name: "speed_limit", type: "number" } },
+        { title: "A slider", code: "ATTR|speed_limit|write|min=0|max=2|step=0.1", note: "A number from 0 to 2. The page sends speed_limit:1.5.", expect: { name: "speed_limit", write: "number" } },
+        { title: "Its value", code: "speed_limit:1.2", note: "Your device keeps sending it, as any value.", expect: { name: "speed_limit", type: "number" } },
+        { title: "You move the slider", from: "page", code: "speed_limit:1.5", note: "The page sends the line your device would send, without a time: it asks 1.5. Resent every 250 ms for 2 s until it comes back.", expect: { name: "speed_limit", input: "1.5" } },
+        { title: "Applied", code: "speed_limit:1.5", note: "Your device applies it and sends its value: the page sees it applied.", expect: { name: "speed_limit", type: "number" } },
       ], more: [
-        { title: "Among choices", code: "ATTR|drive_mode|write|choices=auto,manual,idle", note: "A text among choices: a click on its value opens them.", expect: { name: "drive_mode", write: "text" } },
+        { title: "Among choices", code: "ATTR|drive_mode|write|choices=auto,manual,idle", note: "A click on its value opens them.", expect: { name: "drive_mode", write: "text" } },
         { title: "Its value", code: "drive_mode:auto|t", cycle: ["drive_mode:manual|t", "drive_mode:idle|t"], note: "The choice that is applied.", expect: { name: "drive_mode", type: "text", text: "auto" } },
+        { title: "You pick one", from: "page", code: "drive_mode:manual", note: "The text alone; in it, % and line breaks are written %XX.", expect: { name: "drive_mode", input: "manual" } },
+        { title: "A switch", code: "ATTR|motors|write=bool", note: "On or off.", expect: { name: "motors", write: "bool" } },
+        { title: "You switch it on", from: "page", code: "motors:1", note: "1 for on, 0 for off.", expect: { name: "motors", input: "1" } },
+        { title: "Refused", code: "ACK|drive_mode:err:motors off", cycle: ["ACK|drive_mode:err:not in manual"], note: "Your device says why it did not apply it.", expect: { name: "drive_mode" } },
+      ],
+      notes: [
+          "With commands on (CMD, in the top menu) the value is edited where it is displayed.",
+          "The page resends every 250 ms for 2 s. It is applied when your device sends it back; not applied when your device keeps another value; refused on err; no answer when nothing comes back.",
+          "Commands go back the way the data came: to the sender of the UDP packets (through the server), or on the serial port.",
+          "What the page sends is logged in the telemetry commands.sent.",
       ] },
     { id: "actions", family: "control", title: "Buttons", sub: "functions of your device", picture: "actions",
-      how: "action: a button (confirm: it asks first; longpress: it must be held; color=red). The page sends a call and its number, !reset#12; your device answers run when it starts, then ok or err:why, and the page shows how long it ran. Arguments are declared one line each, in order: the button opens a form, and the call names them (!goto#13:target=1.5,2). A call sent again with the same number must not run twice: answer again.",
+      format: ["ATTR|name|action[|title=…|confirm|longpress|color=…|desc=…]", "ATTR|name|arg=argument|type=…[|optional|default=…|min|max|step|unit|choices|desc]", "!name#id[:argument=value:…]    (what the page sends)", "ACK|name#id:run | ok[:result] | err:why"],
+      fields: [
+          ["action", "A button. action= removes it."],
+          ["title=", "The text of the button (else the name)."],
+          ["confirm", "It asks before calling."],
+          ["longpress", "It must be held 1 s."],
+          ["color=", "The color of the button."],
+          ["arg=argument", "One line per argument, in order: the button opens a form. type= (number, bool, text, xy, xyz, pose2d), optional, default=, min=, max=, step=, unit=, choices=, desc=. type= empty removes the argument."],
+          ["!name#id", "The call: an id that grows, then the arguments by name; several numbers are separated by commas (target=1.5,2)."],
+          ["run, ok, err", "Your answer: started, done (with a short result), failed."],
+      ],
       examples: [
-        { code: "ATTR|reset|action|title=Reset odometry|confirm", note: "A button that asks first.", expect: { name: "reset", action: true } },
-        { code: "ACK|reset#12:ok", cycle: ["ACK|reset#13:ok", "ACK|reset#14:err:not now"], note: "What your device answers to the call #12.", expect: { name: "reset", answer: "#12 ok" } },
+        { title: "A button", code: "ATTR|reset|action|title=Reset odometry|confirm", note: "It asks first.", expect: { name: "reset", action: true } },
+        { title: "You press it", from: "page", code: "!reset#12", note: "The page calls it: ! the name, # the number of this call.", expect: { name: "reset", call: 12, args: {} } },
+        { title: "Your answer", code: "ACK|reset#12:ok", cycle: ["ACK|reset#13:ok", "ACK|reset#14:err:not now"], note: "Done: the answer to the call #12.", expect: { name: "reset", answer: "#12 ok" } },
       ], more: [
-        { title: "Another action", code: "ATTR|goto|action|title=Go to", note: "A button Go to...", expect: { name: "goto", action: true } },
-        { title: "Its argument", code: "ATTR|goto|arg=target|type=xy|desc=Where to go", note: "...with an argument: its button opens a form. optional, default, min, max, unit, choices... can follow.", expect: { name: "goto", args: ["target"] } },
+        { title: "Another action", code: "ATTR|goto|action|title=Go to", note: "A button Go to…", expect: { name: "goto", action: true } },
+        { title: "Its argument", code: "ATTR|goto|arg=target|type=xy|desc=Where to go", note: "…which opens a form.", expect: { name: "goto", args: ["target"] } },
+        { title: "You fill it and press", from: "page", code: "!goto#13:target=1.5,2", note: "The arguments by name; the numbers of an xy are separated by a comma.", expect: { name: "goto", call: 13, args: { target: "1.5, 2" } } },
+        { title: "Started, then done", code: "ACK|goto#13:run", cycle: ["ACK|goto#13:ok:arrived"], note: "run when it starts, then ok: the page shows how long it ran.", expect: { name: "goto", answer: "#13 run" } },
+      ],
+      notes: [
+          "The page resends a call every 250 ms for 2 s until it is answered: remember the last ids and answer again without running one twice.",
+          "In the texts of a call, % : , = | and line breaks are written %XX.",
+          "Answers are log lines of the action: a timeline shows its calls.",
       ] },
     { id: "joystick", family: "control", title: "A joystick", sub: "drive it", picture: "joystick",
-      how: "rate and hold: a setting driven continuously, by a joystick view. While the pad is held the page sends the value rate times per second; your device stops by itself when nothing came for hold milliseconds. axes says what the pad moves (here forward speed and turn).",
+      format: ["ATTR|name|write=type|rate=per second|hold=ms[|axes=…|min=…|max=…]", "DASH|dashboard/view:joystick:name[|orientation=vertical][|keyboard=arrows]"],
+      fields: [
+          ["write=pose2d", "The velocities of a robot (forward x, sideways y, turn yaw): a pad and a rotation rocker."],
+          ["axes=x,yaw", "A base that cannot go sideways: one stick, up to go forward, left to turn left. axes= says what moves among x, y, yaw."],
+          ["write=xy", "A pad: right for +x, up for +y (a camera head, a gimbal)."],
+          ["write=number", "A rocker that springs back (a lift, a gripper): right for +."],
+          ["rate=", "While it is held, the page sends the value that many times per second."],
+          ["hold=", "Your device stops by itself when nothing came for that long (ms): the safety is on the device."],
+          ["min= max=", "The values at the ends of the pad or the rocker."],
+          ["orientation=", "Option of the view: the rocker of a number horizontal (default) or vertical (up for +)."],
+          ["keyboard=", "Option of the view: off (default), arrows or wasd: drive it with the keyboard while the view has the focus."],
+      ],
       examples: [
-        { code: "ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", note: "Forward and turn, 20 times per second: a joystick view.", expect: { name: "cmd_vel", write: "pose2d", view: "joystick" } },
-        { code: "cmd_vel:0.3:0:0.2|xyz", note: "What your device applies: shown on the pad. Send again: it moves.", expect: { name: "cmd_vel", type: "3d" } },
+        { title: "The joystick", picture: "joy-stick", code: "ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", note: "Forward and turn, 20 times per second: one stick.", expect: { name: "cmd_vel", write: "pose2d", view: "joystick" } },
+        { title: "You hold the pad", from: "page", code: "cmd_vel:0.3:0:0.2", note: "Forward speed, sideways (0: no y axis), turn: 20 times per second while held, then 0:0:0 a few times when released.", expect: { name: "cmd_vel", input: "0.3, 0, 0.2" } },
+        { title: "What it applies", code: "cmd_vel:0.3:0:0.2|xyz", note: "Shown on the pad. Send again: it moves.", expect: { name: "cmd_vel", type: "3d" } },
+      ], more: [
+        { title: "A pad and a rotation", picture: "joy-padrocker", code: "ATTR|base_vel|write=pose2d|rate=20|hold=200|min=-1|max=1", note: "A robot that can also go sideways: the pad moves it, the rocker turns it.", expect: { name: "base_vel", write: "pose2d", view: "joystick" } },
+        { title: "Its velocities", code: "base_vel:0.2:0.1:0.3|xyz", note: "Forward, sideways, turn: shown on the pad and the rocker.", expect: { name: "base_vel", type: "3d" } },
+        { title: "A pad", picture: "joy-pad", code: "ATTR|gimbal|write=xy|rate=10|hold=300|min=-1|max=1", note: "Two axes, x and y: a camera head.", expect: { name: "gimbal", write: "xy", view: "joystick" } },
+        { title: "Where it is", code: "gimbal:0.2:-0.4|xy", note: "Shown on the pad.", expect: { name: "gimbal", type: "2d" } },
+        { title: "A rocker", picture: "joy-rocker", code: "ATTR|lift|write=number|rate=10|hold=300|min=-1|max=1", note: "One axis that springs back: a lift.", expect: { name: "lift", write: "number", view: "joystick" } },
+        { title: "Its speed", code: "lift:0.5", note: "Shown on the rocker.", expect: { name: "lift", type: "number" } },
+        { title: "Upright", picture: "joy-vrocker", code: "DASH|Robot/Lift:joystick:lift|orientation=vertical", note: "The same rocker standing: up for +.", expect: { dashboard: "Robot" } },
+        { title: "With the keyboard", code: "DASH|Robot/Drive:joystick:cmd_vel|keyboard=arrows", note: "Click the view, then the arrows drive it.", expect: { dashboard: "Robot" } },
+      ],
+      notes: [
+          "Released, the pad sends the rest value (0) a few times, then nothing. Hidden page, lost focus or CMD off: it stops too.",
+          "Joystick view options: keyboard (off, arrows, wasd), orientation of the rocker.",
       ] },
     { id: "pose", family: "control", title: "A pose on the map", sub: "move it, turn it", picture: "pose",
-      how: "A writable pose2d (x, y and an angle in radians) is drawn as a pose on a 2D view. With commands on, drag its ghost to move it and its handle to turn it, then Send (or Enter). Your device publishes the pose it has with |xyz.",
+      format: ["ATTR|name|write=pose2d", "name:x:y:angle|xyz"],
+      fields: [
+          ["write=pose2d", "x, y and an angle in radians, drawn as a pose on a 2D view."],
+          ["write=xy", "A point only: it can be moved, not turned."],
+          ["name:x:y:angle|xyz", "The pose your device has (and what the page sends: name:x:y:angle)."],
+      ],
       examples: [
-        { code: "ATTR|target|write=pose2d", note: "A pose the page can set: a map.", expect: { name: "target", write: "pose2d" } },
-        { code: "target:1.2:0.8:0.5|xyz", note: "The pose your device has: x, y, angle. Send again: it moves.", expect: { name: "target", type: "3d" } },
+        { title: "A pose to set", code: "ATTR|target|write=pose2d", note: "A map.", expect: { name: "target", write: "pose2d" } },
+        { title: "The pose it has", code: "target:1.2:0.8:0.5|xyz", note: "x, y, angle. Send again: it moves.", expect: { name: "target", type: "3d" } },
+        { title: "You move it and Send", from: "page", code: "target:1.5:1:0.8", note: "x, y and the angle you gave it.", expect: { name: "target", input: "1.5, 1, 0.8" } },
+        { title: "Applied", code: "target:1.5:1:0.8|xyz", note: "Your device takes it and sends its pose.", expect: { name: "target", type: "3d" } },
+      ],
+      notes: [
+          "With commands on, drag its ghost to move it and its handle to turn it, then Send (or Enter); Esc cancels.",
       ] },
     { id: "telemetries", family: "page", title: "Your telemetries", sub: "find them, drag them", picture: "telemetries", keys: ["T"], action: "telemetries", actionLabel: "Open the Telemetries panel",
-      how: "The Telemetries panel lists what was received, with its rate. Drag a telemetry (or the card of a label) onto a view to add it, or between views to make a new one." },
+      notes: ["The Telemetries panel lists what was received, with its rate.", "Drag a telemetry (or the card of a label) onto a view to add it, or between views to make a new one."] },
     { id: "edit", family: "page", title: "Arrange", sub: "Edit mode", picture: "edit", keys: ["E", "Esc"], action: "edit", actionLabel: "Edit this dashboard",
-      how: "Press E (or Edit): drag views by their handle, resize them, add views and layouts with +, change their options in the panel on the right. Esc leaves." },
+      notes: ["Press E (or Edit): drag views by their handle, resize them.", "Add views and layouts with +; change their options in the panel on the right.", "Esc leaves."] },
     { id: "zoom", family: "page", title: "Zoom and compare", sub: "a moment, a time range", picture: "zoom", keys: ["Esc"],
-      how: "Drag across a chart or a timeline: every view of the dashboard shows that range, and the cursor shows the same moment everywhere (3D scenes and pictures included). Double click (or Esc) goes back to live. Time groups (Edit mode) keep some views apart." },
+      notes: ["Drag across a chart or a timeline: every view of the dashboard shows that range.", "The cursor shows the same moment everywhere, 3D scenes and pictures included.", "Double click (or Esc) goes back to live.", "Time groups (Edit mode) keep some views apart."] },
     { id: "files", family: "page", title: "Save and open", sub: "export, import", picture: "files", keys: ["X"], action: "export", actionLabel: "Open Export and import",
-      how: "Export and import: data, dashboards or both, as a binary file, lines of text or CSV, all of it or a time range. Drop a file on the page to open it." },
+      notes: ["Export data, dashboards or both: a binary file, lines of text or CSV, all of it or a time range.", "Drop a file on the page to open it."] },
     { id: "memory", family: "page", title: "Keep more or less", sub: "data window, memory", picture: "memory", keys: ["Space"], action: "rate", actionLabel: "Open the data menu",
-      how: "The rate in the top menu opens the data menu: how long data is kept (5 minutes by default), how much memory it may take, and what happens when it is full. Space pauses: data that comes meanwhile is ignored." },
+      notes: ["The rate in the top menu opens the data menu: how long data is kept (5 minutes by default), how much memory it may take, what happens when it is full.", "Space pauses: data that comes meanwhile is ignored."] },
     { id: "serial", family: "page", title: "A serial port", sub: "no server needed", picture: "serial", keys: ["S"], action: "sources", actionLabel: "Open Sources",
-      how: "Sources, Add a source, Serial port (Chrome, Edge): lines starting with > are telemetry, the others a log of the port. Its console sends text back." },
+      notes: ["Sources, Add a source, Serial port (Chrome, Edge).", "Lines starting with > are telemetry, the others a log of the port.", "Its console sends text back."] },
     { id: "cmd", family: "page", title: "Commands on", sub: "the CMD button", picture: "cmd", keys: ["C"], action: "cmd", actionLabel: "Switch commands on or off",
-      how: "Shown in the top menu when a device declares settings or actions. Off at every start: nothing is sent and no control is drawn, so a screen on a wall stays a screen. C switches it." },
+      notes: ["Shown in the top menu when a device declares settings or actions.", "Off at every start: nothing is sent and no control is drawn, so a screen on a wall stays a screen.", "C switches it."] },
 ];
-const HELP_EXAMPLES = HELP_TILES.flatMap((tile) => [...(tile.examples || []), ...(tile.more || [])]);
+
+// The messages a device sends (those the panel can send). Examples `from: "page"` are what the page sends to the device (commands): they
+// are shown, in their place in the conversation, and never sent by the panel.
+const HELP_EXAMPLES = HELP_TILES.flatMap((tile) => [...(tile.examples || []), ...(tile.more || [])]).filter((e) => e.from != "page");
 
 // How Teleplot works: a schematic and a few paragraphs each
 const HELP_CONCEPTS = [
@@ -256,6 +661,7 @@ const helpSvg = (W, H, content) => `<svg viewBox="0 0 ${W} ${H}" width="100%" ro
 // A text of a picture: 10 units high in the color of the text, unless `attributes` say otherwise
 const helpSvgText = (x, y, text, attributes = "") => `<text x="${x}" y="${y}" ${/font-size/.test(attributes) ? "" : 'font-size="10"'} ${/fill=/.test(attributes) ? "" : 'fill="var(--hp-text)"'} ${attributes}>${text}</text>`;
 function helpPicture(kind, W = 240, H = 100) {
+    if (kind.startsWith("joy-") && W == 240) W = 140; // (a shape of a joystick view, on a card: round, it needs no wide frame)
     const grid = `<g stroke="var(--hp-grid)">${[0.25, 0.5, 0.75].map((f) => `<line x1="0" y1="${H * f}" x2="${W}" y2="${H * f}"/>`).join("")}</g>`;
     const curve = (f, color, width = 2) => { const p = []; for (let i = 0; i <= 40; i++) p.push(`${(i / 40 * W).toFixed(1)},${(H / 2 - f(i) * H * 0.3).toFixed(1)}`); return `<polyline points="${p.join(" ")}" fill="none" stroke="${color}" stroke-width="${width}"/>`; };
     const t = helpSvgText;
@@ -286,6 +692,34 @@ function helpPicture(kind, W = 240, H = 100) {
     }
     else if (kind == "3d") s = `<path d="M${W * 0.12} ${H * 0.72} L${W * 0.5} ${H * 0.45} L${W * 0.88} ${H * 0.64} L${W * 0.5} ${H * 0.94} Z" fill="var(--hp-grid)" stroke="var(--hp-2)"/>`
         + `<path d="M${W * 0.44} ${H * 0.64} l16 -9 l16 7 l-16 9 z" fill="var(--hp-4)"/><path d="M${W * 0.44} ${H * 0.64} v-18 l16 -9 v18 z M${W * 0.44 + 16} ${H * 0.64 + 7} v-18 l16 -7 v18z" fill="var(--hp-4)" opacity="0.7"/><circle cx="${W * 0.68}" cy="${H * 0.5}" r="9" fill="var(--hp-5)" opacity="0.8"/>`;
+    else if (kind == "mesh") { // A pawn made of facets, lit from the left
+        const cx = W / 2, base = H * 0.92, h = H * 0.84;
+        const profile = [[0.36, 0], [0.36, 0.06], [0.3, 0.12], [0.22, 0.18], [0.15, 0.3], [0.12, 0.5], [0.12, 0.6], [0.2, 0.63], [0.12, 0.68], [0.15, 0.74], [0.16, 0.84], [0.14, 0.92], [0.08, 0.98], [0, 1]];
+        const k = H * 1.1;
+        for (let i = 0; i + 1 < profile.length; i++) {
+            const [r0, z0] = profile[i], [r1, z1] = profile[i + 1];
+            for (let j = -3; j < 3; j++) { // Facets of a band: narrower and darker towards the edges
+                const x = (r, a) => (cx + r * k * Math.sin(a)).toFixed(1), a0 = j / 3 * Math.PI / 2, a1 = (j + 1) / 3 * Math.PI / 2;
+                const light = 70 - Math.abs(j + 0.5 + 1) * 9;
+                s += `<path d="M${x(r0, a0)} ${(base - z0 * h).toFixed(1)} L${x(r0, a1)} ${(base - z0 * h).toFixed(1)} L${x(r1, a1)} ${(base - z1 * h).toFixed(1)} L${x(r1, a0)} ${(base - z1 * h).toFixed(1)}Z" fill="hsl(28 80% ${light}%)" stroke="hsl(28 60% 35%)" stroke-width="0.5"/>`;
+            }
+        }
+        s = `<path d="M${W * 0.12} ${H * 0.97} L${W * 0.88} ${H * 0.97}" stroke="var(--hp-2)"/>` + s + t(8, 14, "pawn.stl", 'font-size="9" fill="var(--hp-muted)"');
+    }
+    else if (kind == "texture") { // A floor plan on a map, with a picture in its own place
+        const x0 = W * 0.1, y0 = H * 0.08, w = W * 0.62, h = H * 0.84, wall = "var(--hp-text)";
+        s = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="var(--hp-grid)" stroke="${wall}" stroke-width="3"/>`
+            + `<path d="M${x0 + w * 0.6} ${y0} v${h * 0.4} M${x0 + w * 0.6} ${y0 + h * 0.6} v${h * 0.4} M${x0 + w * 0.6} ${y0 + h * 0.5} h${w * 0.15} M${x0 + w * 0.88} ${y0 + h * 0.5} h${w * 0.12}" stroke="${wall}" stroke-width="2"/>`
+            + `<rect x="${x0 + w * 0.15}" y="${y0 + h * 0.3}" width="${w * 0.25}" height="${h * 0.35}" fill="#c4a070"/><rect x="${x0 + w * 0.68}" y="${y0 + h * 0.08}" width="${w * 0.26}" height="${h * 0.12}" fill="#96be8c"/>`
+            + `<g transform="translate(${x0 + w * 0.45},${y0 + h * 0.8}) rotate(-25)"><rect x="-9" y="-6" width="18" height="12" rx="2" fill="var(--hp-1)"/></g>`
+            + `<defs><linearGradient id="hp-sky-texture" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fa3b3"/><stop offset="0.5" stop-color="#c9d1d8"/><stop offset="0.52" stop-color="#6d747b"/><stop offset="1" stop-color="#4c5156"/></linearGradient></defs>`
+            + `<rect x="${W * 0.66}" y="${H * 0.5}" width="${W * 0.3}" height="${H * 0.42}" fill="url(#hp-sky-texture)" stroke="var(--hp-4)" stroke-width="2"/><path d="M${W * 0.79} ${H * 0.84} l${W * 0.025} -${H * 0.2} l${W * 0.025} ${H * 0.2} z" fill="#e67e22"/>`;
+    }
+    else if (kind == "describe") { // A teal curve and its value in liters, with its description as a tooltip
+        s = grid + curve((i) => Math.sin(i / 7) * 0.6 + 0.2, "teal", 2.5) + `<rect x="${W - 92}" y="6" width="86" height="18" rx="9" fill="var(--hp-bg)"/>`
+            + `<circle cx="${W - 82}" cy="15" r="4" fill="teal"/>` + t(W - 74, 19, "tank 42.5", 'font-size="10" font-weight="700"') + t(W - 24, 19, "L", 'font-size="9" fill="var(--hp-muted)"')
+            + `<rect x="8" y="${H - 26}" width="150" height="18" rx="4" fill="var(--hp-bg)" stroke="var(--hp-grid)"/>` + t(14, H - 13, "Water left in the tank", 'font-size="9" fill="var(--hp-muted)"');
+    }
     else if (kind == "frames") s = `<g transform="translate(${W * 0.45},${H * 0.55}) rotate(-15)"><rect x="-32" y="-15" width="64" height="30" rx="4" fill="var(--hp-1)" opacity="0.85"/>${[[-26, -21], [12, -21], [-26, 15], [12, 15]].map(([x, y]) => `<rect x="${x}" y="${y}" width="14" height="6" rx="2" fill="var(--hp-text)"/>`).join("")}<path d="M32 0 h24" stroke="var(--hp-4)" stroke-width="2"/><path d="M56 0 l-7 -4 v8z" fill="var(--hp-4)"/></g>` + t(6, H - 6, "wheels and arrow: in the frame of the body", 'font-size="9" fill="var(--hp-muted)"');
     else if (kind == "cloud") { for (let i = 0; i < 120; i++) { const a = i / 120 * Math.PI * 2, r = 22 + (i % 7) * 2 + Math.abs(Math.cos(a * 2)) * 12; s += `<circle cx="${(W / 2 + Math.cos(a) * r * 1.7).toFixed(1)}" cy="${(H / 2 + Math.sin(a) * r * 0.9).toFixed(1)}" r="1.3" fill="hsl(${i * 3} 70% 55%)"/>`; } s += `<circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--hp-text)"/>`; }
     else if (kind == "image" || kind == "pixels" || kind == "camera") {
@@ -307,6 +741,19 @@ function helpPicture(kind, W = 240, H = 100) {
         + t(10, 60, "stop", 'fill="var(--hp-muted)"') + `<rect x="${W - 120}" y="46" width="110" height="22" rx="5" fill="var(--hp-5)"/>` + t(W - 65, 61, "■ Stop", 'text-anchor="middle" font-size="9" fill="#fff"')
         + `<rect x="10" y="${H - 18}" width="${W * 0.5}" height="12" rx="2" fill="var(--hp-ok)" opacity="0.35"/>` + t(14, H - 9, "#12 ok · 0.4 s", 'font-size="8"');
     else if (kind == "joystick") s = `<circle cx="${W / 2}" cy="${H / 2}" r="${H * 0.42}" fill="var(--hp-bg)" stroke="var(--hp-line)" stroke-width="2"/><line x1="${W / 2}" y1="${H * 0.1}" x2="${W / 2}" y2="${H * 0.9}" stroke="var(--hp-grid)"/><line x1="${W / 2 - H * 0.42}" y1="${H / 2}" x2="${W / 2 + H * 0.42}" y2="${H / 2}" stroke="var(--hp-grid)"/><circle cx="${W / 2 + 10}" cy="${H / 2 - 16}" r="${H * 0.13}" fill="var(--hp-1)"/>`;
+    else if (kind.startsWith("joy-")) { // The shapes of a joystick view: pad, pad + rotation rocker, one stick, rocker, upright rocker
+        const ring = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--hp-bg)" stroke="var(--hp-line)" stroke-width="2"/><line x1="${cx}" y1="${cy - r}" x2="${cx}" y2="${cy + r}" stroke="var(--hp-grid)"/><line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="var(--hp-grid)"/>`;
+        const knob = (x, y) => `<circle cx="${x}" cy="${y}" r="${H * 0.1}" fill="var(--hp-1)"/>`;
+        const track = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(w, h) / 2}" fill="var(--hp-bg)" stroke="var(--hp-line)" stroke-width="2"/>`;
+        const label = (x, y, text, anchor = "middle") => t(x, y, text, 'font-size="9" text-anchor="' + anchor + '" fill="var(--hp-muted)"');
+        const cx = W / 2, cy = H * 0.48, r = H * 0.38;
+        if (kind == "joy-pad") s = ring(cx, cy, r) + knob(cx + r * 0.45, cy - r * 0.35) + label(cx, cy - r - 2, "+y") + label(cx + r + 6, cy + 3, "+x", "start");
+        else if (kind == "joy-stick") s = ring(cx, cy, r) + knob(cx - r * 0.3, cy - r * 0.5) + label(cx, cy - r - 2, "forward") + label(cx - r - 6, cy + 3, "turn", "end") + label(cx + r + 6, cy + 3, "turn", "start");
+        else if (kind == "joy-padrocker") { const pr = H * 0.3, py = H * 0.36; s = ring(cx, py, pr) + knob(cx + pr * 0.2, py - pr * 0.5) + label(cx, py - pr - 2, "forward") + label(cx - pr - 6, py + 3, "left", "end")
+            + track(cx - W * 0.2, H * 0.78, W * 0.4, H * 0.14) + `<circle cx="${cx - W * 0.07}" cy="${H * 0.85}" r="${H * 0.09}" fill="var(--hp-1)"/>` + label(cx + W * 0.22, H * 0.89, "turn", "start"); } // (the rocker under the pad, as in the view)
+        else if (kind == "joy-rocker") s = track(W * 0.15, cy - H * 0.08, W * 0.7, H * 0.16) + `<circle cx="${W * 0.64}" cy="${cy}" r="${H * 0.11}" fill="var(--hp-1)"/>` + label(W * 0.12, cy + 3, "−", "end") + label(W * 0.88, cy + 3, "+", "start");
+        else s = track(cx - H * 0.08, H * 0.08, H * 0.16, H * 0.8) + `<circle cx="${cx}" cy="${H * 0.3}" r="${H * 0.11}" fill="var(--hp-1)"/>` + label(cx + H * 0.16, H * 0.16, "+", "start") + label(cx + H * 0.16, H * 0.88, "−", "start");
+    }
     else if (kind == "telemetries") s = ["temperature", "battery", "mode", "position"].map((n, i) => `<rect x="8" y="${6 + i * 23}" width="${W * 0.55}" height="18" rx="4" fill="var(--hp-bg)" stroke="var(--hp-line)"/><circle cx="18" cy="${15 + i * 23}" r="4" fill="var(--hp-${i + 1})"/>` + t(28, 18.5 + i * 23, n, 'font-size="9"') + t(W * 0.55 - 2, 18.5 + i * 23, (50 / (i + 1)).toFixed(0) + "/s", 'font-size="8" text-anchor="end" fill="var(--hp-muted)"')).join("")
         + `<rect x="${W * 0.66}" y="${H * 0.25}" width="${W * 0.3}" height="${H * 0.6}" rx="3" fill="var(--hp-grid)" stroke="var(--hp-1)" stroke-dasharray="4 2"/><path d="M${W * 0.5} 15 C ${W * 0.62} 15, ${W * 0.7} 30, ${W * 0.78} ${H * 0.5}" fill="none" stroke="var(--hp-muted)" stroke-width="1.5" marker-end="url(#hp-arrow)"/>`;
     else if (kind == "zoom") s = grid + curve((i) => Math.sin(i / 5), "var(--hp-1)") + `<rect x="${W * 0.35}" y="2" width="${W * 0.25}" height="${H - 4}" fill="var(--hp-1)" opacity="0.18"/>` + t(W * 0.475, H - 6, "drag ↔", 'text-anchor="middle" fill="var(--hp-muted)"');
@@ -395,7 +842,7 @@ const HELP_SHORTCUTS = [
 const HELP_PROPERTIES = (() => {
     const names = [["S", "shape", "kind", 1], ["U", "url", "file", 1], ["P", "position", "position", 3, 2], ["R", "rotation", "rotation", 3, 1], ["Q", "quaternion", "quaternion", 4],
         ["C", "color", "color", 1], ["O", "opacity", "opacity", 1], ["T", "texture", "texture", 2], ["W", "width", "width", 1], ["D", "depth", "depth", 1], ["H", "height", "height", 1],
-        ["RA", "radius", "radius", 1], ["PR", "precision", "precision", 1], ["K", "intrinsics", "camera", 6], ["DC", "distortion", "distortion", 5], ["PT", "points", "points", "*"],
+        ["SC", "scale", "scale", "*"], ["RA", "radius", "radius", 1], ["PR", "precision", "precision", 1], ["K", "intrinsics", "camera", 6], ["DC", "distortion", "distortion", 5], ["PT", "points", "points", "*"],
         ["V", "vector", "vector", 3, 2], ["TX", "text", "text", 1], ["LW", "linewidth", "line width", 1], ["TS", "textsize", "text size", 1], ["F", "frame", "frame", 1], ["FPX", "pixels", "pixels of", 1]];
     const map = {};
     for (const [short, long, label, count, flat] of names) map[short] = map[long] = { label, count, flat: flat || count };
@@ -471,6 +918,14 @@ function helpParts(message) {
         });
         return parts;
     }
+    if (rest.startsWith("!")) { // What the page sends to call an action: !name#id[:argument=value...]
+        add("!", "flags", "call");
+        const fields = rest.slice(1).split(":"), head = fields[0], hash = head.indexOf("#");
+        add(hash < 0 ? head : head.slice(0, hash), "name", "name");
+        if (hash >= 0) add(head.slice(hash), "time", "call number");
+        for (const field of fields.slice(1)) { sep(":"); add(field, "value", "argument=value"); }
+        return parts;
+    }
     if (rest.startsWith("ACK|")) { // ACK|name[#id]:status
         add("ACK|", "flags", "answer");
         rest = rest.slice(4);
@@ -491,7 +946,17 @@ function helpParts(message) {
         if (colon < 0) return parts;
         sep(":");
         const body = rest.slice(colon + 1);
-        if (prefix[1] == "JPG" || prefix[1] == "PNG") { add(body, "value", "picture in base64"); return parts; }
+        if (prefix[1] == "JPG" || prefix[1] == "PNG") { // [time:][i/n:]base64 (base64 has no colon)
+            const fields = body.split(":");
+            for (const field of fields.slice(0, -1)) {
+                if (isNumber(field)) add(field, "time", "time");
+                else if (/^[0-9]+\/[0-9]+$/.test(field)) add(field, "time", "part");
+                else add(field, "value", "");
+                sep(":");
+            }
+            add(fields[fields.length - 1], "value", "picture in base64");
+            return parts;
+        }
         const pieces = split(body, "|");
         const tokens = split(pieces[0], ":");
         const flat = prefix[1] == "2D";
@@ -533,7 +998,11 @@ function helpParts(message) {
             values.split(";").forEach((sample, index) => {
                 if (index > 0) sep(";");
                 if (!sample.includes(":")) { add(sample, "time", "time"); return; }
-                add(sample, "value", named ? "" : "x:y:z"); named = true;
+                // A point: x:y:z, then its intensity and / or its color (named on the first point; never nudged: they have their ranges)
+                const fields = sample.split(":");
+                add(fields.slice(0, 3).join(":"), "value", named ? "" : "x:y:z");
+                if (fields.length > 3) { sep(":"); add(fields.slice(3).join(":"), "unit", named ? "" : ({ 4: "intensity", 6: "r:g:b", 7: "i:r:g:b" }[fields.length] || "")); }
+                named = true;
             });
         }
         else values.split(";").forEach((sample, index) => {
@@ -569,6 +1038,19 @@ function helpVary(message, random = Math.random) {
         return p.text;
     }).join("");
 }
+// The options of each type of view, from what the views say of themselves (getOptionsSchema): [{type, options: [{key, label, values}]}]
+function helpViewOptions(TP) {
+    return TP.view.VIEW_TYPES.map((type) => {
+        const view = TP.view.createView(type, []);
+        const options = view.getOptionsSchema().filter((o) => o.key != "title").map((o) => ({ key: o.key, label: o.label,
+            values: (o.type == "bool" ? "true or false" : (o.type == "choice" ? o.choices.map((c) => c[0]).join(", ") : (o.type == "int" ? "a whole number from " + o.min + " to " + o.max : o.type))) + " (default " + view.options[o.key] + ")" }));
+        return { type, options };
+    });
+}
+// A part of a message as it is displayed: a long one (a picture in base64) by its start and its end. Copy and Send take the whole message.
+function helpShort(text, max = 120) {
+    return text.length <= max ? text : text.slice(0, max - 24) + " … " + text.slice(-16);
+}
 // A message with {now} (or {now-200}, {now+50}...) replaced by a time in ms: the time of the page when it is shown or sent
 function helpFill(code, now = Date.now()) {
     return code.replace(/\{now([+-][0-9]+)?\}/g, (match, offset) => String(Math.round(now) + (offset ? parseInt(offset) : 0)));
@@ -592,6 +1074,9 @@ const HELP_PART_TIPS = {
     path: "What runs, levels separated by /. An empty text: nothing runs.",
     "x:y": "Two numbers: x and y, in your units.",
     "x:y:z": "Three numbers: x forward, y to the left, z up.",
+    intensity: "A fourth value per point: the points are colored from the lowest intensity to the highest.",
+    "r:g:b": "The color of the point: red, green and blue, from 0 to 255 each.",
+    "i:r:g:b": "An intensity, then the color of the point: red, green and blue, from 0 to 255 each.",
     state: "The t flag: a text whose latest value matters.",
     log: "Lines to read in order, shown in a Log view.",
     "2D point": "The xy flag: two numbers make a position, drawn on a map with its trail.",
@@ -606,10 +1091,11 @@ const HELP_PART_TIPS = {
     kind: "S: cube, sphere, cylinder, stl; flat: rect, circle, line, polygon, arrow, text.",
     position: "P: x:y:z (2D: x:y), in your units.",
     rotation: "R: roll, pitch, yaw in radians (2D: one angle).",
-    quaternion: "Q: w:x:y:z.",
+    quaternion: "Q: x:y:z:w, w last.",
     color: "A color name (red, orange...) or #rrggbb.",
     opacity: "O: from 0 (invisible) to 1.",
-    width: "W: along x, in your units.", depth: "D: along y, in your units.", height: "H: along z (2D: along y), in your units.", radius: "RA: in your units.",
+    scale: "SC: x:y:z, the size along its own axes (a shape is 1 by default). x:y keeps z; one value alone: every axis.",
+    width: "W: along x, in your units (V1; SC is the same).", depth: "D: along y, in your units.", height: "H: along z (2D: along y), in your units.", radius: "RA: in your units.",
     points: "PT: as many x:y (2D) or x:y:z as needed.", vector: "V: x:y(:z), from the position.", frame: "F: the name of the telemetry whose frame it is in.",
     "pixels of": "FPX: the name of an image telemetry: positions are its pixels (u right, v down).",
     camera: "K: fx:fy:cx:cy:width:height, in pixels.", distortion: "DC: k1:k2:p1:p2:k3, as OpenCV.",
@@ -624,18 +1110,21 @@ const HELP_PART_TIPS = {
     "dashboard/view": "The dashboard, then the layouts and the view, separated by /.",
     "view type": "chart, values, log, timeline, 2d, 3d, image, joystick; row, column, grid, stack; none removes it.",
     telemetries: "The names of the telemetries it shows, separated by commas: they do not have to exist yet.",
-    option: "An option of the view: w, h, title, or one of its settings.",
+    option: "An option of the view: w, h, title, follow (labels), time (time group), or one of its settings.",
     answer: "ACK| your device's answer to a call of the page.",
+    call: "! a call of the page: the name of the action, # and the number of the call, then its arguments by name.",
+    "argument=value": "An argument of the call, by its name. Several numbers are separated by commas (target=1.5,2); in texts, % : , = | and line breaks are written %XX.",
     "call number": "#: the number of the call the page sent (!name#12).",
     result: "run (started), ok[:text] or err:why.",
-    "PNG image": "PNG| (or JPG|) then the name and the picture.", "JPG image": "JPG| (or PNG|) then the name and the picture.",
-    "picture in base64": "The file, encoded in base64. A big one can be cut in parts.",
+    "PNG image": "PNG| (or JPG|) then the name, [time:], [part i/n:] and the picture.", "JPG image": "JPG| (or PNG|) then the name, [time:], [part i/n:] and the picture.",
+    "picture in base64": "The bytes of the .png or .jpg file, in base64. A big one is sent in parts: i/n before each.",
+    part: "i/n: part i of n (from 1), each in its own message, in any order. The picture shows when all n are there.",
     "button text": "title=: the text of the button (default: the name).", "asks first": "confirm: the button asks before calling.", "hold to press": "longpress: the button must be held.",
     type: "type=: number, bool, text, xy, xyz or pose2d.", optional: "optional: the argument may be left empty.", default: "default=: the value the form starts with.",
     step: "step=: what the value moves by.", choices: "choices=: the texts it can take, separated by commas.", description: "desc=: a sentence shown as a tooltip.",
     "per second": "rate=: how many times per second the page sends it while it is held.", "stops after (ms)": "hold=: your device stops by itself when nothing came for that long.",
     axes: "axes=: what a joystick moves, for example x,yaw.", attribute: "A key=value field.",
-    file: "U: the URL of an stl file.", texture: "T: an image telemetry used as its picture.", precision: "PR: how many faces a round shape has.",
+    file: "U: the url of an STL file, in quotes: relative to this page, or on a site that allows it (CORS).", texture: "T:url:\"...\" an image file, or T:telem:name the pictures of an image telemetry.", precision: "PR: how many faces a round shape has.",
     "text size": "TS: the height of a text, in your units.", "line width": "LW: the width of a line, in your units.",
 };
 
@@ -644,15 +1133,55 @@ const HELP_PART_TIPS = {
 function helpLine(senderId, example) {
     const message = helpParts(example.code).map((p) => ({ text: p.text, kind: p.kind, msg: true }));
     const wrap = (before, parts, after) => ({ parts: [{ text: before, kind: "", msg: false }, ...parts, { text: after, kind: "", msg: false }], note: "" });
-    if (senderId == "sh") return wrap("echo \"", message, "\" | nc -u -w0 127.0.0.1 47269");
-    if (senderId == "py") return wrap("sock.sendto(\"", message, "\".encode(), (\"127.0.0.1\", 47269))");
+    // A message with double quotes in it (a text, a url) is put between single quotes, or its quotes are escaped in a C string
+    const q = example.code.includes("\"") ? "'" : "\"";
+    const escaped = (parts) => parts.map((p) => ({ ...p, text: p.text.replace(/"/g, "\\\"") }));
+    if (senderId == "sh") return wrap("echo " + q, message, q + " | nc -u -w0 127.0.0.1 47269");
+    if (senderId == "py") return wrap("sock.sendto(" + q, message, q + ".encode(), (\"127.0.0.1\", 47269))");
     if (senderId == "ino") {
         // On a serial port a line is a log unless it starts with ">": a log is the text alone, anything else gets the ">"
-        if (example.code.startsWith(">")) return wrap("Serial.println(\"", [{ text: example.code.slice(example.code.indexOf(":") + 1), kind: "value", msg: true }], "\");");
-        return wrap("Serial.println(\">", message, "\");");
+        if (example.code.startsWith(">")) return wrap("Serial.println(\"", escaped([{ text: example.code.slice(example.code.indexOf(":") + 1), kind: "value", msg: true }]), "\");");
+        return wrap("Serial.println(\">", escaped(message), "\");");
     }
     if (example.cpp) return { parts: example.cpp.map(([text, kind]) => ({ text, kind: kind || "", msg: !!kind })), note: "" };
     return { parts: message, note: "No example with the C++ client for this one yet: send this line as text over UDP (port 47269)." };
+}
+
+// The device of the Help: the messages sent from the panel come from it (a source of the page, "Help panel" in Sources), so that what
+// the page writes back has somewhere to go. It does what a device would: a setting written by the page is applied and sent back as
+// its value (with the flag of its type), a call is answered run, then ok a moment later (`runMs`); a call sent again with the same
+// number is answered again, never run twice.
+function helpDevice(TP) {
+    const found = TP.connection.connections.find((c) => c.isHelpDevice);
+    if (found) return found;
+    const device = TP.connection.addConnectionLocal("Help panel", (message) => helpDeviceWrite(TP, device, message));
+    device.isHelpDevice = true;
+    device.runMs = 600;
+    device.calls = new Map(); // "name#id" -> what was answered
+    return device;
+}
+function helpDeviceWrite(TP, device, message) {
+    for (const line of String(message.text || "").split("\n")) {
+        if (!line.trim()) continue;
+        if (line.startsWith("!")) { // A call: !name#id[:argument=value...]
+            const key = line.slice(1).split(":")[0];
+            if (device.calls.has(key)) { device.sendText("ACK|" + key + ":" + device.calls.get(key)); continue; }
+            device.calls.set(key, "run");
+            if (device.calls.size > 50) device.calls.delete(device.calls.keys().next().value);
+            device.sendText("ACK|" + key + ":run");
+            setTimeout(() => { device.calls.set(key, "ok"); device.sendText("ACK|" + key + ":ok"); }, device.runMs);
+            continue;
+        }
+        // A setting: the line a device sends, as the page wrote it; the device sends it back with the flag of its type
+        const at = line.indexOf(":"), name = line.slice(0, at);
+        const telem = TP.datastore.getTelemetry(name), declaration = telem && TP.commands.declaration(telem);
+        const flag = declaration ? ({ text: "|t", xy: "|xy", xyz: "|xyz", pose2d: "|xyz" }[declaration.type] || "") : "";
+        device.sendText(line + flag);
+    }
+}
+// Sends a message of the Help, from its device. Returns the number of lines that were not understood.
+function helpSend(TP, code) {
+    return helpDevice(TP).sendText(code);
 }
 
 // What Teleplot made of a message that was just given to its parser: {ok, text}. `problems` is what parseDataText returned.
@@ -681,6 +1210,12 @@ function helpDescribe(TP, message, problems) {
             if (TP.commands.isContinuous(telem)) return { ok: true, text: "Received: " + name + " is driven continuously (" + declaration.type + "). Switch CMD on, and use its joystick view." };
             return { ok: true, text: "Received: " + name + " can be changed from the page (" + declaration.type + "). Switch CMD on (top menu), then change it where its value is displayed." + (telem.hasContent() ? "" : " Now send its value, for example " + name + ":1") };
         }
+        // Its unit, color, description (no range in the line)
+        const words = { unit: "unit", color: "color", desc: "description", title: "title" };
+        const keys = message.split("|").slice(2).map((f) => words[f.split("=")[0]]).filter(Boolean);
+        if (keys.length && !/\|(min|max)=/.test(message)) {
+            return { ok: true, text: "Received: the " + keys.join(", ") + " of " + name + "." + (telem.hasContent() ? "" : " Now send its value, for example " + name + ":1") };
+        }
         const range = telem.getRange();
         if (!range) return { ok: true, text: "Received: " + name + " has no range any more." };
         const hasData = telem.hasContent();
@@ -701,6 +1236,13 @@ function helpDescribe(TP, message, problems) {
     const flags = bar >= 0 ? body.slice(bar + 1) : "";
     const name = body.slice(0, body.indexOf(":")).split(",")[0];
     const telem = TP.datastore.getTelemetry(name);
+    const part = prefix && (prefix[1] == "PNG" || prefix[1] == "JPG") ? /^[^:]*:(?:[0-9.]+:)?([0-9]+)\/([0-9]+):/.exec(body) : null;
+    if (part && problems == 0) {
+        // The part that completes a picture is in the latest picture of the telemetry
+        const images = telem && telem.data[TP.protocol.SECTION_TYPE_TELEM_DATA_IMAGE], b64 = body.slice(body.lastIndexOf(":") + 1);
+        const complete = !!images && String(images.data[1][images.data[1].length - 1]).includes(b64);
+        return { ok: true, text: "Received: part " + part[1] + " of " + part[2] + " of a picture named " + name + ". " + (complete ? "The picture is complete: it shows." : "It shows when its " + part[2] + " parts are there, in any order.") };
+    }
     const P0 = TP.protocol;
     const described = telem && (telem.getAttribute(P0.TELEM_ATTR_SHAPE) !== undefined || telem.getAttribute(P0.TELEM_ATTR_FRAME) !== undefined); // (a shape can be nothing but its kind)
     if (!telem || (!Object.keys(telem.data).length && !described)) return { ok: false, text: "Nothing was stored for \"" + name + "\": check the values of the line." };
@@ -738,14 +1280,14 @@ function initComponent_panel_help(vue) {
     const anatomyHTML = (code, known) => `
         <div class="help-anat" @mouseleave="hover = null">
             <span v-for="(p, pi) in parts(${code})" :key="pi" class="help-part" :class="[p.kind ? 'help-k-' + p.kind : 'sep', {on: isHover(${code}, pi)}]"
-                :tabindex="p.label ? 0 : -1" @mouseenter="p.label && setHover(${code}, pi, $event)" @focus="setHover(${code}, pi, $event)" @blur="hover = null"><span class="help-part-t">{{p.text}}</span><span class="help-part-l">{{p.label && !(${known}).includes(p.label + '=' + p.text) ? p.label : '\\u00a0'}}</span></span>
+                :tabindex="p.label ? 0 : -1" @mouseenter="p.label && setHover(${code}, pi, $event)" @focus="setHover(${code}, pi, $event)" @blur="hover = null"><span class="help-part-t">{{short(p.text)}}</span><span class="help-part-l">{{p.label && !(${known}).includes(p.label + '=' + p.text) ? p.label : '\\u00a0'}}</span></span>
             <div v-if="hoverTip(${code})" class="help-tip" role="tooltip" :class="'help-k-' + hoverPart(${code}).kind" :style="hover.style"><b>{{hoverPart(${code}).label}}</b> {{hoverTip(${code})}}</div>
         </div>`;
     // The command of the language: small, the message in it in the color of the text
     const commandHTML = (ex) => `
         <div class="help-cmd">
             <span class="help-cmd-lang">{{currentSender.name}}</span>
-            <code><span v-for="(p, i) in line(${ex}).parts" :key="i" :class="{msg: p.msg}">{{p.text}}</span></code>
+            <code><span v-for="(p, i) in line(${ex}).parts" :key="i" :class="{msg: p.msg}">{{short(p.text)}}</span></code>
             <span class="help-cmd-acts">
                 <button class="help-act" :class="{done: results[${ex}.code] && results[${ex}.code].ok}" title="Send this message to the page right away, as if a device had" @click="sendExample(${ex})"><i :class="results[${ex}.code] && results[${ex}.code].ok ? 'icofont-check' : 'icofont-paper-plane'"></i> Send</button>
                 <button class="help-icon" title="Put this message in the field below, to change it before sending it" aria-label="Edit this message" @click.stop="tryMessage(shown(${ex}))"><i class="icofont-edit"></i></button>
@@ -756,14 +1298,35 @@ function initComponent_panel_help(vue) {
     // What Teleplot made of a message that was sent ({ok, text})
     const resultHTML = (result) => `<div v-if="${result}" class="help-result" :class="{bad: !${result}.ok}" role="status"><i :class="${result}.ok ? 'icofont-check' : 'icofont-exclamation'"></i><span>{{${result}.text}}</span></div>`;
     // A concept of "How Teleplot works": a button that opens its sheet
+    // The bar at the top of a sheet: stays in sight while the sheet scrolls (back to all, where it is, its title once its heading is out of
+    // sight, previous and next in the order of the gallery); the same choices again at the end of the sheet
+    const crumbHTML = (place, title) => `
+        <nav class="help-crumb">
+            <button @click="back()" title="Back to all (Alt+←, or the back button of the mouse)"><i class="icofont-simple-left"></i> All</button>
+            <span class="help-crumb-place">${place}</span><b v-if="scrolled" class="help-crumb-title">{{${title}}}</b>
+            <span class="help-crumb-nav">
+                <button class="help-icon" :disabled="!neighbours.prev" :title="neighbours.prev ? 'Previous: ' + neighbours.prev.title : ''" aria-label="Previous" @click="go(neighbours.prev)"><i class="icofont-simple-left"></i></button>
+                <button class="help-icon" :disabled="!neighbours.next" :title="neighbours.next ? 'Next: ' + neighbours.next.title : ''" aria-label="Next" @click="go(neighbours.next)"><i class="icofont-simple-right"></i></button>
+            </span>
+        </nav>`;
+    const sheetFootHTML = `
+        <div class="help-sheet-foot">
+            <button class="help-act" @click="back()"><i class="icofont-simple-left"></i> All</button>
+            <button v-if="neighbours.next" class="help-act help-next" @click="go(neighbours.next)">Next: {{neighbours.next.title}} <i class="icofont-simple-right"></i></button>
+        </div>`;
     const conceptHTML = (item) => `<button class="help-concept" @click="openConcept(${item}.id)"><span class="help-pic" v-html="picture(${item}.schema)"></span><b>{{${item}.title}}</b><span>{{${item}.sub}}</span></button>`;
+    // A message: what it is for (its title, numbered in a recipe), a sentence, then the message itself
     const cardHTML = (ex, number, known) => `
-        <div class="help-msg">
-            <h4 v-if="${ex}.title" class="help-way">{{${ex}.title}}</h4>
-            <p v-if="${ex}.note" class="help-msg-note"><b v-if="${number}" class="help-n">{{${number}}}</b><span v-if="${ex}.optional" class="help-optional">optional</span>{{${ex}.note}}</p>
+        <div class="help-msg" :class="{'help-msg-page': ${ex}.from == 'page'}">
+            <span v-if="${ex}.picture" class="help-card-pic" v-html="picture(${ex}.picture)"></span>
+            <h4 class="help-way"><b v-if="${number}" class="help-n">{{${number}}}</b>{{${ex}.title}}<span v-if="${ex}.from == 'page'" class="help-from-page" title="This message goes from the page to your device: your device reads it">sent by the page</span><span v-if="${ex}.optional" class="help-optional">optional</span></h4>
+            <p v-if="${ex}.note" class="help-msg-note">{{${ex}.note}}</p>
             ${anatomyHTML(`shown(${ex})`, known)}
-            ${commandHTML(ex)}
-            ${resultHTML(`results[${ex}.code]`)}
+            <template v-if="${ex}.from != 'page'">${commandHTML(ex)}${resultHTML(`results[${ex}.code]`)}</template>
+            <div v-else class="help-sent">
+                <template v-if="lastSent(${ex})"><span>Just sent by this page:</span> <code>{{short(lastSent(${ex}))}}</code></template>
+                <span v-else>{{TP.state.commands ? 'Use the control: what this page sends shows here.' : 'Commands are off (CMD): this page sends nothing.'}}</span>
+            </div>
         </div>`;
     const setupHTML = `<details v-if="currentSender.setup" class="help-setup"><summary>Set up {{currentSender.name}}, once</summary>
             <div class="help-code"><code>{{currentSender.setup}}</code>
@@ -773,7 +1336,7 @@ function initComponent_panel_help(vue) {
         </details>`;
 
     const vueHTML = `
-        <div class="help-layout">
+        <div class="help-layout" @mouseup="onMouseUp" @keydown.alt.left.prevent="open && back()">
             <div class="help-tools">
                 <label class="help-search"><i class="icofont-search-1"></i>
                     <input type="search" v-model="query" placeholder="Find: map, button, lidar…" aria-label="Find in the help" spellcheck="false" @keydown.esc.stop="query = ''">
@@ -785,7 +1348,7 @@ function initComponent_panel_help(vue) {
                 </div>
             </div>
 
-            <div class="help-scroll" ref="scroll">
+            <div class="help-scroll" ref="scroll" @scroll="onScroll">
                 <!-- Searching: the tiles and concepts that match -->
                 <template v-if="query.trim()">
                     <div v-if="found.tiles.length" class="help-gallery"><template v-for="tile in found.tiles" :key="tile.id">${tileHTML("tile")}</template></div>
@@ -800,46 +1363,54 @@ function initComponent_panel_help(vue) {
 
                 <!-- The sheet of a tile: the message first -->
                 <article v-else-if="tile" class="help-sheet" :key="'t-' + tile.id">
-                    <nav class="help-crumb"><button @click="back()"><i class="icofont-simple-left"></i> All</button><span>{{familyById[tile.family].title}}</span></nav>
+                    ${crumbHTML("{{familyById[tile.family].title}}", "tile.title")}
                     <div class="help-head"><div><h2 class="help-title">{{tile.title}}</h2><p class="help-sub">{{tile.sub}}</p></div><span class="help-thumb" v-html="picture(tile.picture)"></span></div>
                     <template v-if="tile.examples">
-                        <h3 class="help-sec">{{tile.examples.length > 1 ? 'The messages' : 'The message'}}<button v-if="tile.examples.length > 1" class="help-act" title="Send these messages to the page, one after the other" @click="sendAll(tile.examples)"><i class="icofont-paper-plane"></i> Send all {{tile.examples.length}}</button></h3>
+                        <!-- The format first: the parts of the messages of this kind, all of them; then the messages; then what is good to know -->
+                        <h3 class="help-sec">The format</h3>
+                        <div class="help-format"><code v-for="f in tile.format" :key="f">{{f}}</code></div>
+                        <dl class="help-fields"><template v-for="f in tile.fields" :key="f[0]"><dt><code>{{f[0]}}</code></dt><dd>{{f[1]}}</dd></template></dl>
+                        <h3 class="help-sec">{{tile.examples.length > 1 ? 'Step by step' : 'Example'}}<button v-if="sendable(tile.examples).length > 1" class="help-act" title="Send the messages of your device to the page, one after the other" @click="sendAll(tile.examples)"><i class="icofont-paper-plane"></i> Send all {{sendable(tile.examples).length}}</button></h3>
                         ${setupHTML}
+                        <p v-if="tile.family == 'control'" class="help-msg-note">Sent from this panel, the messages come from a pretend device of the page ("Help panel", in Sources): it applies what you change and answers your calls, as your device would.</p>
                         <div v-if="tile.family == 'control' && !TP.state.commands" class="help-cmdoff"><span>Commands are off: sliders, buttons and the joystick are not drawn, nothing is sent to your device.</span><button class="help-primary" @click="run('cmd')" title="Commands on or off (C)">Switch on</button></div>
-                        <template v-for="(ex, i) in tile.examples" :key="ex.code">${cardHTML("ex", "tile.examples.length > 1 ? (i + 1) + '.' : ''", "knownBefore(tile.examples, i)")}</template>
-                        <h3 class="help-sec">How it works</h3>
-                        <p class="help-how">{{tile.how}}</p>
-                        <details v-if="tile.more" class="help-more"><summary>More ways: {{tile.more.map((m) => m.title.toLowerCase()).join(' · ')}}</summary>
-                            <template v-for="ex in tile.more" :key="ex.code">${cardHTML("ex", "''", "[]")}</template>
-                        </details>
+                        <template v-for="(ex, i) in tile.examples" :key="ex.title + ex.code">${cardHTML("ex", "tile.examples.length > 1 ? (i + 1) + '.' : ''", "knownBefore(tile.examples, i)")}</template>
+                        <template v-if="tile.more">
+                            <h3 class="help-sec">Other examples</h3>
+                            <template v-for="ex in tile.more" :key="ex.title + ex.code">${cardHTML("ex", "''", "[]")}</template>
+                        </template>
+                        <template v-if="tile.notes">
+                            <h3 class="help-sec">Good to know</h3>
+                            <ul class="help-notes"><li v-for="n in tile.notes" :key="n">{{n}}</li></ul>
+                        </template>
+                        <template v-if="tile.viewOptions">
+                            <h3 class="help-sec">Options of each view</h3>
+                            <p class="help-msg-note">Written option=value in a DASH| line, as in the Edit panel. Booleans are true or false.</p>
+                            <div v-for="t in viewOptionTables" :key="t.type" class="help-opts"><b>{{t.type}}</b>
+                                <dl class="help-fields"><template v-for="o in t.options" :key="o.key"><dt><code>{{o.key}}</code></dt><dd>{{o.label}}: {{o.values}}</dd></template></dl>
+                            </div>
+                        </template>
                     </template>
                     <template v-else>
                         <h3 class="help-sec">How</h3>
-                        <p class="help-how">{{tile.how}}</p>
+                        <ul class="help-notes"><li v-for="n in tile.notes" :key="n">{{n}}</li></ul>
                         <p v-if="tile.keys" class="help-keys-line"><kbd v-for="k in tile.keys" :key="k">{{k}}</kbd></p>
                         <button v-if="tile.action" class="help-primary" @click="run(tile.action)">{{tile.actionLabel}}</button>
                     </template>
+                    ${sheetFootHTML}
                 </article>
 
                 <!-- The sheet of a concept -->
                 <article v-else-if="concept" class="help-sheet" :key="'c-' + concept.id">
-                    <nav class="help-crumb"><button @click="back()"><i class="icofont-simple-left"></i> All</button><span>How Teleplot works</span></nav>
+                    ${crumbHTML("How Teleplot works", "concept.title")}
                     <h2 class="help-title">{{concept.title}}</h2>
                     <div class="help-schema" v-html="picture(concept.schema)"></div>
                     <p v-for="(p, i) in concept.text" :key="i" class="help-how">{{p}}</p>
+                    ${sheetFootHTML}
                 </article>
 
                 <!-- The gallery -->
                 <template v-else>
-                    <div v-if="!hasData" class="help-hero">
-                        <span class="help-hero-k">Start here</span>
-                        <b>A curve: send one number</b>
-                        <div class="help-msg">${anatomyHTML("shown(start)", "[]")}${commandHTML("start")}${resultHTML("results[start.code]")}</div>
-                        <div class="help-hero-acts">
-                            <button class="help-act" @click="openTile('curve')">How it works</button>
-                            <button class="help-act" @click="openConcept('flow')">How Teleplot works</button>
-                        </div>
-                    </div>
 
                     <template v-for="family in families" :key="family.id">
                         <h3 class="help-fam"><b>{{family.title}}</b><span>{{family.sub}}</span></h3>
@@ -929,10 +1500,6 @@ function initComponent_panel_help(vue) {
         .help-tile.page .help-pic { background: color-mix(in srgb, var(--color-primary) 7%, var(--color-bg)); }
         .help-tile-sub { font-size: 0.85rem; color: var(--color-text-muted); }
 
-        .help-hero { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem 0.8rem; border-radius: 0.7rem; border: 1px solid color-mix(in srgb, var(--color-primary) 40%, transparent); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-bg-light)); }
-        .help-hero-k { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-primary); }
-        .help-hero > b { font-size: 1.1rem; }
-        .help-hero-acts { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 
         .help-concepts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
         .help-concept { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.45rem 0.5rem 0.5rem; text-align: left; border: 1px solid var(--color-bg-dark); border-radius: 0.6rem; background: none; color: var(--color-text); font: inherit; cursor: pointer; }
@@ -954,7 +1521,15 @@ function initComponent_panel_help(vue) {
         .help-sheet { animation: help-in var(--motion-fast) var(--ease-out); }
         @keyframes help-in { from { opacity: 0; transform: translateX(0.6rem); } }
         @media (prefers-reduced-motion: reduce) { .help-sheet { animation: none; } }
-        .help-crumb { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-muted); font-size: 0.9rem; }
+        .help-crumb { position: sticky; top: -0.2rem; z-index: 3; display: flex; align-items: center; gap: 0.5rem; margin: -0.2rem -0.3rem 0 -0.2rem; padding: 0.3rem 0.3rem 0.3rem 0.2rem;
+            background: var(--color-bg-panel); border-bottom: 1px solid transparent; color: var(--color-text-muted); font-size: 0.9rem; }
+        .help-crumb:has(.help-crumb-title) { border-bottom-color: var(--color-bg-dark); }
+        .help-crumb-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text); }
+        .help-crumb-place { white-space: nowrap; }
+        .help-crumb-nav { display: flex; gap: 0.1rem; margin-left: auto; }
+        .help-crumb-nav button:disabled { opacity: 0.3; cursor: default; }
+        .help-sheet-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; margin-top: 1.4rem; padding-top: 0.7rem; border-top: 1px solid var(--color-bg-dark); }
+        .help-next { margin-left: auto; }
         .help-crumb button { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.45rem 0.15rem 0.2rem; border: none; border-radius: 0.4rem; background: none; color: var(--color-primary); font: inherit; font-weight: 600; cursor: pointer; }
         .help-crumb button:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
         .help-head { display: flex; align-items: center; gap: 0.8rem; margin: 0.3rem 0 0.2rem; }
@@ -968,18 +1543,34 @@ function initComponent_panel_help(vue) {
         .help-sec { display: flex; align-items: center; gap: 0.5rem; margin: 1.1rem 0 0.5rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-text-muted); }
         .help-sec .help-act { margin-left: auto; text-transform: none; letter-spacing: 0; }
         .help-how { line-height: 1.5; }
+        /* The format: the general form of the messages, then every part of them */
+        .help-format { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.55rem 0.7rem; border-radius: 0.55rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); }
+        .help-format code { font-family: var(--help-mono); font-size: 0.85rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+        .help-fields { display: grid; grid-template-columns: minmax(5.5rem, max-content) 1fr; gap: 0.35rem 0.7rem; margin: 0.6rem 0 0; font-size: 0.9rem; line-height: 1.4; }
+        .help-fields dt code { font-family: var(--help-mono); font-size: 0.82rem; color: var(--hk-name); overflow-wrap: anywhere; }
+        .help-fields dd { margin: 0; }
+        .help-notes { margin: 0; padding-left: 1.1rem; line-height: 1.45; }
+        .help-notes li + li { margin-top: 0.3rem; }
+        .help-opts { margin-top: 0.7rem; }
+        .help-opts > b { font-family: var(--help-mono); font-size: 0.9rem; }
         .help-keys-line { display: flex; gap: 0.3rem; }
-        .help-setup, .help-more { margin: 0.2rem 0 0.6rem; font-size: 0.9rem; }
+        .help-setup { margin: 0.2rem 0 0.6rem; font-size: 0.9rem; }
         .help-setup > :not(summary) { margin-top: 0.4rem; }
-        .help-more > .help-msg { margin-top: 0.6rem; }
 
         /* A message: a card, its parts named under them, then the command of the language, small */
         .help-msg { padding: 0.75rem 0.8rem 0.55rem; border-radius: 0.65rem; background: var(--color-bg-light); border: 1px solid var(--color-bg-dark); }
         .help-msg + .help-msg { margin-top: 0.6rem; }
-        .help-hero .help-msg { border-color: transparent; }
         .help-layout p.help-msg-note { margin: 0 0 0.55rem; line-height: 1.4; }
         .help-n { margin-right: 0.35rem; color: var(--color-primary); }
-        .help-layout .help-way { margin: 0 0 0.3rem; font-size: 0.95rem; }
+        .help-layout .help-way { display: flex; align-items: baseline; gap: 0.1rem; margin: 0 0 0.3rem; font-size: 1rem; }
+        .help-way .help-optional { margin-left: 0.5rem; }
+        .help-card-pic { float: right; width: 8.5rem; max-width: 40%; margin: 0 0 0.3rem 0.6rem; } /* What this message gives (a shape of a view) */
+        .help-msg::after { content: ""; display: block; clear: both; }
+        /* What the page sends to your device: the same card, marked, turned the other way (no Send: the page sends it when you use the control) */
+        .help-msg.help-msg-page { border-style: dashed; border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-bg-dark)); background: color-mix(in srgb, var(--color-primary) 4%, var(--color-bg-light)); }
+        .help-from-page { margin-left: 0.5rem; padding: 0 0.45rem; border-radius: 0.6rem; background: color-mix(in srgb, var(--color-primary) 14%, transparent); color: var(--color-primary); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+        .help-sent { margin-top: 0.45rem; padding-top: 0.4rem; border-top: 1px dashed var(--color-bg-dark); font-size: 0.85rem; color: var(--color-text-muted); }
+        .help-sent code { font-family: var(--help-mono); color: var(--color-text); overflow-wrap: anywhere; }
         .help-cmdoff { display: flex; align-items: center; gap: 0.6rem; margin: 0.6rem 0; padding: 0.5rem 0.7rem; border-radius: 0.55rem; background: color-mix(in srgb, var(--color-success) 10%, var(--color-bg-light)); font-size: 0.9rem; line-height: 1.35; }
         .help-cmdoff span { flex: 1; }
         .help-optional { display: inline-block; margin-right: 0.4rem; padding: 0 0.4rem; border: 1px solid var(--color-bg-dark); border-radius: 0.6rem; color: var(--color-text-muted); font-size: 0.75rem; font-weight: 600; vertical-align: 0.05rem; }
@@ -997,7 +1588,8 @@ function initComponent_panel_help(vue) {
             border: 1px solid var(--color-bg-dark); border-left: 3px solid var(--hk); border-radius: 0.4rem; background: var(--color-bg-light); box-shadow: 0 4px 14px var(--color-shadow);
             font: 0.85rem/1.4 Verdana, Geneva, Tahoma, sans-serif; white-space: normal;
         }
-        .help-tip b { color: var(--hk); text-transform: capitalize; margin-right: 0.2rem; }
+        .help-tip b { display: inline-block; color: var(--hk); margin-right: 0.2rem; }
+        .help-tip b::first-letter { text-transform: uppercase; } /* (capitalize would also raise the letters after a colon: r:G:B) */
         .help-cmd { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; padding-top: 0.45rem; border-top: 1px dashed var(--color-bg-dark); }
         .help-cmd-lang { flex: none; font-size: 0.72rem; font-weight: 700; color: var(--color-text-muted); }
         .help-cmd code { flex: 1; min-width: 0; font: 0.78rem/1.4 var(--help-mono); color: var(--color-text-muted); white-space: pre-wrap; word-break: break-all; }
@@ -1057,7 +1649,7 @@ function initComponent_panel_help(vue) {
     const tilesByFamily = Object.fromEntries(HELP_FAMILIES.map((f) => [f.id, HELP_TILES.filter((t) => t.family == f.id)]));
     // What a search looks in: the words of a tile (its texts and messages) or of a concept
     const searched = (texts) => texts.join(" ").toLowerCase();
-    const tileWords = Object.fromEntries(HELP_TILES.map((t) => [t.id, searched([t.title, t.sub, t.how, familyById[t.family].title, ...[...(t.examples || []), ...(t.more || [])].flatMap((e) => [e.code, e.note])])]));
+    const tileWords = Object.fromEntries(HELP_TILES.map((t) => [t.id, searched([t.title, t.sub, ...(t.notes || []), ...(t.format || []), ...(t.fields || []).flat(), familyById[t.family].title, ...[...(t.examples || []), ...(t.more || [])].flatMap((e) => [e.title, e.code, e.note])])]));
     const conceptWords = Object.fromEntries(HELP_CONCEPTS.map((c) => [c.id, searched([c.title, c.sub, ...c.text])]));
 
     return vue.component(name, {
@@ -1067,13 +1659,13 @@ function initComponent_panel_help(vue) {
             const ctx = Vue.inject("ctx");
             const editor = Vue.inject("editor");
             // Constants of the panel: not reactive
-            return { TP, ctx, editor, families: HELP_FAMILIES, concepts: HELP_CONCEPTS, senders: HELP_SENDERS, shortcuts: HELP_SHORTCUTS, tileById, familyById, tilesByFamily,
-                start: HELP_TILES[0].examples[0] }; // (the very first message to send)
+            return { TP, ctx, editor, families: HELP_FAMILIES, concepts: HELP_CONCEPTS, senders: HELP_SENDERS, shortcuts: HELP_SHORTCUTS, tileById, familyById, tilesByFamily };
         },
         data() {
             return {
                 sender: HELP_SENDERS.some((s) => s.id == remembered()) ? remembered() : "sh", // How the user sends data (remembered)
                 open: null,      // {tile} or {concept}: the sheet shown in place of the gallery
+                scrolled: false, // The heading of the sheet is out of sight: its title goes to the bar at the top
                 query: "",       // What is searched (local: nothing redraws over it)
                 hover: null,     // {code, index}: the part of a message that is pointed at
                 tryText: "",     // The message typed in the field at the bottom
@@ -1082,13 +1674,25 @@ function initComponent_panel_help(vue) {
                 varied: {},      // The message shown for an example after it was sent: its values nudged (helpVary), so that sending again shows a change
                 copied: "",      // The text that was just copied (the button confirms for a moment)
                 now: Date.now(), // The time of the page, for the {now} of the messages (every second)
-                hasData: false,  // Something was received: no more "Start here" (checked every second: the data store is not reactive)
             }
         },
         computed: {
             currentSender() { return this.senders.find((s) => s.id == this.sender); },
             tryParts() { return this.parts(this.tryText); },
             tile() { return this.open && this.open.tile ? tileById[this.open.tile] : null; },
+            // The sheets before and after the one shown, in the order of the gallery (tiles by family, then the concepts): {prev, next}
+            neighbours() {
+                const list = this.tile ? HELP_FAMILIES.flatMap((f) => tilesByFamily[f.id]).map((t) => ({ kind: "tile", id: t.id, title: t.title }))
+                    : HELP_CONCEPTS.map((c) => ({ kind: "concept", id: c.id, title: c.title }));
+                const id = this.tile ? this.tile.id : (this.concept ? this.concept.id : undefined);
+                const index = list.findIndex((p) => p.id === id);
+                return index < 0 ? {} : { prev: list[index - 1], next: list[index + 1] };
+            },
+            // The options of every type of view, as the views describe them (the Edit panel shows the same): always complete
+            viewOptionTables() {
+                if (!this._viewOptions) this._viewOptions = helpViewOptions(Vue.toRaw(this.TP));
+                return this._viewOptions;
+            },
             concept() { return this.open && this.open.concept ? conceptById[this.open.concept] : null; },
             found() {
                 const terms = this.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -1106,12 +1710,10 @@ function initComponent_panel_help(vue) {
         unmounted() { clearTimeout(this._copiedTimer); clearTimeout(this._showTimer); clearInterval(this._refreshTimer); },
         methods: {
             refresh() {
-                const TP = Vue.toRaw(this.TP);
-                const hasData = !!TP.datastore && Object.values(TP.datastore.telemetries).some((t) => t.hasContent());
-                if (hasData !== this.hasData) this.hasData = hasData;
                 this.now = Date.now();
             },
             picture(kind) { return pictures[kind] || (pictures[kind] = helpPicture(kind)); },
+            short(text) { return helpShort(text); },
             parts(message) {
                 if (!partsCache.has(message)) { if (partsCache.size > 200) partsCache.clear(); partsCache.set(message, helpParts(message)); }
                 return partsCache.get(message);
@@ -1128,9 +1730,18 @@ function initComponent_panel_help(vue) {
             isHover(code, index) { return !!this.hover && this.hover.code === code && this.hover.index === index; },
             hoverPart(code) { return this.hover && this.hover.code === code ? this.parts(code)[this.hover.index] : null; },
             hoverTip(code) { const p = this.hoverPart(code); return p && (HELP_PART_TIPS[p.label] || HELP_PART_TIPS[p.kind] || ""); },
-            openTile(id) { this.query = ""; this.hover = null; this.open = { tile: id }; this.top(); },
-            openConcept(id) { this.query = ""; this.open = { concept: id }; this.top(); },
-            back() { this.open = null; this.hover = null; this.top(); },
+            // From the gallery, where it was is kept: back() goes back there
+            leaveGallery() { if (!this.open && this.$refs.scroll) this.galleryScroll = this.$refs.scroll.scrollTop; },
+            openTile(id) { this.leaveGallery(); this.query = ""; this.hover = null; this.open = { tile: id }; this.top(); },
+            openConcept(id) { this.leaveGallery(); this.query = ""; this.open = { concept: id }; this.top(); },
+            go(place) { if (place) (place.kind == "tile" ? this.openTile(place.id) : this.openConcept(place.id)); },
+            back() {
+                this.open = null; this.hover = null; this.scrolled = false;
+                const at = this.galleryScroll || 0;
+                this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = at; });
+            },
+            onScroll() { const scrolled = !!this.open && this.$refs.scroll.scrollTop > 70; if (scrolled !== this.scrolled) this.scrolled = scrolled; },
+            onMouseUp(event) { if (event.button === 3 && this.open) { event.preventDefault(); this.back(); } }, // (the back button of a mouse)
             top() { this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = 0; }); },
             startSample() { startSampleData(this.TP, this.ctx); },
             stopSample() { stopSampleData(this.ctx); },
@@ -1138,7 +1749,7 @@ function initComponent_panel_help(vue) {
                 this.sender = id;
                 try { localStorage.setItem(SENDER_KEY, id); } catch (e) { /* (private browsing...: not remembered) */ }
             },
-            codeOf(example) { return this.varied[example.code] || example.code; }, // (with {now})
+            codeOf(example) { return example.from == "page" ? example.code : (this.varied[example.code] || example.code); }, // (with {now}; what the page sends is never nudged by a Send)
             shown(example) { return helpFill(this.codeOf(example), this.now); },
             current(example) { const code = this.shown(example); return code === example.code ? example : { ...example, code, cpp: example.cpp && helpVaryParts(example.cpp, helpFill(example.code, this.now), code) }; },
             line(example) { return helpLine(this.sender, this.current(example)); },
@@ -1166,7 +1777,7 @@ function initComponent_panel_help(vue) {
             },
             describe(code) {
                 if (this.TP.state.isPaused) return { ok: false, text: "Data is paused: resume (Space) and send again." };
-                return helpDescribe(this.TP, code, this.TP.parseDataText(code));
+                return helpDescribe(this.TP, code, helpSend(this.TP, code)); // (from the device of the Help: commands have somewhere to go)
             },
             sendTry() {
                 const message = this.tryText.trim();
@@ -1208,7 +1819,21 @@ function initComponent_panel_help(vue) {
                 }
                 if (name && dashboards[name] && (!this.ctx.activeDashboard || this.ctx.activeDashboard.name != name)) this.ctx.activeDashboard = dashboards[name];
             },
-            sendAll(examples) { examples.forEach((example) => this.sendExample(example)); },
+            sendable(examples) { return examples.filter((example) => example.from != "page"); },
+            sendAll(examples) { this.sendable(examples).forEach((example) => this.sendExample(example)); },
+            // The last line this page sent to the telemetry of an example of the page (logged in "commands.sent"), "" when none yet
+            lastSent(example) {
+                this.now; // (read again every second: the data store is not reactive)
+                const named = helpParts(example.code).find((p) => p.label == "name");
+                const log = named && Vue.toRaw(this.TP).datastore.getTelemetry("commands.sent");
+                const entry = log && log.data[this.TP.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
+                if (!entry) return "";
+                for (let i = entry.data[0].length - 1; i >= 0; i--) {
+                    const line = String(entry.data[0][i]);
+                    if (line.startsWith(named.text + ":") || line.startsWith("!" + named.text + "#") || line == "!" + named.text) return line;
+                }
+                return "";
+            },
             closeTry() {
                 this.tryText = ""; this.tryResult = null;
                 if (this.$refs.tryInput) this.$refs.tryInput.blur();

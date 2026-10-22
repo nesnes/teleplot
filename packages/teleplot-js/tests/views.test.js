@@ -444,3 +444,23 @@ test('backToLive drops the zoom and the cursor of a group, or of all of them', (
     assert.deepEqual(T.view.groups.one, { cursorActive: false, cursorTimestamp: -1, timestampFrom: -1, timestampTo: -1 });
     assert.equal(T.view.isZoomed(), false);
 });
+
+test('the description of a telemetry (ATTR|name|desc=) is the tooltip of its name in every view', () => {
+    const T = loadTeleplot();
+    T.parseDataText('ATTR|tank|desc=Water left in the tank|unit=L\ntank:42\nATTR|mode|desc=What the robot does\nmode:idle|t\n3D|box,scene:S:cube\nATTR|box|desc=The robot body\nnote:hello|log\nother:1');
+    T.__timers.run();
+    const get = (name) => T.datastore.getTelemetry(name);
+    assert.deepEqual([get('tank').getDescription(), get('other').getDescription()], ['Water left in the tank', '']);
+    assert.deepEqual([T.view.telemetryTip(get('tank')), T.view.telemetryTip(get('other')), T.view.telemetryTip(undefined)], ['tank (L)\nWater left in the tank', 'other', '']);
+    const chart = new T.view.ViewChart('', ['tank']); chart.update();
+    assert.equal(chart.telemetries[get('tank').id].tip, 'tank (L)\nWater left in the tank', 'chart legend');
+    const values = new T.view.ViewCurrentValue('', ['mode']); values.update();
+    assert.equal(values.telemetries[get('mode').id].tip, 'mode\nWhat the robot does', 'values');
+    const log = new T.view.ViewLog('', ['mode', 'note']); log.update();
+    assert.ok(log.state.rows.some((row) => row.tip === 'mode\nWhat the robot does'), 'log lines');
+    const scene = new T.view.ViewScene3D('', ['box']);
+    scene.__updateLegend(scene.__collectSources(-1).sources, undefined);
+    assert.equal(scene.state.legend[0].tip, 'box\nThe robot body', '3D, 2D and image legends');
+    // Binary: the same attribute
+    assert.ok(T.protocol.TELEM_ATTR_DESC !== undefined);
+});

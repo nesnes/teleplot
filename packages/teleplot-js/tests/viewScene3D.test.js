@@ -1,7 +1,7 @@
 // 113-viewScene3D: what the 3D view computes before drawing (shape state at a time, trails, textures). Drawing itself needs a browser.
 const test = require('./helpers/mini-test');
 const assert = require('node:assert/strict');
-const { loadTeleplot } = require('./helpers/load');
+const { loadTeleplot, captureConsole } = require('./helpers/load');
 
 const near = (actual, expected, eps = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= eps, `${actual} != ${expected}`));
 
@@ -202,4 +202,22 @@ test('frameExtent: the camera frames the content with the origin (grid and axes)
     assert.deepEqual(S.frameExtent([-2, 1, 1], [-1, 2, 2]), { min: [-2, 0, 0], max: [0, 2, 2], origin: true });
     // A 100 m track 6000 km from the origin: framing both would make it invisible
     assert.deepEqual(S.frameExtent([6e6, 0, 0], [6e6 + 100, 50, 0]), { min: [6e6, 0, 0], max: [6e6 + 100, 50, 0], origin: false });
+});
+
+test('files that cannot be loaded (STL, pictures of textures) are said on the view, with why: a page opened from a file cannot read them', () => {
+    const T = loadTeleplot();
+    const S = T.view.ViewScene3D;
+    assert.equal(S.loadNote([], 'http:'), '');
+    assert.equal(S.loadNote(['media/pawn.stl'], 'file:'), 'pawn.stl could not be loaded: a page opened from a file cannot read other files. Open Teleplot from a server (the Teleplot server, or any web server).');
+    assert.match(S.loadNote(['https://host/models/My%20arm.stl?v=2', 'media/floor-plan.png'], 'https:'), /^My arm\.stl and floor-plan\.png could not be loaded: check their urls, and that their sites let this page read them \(CORS\)/);
+    assert.match(S.loadNote(['a/1.stl', 'b/2.stl', 'c/3.png'], 'http:'), /^3 files \(1\.stl, 2\.stl…\) could not be loaded/);
+    for (const View of [T.view.ViewScene3D, T.view.ViewScene2D, T.view.ViewImage]) {
+        const view = new View('', []);
+        captureConsole(() => { view.__loadFailed('media/pawn.stl', 'STL file'); view.__loadFailed('media/pawn.stl', 'STL file'); });
+        assert.equal(view.loadFailures.size, 1, 'said once');
+        assert.match(view.state.loadNote, /^pawn\.stl could not be loaded/);
+        view.dispose();
+        assert.deepEqual([view.loadFailures.size, view.state.loadNote], [0, ''], 'mounted again, it is tried again');
+    }
+    assert.equal(S.isTainted(undefined), false);
 });

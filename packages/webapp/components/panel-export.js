@@ -150,7 +150,7 @@ function initComponent_panel_export(vue) {
                         <div class="export-list">
                             <label v-for="row in rows" :key="row.key" class="export-check" :class="{off: !row.usable}">
                                 <input type="checkbox" :checked="row.state == 'on'" :indeterminate.prop="row.state == 'some'" :disabled="!row.usable" @change="chooseRow(row, $event.target.checked)">
-                                <span class="export-row-name">{{row.label}} <small v-if="row.count > 1">· {{row.count}}</small></span>
+                                <span class="export-row-name" :title="row.tip || row.label">{{row.label}} <small v-if="row.count > 1">· {{row.count}}</small></span>
                                 <small class="export-mono">{{row.usable ? row.size : 'not in a CSV'}}</small>
                             </label>
                             <div v-if="!rows.length" class="export-sub">No telemetry yet.</div>
@@ -465,7 +465,7 @@ function initComponent_panel_export(vue) {
                     const label = telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL);
                     const item = { id: telem.id, bytes: telem.getMemoryUsage().bytes, usable: this.format !== "csv" || Object.keys(telem.data).some((type) => EXPORT_CSV_TYPES.includes(type)) };
                     if (label) (groups[label] = groups[label] || []).push(item);
-                    else rows.push({ key: "t" + telem.id, label: telem.getAttribute(P.TELEM_ATTR_NAME) || String(telem.id), items: [item] });
+                    else rows.push({ key: "t" + telem.id, label: telem.getAttribute(P.TELEM_ATTR_NAME) || String(telem.id), tip: this.TP.view.telemetryTip(telem), items: [item] });
                 }
                 const all = Object.keys(groups).sort().map((label) => ({ key: "l" + label, label, items: groups[label] })).concat(rows.sort((a, b) => a.label.localeCompare(b.label)));
                 for (const row of all) {

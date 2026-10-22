@@ -20,7 +20,7 @@ class ViewJoystick extends ViewTelemetries {
         this.layout.width = 1;
         this.layout.height = 3;
         this.input = TELEPLOT.Vue.markRaw({ pad: [0, 0], rocker: 0, padHeld: false, rockerHeld: false, keys: new Set() }); // What the user holds (-1 to 1)
-        this.state = TELEPLOT.Vue.reactive({ name: "", mode: "", on: false, editable: false, why: "", held: false, knob: [0, 0], rocker: 0, reported: [0, 0], reportedRocker: 0, text: "", hasReport: false, keyboard: "off", focused: false });
+        this.state = TELEPLOT.Vue.reactive({ name: "", tip: "", mode: "", on: false, editable: false, why: "", held: false, knob: [0, 0], rocker: 0, reported: [0, 0], reportedRocker: 0, text: "", hasReport: false, keyboard: "off", focused: false });
         this.telem = undefined;
     }
 
@@ -141,7 +141,7 @@ class ViewJoystick extends ViewTelemetries {
         let place = ViewJoystick.toPlace(base, reported ? reported.value : 0, range);
         let held = TELEPLOT.commands.isHeld(telem);
         if(!on || why) { this.input.padHeld = this.input.rockerHeld = false; this.input.keys.clear(); }
-        let next = { name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), mode, on, editable: on && why === "", why, held,
+        let next = { name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), tip: TELEPLOT.view.telemetryTip(telem), mode, on, editable: on && why === "", why, held,
             knob: held ? this.input.pad.slice() : [0, 0], rocker: held ? this.input.rocker : 0, reported: place.pad, reportedRocker: place.rocker, hasReport: reported !== undefined,
             text: reported ? TELEPLOT.commands.formatValue(declaration.type, reported.value) : "", keyboard: this.options.keyboard };
         for(let key in next) if(JSON.stringify(state[key]) !== JSON.stringify(next[key])) state[key] = next[key];
@@ -239,7 +239,7 @@ class ViewJoystick extends ViewTelemetries {
                 <div v-if="emptyState.hint" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>
             </div>
             <template v-else-if="state.mode">
-                <div class="teleplot-js-joystick-name" v-bind:title="state.why">{{state.name}}<span v-if="state.on" class="teleplot-js-cmd-pen">✎</span></div>
+                <div class="teleplot-js-joystick-name" v-bind:title="state.why ? state.tip + '\\n' + state.why : state.tip">{{state.name}}<span v-if="state.on" class="teleplot-js-cmd-pen">✎</span></div>
                 <div class="teleplot-js-joystick-controls" v-bind:class="{'teleplot-js-joystick-vertical': state.mode == 'vrocker'}">
                     <div v-if="state.mode != 'rocker' && state.mode != 'vrocker'" class="teleplot-js-joystick-pad" v-bind:class="{'teleplot-js-joystick-held': state.held}"
                         v-on:pointerdown="padDown" v-bind:title="state.why || ''">

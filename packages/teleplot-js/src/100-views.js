@@ -282,6 +282,14 @@ TELEPLOT.view.pruneTimeGroups = function(){
     }
 }
 
+// The tooltip of the name of a telemetry, wherever a view shows it: its name and unit, then its description (ATTR|name|desc=...)
+TELEPLOT.view.telemetryTip = function(telem) {
+    if(!telem) return "";
+    let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
+    let desc = telem.getDescription();
+    return name + (unit ? " (" + unit + ")" : "") + (desc ? "\n" + desc : "");
+}
+
 TELEPLOT.view.addView = function(view){
     if(TELEPLOT.view.getView(view.id) !== undefined) { return; }
     TELEPLOT.view.views.push(view);
