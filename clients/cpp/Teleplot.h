@@ -425,35 +425,35 @@ public:
     // Samples of a chain: they all get the time of the chain, taken by its first sample (or given by at())
     class Samples : public Describe<Samples> {
     public:
-        Samples& update(double v) { tp_->numbers_(index_, SEC_NUMBER, t_(), { v }); return *this; }
+        Samples& update(double v) { tp_->numbers_(index_, SECT_NUMBER, t_(), { v }); return *this; }
         Samples& update(bool v) { return update(v ? 1.0 : 0.0); }
         template<class V, std::enable_if_t<std::is_arithmetic_v<V> && !std::is_same_v<V, bool>, int> = 0> Samples& update(V v) { return update(static_cast<double>(v)); }
-        Samples& update(std::string_view v) { tp_->text_(index_, SEC_TEXT, t_(), v); return *this; }
+        Samples& update(std::string_view v) { tp_->text_(index_, SECT_TEXT, t_(), v); return *this; }
         Samples& update(const char* v) { return update(std::string_view(v)); }
         Samples& update(std::string const& v) { return update(std::string_view(v)); }
-        Samples& update(Number2D v) { tp_->numbers_(index_, SEC_NUMBER_2D, t_(), { v.x, v.y }); return *this; }
-        Samples& update(Number3D v) { tp_->numbers_(index_, SEC_NUMBER_3D, t_(), { v.x, v.y, v.z }); return *this; }
-        Samples& update(Teleplot::Pose2D v) { tp_->numbers_(index_, SEC_NUMBER_3D, t_(), { v.x, v.y, v.yaw }); return *this; }
+        Samples& update(Number2D v) { tp_->numbers_(index_, SECT_NUMBER_2D, t_(), { v.x, v.y }); return *this; }
+        Samples& update(Number3D v) { tp_->numbers_(index_, SECT_NUMBER_3D, t_(), { v.x, v.y, v.z }); return *this; }
+        Samples& update(Teleplot::Pose2D v) { tp_->numbers_(index_, SECT_NUMBER_3D, t_(), { v.x, v.y, v.yaw }); return *this; }
 
         Samples& threshold(std::string_view name, ThresholdSide side, double value, std::string_view color = "") { tp_->threshold_(index_, t_(), name, side, value, color); return *this; }
         Samples& removeThreshold(std::string_view name) { tp_->threshold_(index_, t_(), name, Below, std::nan(""), ""); return *this; }
 
-        Samples& position(double x, double y, double z = 0) { tp_->numbers_(index_, SEC_POSITION, t_(), { x, y, z }); return *this; }
-        Samples& rotation(double roll, double pitch, double yaw) { tp_->numbers_(index_, SEC_ROTATION, t_(), { roll, pitch, yaw }); return *this; }
+        Samples& position(double x, double y, double z = 0) { tp_->numbers_(index_, SECT_POSITION, t_(), { x, y, z }); return *this; }
+        Samples& rotation(double roll, double pitch, double yaw) { tp_->numbers_(index_, SECT_ROTATION, t_(), { roll, pitch, yaw }); return *this; }
         Samples& yaw(double a) { return rotation(0, 0, a); }
-        Samples& quaternion(double w, double x, double y, double z) { tp_->numbers_(index_, SEC_QUATERNION, t_(), { w, x, y, z }); return *this; }
-        Samples& size(double x, double y, double z) { tp_->numbers_(index_, SEC_SIZE, t_(), { x, y, z }); return *this; }
-        Samples& size(double x, double y) { tp_->numbers_(index_, SEC_SIZE, t_(), { x, y, tp_->sizeZ_(index_) }); return *this; }
+        Samples& quaternion(double w, double x, double y, double z) { tp_->numbers_(index_, SECT_QUATERNION, t_(), { w, x, y, z }); return *this; }
+        Samples& size(double x, double y, double z) { tp_->numbers_(index_, SECT_SIZE, t_(), { x, y, z }); return *this; }
+        Samples& size(double x, double y) { tp_->numbers_(index_, SECT_SIZE, t_(), { x, y, tp_->sizeZ_(index_) }); return *this; }
         Samples& size(double s) { return size(s, s, s); }
         Samples& color(std::string_view c) { tp_->color_(index_, t_(), c); return *this; }
         Samples& color(Rgb c) { tp_->color_(index_, t_(), c); return *this; }
-        Samples& opacity(double v) { tp_->numbers_(index_, SEC_OPACITY, t_(), { std::round(std::clamp(v, 0.0, 1.0) * 255) }); return *this; }
+        Samples& opacity(double v) { tp_->numbers_(index_, SECT_OPACITY, t_(), { std::round(std::clamp(v, 0.0, 1.0) * 255) }); return *this; }
         Samples& texture(std::string_view url) { tp_->texture_(index_, t_(), 1, url); return *this; }
         Samples& textureFrom(std::string_view imageTelemetry) { tp_->texture_(index_, t_(), 2, imageTelemetry); return *this; }
-        Samples& vector(double x, double y, double z = 0) { tp_->numbers_(index_, SEC_VECTOR, t_(), { x, y, z }); return *this; }
-        Samples& text(std::string_view v) { tp_->text_(index_, SEC_SHAPE_TEXT, t_(), v); return *this; }
+        Samples& vector(double x, double y, double z = 0) { tp_->numbers_(index_, SECT_VECTOR, t_(), { x, y, z }); return *this; }
+        Samples& text(std::string_view v) { tp_->text_(index_, SECT_SHAPE_TEXT, t_(), v); return *this; }
         Samples& textSize(double h) { return size(h); }
-        Samples& lineWidth(double w) { tp_->numbers_(index_, SEC_LINE_WIDTH, t_(), { w }); return *this; }
+        Samples& lineWidth(double w) { tp_->numbers_(index_, SECT_LINE_WIDTH, t_(), { w }); return *this; }
         Samples& points(const Number2D* p, std::size_t n) { tp_->cloud_(index_, t_(), p, n, nullptr, nullptr); return *this; }
         Samples& points(const Number3D* p, std::size_t n) { tp_->cloud_(index_, t_(), p, n, nullptr, nullptr); return *this; }
         Samples& points(std::vector<Number2D> const& p) { return points(p.data(), p.size()); }
@@ -468,8 +468,8 @@ public:
         // An encoded picture: anything with .type (ImageType) and .bytes (TeleplotImage::Picture). An empty one sends nothing.
         template<class P, class = decltype(ImageType(std::declval<P const&>().type)), class = decltype(std::declval<P const&>().bytes.data())>
         Samples& image(P const& picture) { return picture.bytes.empty() ? *this : image(picture.type, picture.bytes.data(), picture.bytes.size()); }
-        Samples& intrinsics(double width, double height, double fx, double fy, double cx, double cy) { tp_->numbers_(index_, SEC_INTRINSICS, t_(), { width, height, fx, fy, cx, cy }); return *this; }
-        Samples& distortion(double k1, double k2, double p1, double p2, double k3) { tp_->numbers_(index_, SEC_DISTORTION, t_(), { k1, k2, p1, p2, k3 }); return *this; }
+        Samples& intrinsics(double width, double height, double fx, double fy, double cx, double cy) { tp_->numbers_(index_, SECT_INTRINSICS, t_(), { width, height, fx, fy, cx, cy }); return *this; }
+        Samples& distortion(double k1, double k2, double p1, double p2, double k3) { tp_->numbers_(index_, SECT_DISTORTION, t_(), { k1, k2, p1, p2, k3 }); return *this; }
 
         // (at() starts a chain: in the middle of one it would give it two times)
         template<class T = int> Samples& at(Time) { static_assert(sizeof(T) == 0, "Teleplot: at() must be the first call of a chain: telemetry.at(t).position(...)"); return *this; }
@@ -755,8 +755,8 @@ public:
         r.u16(); // (our client id)
         while (r.ok() && r.at < r.size) {
             std::uint8_t section = r.u8();
-            if (section == SEC_CALL) { if (!handleCall_(r)) { return; } continue; }
-            if (section < SEC_NUMBER || section > SEC_TEXT) { return; } // (not something written to a setting)
+            if (section == SECT_CALL) { if (!handleCall_(r)) { return; } continue; }
+            if (section < SECT_NUMBER || section > SECT_TEXT) { return; } // (not something written to a setting)
             std::uint16_t telemId = r.u16();
             r.u64(); // (time reference of the page: meaningless here)
             std::uint8_t count = r.u8();
@@ -765,8 +765,8 @@ public:
             for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
                 r.u32();
                 numbers.clear();
-                if (section == SEC_TEXT) { text = r.str(); }
-                else { for (int c = 0; c < section - SEC_NUMBER + 1; ++c) { numbers.push_back(r.f32()); } }
+                if (section == SECT_TEXT) { text = r.str(); }
+                else { for (int c = 0; c < section - SECT_NUMBER + 1; ++c) { numbers.push_back(r.f32()); } }
             }
             if (!r.ok() || count == 0) { return; }
             std::shared_ptr<ParamBase_> p;
@@ -800,14 +800,14 @@ private:
         ATTR_PIXELS = 16,
     };
     enum : std::uint8_t {
-        SEC_CLIENT_NAME = 1, SEC_DASHBOARD = 2, SEC_ATTR = 10, SEC_NUMBER = 20, SEC_NUMBER_2D = 21, SEC_NUMBER_3D = 22, SEC_TEXT = 23,
-        SEC_IMAGE = 24, SEC_POSITION = 25, SEC_ROTATION = 26, SEC_QUATERNION = 27, SEC_COLOR_STR = 28, SEC_COLOR_RGB = 29, SEC_OPACITY = 30,
-        SEC_SIZE = 31, SEC_TEXTURE = 32, SEC_INTRINSICS = 33, SEC_DISTORTION = 34, SEC_CLOUD = 35, SEC_FLOAT64 = 36, SEC_VECTOR = 37,
-        SEC_SHAPE_TEXT = 38, SEC_LINE_WIDTH = 39, SEC_THRESHOLD = 40, SEC_CALL = 41, SEC_CALL_ANSWER = 42,
+        SECT_CLIENT_NAME = 1, SECT_DASHBOARD = 2, SECT_ATTR = 10, SECT_NUMBER = 20, SECT_NUMBER_2D = 21, SECT_NUMBER_3D = 22, SECT_TEXT = 23,
+        SECT_IMAGE = 24, SECT_POSITION = 25, SECT_ROTATION = 26, SECT_QUATERNION = 27, SECT_COLOR_STR = 28, SECT_COLOR_RGB = 29, SECT_OPACITY = 30,
+        SECT_SIZE = 31, SECT_TEXTURE = 32, SECT_INTRINSICS = 33, SECT_DISTORTION = 34, SECT_CLOUD = 35, SECT_FLOAT64 = 36, SECT_VECTOR = 37,
+        SECT_SHAPE_TEXT = 38, SECT_LINE_WIDTH = 39, SECT_THRESHOLD = 40, SECT_CALL = 41, SECT_CALL_ANSWER = 42,
     };
     // Samples sent once (a size, a fixed position, camera parameters, thresholds) are sent again with the descriptions, so that a
     // page opened later draws them too. Streams (numbers, texts, pictures, clouds) are not.
-    static bool latched_(std::uint8_t type) { return (type >= SEC_POSITION && type <= SEC_DISTORTION) || (type >= SEC_VECTOR && type <= SEC_THRESHOLD); }
+    static bool latched_(std::uint8_t type) { return (type >= SECT_POSITION && type <= SECT_DISTORTION) || (type >= SECT_VECTOR && type <= SECT_THRESHOLD); }
 
     // Little-endian bytes, whatever the machine
     class Bytes_ {
@@ -909,7 +909,7 @@ private:
         std::thread::id owner;
         bool owned = false;
         std::string stackPath;
-        std::map<std::uint16_t, Queue_> queues; // section type (or SEC_FLOAT64 << 8 | type)
+        std::map<std::uint16_t, Queue_> queues; // section type (or SECT_FLOAT64 << 8 | type)
         std::map<std::uint16_t, Latched_> latched;            // samples sent once, by section key
         std::map<std::string, Latched_> latchedThresholds;    // one per threshold name
     };
@@ -1124,7 +1124,7 @@ private:
     template<class F> void setting_(std::uint32_t index, F f) { std::lock_guard<Lock_> g(lock_); f(entries_[index]); }
     double sizeZ_(std::uint32_t index) { std::lock_guard<Lock_> g(lock_); return entries_[index].sizeZ; }
 
-    // Queues a sample (lock held). key: section type, or SEC_FLOAT64 << 8 | type. Returns false when it is not kept (maxRate).
+    // Queues a sample (lock held). key: section type, or SECT_FLOAT64 << 8 | type. Returns false when it is not kept (maxRate).
     bool push_(Entry_& e, std::uint16_t key, std::int64_t ns, const std::byte* data, std::size_t size, bool rated = true) {
         Queue_& q = e.queues[key];
         if (rated && e.maxRate > 0) {
@@ -1135,14 +1135,14 @@ private:
         queued_ += size + 8;
         stats_.samples++;
         std::uint8_t type = static_cast<std::uint8_t>(key & 0xFF);
-        if (latched_(type) || (type == SEC_CLOUD && e.isShape && (e.shapeType == Line || e.shapeType == Polygon))) {
+        if (latched_(type) || (type == SECT_CLOUD && e.isShape && (e.shapeType == Line || e.shapeType == Polygon))) {
             Latched_* l;
-            if (type == SEC_THRESHOLD) { // one per threshold name: {OPERATOR[8]} {VALUE[64]} {NAME} {COLOR}
+            if (type == SECT_THRESHOLD) { // one per threshold name: {OPERATOR[8]} {VALUE[64]} {NAME} {COLOR}
                 const char* name = reinterpret_cast<const char*>(data + 9);
                 l = &e.latchedThresholds[std::string(name, strnlen(name, size - 9))];
             }
             else { l = &e.latched[key]; }
-            bool firstPart = type != SEC_CLOUD || (static_cast<std::uint8_t>(data[1]) == 0 && static_cast<std::uint8_t>(data[2]) == 0); // (the points of a line come in parts)
+            bool firstPart = type != SECT_CLOUD || (static_cast<std::uint8_t>(data[1]) == 0 && static_cast<std::uint8_t>(data[2]) == 0); // (the points of a line come in parts)
             if (firstPart || l->ns != ns) { l->parts.resize(1); l->parts[0].assign(data, data + size); } // (reuses what it holds: no allocation at each sample)
             else { l->parts.emplace_back(data, data + size); }
             l->key = key;
@@ -1175,16 +1175,16 @@ private:
     void numbers_(std::uint32_t index, std::uint8_t type, std::int64_t ns, std::initializer_list<double> values) {
         if (!lockFor_(index)) { return; }
         Entry_& e = entries_[index];
-        if (type >= SEC_POSITION && type != SEC_INTRINSICS && type != SEC_DISTORTION) { e.isShape = true; }
-        if (type == SEC_SIZE) { e.sizeZ = *(values.begin() + 2); }
+        if (type >= SECT_POSITION && type != SECT_INTRINSICS && type != SECT_DISTORTION) { e.isShape = true; }
+        if (type == SECT_SIZE) { e.sizeZ = *(values.begin() + 2); }
         Small_ b;
         std::uint16_t key = type;
-        if (e.precise) { key = static_cast<std::uint16_t>(SEC_FLOAT64 << 8 | type); for (double v : values) { b.f64(v); } }
+        if (e.precise) { key = static_cast<std::uint16_t>(SECT_FLOAT64 << 8 | type); for (double v : values) { b.f64(v); } }
         else {
             std::size_t i = 0;
             for (double v : values) {
-                if (type == SEC_INTRINSICS && i < 2) { b.u16(static_cast<std::uint16_t>(std::clamp(v, 0.0, 65535.0))); }
-                else if (type == SEC_COLOR_RGB || type == SEC_OPACITY) { b.u8(static_cast<std::uint8_t>(std::clamp(v, 0.0, 255.0))); }
+                if (type == SECT_INTRINSICS && i < 2) { b.u16(static_cast<std::uint16_t>(std::clamp(v, 0.0, 65535.0))); }
+                else if (type == SECT_COLOR_RGB || type == SECT_OPACITY) { b.u8(static_cast<std::uint8_t>(std::clamp(v, 0.0, 255.0))); }
                 else { b.f32(v); }
                 ++i;
             }
@@ -1196,7 +1196,7 @@ private:
     void text_(std::uint32_t index, std::uint8_t type, std::int64_t ns, std::string_view text) {
         if (!lockFor_(index)) { return; }
         Entry_& e = entries_[index];
-        if (type == SEC_SHAPE_TEXT) { e.isShape = true; }
+        if (type == SECT_SHAPE_TEXT) { e.isShape = true; }
         if (text.size() > MAX_TEXT_) { stats_.tooBig++; }
         Bytes_ b; b.str(text.substr(0, std::min(text.size(), MAX_TEXT_)));
         push_(e, type, ns, b.b.data(), b.b.size());
@@ -1207,34 +1207,34 @@ private:
         bool shape;
         { std::lock_guard<Lock_> g(lock_); shape = entries_[index].isShape; }
         if (!shape) { attrText_(index, ATTR_COLOR, color); return; } // not a shape (yet): the color of the telemetry
-        text_(index, SEC_COLOR_STR, ns ? *ns : nowNs_(), color);
+        text_(index, SECT_COLOR_STR, ns ? *ns : nowNs_(), color);
     }
     void color_(std::uint32_t index, std::optional<std::int64_t> ns, Rgb c) {
         bool shape;
         { std::lock_guard<Lock_> g(lock_); shape = entries_[index].isShape; }
         if (!shape) { char hex[8]; std::snprintf(hex, sizeof(hex), "#%02x%02x%02x", c.r, c.g, c.b); attrText_(index, ATTR_COLOR, hex); return; }
-        numbers_(index, SEC_COLOR_RGB, ns ? *ns : nowNs_(), { static_cast<double>(c.r), static_cast<double>(c.g), static_cast<double>(c.b) });
+        numbers_(index, SECT_COLOR_RGB, ns ? *ns : nowNs_(), { static_cast<double>(c.r), static_cast<double>(c.g), static_cast<double>(c.b) });
     }
     void texture_(std::uint32_t index, std::int64_t ns, std::uint8_t kind, std::string_view value) {
         if (!lockFor_(index)) { return; }
         Entry_& e = entries_[index];
         e.isShape = true;
         Bytes_ b; b.u8(kind).str(value.substr(0, std::min(value.size(), MAX_TEXT_)));
-        push_(e, SEC_TEXTURE, ns, b.b.data(), b.b.size());
+        push_(e, SECT_TEXTURE, ns, b.b.data(), b.b.size());
         lock_.unlock();
         afterSample_(index);
     }
     void threshold_(std::uint32_t index, std::int64_t ns, std::string_view name, ThresholdSide side, double value, std::string_view color) {
         if (!lockFor_(index)) { return; }
         Bytes_ b; b.u8(side).f64(value).str(name.substr(0, std::min(name.size(), MAX_ATTR_TEXT_ / 2))).str(color.substr(0, std::min(color.size(), std::size_t(64))));
-        push_(entries_[index], SEC_THRESHOLD, ns, b.b.data(), b.b.size(), false);
+        push_(entries_[index], SECT_THRESHOLD, ns, b.b.data(), b.b.size(), false);
         lock_.unlock();
         afterSample_(index);
     }
     void image_(std::uint32_t index, std::int64_t ns, ImageType type, const std::byte* data, std::size_t size) {
         if (!lockFor_(index)) { return; }
         Entry_& e = entries_[index];
-        Queue_& q = e.queues[SEC_IMAGE];
+        Queue_& q = e.queues[SECT_IMAGE];
         bool kept = !(e.maxRate > 0 && q.lastKeptNs != std::numeric_limits<std::int64_t>::min() && ns >= q.lastKeptNs && ns - q.lastKeptNs < static_cast<std::int64_t>(1e9 / e.maxRate));
         std::size_t count = std::max<std::size_t>(1, (size + PART_BYTES_ - 1) / PART_BYTES_);
         if (kept && count <= 0xFFFF) {
@@ -1242,7 +1242,7 @@ private:
             for (std::size_t part = 0; part < count; ++part) {
                 std::size_t at = part * PART_BYTES_, n = std::min(PART_BYTES_, size - std::min(size, at));
                 Bytes_ b; b.u8(type).u16(static_cast<std::uint16_t>(part)).u16(static_cast<std::uint16_t>(count)).u16(static_cast<std::uint16_t>(n)).raw(data + at, n);
-                push_(e, SEC_IMAGE, ns, b.b.data(), b.b.size(), false);
+                push_(e, SECT_IMAGE, ns, b.b.data(), b.b.size(), false);
             }
         }
         else if (count > 0xFFFF) { stats_.tooBig++; }
@@ -1253,7 +1253,7 @@ private:
     void cloud_(std::uint32_t index, std::int64_t ns, const P* points, std::size_t n, const float* intensities, const Rgb* colors) {
         if (!lockFor_(index)) { return; }
         Entry_& e = entries_[index];
-        Queue_& q = e.queues[SEC_CLOUD];
+        Queue_& q = e.queues[SECT_CLOUD];
         bool kept = !(e.maxRate > 0 && q.lastKeptNs != std::numeric_limits<std::int64_t>::min() && ns >= q.lastKeptNs && ns - q.lastKeptNs < static_cast<std::int64_t>(1e9 / e.maxRate));
         std::uint8_t flags = static_cast<std::uint8_t>((intensities ? 1 : 0) | (colors ? 2 : 0));
         std::size_t pointBytes = 12 + (intensities ? 4 : 0) + (colors ? 3 : 0), perPart = (PART_BYTES_ - 7) / pointBytes;
@@ -1270,7 +1270,7 @@ private:
                     if (intensities) { b.f32(intensities[i]); }
                     if (colors) { b.u8(colors[i].r).u8(colors[i].g).u8(colors[i].b); }
                 }
-                push_(e, SEC_CLOUD, ns, b.b.data(), b.b.size(), false);
+                push_(e, SECT_CLOUD, ns, b.b.data(), b.b.size(), false);
             }
         }
         else if (count > 0xFFFF) { stats_.tooBig++; }
@@ -1419,7 +1419,7 @@ private:
     }
     void answer_(std::uint16_t telemId, std::uint16_t callId, std::uint8_t status, std::string const& text) {
         Bytes_ b;
-        b.u8(MARKER_).u8(VERSION_).u16(clientId_).u8(SEC_CALL_ANSWER).u16(telemId).u16(callId).u8(status).str(cut_(text, MAX_TEXT_));
+        b.u8(MARKER_).u8(VERSION_).u16(clientId_).u8(SECT_CALL_ANSWER).u16(telemId).u16(callId).u8(status).str(cut_(text, MAX_TEXT_));
         std::lock_guard<std::mutex> s(sendLock_);
         sendPacket_(b.b);
     }
@@ -1464,11 +1464,11 @@ private:
         std::int64_t nowMs = steadyMs_(), every = options_.describeInterval_.count();
 
         if (nowMs - nameSentMs_ >= every) {
-            p.u8(SEC_CLIENT_NAME).str(cut_(options_.name_, MAX_NAME_));
+            p.u8(SECT_CLIENT_NAME).str(cut_(options_.name_, MAX_NAME_));
             nameSentMs_ = nowMs;
         }
         while (!dashboards_.empty() && dashboards_.front().size() + 2 <= room()) {
-            p.u8(SEC_DASHBOARD).str(dashboards_.front());
+            p.u8(SECT_DASHBOARD).str(dashboards_.front());
             dashboards_.pop_front();
         }
 
@@ -1498,7 +1498,7 @@ private:
                     full = true;
                     break;
                 }
-                p.u8(SEC_ATTR).u16(e.id);
+                p.u8(SECT_ATTR).u16(e.id);
                 std::size_t countAt = p.b.size();
                 p.u8(0);
                 std::uint8_t count = 0;
@@ -1521,7 +1521,7 @@ private:
             Entry_& e = entries_[i];
             for (auto& [key, q] : e.queues) {
                 if (q.empty()) { continue; }
-                bool f64 = (key >> 8) == SEC_FLOAT64;
+                bool f64 = (key >> 8) == SECT_FLOAT64;
                 std::size_t header = 12 + (f64 ? 1 : 0);
                 auto const& first = q.refs[q.head];
                 if (room() < header + 4 + first.size) {
@@ -1530,7 +1530,7 @@ private:
                     break;
                 }
                 std::int64_t reference = first.ns;
-                p.u8(f64 ? SEC_FLOAT64 : static_cast<std::uint8_t>(key)).u16(e.id).u64(static_cast<std::uint64_t>(std::max<std::int64_t>(0, reference)));
+                p.u8(f64 ? static_cast<std::uint8_t>(SECT_FLOAT64) : static_cast<std::uint8_t>(key)).u16(e.id).u64(static_cast<std::uint64_t>(std::max<std::int64_t>(0, reference)));
                 std::size_t countAt = p.b.size();
                 p.u8(0);
                 if (f64) { p.u8(static_cast<std::uint8_t>(key & 0xFF)); }
