@@ -123,6 +123,17 @@ static void threads(std::string const& dir) {
     worker.join();
 }
 
+// The stats of the client as telemetries (sendStats)
+static void stats(std::string const& dir) {
+    Teleplot tp(fileOptions(dir + "/stats.teleplot"));
+    tp.sendStats(Teleplot::ms(10));
+    for (int i = 0; i < 30; ++i) { tp.update("work", i); tp.flush(); std::this_thread::sleep_for(std::chrono::milliseconds(2)); }
+    tp.update("long", std::string(2000, 'x')); // (too big: counted)
+    std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    tp.flush();
+    tp.sendStats(Teleplot::ms(0));
+}
+
 int main(int argc, char** argv) {
     std::string dir = argc > 1 ? argv[1] : ".";
     basics(dir);
@@ -130,5 +141,6 @@ int main(int argc, char** argv) {
     commands(dir);
     resend(dir);
     threads(dir);
+    stats(dir);
     return 0;
 }

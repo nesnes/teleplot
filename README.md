@@ -405,7 +405,8 @@ echo "myValue:1234" | nc -u -w0 127.0.0.1 47269
 ## C++
 
 Copy `Teleplot.h` (from `clients/cpp`, one header, C++17, Linux / macOS / Windows) in your project. It speaks the binary protocol
-and sends by itself every 20 ms. Everything it can do, with samples: `doc/cpp-client-api.md`.
+and sends by itself every 20 ms. Everything it can do, with samples: `doc/cpp-client-api.md`. Its companion `TeleplotImage.h`
+turns the pixels of a camera (OpenCV, ROS, a webcam, a depth sensor) into JPEG or PNG, in the call or on a thread of its own.
 ```cpp
 #include <cmath>
 #include "Teleplot.h"

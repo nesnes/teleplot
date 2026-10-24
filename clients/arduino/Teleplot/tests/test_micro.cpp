@@ -138,6 +138,25 @@ int main() {
         CHECK("maxRate(10): one sample per 100 ms", count(Serial.written, "rated:") == 10);
     }
 
+    // sendStats(): rates and totals as lines, with their descriptions, without a table slot
+    {
+        Serial.written.clear();
+        fakeMillis = 40000;
+        Teleplot tp(Serial, false);
+        tp.clock([] { return Teleplot::ns(0); });
+        tp.sendStats(Teleplot::ms(1000));
+        for (int i = 0; i < 10; ++i) { tp.update("v", i); }
+        fakeMillis = 41000;
+        tp.update("v", 10);
+        CHECK("sendStats: samples and bytes per second, with label, and their descriptions", has(Serial.written, "teleplot.samples,teleplot sent:0.000:10\n")
+            && has(Serial.written, "ATTR|teleplot.samples|unit=/s|desc=Samples sent per second\n") && has(Serial.written, "teleplot.tooBig,teleplot problems:0.000:0\n"));
+        tp.sendStats(Teleplot::ms(0));
+        Serial.written.clear();
+        fakeMillis = 50000;
+        tp.update("v", 1);
+        CHECK("sendStats(0): no more", !has(Serial.written, "teleplot."));
+    }
+
     // UDP: lines in packets, sent when full, after 20 ms or on flush(); what comes back is read
     {
         TestUdp udp;

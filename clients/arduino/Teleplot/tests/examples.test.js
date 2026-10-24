@@ -32,7 +32,7 @@ const EXPECT = {
     '19_Dates': { wave: 'number' },
     '20_SDCard': { temperature: 'number' },
     '21_Dashboard': { speed: 'number', mode: 'text' },
-    '22_SmallBoards': { a: 'number', c: 'number' },
+    '22_SmallBoards': { a: 'number', c: 'number', 'teleplot.tooBig': 'number', 'teleplot.samples': 'number' },
 };
 
 function read(name) {

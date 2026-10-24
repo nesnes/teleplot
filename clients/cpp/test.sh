@@ -1,6 +1,6 @@
 #!/bin/sh
-# C++ client tests: builds tests/test_client.cpp (the client alone) and tests/scenarios.cpp (files read back by the library of the page,
-# tests/client.test.js), checks that misuse does not compile, then runs them. Needs a C++17 compiler (CXX, default c++) and Node 16+.
+# C++ client tests: builds tests/test_client.cpp (the client alone), tests/scenarios.cpp (files read back by the library of the page,
+# tests/client.test.js) and tests/test_image.cpp (TeleplotImage.h: pictures decoded by Node and libjpeg, tests/image.test.js), checks that misuse does not compile, then runs them. Needs a C++17 compiler (CXX, default c++) and Node 16+.
 set -e
 cd "$(dirname "$0")"
 CXX="${CXX:-c++}"
@@ -8,6 +8,7 @@ FLAGS="-std=c++17 -Wall -Wextra -Wpedantic -Werror -pthread"
 mkdir -p build
 $CXX $FLAGS tests/test_client.cpp -o build/test_client
 $CXX $FLAGS tests/scenarios.cpp -o build/scenarios
+$CXX $FLAGS -O2 tests/test_image.cpp -o build/test_image
 $CXX $FLAGS sample.cpp -o build/sample
 # at() in the middle of a chain must not compile, with a message that says why
 printf '#include "../Teleplot.h"\nint main() { Teleplot tp; tp.telemetry("a").position(1, 2).at(Teleplot::ms(1)); }\n' > build/misuse.cpp
@@ -16,4 +17,6 @@ grep -q "at() must be the first call of a chain" build/misuse.log || { echo "FAI
 echo "ok   at() in the middle of a chain does not compile"
 ./build/test_client
 ./build/scenarios build
+mkdir -p build/images
+./build/test_image build/images
 TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js "$@"

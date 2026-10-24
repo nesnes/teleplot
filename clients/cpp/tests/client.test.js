@@ -190,6 +190,23 @@ test('samples sent once are sent again (a page opened later gets them), streams 
     assert.ok(sizes >= 2, `the size was sent ${sizes} time(s)`);
 });
 
+test('sendStats(): rates of what is sent and the queue (label "teleplot sent"), problems as totals ("teleplot problems")', () => {
+    const U = load('stats.teleplot');
+    const P = U.protocol;
+    for (const [name, unit] of [['teleplot.packets', '/s'], ['teleplot.bytes', 'B/s'], ['teleplot.samples', '/s'], ['teleplot.queued', 'B']]) {
+        const telem = get(U, name);
+        assert.equal(telem.getAttribute(P.TELEM_ATTR_UNIT), unit, name);
+        assert.equal(telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL), 'teleplot sent', name);
+        assert.ok(samples(telem, P.SECTION_TYPE_TELEM_DATA_NUMBER).length >= 2, name);
+    }
+    assert.ok(samples(get(U, 'teleplot.packets'), P.SECTION_TYPE_TELEM_DATA_NUMBER).some(([, v]) => v > 0), 'packets were sent');
+    for (const name of ['teleplot.dropped', 'teleplot.tooBig', 'teleplot.sendErrors', 'teleplot.wrongThread', 'teleplot.priorityRefused']) {
+        assert.equal(get(U, name).getAttribute(P.TELEM_ATTR_VIEW_LABEL), 'teleplot problems', name);
+    }
+    const tooBig = samples(get(U, 'teleplot.tooBig'), P.SECTION_TYPE_TELEM_DATA_NUMBER);
+    assert.equal(tooBig[tooBig.length - 1][1], 1, 'the text that was cut');
+});
+
 test('stacks of threads: the main thread keeps the name, a worker has its own telemetry with the label of the stack', () => {
     const U = load('threads.teleplot');
     const P = U.protocol;

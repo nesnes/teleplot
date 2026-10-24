@@ -530,6 +530,12 @@ public:
 
     Stats stats() const { return stats_; }
 
+    // The stats sent as telemetries every "every" (0: no more; off by default): samples and bytes per second (label "teleplot sent"),
+    // lines too long or cut, lines from the page dropped, as totals ("teleplot problems"). Written directly: no table slot. They are
+    // counted in what they report.
+    void sendStats(Time every) { statsEveryMs_ = static_cast<uint32_t>(every.ns / 1000000); statsAtMs_ = millis(); statsBefore_ = stats_; statsDescribedAt_ = 0; }
+    Time statsInterval() const { return Time(static_cast<int64_t>(statsEveryMs_) * 1000000); }
+
 private:
     // ------------------------------------------------------------------ State
     enum : uint8_t { HAS_MIN_ = 1, HAS_MAX_ = 2, NP_ = 4, LOG_ = 8, STACK_ = 16, PIXELS_ = 32, PRECISE_ = 64, SHAPE_ = 128 };
@@ -622,12 +628,13 @@ private:
     size_t lineLength_;
     bool lineTooLong_, enabled_, declareDue_;
     Time (*clock_)();
-    uint32_t describedAt_, publishedAt_;
+    uint32_t describedAt_, publishedAt_, statsEveryMs_, statsAtMs_, statsDescribedAt_;
+    Stats statsBefore_;
     Stats stats_;
 
     void init_() {
         outputCount_ = 0; input_ = 0; entryCount_ = 0; thresholdCount_ = 0; paramCount_ = 0; actionCount_ = 0; stackCount_ = 0; lineLength_ = 0; lineTooLong_ = false;
-        enabled_ = true; declareDue_ = false; clock_ = 0; describedAt_ = 0; publishedAt_ = 0;
+        enabled_ = true; declareDue_ = false; clock_ = 0; describedAt_ = 0; publishedAt_ = 0; statsEveryMs_ = 0; statsAtMs_ = 0; statsDescribedAt_ = 0;
     }
     static constexpr bool disabled_() {
 #ifdef TELEPLOT_DISABLE
@@ -929,9 +936,33 @@ private:
         if (e.flags & HAS_MAX_) { puts_("|max="); number_(e.max, true); }
         lineEnd_();
     }
+    // The stats as lines, when it is time (sendStats)
+    void statsDue_(uint32_t now) {
+        if (!statsEveryMs_ || now - statsAtMs_ < statsEveryMs_) { return; }
+        float seconds = (now - statsAtMs_) / 1000.0f;
+        Stats before = statsBefore_;
+        statsBefore_ = stats_;
+        statsAtMs_ = now;
+        if (statsDescribedAt_ == 0 || now - statsDescribedAt_ >= 5000) {
+            statsDescribedAt_ = now ? now : 1;
+            const char* const descriptions[] = { "ATTR|teleplot.samples|unit=/s|desc=Samples sent per second", "ATTR|teleplot.bytes|unit=B/s|desc=Bytes written per second",
+                "ATTR|teleplot.tooBig|desc=Lines too long or cut%2C descriptions that did not fit%2C since the start", "ATTR|teleplot.dropped|desc=Lines from the page too long to be read%2C since the start" };
+            for (uint8_t i = 0; i < 4; ++i) { lineStart_(); puts_(descriptions[i]); lineEnd_(); }
+        }
+        statLine_("teleplot.samples", "teleplot sent", (statsBefore_.samples - before.samples) / seconds);
+        statLine_("teleplot.bytes", "teleplot sent", (statsBefore_.bytes - before.bytes) / seconds);
+        statLine_("teleplot.tooBig", "teleplot problems", statsBefore_.tooBig);
+        statLine_("teleplot.dropped", "teleplot problems", statsBefore_.dropped);
+    }
+    void statLine_(const char* name, const char* label, double value) {
+        lineStart_(); puts_(name); put_(','); puts_(label); put_(':'); time_(now_()); put_(':'); number_(value, false); lineEnd_();
+        stats_.samples++;
+    }
+
     // Every 5 s: descriptions, settings and actions again (a page opened later gets them), and what was sent once
     void tick_() {
         uint32_t now = millis();
+        statsDue_(now);
         for (uint8_t i = 0; i < outputCount_; ++i) { Output_& o = outputs_[i]; if (o.udp && o.open && now - o.openedAt >= 20) { o.end(o.udp); o.open = false; } }
         if (!declareDue_ && now - describedAt_ < 5000) { return; }
         describedAt_ = now;

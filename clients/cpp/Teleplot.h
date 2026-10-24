@@ -39,6 +39,7 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <typeindex>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -62,8 +63,16 @@
     #include <fcntl.h>
     #include <netinet/in.h>
     #include <pthread.h>
+    #include <sched.h>
+    #include <sys/resource.h>
     #include <sys/socket.h>
     #include <unistd.h>
+    #if defined(__linux__)
+        #include <sys/syscall.h>
+    #endif
+    #if defined(__APPLE__)
+        #include <pthread/qos.h>
+    #endif
 #endif
 
 // (Plain types, outside the class: a nested struct with default values cannot be a default argument inside its enclosing class)
@@ -90,6 +99,7 @@ namespace teleplot_types {
         std::uint64_t tooBig = 0;      // texts cut to fit a packet, dashboard lines that could not
         std::uint64_t sendErrors = 0;  // socket or file errors
         std::uint64_t wrongThread = 0; // samples of a oneThread() stack from another thread (dropped)
+        std::uint64_t priorityRefused = 0; // the system refused the priority asked for a thread of Teleplot (it kept its own)
     };
 
 }
@@ -128,6 +138,173 @@ public:
 
     using Stats = teleplot_types::Stats;
 
+    // The threads Teleplot starts (the sending thread of sendFrom(Thread), the encoding thread of TeleplotImage.h): their priority and
+    // their CPUs, in Options or at run time. See doc/cpp-client-api.md "Threads of Teleplot".
+    enum PriorityKind : std::uint8_t { BelowCaller = 0, Normal = 1, Low = 2, Realtime = 3, PriorityValue = 4 };
+    class ThreadPriority {
+    public:
+        ThreadPriority(PriorityKind kind = BelowCaller) : kind_(kind) {}
+        static ThreadPriority belowCaller() { return BelowCaller; } // one step under the thread that asked for the work (default)
+        static ThreadPriority normal() { return Normal; }           // the default priority of the system
+        static ThreadPriority low() { return Low; }                 // under normal threads (what is sent may then lag)
+        // A real-time priority (POSIX SCHED_FIFO, or SCHED_RR): Linux 1 to 99, macOS its own range. Windows: refused.
+        static ThreadPriority realtime(int priority, bool roundRobin = false) { ThreadPriority p(Realtime); p.number_ = priority; p.roundRobin_ = roundRobin; return p; }
+        // The system's own number for a normal thread, given as is: Linux its nice (-20 to 19), Windows its level (THREAD_PRIORITY_*,
+        // -15 to 15), macOS its relative priority in the default QoS class (-15 to 0)
+        static ThreadPriority value(int number) { ThreadPriority p(PriorityValue); p.number_ = number; return p; }
+        PriorityKind kind() const { return kind_; }
+        int number() const { return number_; }
+        bool roundRobin() const { return roundRobin_; }
+        bool operator==(ThreadPriority const& o) const { return kind_ == o.kind_ && number_ == o.number_ && roundRobin_ == o.roundRobin_; }
+        bool operator!=(ThreadPriority const& o) const { return !(*this == o); }
+    private:
+        PriorityKind kind_;
+        int number_ = 0;
+        bool roundRobin_ = false;
+    };
+    class ThreadAffinity {
+    public:
+        enum Kind : std::uint8_t { Automatic, FollowCaller, Any, Cpus };
+        static ThreadAffinity automatic() { return ThreadAffinity(Automatic); }       // the caller's CPUs with BelowCaller, any otherwise (default)
+        static ThreadAffinity followCaller() { return ThreadAffinity(FollowCaller); } // the CPUs of the thread that asked for the work
+        static ThreadAffinity any() { return ThreadAffinity(Any); }                   // the CPUs of the process
+        static ThreadAffinity cpus(std::vector<int> list) { ThreadAffinity a(Cpus); a.cpus_ = std::move(list); return a; } // these CPUs (Windows: of the current group). macOS: refused
+        Kind kind() const { return kind_; }
+        std::vector<int> const& list() const { return cpus_; }
+        bool operator==(ThreadAffinity const& o) const { return kind_ == o.kind_ && cpus_ == o.cpus_; }
+        bool operator!=(ThreadAffinity const& o) const { return !(*this == o); }
+        ThreadAffinity() = default;
+    private:
+        explicit ThreadAffinity(Kind kind) : kind_(kind) {}
+        Kind kind_ = Automatic;
+        std::vector<int> cpus_;
+    };
+
+    // How a thread is scheduled: taken from one thread (the caller), given to another as a ThreadPriority and a ThreadAffinity say.
+    //   BelowCaller: Linux the caller's policy (real-time: priority - 1), nice + 1 otherwise; macOS its QoS class, relative priority - 1;
+    //   Windows its level - 1. Following the caller's CPUs: Linux its CPU set, Windows its group affinity, macOS nothing (no affinity).
+    class Scheduling {
+    public:
+        static Scheduling ofCurrentThread() {
+            Scheduling s;
+#if defined(TELEPLOT_SINGLE_THREAD)
+#elif defined(_WIN32)
+            s.priority_ = GetThreadPriority(GetCurrentThread());
+            s.hasCpus_ = GetThreadGroupAffinity(GetCurrentThread(), &s.cpus_) != 0;
+#elif defined(__APPLE__)
+            qos_class_t qos = QOS_CLASS_UNSPECIFIED;
+            int relative = 0;
+            pthread_get_qos_class_np(pthread_self(), &qos, &relative);
+            s.qos_ = static_cast<int>(qos);
+            s.priority_ = relative;
+#else
+            sched_param param{};
+            pthread_getschedparam(pthread_self(), &s.policy_, &param);
+            s.priority_ = param.sched_priority;
+    #if defined(__linux__)
+            errno = 0;
+            s.nice_ = getpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)));
+            CPU_ZERO(&s.cpus_);
+            s.hasCpus_ = pthread_getaffinity_np(pthread_self(), sizeof(s.cpus_), &s.cpus_) == 0;
+    #endif
+#endif
+            return s;
+        }
+        // Gives the calling thread a priority and CPUs (relative to this scheduling: the caller's). false: the system refused part of
+        // it (the thread keeps what it had for that part).
+        bool applyToCurrentThread(ThreadPriority priority, ThreadAffinity affinity = ThreadAffinity::automatic()) const {
+            bool follow = affinity.kind() == ThreadAffinity::FollowCaller || (affinity.kind() == ThreadAffinity::Automatic && priority.kind() == BelowCaller);
+            bool priorityApplied = applyPriority_(priority); // (both are tried, whatever the first gives)
+            bool affinityApplied = applyAffinity_(follow ? ThreadAffinity::followCaller() : affinity.kind() == ThreadAffinity::Automatic ? ThreadAffinity::any() : affinity);
+            return priorityApplied && affinityApplied;
+        }
+        bool same(Scheduling const& o) const {
+            bool cpus = true;
+#if defined(_WIN32)
+            cpus = hasCpus_ == o.hasCpus_ && cpus_.Group == o.cpus_.Group && cpus_.Mask == o.cpus_.Mask;
+#elif defined(__linux__)
+            cpus = hasCpus_ == o.hasCpus_ && CPU_EQUAL(&cpus_, &o.cpus_);
+#endif
+            return policy_ == o.policy_ && priority_ == o.priority_ && nice_ == o.nice_ && qos_ == o.qos_ && cpus;
+        }
+    private:
+        bool applyPriority_(ThreadPriority p) const {
+            PriorityKind kind = p.kind();
+#if defined(TELEPLOT_SINGLE_THREAD)
+            (void)kind;
+            return true;
+#elif defined(_WIN32)
+            static const int levels[] = { THREAD_PRIORITY_IDLE, THREAD_PRIORITY_LOWEST, THREAD_PRIORITY_BELOW_NORMAL, THREAD_PRIORITY_NORMAL,
+                                          THREAD_PRIORITY_ABOVE_NORMAL, THREAD_PRIORITY_HIGHEST, THREAD_PRIORITY_TIME_CRITICAL };
+            if (kind == Realtime) { return false; } // (no real-time policy for a thread on Windows)
+            int target = kind == Low ? THREAD_PRIORITY_LOWEST : kind == PriorityValue ? p.number() : THREAD_PRIORITY_NORMAL;
+            if (kind == BelowCaller) { int i = 0; while (i < 6 && levels[i + 1] <= priority_) { ++i; } target = levels[i > 0 ? i - 1 : 0]; }
+            return SetThreadPriority(GetCurrentThread(), target) != 0;
+#elif defined(__APPLE__)
+            if (kind == Realtime) {
+                int policy = p.roundRobin() ? SCHED_RR : SCHED_FIFO;
+                sched_param param{};
+                param.sched_priority = p.number();
+                return pthread_setschedparam(pthread_self(), policy, &param) == 0;
+            }
+            qos_class_t qos = kind == Low ? QOS_CLASS_UTILITY : QOS_CLASS_DEFAULT;
+            int relative = kind == PriorityValue ? p.number() : 0;
+            if (kind == BelowCaller) {
+                qos = qos_ == static_cast<int>(QOS_CLASS_UNSPECIFIED) ? QOS_CLASS_DEFAULT : static_cast<qos_class_t>(qos_);
+                relative = std::max(QOS_MIN_RELATIVE_PRIORITY, priority_ - 1);
+            }
+            return pthread_set_qos_class_self_np(qos, relative) == 0;
+#else
+            sched_param param{};
+            if (kind == Realtime) {
+                param.sched_priority = p.number();
+                return pthread_setschedparam(pthread_self(), p.roundRobin() ? SCHED_RR : SCHED_FIFO, &param) == 0;
+            }
+            if (kind == BelowCaller && (policy_ == SCHED_FIFO || policy_ == SCHED_RR)) {
+                param.sched_priority = std::max(sched_get_priority_min(policy_), priority_ - 1);
+                return pthread_setschedparam(pthread_self(), policy_, &param) == 0;
+            }
+            bool ok = pthread_setschedparam(pthread_self(), SCHED_OTHER, &param) == 0;
+    #if defined(__linux__)
+            int nice = kind == PriorityValue ? p.number() : std::min(19, (kind == BelowCaller ? nice_ : getpriority(PRIO_PROCESS, 0)) + (kind == Low ? 10 : kind == BelowCaller ? 1 : 0));
+            ok = setpriority(PRIO_PROCESS, static_cast<id_t>(syscall(SYS_gettid)), nice) == 0 && ok;
+    #else
+            if (kind == PriorityValue) { ok = false; } // (no nice per thread here)
+    #endif
+            return ok;
+#endif
+        }
+        bool applyAffinity_(ThreadAffinity const& a) const {
+#if defined(TELEPLOT_SINGLE_THREAD)
+            (void)a;
+            return true;
+#elif defined(_WIN32)
+            if (a.kind() == ThreadAffinity::FollowCaller) { return !hasCpus_ || SetThreadGroupAffinity(GetCurrentThread(), &cpus_, nullptr) != 0; }
+            DWORD_PTR mask = 0, system = 0;
+            if (a.kind() == ThreadAffinity::Any) { if (!GetProcessAffinityMask(GetCurrentProcess(), &mask, &system)) { return false; } }
+            else { for (int cpu : a.list()) { if (cpu < 0 || cpu >= static_cast<int>(sizeof(DWORD_PTR) * 8)) { return false; } mask |= DWORD_PTR(1) << cpu; } }
+            return mask != 0 && SetThreadAffinityMask(GetCurrentThread(), mask) != 0;
+#elif defined(__linux__)
+            cpu_set_t set;
+            CPU_ZERO(&set);
+            if (a.kind() == ThreadAffinity::FollowCaller) { if (!hasCpus_) { return true; } set = cpus_; }
+            else if (a.kind() == ThreadAffinity::Any) { if (sched_getaffinity(getpid(), sizeof(set), &set) != 0) { return false; } }
+            else { for (int cpu : a.list()) { if (cpu < 0 || cpu >= CPU_SETSIZE) { return false; } CPU_SET(cpu, &set); } if (a.list().empty()) { return false; } }
+            return pthread_setaffinity_np(pthread_self(), sizeof(set), &set) == 0;
+#else
+            return a.kind() != ThreadAffinity::Cpus; // (macOS: no affinity to set; following the caller or any CPU is what it does)
+#endif
+        }
+        int policy_ = 0, priority_ = 0, nice_ = 0, qos_ = 0;
+#if defined(_WIN32)
+        GROUP_AFFINITY cpus_{};
+        bool hasCpus_ = false;
+#elif defined(__linux__)
+        cpu_set_t cpus_;
+        bool hasCpus_ = false;
+#endif
+    };
+
     class Options {
     public:
         Options& udp(std::string host, std::uint16_t port = 47269) { outputs_.push_back({ 0, std::move(host), port, {}, nullptr }); return *this; }
@@ -141,6 +318,8 @@ public:
         Options& publishInterval(std::chrono::milliseconds v) { publishInterval_ = v; return *this; }
         Options& maxQueuedBytes(std::size_t v) { maxQueuedBytes_ = v; return *this; }
         Options& nonBlocking(bool v = true) { nonBlocking_ = v; return *this; }
+        Options& threadPriority(ThreadPriority v) { threadPriority_ = v; return *this; }
+        Options& threadAffinity(ThreadAffinity v) { threadAffinity_ = std::move(v); return *this; }
     private:
         friend class Teleplot;
         struct Output { int kind; std::string host; std::uint16_t port; std::string path; std::function<void(const std::byte*, std::size_t)> fn; };
@@ -151,6 +330,8 @@ public:
         SendFrom sendFrom_ = Caller;
         std::size_t maxQueuedBytes_ = 1 << 20;
         bool nonBlocking_ = false;
+        ThreadPriority threadPriority_ = BelowCaller;
+        ThreadAffinity threadAffinity_;
     };
 
     // An argument of an action
@@ -279,6 +460,9 @@ public:
         Samples& cloud(std::vector<Number3D> const& p, std::vector<Rgb> const& colors) { return cloud(p.data(), p.size(), nullptr, colors.size() >= p.size() ? colors.data() : nullptr); }
         Samples& image(ImageType type, const void* bytes, std::size_t size) { tp_->image_(index_, t_(), type, static_cast<const std::byte*>(bytes), size); return *this; }
         template<class B> Samples& image(ImageType type, std::vector<B> const& bytes) { static_assert(sizeof(B) == 1, "image(): a vector of bytes"); return image(type, bytes.data(), bytes.size()); }
+        // An encoded picture: anything with .type (ImageType) and .bytes (TeleplotImage::Picture). An empty one sends nothing.
+        template<class P, class = decltype(ImageType(std::declval<P const&>().type)), class = decltype(std::declval<P const&>().bytes.data())>
+        Samples& image(P const& picture) { return picture.bytes.empty() ? *this : image(picture.type, picture.bytes.data(), picture.bytes.size()); }
         Samples& intrinsics(double width, double height, double fx, double fy, double cx, double cy) { tp_->numbers_(index_, SEC_INTRINSICS, t_(), { width, height, fx, fy, cx, cy }); return *this; }
         Samples& distortion(double k1, double k2, double p1, double p2, double k3) { tp_->numbers_(index_, SEC_DISTORTION, t_(), { k1, k2, p1, p2, k3 }); return *this; }
 
@@ -308,6 +492,7 @@ public:
         TELEPLOT_SAMPLE_CALL_(cloud) TELEPLOT_SAMPLE_CALL_(image) TELEPLOT_SAMPLE_CALL_(intrinsics) TELEPLOT_SAMPLE_CALL_(distortion)
         #undef TELEPLOT_SAMPLE_CALL_
         std::string_view name() const { return tp_->entry_(index_).name; }
+        Teleplot& teleplot() const { return *tp_; }
     private:
         friend class Teleplot;
         Telemetry(Teleplot* tp, std::uint32_t index) : Describe<Telemetry>(tp, index) {}
@@ -376,6 +561,9 @@ public:
     Teleplot(Teleplot const&) = delete;
     Teleplot& operator=(Teleplot const&) = delete;
     ~Teleplot() {
+        std::map<std::type_index, std::shared_ptr<void>> extensions;
+        { std::lock_guard<std::mutex> l(extensionsMutex_); extensions.swap(extensions_); }
+        extensions.clear(); // (companions first: what they still had to send goes out)
         stopThread_();
         flush();
         closeOutputs_();
@@ -398,9 +586,45 @@ public:
             openOutputs_();
             nameSentMs_ = std::numeric_limits<std::int64_t>::min() / 2;
         }
+        { std::lock_guard<std::mutex> l(threadMutex_); threadPriority_ = options_.threadPriority_; threadAffinity_ = options_.threadAffinity_; threadReference_ = Scheduling::ofCurrentThread(); threadGeneration_++; }
         if (options_.sendFrom_ == Thread) { startThread_(); }
     }
     Options const& options() const { return options_; }
+
+    // The priority and the CPUs of the threads of Teleplot, changed at run time ("the caller": for the sending thread, the thread
+    // that calls this; for the work asked of a companion thread, the thread that asked it)
+    void threadPriority(ThreadPriority priority) {
+        { std::lock_guard<std::mutex> l(threadMutex_); threadPriority_ = priority; threadReference_ = Scheduling::ofCurrentThread(); threadGeneration_++; }
+        threadWake_.notify_all();
+    }
+    void threadAffinity(ThreadAffinity affinity) {
+        { std::lock_guard<std::mutex> l(threadMutex_); threadAffinity_ = std::move(affinity); threadReference_ = Scheduling::ofCurrentThread(); threadGeneration_++; }
+        threadWake_.notify_all();
+    }
+    ThreadPriority threadPriority() const { std::lock_guard<std::mutex> l(threadMutex_); return threadPriority_; }
+    ThreadAffinity threadAffinity() const { std::lock_guard<std::mutex> l(threadMutex_); return threadAffinity_; }
+
+    // Companion headers keep their state in their Teleplot (TeleplotImage.h: its encoding thread), destroyed first with it
+    template<class T> T& extension() {
+        std::lock_guard<std::mutex> l(extensionsMutex_);
+        auto& slot = extensions_[std::type_index(typeid(T))];
+        if (!slot) { slot = std::make_shared<T>(*this); }
+        return *static_cast<T*>(slot.get());
+    }
+
+    // "Now" on the clock of this Teleplot (clock(), or system_clock)
+    Time currentTime() const { Time t; t.ns = nowNs_(); return t; }
+
+    // The stats of this Teleplot sent as telemetries every "every" (0: no more; off by default): rates of what is sent (label
+    // "teleplot sent"), the queue, problems as totals ("teleplot problems"); TeleplotImage.h adds its own ("teleplot images").
+    // They are counted in what they report.
+    void sendStats(Time every) {
+        std::lock_guard<std::mutex> l(statsMutex_);
+        statsEveryMs_ = every.ns / 1000000;
+        statsAtMs_ = steadyMs_();
+        statsBefore_ = stats();
+    }
+    Time statsInterval() const { std::lock_guard<std::mutex> l(statsMutex_); Time t; t.ns = statsEveryMs_ * 1000000; return t; }
 
     void enable() { enabled_ = true; }
     void disable() { enabled_ = false; }
@@ -553,7 +777,7 @@ public:
     // Sends what is queued now
     void flush() { flush_(false); }
 
-    Stats stats() const { std::lock_guard<Lock_> g(lock_); Stats s = stats_; s.dropped += busy_.load(); return s; }
+    Stats stats() const { std::lock_guard<Lock_> g(lock_); Stats s = stats_; s.dropped += busy_.load(); s.priorityRefused += priorityRefused_.load(); return s; }
 
 private:
     // ------------------------------------------------------------------ Protocol (doc/binaryProtocol.md)
@@ -753,9 +977,19 @@ private:
     Stats stats_;
     std::atomic<std::uint64_t> busy_{0};
     std::thread thread_;
-    std::mutex threadMutex_;
+    mutable std::mutex threadMutex_;
+    mutable std::mutex statsMutex_;
+    std::int64_t statsEveryMs_ = 0, statsAtMs_ = 0;
+    Stats statsBefore_;
     std::condition_variable threadWake_;
     bool threadStop_ = false;
+    ThreadPriority threadPriority_ = BelowCaller; // (threadMutex_)
+    ThreadAffinity threadAffinity_;
+    Scheduling threadReference_;            // the thread that set the options (or the priority): what BelowCaller is under
+    std::uint64_t threadGeneration_ = 0;    // (changes when it does: the sending thread applies it again)
+    std::atomic<std::uint64_t> priorityRefused_{0};
+    std::map<std::type_index, std::shared_ptr<void>> extensions_;
+    std::mutex extensionsMutex_;
     static inline const std::thread::id mainThread_ = std::this_thread::get_id(); // (taken while static objects are built, before main())
 
 #ifdef _WIN32
@@ -1195,6 +1429,7 @@ private:
         inSend_() = true;
         lastFlushMs_ = steadyMs_();
         packetReady_ = false;
+        if (!tryOnly) { statsDue_(); } // (a nonBlocking caller does not wait for the lock they need)
         std::vector<std::byte> packet;
         // At most what was queued when it started: samples queued meanwhile (an output that logs what it sends) wait for the next one
         std::size_t packets = 0, limit = 0;
@@ -1315,6 +1550,37 @@ private:
         return any;
     }
 
+    // The stats as telemetries, when it is time (sendStats). In a send: what they queue goes out with it.
+    void statsDue_() {
+        Stats now, before;
+        double seconds;
+        {
+            std::lock_guard<std::mutex> l(statsMutex_);
+            std::int64_t ms = steadyMs_();
+            if (statsEveryMs_ <= 0 || ms - statsAtMs_ < statsEveryMs_) { return; }
+            now = stats();
+            before = statsBefore_;
+            seconds = (ms - statsAtMs_) / 1000.0;
+            statsBefore_ = now;
+            statsAtMs_ = ms;
+        }
+        std::size_t queued;
+        { std::lock_guard<Lock_> g(lock_); queued = queued_; }
+        auto rate = [&](const char* name, std::uint64_t later, std::uint64_t earlier, const char* unit, const char* desc) {
+            telemetry(name).unit(unit).label("teleplot sent").desc(desc).update(static_cast<double>(later - earlier) / seconds);
+        };
+        rate("teleplot.packets", now.packets, before.packets, "/s", "Packets sent per second");
+        rate("teleplot.bytes", now.bytes, before.bytes, "B/s", "Bytes sent per second");
+        rate("teleplot.samples", now.samples, before.samples, "/s", "Samples queued per second");
+        telemetry("teleplot.queued").unit("B").label("teleplot sent").desc("Bytes waiting to be sent").update(static_cast<double>(queued));
+        auto total = [&](const char* name, std::uint64_t value, const char* desc) { telemetry(name).label("teleplot problems").desc(desc).update(static_cast<double>(value)); };
+        total("teleplot.dropped", now.dropped, "Samples dropped (queue full, or lock busy for a nonBlocking telemetry), since the start");
+        total("teleplot.tooBig", now.tooBig, "Texts cut to fit a packet, lines refused, since the start");
+        total("teleplot.sendErrors", now.sendErrors, "Socket or file errors, since the start");
+        total("teleplot.wrongThread", now.wrongThread, "Samples of a oneThread() stack from another thread, since the start");
+        total("teleplot.priorityRefused", now.priorityRefused, "Priorities or CPUs the system refused to a thread of Teleplot, since the start");
+    }
+
     void sendPacket_(std::vector<std::byte>& packet) { // (send lock held)
         std::uint16_t checksum = 0;
         for (std::byte b : packet) { checksum = static_cast<std::uint16_t>(checksum + static_cast<std::uint8_t>(b)); }
@@ -1393,7 +1659,12 @@ private:
         threadStop_ = false;
         thread_ = std::thread([this] {
             std::unique_lock<std::mutex> l(threadMutex_);
+            std::uint64_t applied = threadGeneration_ + 1;
             while (!threadStop_) {
+                if (applied != threadGeneration_) { // (its priority, as set: again when it changes)
+                    applied = threadGeneration_;
+                    if (!threadReference_.applyToCurrentThread(threadPriority_, threadAffinity_)) { priorityRefused_++; }
+                }
                 threadWake_.wait_for(l, std::max(options_.flushInterval_, std::chrono::milliseconds(1)));
                 if (threadStop_) { break; }
                 l.unlock();

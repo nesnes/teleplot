@@ -41,7 +41,7 @@ In the page: Sources, "Add a source", Serial port. Or start the Teleplot server 
 | `19_Dates` | real dates instead of the time since boot (ESP32) |
 | `20_SDCard` | recording to an SD card |
 | `21_Dashboard` | choosing where values go |
-| `22_SmallBoards` | memory on small boards |
+| `22_SmallBoards` | memory on small boards, and the stats in the page |
 
 ## What to know about this library
 
@@ -70,6 +70,8 @@ computers does not have:
   | `TELEPLOT_RESULT_SIZE`: longest text an action answers | 40 | 16 |
   | Memory of a `Teleplot` | about 5 KB | about 0.6 KB |
 
+- **`sendStats(Teleplot::ms(1000))`** sends, every second, the samples and bytes written per second and the totals of what did
+  not fit (`teleplot.tooBig`) or could not be read (`teleplot.dropped`): the page charts them like any telemetry. Off by default.
 - **Call `poll()` often** when the page can change something: it reads what the page wrote, applies it, answers, publishes the
   settings, and sends the descriptions again. Handlers and checks run inside it.
 - **What is sent again every 5 s**: descriptions, settings and buttons, the kind and frame of a shape. With `TELEPLOT_RESEND` (on,

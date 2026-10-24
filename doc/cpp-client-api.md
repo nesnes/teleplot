@@ -262,6 +262,87 @@ What differs from the full header (it compiles the same code as long as it avoid
 | A Rgb color of a shape | its own section | written `#rrggbb`: the same color, stored as text |
 | Outputs | `Options().udp()`, `.file()`, `.output()` | `addOutput(Print&)` |
 
+### 9. Pictures (full header, with `TeleplotImage.h`)
+
+```cpp
+#include "Teleplot.h"
+#include "TeleplotImage.h"
+
+TeleplotImage::Pixels frame{ mat.data, mat.cols, mat.rows, TeleplotImage::BGR8, mat.step };  // a view: nothing is copied
+tp.telemetry("camera").image(TeleplotImage::encode(frame));                 // JPEG, quality 80, encoded in the call
+tp.telemetry("camera").image(TeleplotImage::encode(frame, TeleplotImage::Jpeg{ 60 }));
+TeleplotImage::send(tp.telemetry("camera"), frame);                         // encoded on a thread: the call only copies
+TeleplotImage::send(tp.telemetry("depth"), depth, TeleplotImage::Png{});    // Gray16: lossless, 16 bits
+TeleplotImage::send(tp.telemetry("camera"), TeleplotImage::shrink(frame, 2)); // half the width and height
+tp.telemetry("map").image(TeleplotImage::load("floor-plan.png"));           // a file, as it is
+```
+
+See "Pictures" below.
+
+## Pictures (`TeleplotImage.h`)
+
+A companion of the full header for the pixels a program has (a camera, OpenCV, ROS, a depth sensor): `image()` takes JPEG or PNG
+bytes, this makes them. Nothing more: no decoding (the page does it), no processing (drawings over a picture are shapes in its
+pixels, `pixelsOf()`), no undistortion (pictures are never modified). C++17, no dependency, no Arduino version.
+
+| | |
+| --- | --- |
+| `Pixels{data, width, height, format, stride}` | a view of pixels (stride: bytes from a row to the next, 0: packed) |
+| Formats | `Gray8`, `Gray16` (machine byte order: a depth image), `RGB8`, `BGR8` (OpenCV), `RGBA8`, `BGRA8`, `YUYV` (webcams, BT.601) |
+| `encode(pixels[, Jpeg{quality}])` → `Picture` | JPEG baseline 4:2:0 (gray: one channel), quality 80 by default; alpha is dropped; `Gray16` is refused |
+| `encode(pixels, Png{})` → `Picture` | the pixels exactly; `Gray16` stays 16 bits, RGBA keeps its alpha |
+| `Picture{type, bytes, error}` | what `image(picture)` sends; empty bytes: it failed, `error` says why (nothing is sent) |
+| `load(path)` → `Picture` | a .jpg / .png file as it is (recognized by its first bytes, not by its name) |
+| `typeOf(bytes, size)` | `Jpeg`, `Png`, or nothing |
+| `shrink(pixels, factor)` → `Image` | smaller by a whole factor, each pixel the average of a square (the camera's intrinsics stay right: the protocol takes any size of the same proportions); `YUYV` gives `RGB8` |
+| `copy(pixels)` → `Image` | pixels it holds (an `Image` is also a `Pixels`) |
+| `send(telemetry, pixels[, time][, Jpeg{} \| Png{}])` | encoded on the encoding thread of the Teleplot, then sent; dated when asked (or at `time`); the pixels are copied first (an `Image&&` is taken without copy) |
+| `stats(tp)` | `encoded`, `replaced`, `failed`, `priorityRefused` |
+
+The encoding thread (one per Teleplot, started by the first `send()`, kept by `Teleplot::extension()` and stopped first when the
+Teleplot goes): a slot per telemetry. The picture being encoded always finishes and is sent; of the pictures asked meanwhile for the
+same telemetry only the latest waits (the others are counted as replaced); telemetries take turns. Its priority follows
+`threadPriority()`: `BelowCaller` gives it, for each picture, the priority of the thread that called `send()` one step under, and
+that thread's CPUs. With `TELEPLOT_SINGLE_THREAD`, `send()` encodes in the call.
+
+Measured (Apple M-series, -O2): 640 x 480 BGR8, JPEG q80 4 ms, PNG 14 ms. JPEGs are checked against libjpeg (same quality of
+pixels, same size within 10 %), PNGs decoded and compared pixel by pixel (`clients/cpp/tests/image.test.js`).
+
+## Threads of Teleplot
+
+The full header starts threads only when asked: the sending thread (`sendFrom(Thread)`) and the encoding thread of `TeleplotImage.h`.
+Their priority and their CPUs: `Options().threadPriority(...)` and `.threadAffinity(...)`, changed at run time with
+`tp.threadPriority(...)` and `tp.threadAffinity(...)`.
+
+```cpp
+Teleplot tp(Teleplot::Options().sendFrom(Teleplot::Thread)
+    .threadPriority(Teleplot::ThreadPriority::realtime(20))      // SCHED_FIFO 20
+    .threadAffinity(Teleplot::ThreadAffinity::cpus({ 3 })));      // on CPU 3 only
+tp.threadPriority(Teleplot::Low);                                 // later: under normal threads
+```
+
+| Priority | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| `BelowCaller` (default) | the caller's policy; real-time: priority - 1; otherwise nice + 1 | the caller's QoS class, relative priority - 1 | the caller's level - 1 |
+| `Normal` | `SCHED_OTHER`, the process's nice | QoS default | normal |
+| `Low` | `SCHED_OTHER`, nice + 10 | QoS utility | lowest |
+| `ThreadPriority::realtime(p[, roundRobin])` | `SCHED_FIFO` (or `SCHED_RR`) priority p, 1 to 99 | `SCHED_FIFO` (or `SCHED_RR`) priority p, its own range | refused |
+| `ThreadPriority::value(v)` | nice v (-20 to 19) | relative priority v in QoS default (-15 to 0) | level v (`THREAD_PRIORITY_*`, -15 to 15) |
+
+| Affinity | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| `ThreadAffinity::automatic()` (default) | the caller's CPUs with `BelowCaller`, any otherwise | (nothing to set) | the same |
+| `followCaller()` | the caller's CPU set | (nothing to set) | the caller's group affinity |
+| `any()` | the CPUs of the process | (nothing to set) | the CPUs of the process |
+| `cpus({2, 3})` | these CPUs | refused (macOS has no affinity) | these CPUs of the current group (0 to 63) |
+
+Values are given to the system as they are: Teleplot does not translate them. The caller: for the sending thread, the thread that set
+the options (or the priority, or the affinity); for the encoding thread, the thread that called `send()`, picture by picture.
+Under a real-time caller, `BelowCaller` makes a real-time thread, which delays every normal thread on its CPUs: choose `Normal`,
+`Low` or a value to avoid it. When the system refuses (no right to that priority, a CPU that is not there), the thread keeps what it
+had for that part and `stats().priorityRefused` (`TeleplotImage::stats()` for the encoding thread) counts it.
+`Teleplot::Scheduling` (`ofCurrentThread()`, `applyToCurrentThread(priority, affinity)`) is what does it, for companion headers.
+
 ## The clock of a microcontroller
 
 A board has no date, but it has a clock that counts from its boot. The microcontroller header dates samples with `micros()` made 64
@@ -336,11 +417,15 @@ A source whose times are before 1973 (under 1e11 ms) is dated by the page from w
 | `flush()` | send what is queued now | ✓ |
 | `answer(call, result)` | finish a call that returned `running()` | |
 | `handlePacket(data, size)` / `handleLine(text)` | what came back by another way | full / micro |
+| `sendStats(every)` / `statsInterval()` | the stats as telemetries every `every` (`Teleplot::ms(0)`: off, the default). Full: `teleplot.packets`, `.bytes`, `.samples` (per second) and `.queued` (bytes) labelled "teleplot sent"; `teleplot.dropped`, `.tooBig`, `.sendErrors`, `.wrongThread`, `.priorityRefused` (totals) labelled "teleplot problems"; `teleplot.images.encoded`, `.replaced` (per second), `.failed` labelled "teleplot images" with `TeleplotImage.h`. Micro: `teleplot.samples`, `.bytes`, `.tooBig`, `.dropped`, written directly (no table slot). They count themselves in what they report | ✓ |
 | `stats()` → `Stats` | `packets`, `bytes`, `samples`; `dropped` (queue full, lock busy), `tooBig` (cut texts), `sendErrors`, `wrongThread` | ✓ (fewer fields) |
 | `enable()` / `disable()`, `#define TELEPLOT_DISABLE` | off at run time / compiled out | ✓ |
 | `static ok([text])`, `error(why)`, `running()` → `Result` | answers | ✓ (`running` full) |
 | `static now()`, `ms(x)`, `us(x)`, `ns(x)` → `Time` | times; `now()` is the default clock: `system_clock` (full), `micros()` since boot (micro) | ✓ |
 | `static deg(degrees)` → radians | angles | ✓ |
+| `threadPriority(p)` / `threadAffinity(a)` (and their getters) | the priority and the CPUs of the threads of Teleplot (full) | |
+| `currentTime()` | now, on the clock of this Teleplot (full) | |
+| `extension<T>()` | the state of a companion header, kept by the Teleplot (full) | |
 | `clock(fn)` | where "now" comes from: full header default `system_clock` (a simulation or ROS time can replace it), microcontroller default the time since boot | ✓ |
 | `addOutput(Print&)` | another destination (micro) | micro |
 | `Stack(tp, name, level)` | a level of a stack while it lives | ✓ |
@@ -352,7 +437,7 @@ Outputs, as many as wanted: `udp(host, port)` (none given: `udp("127.0.0.1", 472
 `files.md`), `output(function<void(const std::byte*, size_t)>)`. Then `name("")` (client name; empty: the name of the program), `clientId(0)` (0: from the name),
 `flushInterval(ms 20)` (0: only on `flush()` / `poll()`), `sendFrom(Caller | Thread)`, `describeInterval(ms 5000)`,
 `publishInterval(ms 200)` (settings), `maxQueuedBytes(1 MB)` (beyond: the oldest samples go first, counted),
-`nonBlocking(false)` (the default of every telemetry).
+`nonBlocking(false)` (the default of every telemetry), `threadPriority(...)` and `threadAffinity(...)` (see "Threads of Teleplot").
 
 ### `Teleplot::Telemetry` (all chainable; a time of your own: `at(time)` first)
 
@@ -364,7 +449,7 @@ Outputs, as many as wanted: `udp(host, port)` (none given: `udp("127.0.0.1", 472
 | Samples | `update(value)` (number, bool, text, `Number2D`, `Number3D`) |
 | Shape | `shape(type)`, `stl(url)`, `position(x, y[, z])`, `rotation(roll, pitch, yaw)`, `yaw(a)`, `quaternion(w, x, y, z)`, `size(x, y[, z])`, `size(s)`, `color(text)` / `color(Rgb)` (a sample; `color` before any shape call is the attribute), `opacity(0..1)`, `texture(url)`, `textureFrom(imageTelemetry)`, `vector(x, y[, z])`, `text(text)`, `textSize(h)`, `lineWidth(w)`, `points(pts, n)` |
 | Cloud | `cloud(pts, n)`, `cloud(pts, n, intensities)`, `cloud(pts, n, colors)`, `cloud(pts, n, intensities, colors)` |
-| Camera | `image(Jpeg \| Png, bytes, size)`, `intrinsics(width, height, fx, fy, cx, cy)`, `distortion(k1, k2, p1, p2, k3)` |
+| Camera | `image(Jpeg \| Png, bytes, size)`, `image(picture)` (anything with `.type` and `.bytes`: `TeleplotImage::Picture`), `intrinsics(width, height, fx, fy, cx, cy)`, `distortion(k1, k2, p1, p2, k3)` |
 | Time | `at(time)` → `Samples` whose samples all get that time (first in a chain only; without it, the chain shares one "now") |
 | Threads | `oneThread()` (a stack used from one thread only, the first that uses it: no thread names) |
 

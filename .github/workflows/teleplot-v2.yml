@@ -31,6 +31,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+      - name: Install libjpeg's tools (the reference the JPEG encoder of TeleplotImage.h is compared with)
+        if: runner.os != 'Windows'
+        run: if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get install -y libjpeg-turbo-progs; else brew install jpeg-turbo; fi
       - name: Test the C++ client (g++ / clang)
         if: runner.os != 'Windows'
         run: sh clients/cpp/test.sh
@@ -43,6 +46,8 @@ jobs:
           cmake --build build --config Release
           ./build/Release/teleplot_test_client.exe
           ./build/Release/teleplot_test_scenarios.exe build
+          mkdir -p build/images
+          ./build/Release/teleplot_test_image.exe build/images
           TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js
 
   # The microcontroller library (clients/arduino/Teleplot): its tests on a computer (with the C++ client: one API), and its examples
