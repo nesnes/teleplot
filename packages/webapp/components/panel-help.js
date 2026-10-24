@@ -1707,6 +1707,18 @@ function initComponent_panel_help(vue) {
             this.refresh();
             this._refreshTimer = setInterval(() => this.refresh(), 1000);
         },
+        watch: {
+            // Asked from elsewhere (the welcome page): the language to write the lines for, a tile to open. Taken once.
+            "ctx.helpRequest": {
+                handler(request) {
+                    if (!request) return;
+                    if (request.sender && HELP_SENDERS.some((s) => s.id == request.sender)) this.setSender(request.sender);
+                    if (request.tile && tileById[request.tile]) this.openTile(request.tile);
+                    this.ctx.helpRequest = null;
+                },
+                immediate: true,
+            },
+        },
         unmounted() { clearTimeout(this._copiedTimer); clearTimeout(this._showTimer); clearInterval(this._refreshTimer); },
         methods: {
             refresh() {

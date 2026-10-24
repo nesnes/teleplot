@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing from the logo</title>
+<style>
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --tp-line: #d5dbe0; --tp-surface: #ffffff;
+    /* The colors of the logo: the blue of the sources, the red of the curve, the slate of the name */
+    --src: #2980b9; --plot: #e74c3c; --word: #34495e; --off: #b8c2cc; --ok: #1e9e5a; --bad: #d64534;
+    --k-name: hsl(204 64% 42%); --k-value: hsl(145 55% 33%);
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+    --tp-line: #2c343b; --tp-surface: #15191d;
+    --src: #3498db; --plot: #ff6b5b; --word: #dfe6ec; --off: #47525c; --ok: #3ccf7f; --bad: #ff6b63;
+    --k-name: hsl(204 75% 64%); --k-value: hsl(145 55% 55%);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.5; }
+code { font-family: var(--mono); }
+kbd { font: 600 0.75rem var(--mono); padding: 0 0.3rem; border-radius: 0.25rem; border: 1px solid var(--color-bg-dark); }
+header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); flex-wrap: wrap; }
+header h1 { margin: 0 auto 0 0; font-size: 1.35rem; font-weight: 500; white-space: nowrap; }
+header nav { display: flex; gap: 0.1rem; flex-wrap: wrap; }
+header nav a { color: var(--color-text-muted); text-decoration: none; padding: 0.1rem 0.4rem; border-radius: 0.6rem; font-weight: 600; }
+header nav a:hover { color: var(--color-primary); }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 130rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.6rem; font-weight: 500; margin: 2.4rem 0 0.3rem; scroll-margin-top: 4rem; }
+.lead { color: var(--color-text-muted); max-width: 92rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 0.6rem; padding: 0; margin: 0; list-style: none; }
+.rules li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.5rem 0.8rem; border-bottom: 2px solid var(--src); }
+.rules li.red { border-bottom-color: var(--plot); }
+.rules b { display: block; } .rules span { color: var(--color-text-muted); }
+.logo-read { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; margin: 0.6rem 0 1rem; }
+.logo-read figure { margin: 0; background: var(--color-bg-light); border-radius: 0.6rem; padding: 0.6rem; box-shadow: 0 0 3px var(--color-shadow); }
+.logo-read figcaption { font-size: 0.85rem; color: var(--color-text-muted); }
+.block { display: grid; grid-template-columns: 22rem minmax(0, 1fr); gap: 1.6rem; align-items: start; padding: 1.5rem 0; border-top: 2px solid var(--color-bg-dark); scroll-margin-top: 4rem; }
+.block h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.block h3 i { font-style: normal; color: var(--src); font-weight: 700; margin-right: 0.4rem; }
+.block p { margin: 0 0 0.6rem; font-size: 1.02rem; }
+.block ul { margin: 0 0 0.6rem; padding-left: 1.2rem; }
+.tags { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.tag { font-size: 0.75rem; font-weight: 700; padding: 0.05rem 0.55rem; border-radius: 1rem; color: #fff; background: var(--color-primary); }
+.tag.good { background: #1e8f55; } .tag.risk { background: #b87500; } .tag.size { background: #7f8c8d; }
+.stage { background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.8rem; padding: 0.8rem; display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: flex-start; min-width: 0; }
+.frame { display: flex; flex-direction: column; min-width: 0; }
+.caption { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); margin: 0 0 0.3rem; display: flex; gap: 0.35rem; align-items: center; }
+.num { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: var(--color-text-muted); color: var(--color-bg); font-size: 0.7rem; letter-spacing: 0; }
+.fnote { font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.3rem; max-width: 30rem; }
+.sent { margin-top: 0.9rem; background: var(--color-bg-light); border: 1px dashed var(--color-bg-dark); border-radius: 0.6rem; padding: 0.5rem 0.8rem; font-size: 0.9rem; }
+.sent b { display: block; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); margin-bottom: 0.2rem; }
+.sent div { display: flex; gap: 0.6rem; align-items: baseline; }
+.sent code { overflow-wrap: anywhere; }
+.sent .who { flex: none; width: 4.6rem; color: var(--color-text-muted); font-size: 0.8rem; }
+.sent .remark { color: var(--color-text-muted); font-style: italic; }
+@media (max-width: 1000px) { .block { grid-template-columns: 1fr; } }
+
+/* ---- An app window, and what goes in it ---- */
+.app { position: relative; width: 30rem; height: 20rem; overflow: hidden; border-radius: 0.6rem; border: 1px solid var(--tp-line); background: var(--color-bg); box-shadow: 0 2px 10px var(--color-shadow); color: var(--color-text); font-size: 0.82rem; }
+.island { position: absolute; top: 0.4rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.45rem; align-items: center; padding: 0.18rem 0.55rem; border-radius: 0.7rem; background: var(--color-bg-light); border: 1px solid var(--tp-line); font-size: 0.68rem; color: var(--color-text-muted); white-space: nowrap; z-index: 3; }
+.island b { color: var(--color-text); font-weight: 600; }
+.art { position: absolute; left: 0; right: 0; top: 2rem; }
+.art svg { display: block; width: 100%; height: auto; }
+svg.logo-art text { paint-order: stroke; stroke: var(--color-bg); stroke-width: 3px; stroke-linejoin: round; } /* (readable over the traces) */
+.under { position: absolute; left: 0.8rem; right: 0.8rem; bottom: 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; align-items: center; }
+.cmd { display: flex; align-items: center; gap: 0.4rem; width: 100%; max-width: 26rem; padding: 0.3rem 0.5rem; border-radius: 0.45rem; background: var(--color-bg-light); border: 1px solid var(--tp-line); font: 0.7rem var(--mono); }
+.cmd span.t { flex: 1; overflow-wrap: anywhere; }
+.cmd .copy { flex: none; color: var(--color-primary); font-family: Verdana, sans-serif; font-weight: 700; font-size: 0.68rem; }
+.n { color: var(--k-name); font-weight: 700; } .v { color: var(--k-value); font-weight: 700; }
+.hint { color: var(--color-text-muted); font-size: 0.68rem; text-align: center; }
+.btn { display: inline-block; padding: 0.2rem 0.65rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.7rem; border: 1px solid var(--tp-line); background: var(--color-bg-light); color: var(--color-text); }
+.btn.p { background: var(--src); border-color: var(--src); color: #fff; }
+.pop { position: absolute; z-index: 4; background: var(--color-bg-light); border: 1px solid var(--tp-line); border-radius: 0.55rem; padding: 0.4rem 0.55rem; box-shadow: 0 6px 18px var(--color-shadow); font-size: 0.7rem; display: flex; flex-direction: column; gap: 0.3rem; width: 15rem; }
+.pop b { font-size: 0.75rem; }
+.view { position: absolute; background: var(--tp-surface); border: 1px solid var(--tp-line); border-top: 2px solid var(--src); border-radius: 0.4rem; padding: 0.15rem 0.35rem; }
+.view .vt { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+.pulse { animation: pulse 1.6s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.35; } }
+.flow { stroke-dasharray: 3 5; animation: flow 0.8s linear infinite; } @keyframes flow { to { stroke-dashoffset: -8; } }
+@media (prefers-reduced-motion: reduce) { .pulse, .flow { animation: none; } }
+.rec { margin-top: 1rem; padding: 0.8rem 1rem; border-left: 4px solid var(--plot); background: var(--color-bg-light); max-width: 92rem; }
+.rec h3 { margin: 0 0 0.3rem; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+    <h1>Landing page from the logo: 8 studies</h1>
+    <nav>
+        <a href="#reading">The logo, read</a><a href="#rules">Rules</a>
+        <a href="#L1">1</a><a href="#L2">2</a><a href="#L3">3</a><a href="#L4">4</a><a href="#L5">5</a><a href="#L6">6</a><a href="#L7">7</a><a href="#L8">8</a>
+        <a href="#rec">Recommendation</a>
+    </nav>
+    <button onclick="toggleTheme()">Light / dark</button>
+</header>
+<main>
+<h2 id="reading">The logo, read</h2>
+<div class="logo-read">
+    <figure><div id="logo-now" style="width:22rem"></div><figcaption>The logo: blue rings joined by traces, a junction where the line turns red, a curve rising through sample dots.</figcaption></figure>
+    <figure><div id="logo-read" style="width:30rem"></div><figcaption>As a page: the rings are <b style="color:var(--src)">sources</b> (UDP, serial, a file, the sample), the traces carry data to the junction (Teleplot), the curve is <b style="color:var(--plot)">what arrived</b>.</figcaption></figure>
+</div>
+<p class="lead">The landing page becomes the logo, large: on the left what data can come from, on the right what it became. Each study below is a storyboard
+(<b>1</b> at rest, <b>2</b> something happens, <b>3</b> after) with what the device sent for each frame, as in <code>landing-mockups.html</code>.</p>
+
+<h2 id="rules">Rules for drawing it</h2>
+<ul class="rules">
+    <li><b>A ring is a real source</b><span>Drawn only for a way in that exists here (the server's UDP port, the serial port when the browser has Web Serial, files, the sample). Its look is its state: full when it delivers, outlined when ready, grey when it cannot work now.</span></li>
+    <li><b>A trace is a real path</b><span>Plain when data passes, dashed when waiting, broken (and red) where it is cut: the server cannot be reached, the port is closed.</span></li>
+    <li class="red"><b>The curve is never invented</b><span>Before data the right side is an empty dashed path, clearly a place, never a curve that looks like data (Teleplot never invents samples). Each red dot is a sample that came, at its value.</span></li>
+    <li class="red"><b>The drawing hands over</b><span>When data flows the landing goes, and the curve it drew is the first chart of the Live dashboard: the same samples, no jump.</span></li>
+    <li><b>Words stay short</b><span>What a ring is (UDP 47269), its one line to send, and why when it cannot work. The Help holds the rest.</span></li>
+    <li><b>Small screens</b><span>The drawing turns a quarter: sources on top, curve below. Without the drawing (reduced motion, narrow) the same pieces stay as a list.</span></li>
+</ul>
+
+<h2>The studies</h2>
+<div id="studies"></div>
+
+<div class="rec" id="rec">
+    <h3>Recommendation</h3>
+    <p><b>2</b> (the circuit) as the page: its rings are the ways in (question "where from?" answered by the drawing itself), a click on a ring opens its one line
+    next to it, and its traces tell what works (study <b>6</b> merged in: a cut trace is a server that cannot be reached). With <b>1</b>'s rule for the right side:
+    the dashed place of the curve fills with the real samples as they come, and <b>5</b>'s hand-over: the curve slides into the first chart of the Live
+    dashboard. <b>7</b> (one ring per sender) is the natural next step, once the page knows its senders (the server tells them already). <b>4</b> (the
+    curve as a ladder of results) is the one that changes the logo's meaning the most: nice, but it makes the red dots mean something else than samples.</p>
+</div>
+</main>
+<script>
+function toggleTheme() { const r = document.documentElement; r.dataset.theme = r.dataset.theme == "dark" ? "light" : "dark"; }
+
+// ---- The logo, drawn from data. sources: [{label, sub, state: "ok" | "ready" | "off" | "bad" | "sel", y}], cut: where the trace is broken ("device" | "server"),
+// samples: real values (0 to 1) or null (the empty place of the curve), dots: labels on the dots instead of samples, word: the name in the middle
+function art(o = {}) {
+    const sources = o.sources || [];
+    const W = 420, H = o.h || Math.max(175, 40 + sources.length * 44), jx = o.jx !== undefined ? o.jx : (sources.length > 2 ? 232 : 196), jy = H * 0.62;
+    const many = sources.length > 2;
+    const ys = sources.map((s, i) => s.y !== undefined ? s.y : (sources.length == 1 ? jy : 30 + i * ((H - 50) / Math.max(1, sources.length - 1))));
+    let s = "";
+    // Traces: from each ring right, then down or up to the bus, into the junction
+    sources.forEach((src, i) => {
+        const y = ys[i], x0 = 34, x1 = many ? 168 : 92 + (i % 2) * 14, mx = many ? 205 : 150;
+        const state = src.state || "ready";
+        const color = state == "off" ? "var(--off)" : (state == "bad" ? "var(--bad)" : "var(--src)");
+        const dash = state == "ok" ? "" : (state == "bad" ? ' stroke-dasharray="2 6"' : ' stroke-dasharray="5 4"');
+        s += `<path d="M${x0 + 11} ${y} H${x1} L${mx} ${jy} H${jx}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"${dash} opacity="${state == "off" ? 0.7 : 1}"/>`;
+        if (state == "ok") s += `<path d="M${x0 + 11} ${y} H${x1} L${mx} ${jy} H${jx}" fill="none" stroke="#fff" stroke-width="2" class="flow" opacity="0.7"/>`;
+        const fill = state == "ok" ? color : "var(--color-bg)";
+        s += `<circle cx="${x0}" cy="${y}" r="11" fill="${fill}" stroke="${color}" stroke-width="5"${state == "ready" && o.pulse ? ' class="pulse"' : ""}/>`;
+        if (state == "sel") s += `<circle cx="${x0}" cy="${y}" r="17" fill="none" stroke="var(--src)" stroke-width="1.5"/>`;
+        if (src.label) s += `<text x="${x0 + 18}" y="${y - 8}" font-size="10.5" font-weight="700" fill="${state == "off" ? "var(--color-text-muted)" : "var(--word)"}">${src.label}</text>`;
+        if (src.sub) s += `<text x="${x0 + 18}" y="${y + 17}" font-size="9" fill="${state == "bad" ? "var(--bad)" : "var(--color-text-muted)"}">${src.sub}</text>`;
+    });
+    if (o.cut) { const cx = o.cut == "server" ? jx - 6 : 120; s += `<path d="M${cx - 7} ${jy - 9} l14 18 M${cx + 7} ${jy - 9} l-14 18" stroke="var(--bad)" stroke-width="3" stroke-linecap="round"/>`; }
+    // The junction: Teleplot (the server and this page). A drawing without rings is a chart: no junction.
+    const chart = !sources.length;
+    if (!chart) s += `<circle cx="${jx}" cy="${jy}" r="8" fill="var(--color-bg)" stroke="${o.cut == "server" ? "var(--bad)" : "var(--plot)"}" stroke-width="4"/>`;
+    // The name: beside the first ring, above the traces, as in the logo (under the junction when there are many rings)
+    const labelled = sources.some((src) => src.label); // (labels take the place beside the rings: the name goes under the start of the curve, which rises away from it)
+    if (o.word !== false && !chart) s += `<text x="${labelled ? jx + 4 : 100}" y="${labelled ? jy + 32 : ys[0] + 8}" font-size="${o.wordSize || 22}" fill="var(--word)" font-family="Verdana, sans-serif">${o.word || "TelePlot"}</text>`;
+    // The right side: the empty place of a curve, real samples, or labelled dots
+    const x0 = jx + 8, x1 = W - 16, top = 18, bottom = jy;
+    if (o.dots) {
+        const pts = o.dots.map((d, i) => [x0 + (i + 1) * (x1 - x0) / o.dots.length, bottom - (i + 1) * (bottom - top) / o.dots.length]);
+        s += `<path d="M${jx + 8} ${jy} ${pts.map(([x, y], i) => { const [px, py] = i ? pts[i - 1] : [jx + 8, jy]; return `C${px + 16} ${py}, ${x - 16} ${y}, ${x} ${y}`; }).join(" ")}" fill="none" stroke="var(--plot)" stroke-width="5" stroke-linecap="round"/>`;
+        pts.forEach(([x, y], i) => { s += `<circle cx="${x}" cy="${y}" r="9" fill="var(--color-bg)" stroke="var(--plot)" stroke-width="4"/><text x="${x}" y="${y + 23}" font-size="9" text-anchor="middle" fill="var(--word)" font-weight="700">${o.dots[i]}</text>`; });
+    }
+    else if (!o.samples || !o.samples.length) {
+        s += `<path d="M${x0} ${bottom} C${x0 + 60} ${bottom}, ${x0 + 70} ${top + 30}, ${x1 - 50} ${top + 22} S${x1 - 10} ${top}, ${x1} ${top}" fill="none" stroke="var(--off)" stroke-width="3" stroke-dasharray="5 6" stroke-linecap="round"/>`;
+        if (o.placeLabel !== false) s += `<text x="${(x0 + x1) / 2 + 10}" y="${bottom - 6}" font-size="9.5" text-anchor="middle" fill="var(--color-text-muted)">${o.placeLabel || "what you send is drawn here"}</text>`;
+    }
+    else {
+        const n = o.span || Math.max(o.samples.length, 8);
+        const pts = o.samples.map((v, i) => [x0 + 6 + i * (x1 - x0 - 6) / (n - 1), bottom - 8 - v * (bottom - top - 8)]);
+        if (!chart) s += `<path d="M${jx + 8} ${jy} L${pts[0][0]} ${pts[0][1]}" stroke="var(--plot)" stroke-width="5" stroke-linecap="round" opacity="0.5"/>`;
+        if (pts.length > 1) s += `<polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="var(--plot)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        pts.forEach(([x, y], i) => { if (pts.length < 12 || i == pts.length - 1) s += `<circle cx="${x}" cy="${y}" r="${i == pts.length - 1 ? 9 : 6}" fill="var(--color-bg)" stroke="var(--plot)" stroke-width="4"/>`; });
+        if (o.valueLabel) { const [x, y] = pts[pts.length - 1]; s += `<text x="${x - 12}" y="${y - 14}" font-size="10" text-anchor="end" font-weight="700" fill="var(--word)">${o.valueLabel}</text>`; }
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" class="logo-art">${s}</svg>`;
+}
+const island = (state = "no data") => `<div class="island"><b>Live ▾</b><span>⏸ ${state}</span><span>Telemetries · Sources</span><span>Edit</span><b>Help</b></div>`;
+const app = (inner, opts = {}) => `<div class="app">${island(opts.state)}${inner}</div>`;
+const frame = (n, caption, html, note = "") => `<div class="frame"><div class="caption"><span class="num">${n}</span>${caption}</div>${html}${note ? `<div class="fnote">${note}</div>` : ""}</div>`;
+const sent = (rows) => `<div class="sent"><b>What the device sent</b>${rows.map(([n, who, line]) => `<div><span class="num">${n}</span><span class="who">${who}</span>${!line ? `<span class="remark">nothing yet</span>` : (line.startsWith("(") ? `<span class="remark">${line.slice(1, -1)}</span>` : `<code>${line}</code>`)}</div>`).join("")}</div>`;
+const line = `<span class="n">temperature</span>:<span class="v">25.3</span>`;
+const cmd = (text = `echo "${line}" | nc -u -w0 127.0.0.1 47269`) => `<div class="cmd"><span class="t">${text}</span><span class="copy">Copy</span></div>`;
+const wave = (n, f = (i) => 0.5 + 0.35 * Math.sin(i / 2.2)) => Array.from({ length: n }, (_, i) => f(i));
+const SRC = {
+    udp: (state = "ready", sub = "port 47269") => ({ label: "From your code", sub, state }),
+    serial: (state = "ready", sub = "Arduino, ESP32… (Chrome, Edge)") => ({ label: "A serial port", sub, state }),
+    file: (state = "ready", sub = "drop .teleplot, .txt, .csv") => ({ label: "A file", sub, state }),
+    sample: (state = "ready", sub = "a robot, to look around") => ({ label: "The sample", sub, state }),
+};
+
+document.getElementById("logo-now").innerHTML = art({ sources: [{ state: "ok", y: 34 }, { state: "ok", y: 118 }], samples: [0.1, 0.55, 0.95], span: 4, h: 150, word: "TelePlot" });
+document.getElementById("logo-read").innerHTML = art({ sources: [SRC.udp(), SRC.serial(), SRC.file(), SRC.sample()], placeLabel: "what arrived" });
+
+// ---- The studies: [id, title, tags, description, frames, sent rows]
+const S = [];
+
+S.push(["L1", "The logo, alive", [["good", "the brand is the status"], ["good", "never fake data"], ["size", "small"]],
+    `<p>The logo, large, as the whole page. The rings are the ways in, outlined while they wait; under the drawing, the one line to send. The right side is
+    the dashed place of a curve until the first sample: then a real red dot appears at its value, and the curve grows with each sample.</p>
+    <ul><li>The logo the user will see in the corner afterwards is the one that welcomed them: the same drawing, small.</li><li>Nothing to read but the line.</li></ul>`,
+    frame(1, "Waiting", app(`<div class="art">${art({ sources: [SRC.udp(), SRC.serial()], pulse: true })}</div><div class="under">${cmd()}<div class="hint">or drop a file · or <b>look at a sample</b></div></div>`))
+    + frame(2, "The first samples", app(`<div class="art">${art({ sources: [SRC.udp("ok", "127.0.0.1 · 1 /s"), SRC.serial()], samples: [0.42, 0.46, 0.44], valueLabel: "temperature 25.3" })}</div><div class="under"><div class="hint">temperature: 3 samples · <b>Open the Live dashboard</b></div></div>`, { state: "1 /s" }), "Each dot is a sample that came, at its value.")
+    + frame(3, "Under way", app(`<div class="view" style="left:0.6rem;right:0.6rem;top:2.2rem;bottom:0.6rem"><div class="vt">temperature</div>${art({ samples: wave(30), word: false, jx: 4, h: 150, sources: [] })}</div>`, { state: "1 /s" }), "The Live dashboard: the same samples, now a chart."),
+    [[1, "", ""], [2, "Terminal", "temperature:25.3 (then 25.4, 25.35)"], [3, "Terminal", "temperature:… once per second"]]]);
+
+S.push(["L2", "The circuit", [["good", "every way in, drawn"], ["good", "click a ring: its line"], ["risk", "four rings to read"]],
+    `<p>A ring per way in: from your code (UDP), a serial port, a file, the sample. A click on a ring (or hovering it) opens what it needs, next to it: the line
+    to send, the port picker, the drop zone, the start button. The traces say which ones can work right now.</p>
+    <ul><li>The serial ring is grey where the browser has no Web Serial, with why.</li><li>Answers "where from?" before "what to send".</li></ul>`,
+    frame(1, "At rest", app(`<div class="art">${art({ sources: [SRC.udp(), SRC.serial(), SRC.file(), SRC.sample()] })}</div>`))
+    + frame(2, "A ring opened", app(`<div class="art">${art({ sources: [{ ...SRC.udp(), state: "sel" }, SRC.serial("off", "not in this browser"), SRC.file(), SRC.sample()] })}</div><div class="pop" style="right:0.6rem;top:2.4rem;width:16rem"><b>From your code, over the network</b>${cmd()}<span class="hint" style="text-align:left">From another computer: 192.168.1.20:47269</span></div>`), "Its line, beside it; the other rings stay where they are.")
+    + frame(3, "Data from the network", app(`<div class="art">${art({ sources: [SRC.udp("ok", "127.0.0.1 · 12 /s"), SRC.serial("off", "not in this browser"), SRC.file(), SRC.sample()], samples: wave(9), valueLabel: "speed 1.2" })}</div>`, { state: "12 /s" }), "Its trace flows; the curve shows the first telemetry."),
+    [[1, "", ""], [2, "", ""], [3, "Python", "speed:1.2 (12 times per second)"]]]);
+
+S.push(["L3", "Two halves", [["good", "reads left to right"], ["good", "space for each side"], ["risk", "less of the logo itself"]],
+    `<p>The page split along the junction: the blue half is how to send (the sources and their lines, as a list), the red half is what you will see (the empty
+    place of the chart, then the chart). The logo's line runs across the middle and joins them.</p>
+    <ul><li>The red half is the real first chart in waiting: when data comes it is not replaced, it is filled.</li></ul>`,
+    frame(1, "At rest", app(`<div style="position:absolute;left:0;top:2rem;bottom:0;width:50%;padding:0.6rem;border-right:3px solid var(--src);display:flex;flex-direction:column;gap:0.35rem"><b style="color:var(--src)">Send</b>${["From your code · UDP 47269", "A serial port", "A file", "The sample"].map((t, i) => `<div style="display:flex;gap:0.4rem;align-items:center"><svg width="16" height="16"><circle cx="8" cy="8" r="5" fill="none" stroke="var(--src)" stroke-width="3"/></svg><span style="font-size:0.72rem">${t}</span></div>`).join("")}${cmd(`echo "${line}" | nc -u -w0 127.0.0.1 47269`)}</div><div style="position:absolute;right:0;top:2rem;bottom:0;width:50%;padding:0.6rem"><b style="color:var(--plot)">See</b>${art({ sources: [], word: false, jx: 0, h: 170, placeLabel: "your first chart" })}</div>`))
+    + frame(2, "Arriving", app(`<div style="position:absolute;left:0;top:2rem;bottom:0;width:50%;padding:0.6rem;border-right:3px solid var(--src)"><b style="color:var(--src)">Send</b><div style="margin-top:0.4rem;font-size:0.72rem"><svg width="16" height="16" style="vertical-align:middle"><circle cx="8" cy="8" r="5" fill="var(--src)" stroke="var(--src)" stroke-width="3"/></svg> From your code · <b>127.0.0.1</b></div></div><div style="position:absolute;right:0;top:2rem;bottom:0;width:50%;padding:0.6rem"><b style="color:var(--plot)">See</b>${art({ sources: [], word: false, jx: 0, h: 170, samples: wave(6), valueLabel: "temperature" })}</div>`, { state: "1 /s" }), "The source that delivers is full; the red half fills.")
+    + frame(3, "After", app(`<div class="view" style="left:0.6rem;right:0.6rem;top:2.2rem;bottom:0.6rem"><div class="vt">temperature</div>${art({ samples: wave(30), word: false, jx: 4, h: 150, sources: [] })}</div>`, { state: "1 /s" })),
+    [[1, "", ""], [2, "Terminal", "temperature:25.3 …"], [3, "Terminal", "temperature:…"]]]);
+
+S.push(["L4", "The curve of what you can draw", [["good", "shows what is possible"], ["risk", "red dots mean results, not samples"]],
+    `<p>The rising curve as a ladder of results: its dots are what Teleplot draws, from the simplest to the richest (a curve, a state, a map, 3D, a picture,
+    a button). Each dot opens its Help tile. The left side stays the sources with the one line.</p>
+    <ul><li>Risk: in the logo the dots are samples; here they would mean something else, and the page cannot also show the first samples there.</li></ul>`,
+    frame(1, "At rest", app(`<div class="art">${art({ sources: [SRC.udp(), SRC.serial()], dots: ["a curve", "a state", "a map", "3D", "a picture"], word: "TelePlot" })}</div><div class="under">${cmd()}</div>`))
+    + frame(2, "A dot, pointed at", app(`<div class="art">${art({ sources: [SRC.udp(), SRC.serial()], dots: ["a curve", "a state", "a map", "3D", "a picture"] })}</div><div class="pop" style="right:1rem;top:5.2rem"><b>A map</b><span class="mono" style="font-family:var(--mono);font-size:0.65rem">2D|robot:S:rect:P:1.2:0.8</span><span class="btn">Open in the Help</span></div>`), "The way into the Help, not a copy of it.")
+    + frame(3, "Data", app(`<div class="view" style="left:0.6rem;right:0.6rem;top:2.2rem;bottom:0.6rem"><div class="vt">temperature</div>${art({ samples: wave(30), word: false, jx: 4, h: 150, sources: [] })}</div>`, { state: "1 /s" })),
+    [[1, "", ""], [2, "", ""], [3, "Terminal", "temperature:25.3"]]]);
+
+S.push(["L5", "The hand-over", [["good", "no jump between landing and dashboard"], ["good", "teaches what a chart is"], ["risk", "motion to get right"]],
+    `<p>A transition more than a page: when the first samples come, the logo's curve leaves the logo and becomes the first chart. The rings shrink to the
+    corner (where the logo stays, small), the red line straightens into the chart's time axis, the dots stay the samples.</p>
+    <ul><li>Lasts under a second; nothing moves with reduced motion (the chart just appears).</li></ul>`,
+    frame(1, "The first samples", app(`<div class="art">${art({ sources: [SRC.udp("ok", "127.0.0.1"), SRC.serial()], samples: [0.4, 0.5, 0.45, 0.55], valueLabel: "temperature" })}</div>`, { state: "1 /s" }))
+    + frame(2, "Halfway", app(`<div style="position:absolute;left:0.5rem;top:0.4rem;width:6rem;opacity:0.7">${art({ sources: [{ state: "ok", y: 40 }, { state: "ready", y: 120 }], word: false, h: 160, placeLabel: false })}</div><div class="view" style="left:3rem;right:1.5rem;top:4rem;bottom:2rem;border-top-color:var(--plot);opacity:0.85"><div class="vt">temperature</div>${art({ samples: [0.4, 0.5, 0.45, 0.55, 0.5], span: 12, word: false, jx: 4, h: 120, sources: [] })}</div>`, { state: "1 /s" }), "The curve takes its place as a chart; the rings go to the corner.")
+    + frame(3, "The dashboard", app(`<div class="view" style="left:0.6rem;right:0.6rem;top:2.2rem;bottom:0.6rem"><div class="vt">temperature</div>${art({ samples: wave(14, (i) => 0.45 + 0.08 * Math.sin(i / 2)), span: 14, word: false, jx: 4, h: 150, sources: [] })}</div>`, { state: "1 /s" }), "The same samples, where they will stay."),
+    [[1, "Terminal", "temperature:25.3, 25.4, 25.35, 25.5"], [2, "Terminal", "temperature:25.45"], [3, "Terminal", "temperature:…"]]]);
+
+S.push(["L6", "Traces that tell what is wrong", [["good", "the drawing diagnoses"], ["good", "one fix, where it is cut"], ["size", "small"]],
+    `<p>The traces are the path of the data: from the device to the server (UDP), from the server to this page (WebSocket). Where the path is cut the trace
+    is broken and red, and the fix is written there: start the server, check the port, the firewall, the address.</p>
+    <ul><li>The broken place is the diagnosis: no paragraph to read.</li></ul>`,
+    frame(1, "No server", app(`<div class="art">${art({ sources: [SRC.udp("bad", "the server does not answer"), SRC.serial()], cut: "server", placeLabel: "nothing can arrive yet" })}</div><div class="under"><b style="font-size:0.78rem">Start the Teleplot server</b>${cmd("./teleplot-macos-arm64")}<div class="hint">A serial port works without it.</div></div>`), "Cut at the junction: the page cannot reach the server.")
+    + frame(2, "Nothing for 30 s", app(`<div class="art">${art({ sources: [SRC.udp("ready", "nothing came for 30 s"), SRC.serial()], cut: "device" })}</div><div class="under"><div class="hint" style="text-align:left">Nothing reaches port 47269: send to <b>192.168.1.20:47269</b> from another computer · a firewall may block UDP · <b>127.0.0.1</b> only works on this computer</div></div>`), "Cut before the server: nothing came from the device.")
+    + frame(3, "Fixed", app(`<div class="art">${art({ sources: [SRC.udp("ok", "192.168.1.30 · 5 /s"), SRC.serial()], samples: wave(7), valueLabel: "battery 12.1" })}</div>`, { state: "5 /s" })),
+    [[1, "", "(the server is not running)"], [2, "Python", "(sent to 127.0.0.1 from a Raspberry Pi: it never reaches this computer)"], [3, "Python", "battery:12.1 (to 192.168.1.20)"]]]);
+
+S.push(["L7", "One ring per sender", [["good", "shows who is talking"], ["good", "several devices, at a glance"], ["risk", "needs the senders from the server"]],
+    `<p>The rings are not the kinds of source but the senders themselves: a ring appears for each device that sends (its address, its name when it says it),
+    and its trace joins the others. With nobody sending, one outlined ring waits, with the line. The right side gets one curve per sender's first telemetry.</p>
+    <ul><li>The server already tells the page its senders (for commands): the landing can use them.</li><li>Becomes the Sources panel, drawn.</li></ul>`,
+    frame(1, "Nobody yet", app(`<div class="art">${art({ sources: [{ label: "Your device", sub: "port 47269", state: "ready" }], pulse: true })}</div><div class="under">${cmd()}</div>`))
+    + frame(2, "One device", app(`<div class="art">${art({ sources: [{ label: "rover", sub: "192.168.1.30 · 20 /s", state: "ok" }], samples: wave(8), valueLabel: "speed" })}</div>`, { state: "20 /s" }), "Named by its client name when it sends one.")
+    + frame(3, "Two devices", app(`<div class="art">${art({ sources: [{ label: "rover", sub: "192.168.1.30 · 20 /s", state: "ok" }, { label: "arm", sub: "192.168.1.31 · 50 /s", state: "ok" }], samples: wave(10, (i) => 0.5 + 0.3 * Math.sin(i / 1.5)), valueLabel: "speed · joint1" })}</div><div class="under"><span class="btn p">Open the Live dashboard</span></div>`, { state: "70 /s" }), "A second ring, its own trace."),
+    [[1, "", ""], [2, "C++ (rover)", "speed:1.2 · 20 times per second"], [3, "C++ (arm)", "joint1:0.4 · 50 times per second"]]]);
+
+S.push(["L8", "The ring alone", [["good", "quiet, fits anywhere"], ["good", "a status that looks like the brand"], ["risk", "says little by itself"]],
+    `<p>The small logo, the ring in the gradient of the logo (blue to red), as the status at the center of an almost empty page: blue and pulsing while it
+    listens, broken when the server cannot be reached, red and full when data comes. The one line under it.</p>
+    <ul><li>The same ring could be the status in the top menu afterwards.</li></ul>`,
+    frame(1, "Listening", app(`<div class="art" style="top:3rem"><svg viewBox="0 0 420 120"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--plot)"/><stop offset="1" stop-color="var(--src)"/></linearGradient></defs><circle cx="210" cy="60" r="34" fill="none" stroke="url(#g1)" stroke-width="12" class="pulse"/></svg></div><div class="under">${cmd()}<div class="hint">Listening on port 47269</div></div>`))
+    + frame(2, "No server", app(`<div class="art" style="top:3rem"><svg viewBox="0 0 420 120"><circle cx="210" cy="60" r="34" fill="none" stroke="var(--bad)" stroke-width="12" stroke-dasharray="40 14"/></svg></div><div class="under"><b style="font-size:0.78rem">Start the Teleplot server</b>${cmd("./teleplot-macos-arm64")}</div>`), "Broken: the one fix.")
+    + frame(3, "Data", app(`<div class="art" style="top:3rem"><svg viewBox="0 0 420 120"><circle cx="210" cy="60" r="34" fill="var(--plot)" stroke="var(--plot)" stroke-width="12"/><text x="210" y="112" font-size="12" text-anchor="middle" fill="var(--word)" font-weight="700">temperature arrived</text></svg></div>`, { state: "1 /s" }), "Then the Live dashboard."),
+    [[1, "", ""], [2, "", "(the server is not running)"], [3, "Terminal", "temperature:25.3"]]]);
+
+document.getElementById("studies").innerHTML = S.map(([id, title, tags, desc, frames, rows]) => `
+    <section class="block" id="${id}">
+        <div><h3><i>${id.slice(1)}</i>${title}</h3><div class="tags">${tags.map(([k, t]) => `<span class="tag ${k}">${t}</span>`).join("")}</div>${desc}</div>
+        <div><div class="stage">${frames}</div>${sent(rows)}</div>
+    </section>`).join("");
+</script>
+</body>
+</html>

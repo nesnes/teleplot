@@ -12,6 +12,7 @@ var app = Vue.createApp({
             ctx: Vue.reactive({
                 sidePanel: "",   // Panel of the left dock: "telemetries", "sources" or ""
                 helpOpen: false, // The Help panel, in its own dock on the right: it can be open next to a left panel
+                helpRequest: null, // {sender, tile}: what the Help shows when it opens (the language to write its lines for, a tile); taken by the panel
                 exportOpen: false, // The Export and import panel, on the right too: it takes the place of Help (one of the two at a time)
                 topPanel: "",
                 showHelp: true,

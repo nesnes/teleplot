@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing page studies</title>
+<style>
+html { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; }
+:root {
+    --color-bg-dark: hsl(0 0% 90%); --color-bg: hsl(192 15% 94%); --color-bg-light: hsl(192 15% 100%);
+    --color-text: hsl(0 0% 10%); --color-text-muted: hsl(0 0% 40%); --color-shadow: hsl(0deg 0% 50% / 50%);
+    --color-primary: hsl(204, 64%, 44%); --color-success: hsl(145, 63%, 42%); --color-danger: hsl(6, 78%, 57%); --color-warning: hsl(41, 100%, 47%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --tp-text: #1d2329; --tp-muted: #66717c; --tp-surface: #ffffff; --tp-bg: #f4f5f7; --tp-line: #d5dbe0; --tp-grid: rgba(0,0,0,.08);
+    --s1: #2980b9; --s2: #16a085; --s3: #8e44ad; --s4: #d35400; --s5: #c0392b; --ok: #1e9e5a; --bad: #d64534; --warn: #b87500;
+    --k-name: hsl(204 64% 42%); --k-value: hsl(145 55% 33%); --k-flags: hsl(282 44% 46%); --k-time: hsl(170 70% 30%);
+}
+:root[data-theme="dark"] {
+    --color-bg: hsl(210 17% 7%); --color-bg-light: hsl(210 17% 10%); --color-bg-dark: hsl(0 0% 24%);
+    --color-text: hsl(0 0% 90%); --color-text-muted: hsl(0 0% 60%); --color-shadow: hsl(0 0% 0% / 70%);
+    --tp-text: #e8ebee; --tp-muted: #8d98a3; --tp-surface: #15191d; --tp-bg: #0f1215; --tp-line: #2c343b; --tp-grid: rgba(255,255,255,.09);
+    --s1: #3498db; --s2: #1abc9c; --s3: #b07cd8; --s4: #e67e22; --s5: #ff6b63; --ok: #3ccf7f; --bad: #ff6b63; --warn: #e0a800;
+    --k-name: hsl(204 75% 64%); --k-value: hsl(145 55% 55%); --k-flags: hsl(282 55% 72%); --k-time: hsl(170 60% 52%);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); line-height: 1.5; }
+code, .mono { font-family: var(--mono); }
+kbd { font: 600 0.75rem var(--mono); padding: 0 0.3rem; border-radius: 0.25rem; border: 1px solid var(--color-bg-dark); }
+header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.5rem; background: var(--color-bg-light); border-bottom: 2px solid var(--color-bg-dark); flex-wrap: wrap; }
+header h1 { margin: 0 auto 0 0; font-size: 1.35rem; font-weight: 500; white-space: nowrap; }
+header nav { display: flex; gap: 0.1rem; flex-wrap: wrap; }
+header nav a { color: var(--color-text-muted); text-decoration: none; padding: 0.1rem 0.4rem; border-radius: 0.6rem; font-weight: 600; }
+header nav a:hover { color: var(--color-primary); }
+header button { font: inherit; font-weight: 600; color: var(--color-text); padding: 0.3rem 0.9rem; border: 1px solid var(--color-bg-dark); border-radius: 0.85rem; background: none; cursor: pointer; }
+main { max-width: 130rem; margin: 0 auto; padding: 1rem 1.5rem 6rem; }
+h2 { font-size: 1.6rem; font-weight: 500; margin: 2.4rem 0 0.3rem; scroll-margin-top: 4rem; }
+.lead { color: var(--color-text-muted); max-width: 92rem; margin: 0 0 1rem; font-size: 1.05rem; }
+.needs { display: grid; grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr)); gap: 0.6rem; padding: 0; margin: 0; list-style: none; }
+.needs li { background: var(--color-bg-light); border-radius: 0.4rem; box-shadow: 0 0 3px var(--color-shadow); padding: 0.5rem 0.8rem; border-bottom: 2px solid var(--color-primary); }
+.needs li.no { border-bottom-color: var(--color-text-muted); }
+.needs b { display: block; } .needs span { color: var(--color-text-muted); }
+.needs i { font-style: normal; font-size: 0.75rem; font-weight: 700; color: var(--color-primary); margin-left: 0.3rem; }
+table.sit { border-collapse: collapse; width: 100%; max-width: 100rem; background: var(--color-bg-light); }
+table.sit th, table.sit td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--color-bg-dark); vertical-align: top; }
+table.sit th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+.block { display: grid; grid-template-columns: 22rem minmax(0, 1fr); gap: 1.6rem; align-items: start; padding: 1.5rem 0; border-top: 2px solid var(--color-bg-dark); scroll-margin-top: 4rem; }
+.block h3 { margin: 0 0 0.4rem; font-size: 1.35rem; font-weight: 500; }
+.block h3 i { font-style: normal; color: var(--color-primary); font-weight: 700; margin-right: 0.4rem; }
+.block p { margin: 0 0 0.6rem; font-size: 1.02rem; }
+.block ul { margin: 0 0 0.6rem; padding-left: 1.2rem; }
+.tags { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.tag { font-size: 0.75rem; font-weight: 700; padding: 0.05rem 0.55rem; border-radius: 1rem; color: #fff; background: var(--color-primary); }
+.tag.good { background: #1e8f55; } .tag.risk { background: #b87500; } .tag.size { background: #7f8c8d; }
+.stage { background: var(--color-bg); border: 2px solid var(--color-bg-dark); border-radius: 0.8rem; padding: 0.8rem; display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: flex-start; min-width: 0; }
+.frame { display: flex; flex-direction: column; min-width: 0; }
+.caption { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); margin: 0 0 0.3rem; display: flex; gap: 0.35rem; align-items: center; }
+.num { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: var(--color-text-muted); color: var(--color-bg); font-size: 0.7rem; letter-spacing: 0; }
+.fnote { font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.3rem; max-width: 27rem; }
+.sent { margin-top: 0.9rem; background: var(--color-bg-light); border: 1px dashed var(--color-bg-dark); border-radius: 0.6rem; padding: 0.5rem 0.8rem; font-size: 0.9rem; }
+.sent b { display: block; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); margin-bottom: 0.2rem; }
+.sent div { display: flex; gap: 0.6rem; align-items: baseline; }
+.sent code { overflow-wrap: anywhere; }
+.sent .who { flex: none; width: 4.2rem; color: var(--color-text-muted); font-size: 0.8rem; }
+@media (max-width: 1000px) { .block { grid-template-columns: 1fr; } }
+
+/* ---- The pieces the proposals are made of ---- */
+.app { position: relative; width: 27rem; height: 18.5rem; overflow: hidden; border-radius: 0.6rem; border: 1px solid var(--tp-line); background: var(--color-bg); box-shadow: 0 2px 10px var(--color-shadow); color: var(--color-text); font-size: 0.82rem; }
+.app.tall { height: 23rem; }
+.island { position: absolute; top: 0.4rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.45rem; align-items: center; padding: 0.18rem 0.55rem; border-radius: 0.7rem; background: var(--color-bg-light); border: 1px solid var(--tp-line); font-size: 0.68rem; color: var(--color-text-muted); white-space: nowrap; z-index: 3; }
+.island b { color: var(--color-text); font-weight: 600; }
+.body { position: absolute; inset: 2.1rem 0.6rem 0.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.45rem; overflow: hidden; }
+.body.top { justify-content: flex-start; } .body.mid { justify-content: center; }
+.logo { font-weight: 700; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--color-primary); }
+.logo small { font-weight: 400; color: var(--color-text-muted); font-size: 0.7rem; margin-left: 0.25rem; }
+.h { font-size: 1.05rem; font-weight: 600; text-align: center; margin: 0; }
+.sub { color: var(--color-text-muted); text-align: center; margin: 0; font-size: 0.78rem; max-width: 22rem; }
+.seg { display: flex; padding: 0.1rem; border-radius: 0.45rem; background: color-mix(in srgb, var(--color-text) 7%, transparent); font-size: 0.68rem; }
+.seg span { padding: 0.08rem 0.5rem; border-radius: 0.35rem; color: var(--color-text-muted); font-weight: 600; }
+.seg span.on { background: var(--color-bg-light); color: var(--color-text); box-shadow: 0 1px 2px var(--color-shadow); }
+.cmd { display: flex; align-items: center; gap: 0.4rem; width: 100%; max-width: 24rem; padding: 0.35rem 0.5rem; border-radius: 0.45rem; background: var(--color-bg-light); border: 1px solid var(--tp-line); font: 0.72rem var(--mono); }
+.cmd span.t { flex: 1; overflow-wrap: anywhere; }
+.cmd .copy { flex: none; color: var(--color-primary); font-family: Verdana, sans-serif; font-weight: 700; font-size: 0.7rem; }
+.n { color: var(--k-name); font-weight: 700; } .v { color: var(--k-value); font-weight: 700; } .f { color: var(--k-flags); font-weight: 700; } .m { color: var(--color-text-muted); }
+.status { display: flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: var(--color-text-muted); }
+.dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--color-text-muted); flex: none; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--ok) 25%, transparent); } .dot.bad { background: var(--bad); } .dot.wait { background: none; border: 2px solid var(--color-primary); border-right-color: transparent; animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+.btn { display: inline-block; padding: 0.22rem 0.7rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.72rem; border: 1px solid var(--tp-line); background: var(--color-bg-light); color: var(--color-text); white-space: nowrap; }
+.btn.p { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn.g { background: none; }
+.row { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: center; align-items: center; }
+.card { background: var(--color-bg-light); border: 1px solid var(--tp-line); border-radius: 0.5rem; padding: 0.35rem 0.5rem; min-width: 0; }
+.card b { display: block; font-size: 0.75rem; } .card span { color: var(--color-text-muted); font-size: 0.68rem; }
+.card.sel { border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; width: 100%; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; width: 100%; }
+.view { position: relative; background: var(--tp-surface); border: 1px solid var(--tp-line); border-top: 2px solid var(--s1); border-radius: 0.4rem; padding: 0.2rem 0.35rem; overflow: hidden; }
+.view .vt { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tp-muted); }
+.ghost { border: 1.5px dashed var(--tp-line); border-radius: 0.4rem; display: grid; place-items: center; text-align: center; color: var(--tp-muted); font-size: 0.68rem; padding: 0.3rem; }
+.toast { position: absolute; left: 50%; bottom: 0.6rem; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.25rem 0.7rem; border-radius: 0.5rem; font-size: 0.7rem; white-space: nowrap; z-index: 4; }
+.hint { color: var(--color-text-muted); font-size: 0.68rem; text-align: center; }
+.check { color: var(--ok); font-weight: 700; } .cross { color: var(--bad); font-weight: 700; }
+.mini { width: 100%; height: 4.5rem; }
+.hop { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; width: 6rem; text-align: center; font-size: 0.68rem; }
+.hop .box { width: 4.4rem; height: 3rem; border-radius: 0.5rem; border: 1.5px solid var(--tp-line); background: var(--color-bg-light); display: grid; place-items: center; font-size: 1.2rem; }
+.hop .box.ok { border-color: var(--ok); } .hop .box.bad { border-color: var(--bad); }
+.wire { flex: 1; height: 0; border-top: 2px dashed var(--tp-line); margin-top: 1.5rem; min-width: 1.5rem; position: relative; }
+.wire.ok { border-top-style: solid; border-color: var(--ok); } .wire.bad { border-color: var(--bad); }
+.wire em { position: absolute; top: -1.1rem; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 0.6rem; color: var(--color-text-muted); white-space: nowrap; }
+.dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--color-bg) 55%, transparent); backdrop-filter: blur(1.5px); z-index: 2; }
+.over { position: absolute; z-index: 3; left: 50%; top: 55%; transform: translate(-50%, -50%); width: 20rem; background: var(--color-bg-light); border: 1px solid var(--tp-line); border-radius: 0.7rem; padding: 0.6rem 0.7rem; box-shadow: 0 8px 26px var(--color-shadow); display: flex; flex-direction: column; gap: 0.35rem; }
+.steps { display: flex; gap: 0.25rem; align-items: center; font-size: 0.66rem; color: var(--color-text-muted); }
+.steps span { display: inline-flex; align-items: center; gap: 0.2rem; }
+.steps i { font-style: normal; display: inline-grid; place-items: center; width: 1rem; height: 1rem; border-radius: 50%; border: 1px solid var(--tp-line); font-size: 0.58rem; font-weight: 700; }
+.steps .done i { background: var(--ok); color: #fff; border-color: var(--ok); } .steps .now i { background: var(--color-primary); color: #fff; border-color: var(--color-primary); } .steps .now { color: var(--color-text); font-weight: 600; }
+.console { width: 100%; flex: 1; background: var(--tp-surface); border: 1px solid var(--tp-line); border-radius: 0.4rem; padding: 0.3rem 0.4rem; font: 0.64rem/1.45 var(--mono); overflow: hidden; }
+.console div { display: flex; gap: 0.4rem; } .console .tm { color: var(--tp-muted); flex: none; } .console .what { margin-left: auto; color: var(--tp-muted); font-family: Verdana, sans-serif; flex: none; }
+.banner { position: absolute; left: 0.6rem; right: 0.6rem; top: 2.1rem; z-index: 2; display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.45rem; border-radius: 0.5rem; background: color-mix(in srgb, var(--color-primary) 9%, var(--color-bg-light)); border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--tp-line)); font-size: 0.7rem; }
+.banner .cmd { max-width: none; flex: 1; padding: 0.15rem 0.35rem; }
+.field { width: 100%; max-width: 24rem; display: flex; gap: 0.3rem; }
+.field span { flex: 1; padding: 0.3rem 0.45rem; border-radius: 0.45rem; border: 1px solid var(--color-primary); background: var(--color-bg-light); font: 0.75rem var(--mono); }
+.field .ph { color: var(--color-text-muted); border-color: var(--tp-line); }
+.pulse { animation: pulse 1.4s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .pulse, .dot.wait { animation: none; } }
+.sent .remark { color: var(--color-text-muted); font-style: italic; }
+table.cmp { border-collapse: collapse; background: var(--color-bg-light); margin-top: 0.6rem; }
+table.cmp th, table.cmp td { padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--color-bg-dark); text-align: center; }
+table.cmp th:first-child, table.cmp td:first-child { text-align: left; }
+table.cmp a { color: var(--color-primary); font-weight: 600; text-decoration: none; }
+.rec { margin-top: 1rem; padding: 0.8rem 1rem; border-left: 4px solid var(--color-primary); background: var(--color-bg-light); max-width: 92rem; }
+.rec h3 { margin: 0 0 0.3rem; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+    <h1>Landing page: 10 studies</h1>
+    <nav>
+        <a href="#needs">What it must tell</a><a href="#when">When it is seen</a>
+        <a href="#A">A</a><a href="#B">B</a><a href="#C">C</a><a href="#D">D</a><a href="#E">E</a><a href="#F">F</a><a href="#G">G</a><a href="#H">H</a><a href="#I">I</a><a href="#J">J</a>
+        <a href="#compare">Compare</a>
+    </nav>
+    <button onclick="toggleTheme()">Light / dark</button>
+</header>
+<main>
+<p class="lead">The landing page is what the main area shows while there is no dashboard to display: nothing received yet, nothing created. Today it says three
+steps (send, watch, arrange), offers the sample data and the Help, and tells the state of the server. Each study below is a storyboard: <b>1</b> at rest, <b>2</b> while
+something happens (the first message, a server that cannot be reached), <b>3</b> after it. Under each, what the device sent for each frame.</p>
+
+<h2 id="needs">What it must tell a newcomer</h2>
+<p class="lead">In the order of the questions of someone who just started the server or opened the page. The first four are what the page is for; the others help, or must stay out.</p>
+<ul class="needs">
+    <li><b>1. Is it working? <i>must</i></b><span>The server is reachable and listening; or it is not, and the one thing to do about it. An icon, the port; no wall of text.</span></li>
+    <li><b>2. Where do I send? <i>must</i></b><span>The address and the port: 127.0.0.1:47269 on this computer, and the address of this computer for a device on the network (the server would have to tell it: its hello message does not today).</span></li>
+    <li><b>3. What do I send? <i>must</i></b><span>One line, written for the way the user sends data (terminal, Python, C++, Arduino: the choice of the Help), with Copy. <code>name:value</code> is the whole protocol at first.</span></li>
+    <li><b>4. Did it arrive? <i>must</i></b><span>The page reacts to the first packet: it says what came, and goes to what shows it (the Live dashboard). A packet that was not understood says why.</span></li>
+    <li><b>5. Other ways in <i>should</i></b><span>A serial port (no server needed, Chrome / Edge), a file (.teleplot, .txt, .csv: drop it), the sample data (nothing to write).</span></li>
+    <li><b>6. What can I get? <i>should</i></b><span>A glimpse of the results (curves, gauges, maps, 3D, pictures, buttons), each one a way into its Help tile, not a copy of it.</span></li>
+    <li><b>7. When nothing comes <i>should</i></b><span>After a while without packets: the usual causes (wrong port or address, firewall, server on another machine, page opened as a file).</span></li>
+    <li><b>8. Where to learn more <i>could</i></b><span>The Help (its gallery), the documentation, the shortcuts (H, Space…).</span></li>
+    <li class="no"><b>Leave out</b><span>A tour, progress, "new" badges, suggestions (not wanted in the Help either); a copy of the Help's first tile (the box removed from the Help repeated it); marketing text; anything that stays once data flows.</span></li>
+</ul>
+
+<h2 id="when">When it is seen</h2>
+<table class="sit">
+    <tr><th>Situation</th><th>What the page knows</th><th>What matters most</th></tr>
+    <tr><td>First start: the executable or the server just started, the page opened from it</td><td>Server reachable, nothing received</td><td>2, 3, 4: where and what to send, and that it arrived</td></tr>
+    <tr><td>The page opened from a file or another host, the server is not running</td><td>No server (WebSocket refused)</td><td>1: start the server, or use a serial port, a file, the sample</td></tr>
+    <tr><td>A device that sends to the wrong place (port, address, firewall)</td><td>Server reachable, nothing received for a while</td><td>7: why nothing comes</td></tr>
+    <tr><td>Someone who only wants to look</td><td>Anything</td><td>5: the sample data, in one click</td></tr>
+    <tr><td>A returning user: their device is just off</td><td>Server reachable; dashboards received earlier are gone with the page</td><td>Stay out of the way: the first packet takes over</td></tr>
+</table>
+
+<h2>The studies</h2>
+<div id="studies"></div>
+
+<h2 id="compare">Compare</h2>
+<p class="lead">How each study answers the questions above (● fully, ◐ in part, ○ not), and what it costs.</p>
+<div id="compare-table"></div>
+<div class="rec">
+    <h3>Recommendation</h3>
+    <p><b>A</b> (one line) as the base: it answers questions 1 to 4 on one screen, for the language the user chose, and goes away by itself when the first packet
+    arrives. Take from <b>B</b> the path drawn small under the line (device, server, page: which one is missing, and the one fix), from <b>E</b> the other ways in
+    as three quiet links under it (serial port, file, sample), and from <b>J</b> the line that tells why a packet was not understood. <b>H</b> (the ghost
+    dashboard) is the most original and the one that teaches the most about where things go; it is a bigger change (the landing becomes the Live dashboard
+    itself) and could be a second step once A is in place. Needed in the server for all of them: its addresses in the hello message (question 2).</p>
+</div>
+</main>
+<script>
+function toggleTheme() { const r = document.documentElement; r.dataset.theme = r.dataset.theme == "dark" ? "light" : "dark"; }
+
+// ---- Pieces
+const island = (state = "no data") => `<div class="island"><b>Live ▾</b><span>⏸ ${state}</span><span>Telemetries · Sources</span><span>Edit</span><b>Help</b></div>`;
+const app = (body, opts = {}) => `<div class="app${opts.tall ? " tall" : ""}">${island(opts.state)}${opts.over || ""}<div class="body ${opts.top ? "top" : "mid"}">${body}</div></div>`;
+const frame = (n, caption, html, note = "") => `<div class="frame"><div class="caption"><span class="num">${n}</span>${caption}</div>${html}${note ? `<div class="fnote">${note}</div>` : ""}</div>`;
+const sent = (rows) => `<div class="sent"><b>What the device sent</b>${rows.map(([n, who, line]) => `<div><span class="num">${n}</span><span class="who">${who}</span>${!line ? `<span class="m">nothing yet</span>` : (line.startsWith("(") ? `<span class="remark">${line.slice(1, -1)}</span>` : `<code>${line}</code>`)}</div>`).join("")}</div>`;
+const seg = (on = "Terminal") => `<div class="seg">${["Terminal", "Python", "C++", "Arduino"].map((s) => `<span class="${s == on ? "on" : ""}">${s}</span>`).join("")}</div>`;
+const line = `<span class="n">temperature</span>:<span class="v">25.3</span>`;
+const cmd = (lang = "Terminal") => `<div class="cmd"><span class="t">${{
+    Terminal: `echo "${line}" | nc -u -w0 127.0.0.1 47269`,
+    Python: `sock.sendto(b"${line}", ("127.0.0.1", 47269))`,
+    "C++": `Teleplot::instance().update("<span class="n">temperature</span>", <span class="v">25.3</span>);`,
+    Arduino: `Serial.println("&gt;${line}");` }[lang]}</span><span class="copy">Copy</span></div>`;
+const status = (kind, text) => `<div class="status"><i class="dot ${kind}"></i>${text}</div>`;
+const curve = (color = "var(--s1)", n = 40, f = (i) => Math.sin(i / 5), h = 64) => { const p = []; for (let i = 0; i <= n; i++) p.push(`${(i / 40 * 240).toFixed(1)},${(h / 2 - f(i) * h * 0.32).toFixed(1)}`); return `<svg class="mini" viewBox="0 0 240 ${h}" preserveAspectRatio="none"><g stroke="var(--tp-grid)"><line x1="0" y1="${h * 0.25}" x2="240" y2="${h * 0.25}"/><line x1="0" y1="${h * 0.5}" x2="240" y2="${h * 0.5}"/><line x1="0" y1="${h * 0.75}" x2="240" y2="${h * 0.75}"/></g><polyline points="${p.join(" ")}" fill="none" stroke="${color}" stroke-width="2"/></svg>`; };
+const chartView = (title, opts = {}) => `<div class="view" style="${opts.style || ""}"><div class="vt">${title}</div>${curve(opts.color, opts.n, opts.f)}</div>`;
+const valueView = (title, value, style = "") => `<div class="view" style="border-top-color:var(--s2);${style}"><div class="vt">${title}</div><div style="font-size:1.1rem;font-weight:700;text-align:right;padding:0.3rem 0.2rem">${value}</div></div>`;
+const live = (views, opts = {}) => app(`<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;width:100%;align-self:stretch">${views}</div>`, { top: true, state: opts.state || "1 /s", over: opts.over });
+
+// ---- The studies: [letter, title, tags, description (html), frames (html), sent rows]
+const S = [];
+
+S.push(["A", "One line to send", [["good", "answers 1-4 at once"], ["good", "works for every language"], ["size", "small change"]],
+    `<p>The page is the one message: the language chosen once (the same choice as the Help, remembered), the command with Copy, and under it the status, which
+    becomes the receipt when the first packet comes. Nothing else competes with it; the other ways in are one line under it.</p>
+    <ul><li>The address is the one to type: 127.0.0.1 here, the address of this computer for a device on the network.</li><li>On the first packet the line turns into
+    "temperature arrived", for a second, then the Live dashboard shows it.</li></ul>`,
+    frame(1, "At rest", app(`<div class="logo">Teleplot</div><p class="h">Send one line to see it here</p>${seg()}${cmd()}${status("wait", "Listening on port 47269 · from another computer: 192.168.1.20")}<div class="hint">or a serial port · a file · the sample data</div>`))
+    + frame(2, "The first packet", app(`<div class="logo">Teleplot</div><p class="h"><span class="check">✓</span> temperature arrived</p><div class="view" style="width:20rem">${curve("var(--s1)", 6)}</div>${status("ok", "from 127.0.0.1 · 1 telemetry")}`, { state: "1 /s" }), "The receipt: what came, from where; the curve starts where it will stay.")
+    + frame(3, "After", live(chartView("temperature", { n: 40 }) + `<div class="ghost">the next telemetries<br>come here</div>`), "The Live dashboard: the landing does not come back while there is data."),
+    [[1, "", ""], [2, "Terminal", `echo "temperature:25.3" | nc -u -w0 127.0.0.1 47269`], [3, "Terminal", "temperature:25.4 … (every second)"]]]);
+
+S.push(["B", "The path, drawn", [["good", "diagnoses itself"], ["good", "teaches how it works"], ["risk", "less about what to send"]],
+    `<p>Device, server, page: three boxes and two wires, each lit by what the page knows. The missing piece is the one that is said, with its fix, and the
+    send line sits under the device box. It is the schematic of "How Teleplot works", alive.</p>
+    <ul><li>Server down: the second wire is red, "Start the Teleplot server" with the command of the executable.</li><li>Packets flowing: the first wire moves, with the rate.</li></ul>`,
+    frame(1, "Waiting for the device", app(`<div class="row" style="width:100%;flex-wrap:nowrap;align-items:flex-start"><div class="hop"><div class="box">⌁</div>Your device</div><div class="wire"><em>UDP 47269</em></div><div class="hop"><div class="box ok">⇄</div>Server<br><span class="check">✓</span></div><div class="wire ok"></div><div class="hop"><div class="box ok">▤</div>This page<br><span class="check">✓</span></div></div>${cmd()}<div class="hint">Send it from your device: the first wire lights up</div>`))
+    + frame(2, "The server cannot be reached", app(`<div class="row" style="width:100%;flex-wrap:nowrap;align-items:flex-start"><div class="hop"><div class="box">⌁</div>Your device</div><div class="wire"></div><div class="hop"><div class="box bad">⇄</div>Server<br><span class="cross">✕</span></div><div class="wire bad"></div><div class="hop"><div class="box">▤</div>This page</div></div><p class="h" style="font-size:0.9rem">Start the Teleplot server</p><div class="cmd"><span class="t">./teleplot-macos-arm64</span><span class="copy">Copy</span></div><div class="hint">No server? A serial port or a file work without it.</div>`), "One fix, for the piece that is missing.")
+    + frame(3, "Flowing", app(`<div class="row" style="width:100%;flex-wrap:nowrap;align-items:flex-start"><div class="hop"><div class="box ok">⌁</div>127.0.0.1</div><div class="wire ok"><em>12 /s</em></div><div class="hop"><div class="box ok">⇄</div>Server</div><div class="wire ok"></div><div class="hop"><div class="box ok">▤</div>This page</div></div><p class="h"><span class="check">✓</span> 3 telemetries</p><div class="row"><span class="btn p">Open the Live dashboard</span></div>`, { state: "12 /s" }), "Open question: should it open the dashboard by itself after a second instead?"),
+    [[1, "", ""], [2, "", "(the server is not running)"], [3, "Python", "speed:1.2 / accel:0.3 / mode:driving|t, 12 times per second"]]]);
+
+S.push(["C", "A gallery of results", [["good", "shows what is possible"], ["good", "try without code"], ["risk", "close to the Help"]],
+    `<p>Eight small pictures of what Teleplot draws (a curve, a gauge, a timeline, a map, 3D, a picture, a log, a button). Each one sends its example from the
+    page (the Help's pretend device) and opens its view: the newcomer learns by clicking, then sends the same line from their code.</p>
+    <ul><li>The send line stays at the top: the gallery is the second question, not the first.</li><li>Risk: it repeats the Help's gallery; it should open the Help
+    on that tile rather than duplicate it.</li></ul>`,
+    frame(1, "At rest", app(`<p class="h">What do you want to see?</p>${cmd()}<div class="grid4">${["A curve", "A gauge", "A timeline", "A map", "3D", "A picture", "A log", "A button"].map((t, i) => `<div class="card" style="text-align:center"><div style="height:1.6rem;border-radius:0.3rem;background:color-mix(in srgb,var(--s${i % 5 + 1}) 22%,transparent)"></div><b>${t}</b></div>`).join("")}</div>${status("wait", "Listening on port 47269")}`))
+    + frame(2, "A map, clicked", app(`<div class="grid2" style="grid-template-columns:1.3fr 1fr;flex:1"><div class="view" style="border-top-color:var(--s3)"><div class="vt">field</div><svg viewBox="0 0 120 70" style="width:100%"><rect x="10" y="8" width="100" height="56" fill="none" stroke="var(--s2)"/><rect x="40" y="30" width="16" height="10" fill="var(--s1)" transform="rotate(-20 48 35)"/><polyline points="12,60 30,50 50,40 70,30 95,22" fill="none" stroke="var(--s2)"/></svg></div><div class="card"><b>From your code</b><span class="mono" style="font-size:0.62rem;color:var(--color-text)"><span class="f">2D|</span><span class="n">robot</span>:S:rect:P:1.2:0.8</span><br><span>The Help has the rest</span><div style="margin-top:0.3rem"><span class="btn">Open the Help</span></div></div></div>`, { top: true }), "The view, and the line that made it.")
+    + frame(3, "After", live(`<div class="view" style="border-top-color:var(--s3);grid-column:span 2"><div class="vt">field</div><div style="height:5rem"></div></div>`), "What was tried stays on the Live dashboard: it is real data."),
+    [[1, "", ""], [2, "page (Help device)", "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue"], [3, "", ""]]]);
+
+S.push(["D", "The sample, behind glass", [["good", "the page is never empty"], ["good", "shows a real dashboard"], ["risk", "sample data can be taken for yours"]],
+    `<p>The robot sample runs from the first second, dimmed and blurred, under one card: "This is a sample. Send your own data and it takes its place."
+    The newcomer sees what a full dashboard looks like before writing any code; "Look around" lifts the glass.</p>
+    <ul><li>The first packet of a device stops the sample (asked, not done silently: data from both would mix).</li><li>Costs CPU on a page that may be left open.</li></ul>`,
+    frame(1, "At rest", live(chartView("speed", { color: "var(--s1)" }) + chartView("battery", { color: "var(--s4)", f: (i) => 1 - i / 40 }) + valueView("mode", "driving") + chartView("heading", { color: "var(--s3)", f: (i) => Math.sin(i / 3) }),
+        { state: "sample", over: `<div class="dim"></div><div class="over"><b>This is a sample robot</b><span class="m" style="font-size:0.72rem">Send your own data and it takes its place.</span>${cmd()}<div class="row" style="justify-content:flex-start"><span class="btn p">Look around</span><span class="btn g">Stop the sample</span></div></div>` }))
+    + frame(2, "Your first packet", live(chartView("speed") + chartView("battery", { color: "var(--s4)" }) + valueView("mode", "driving") + chartView("heading", { color: "var(--s3)" }),
+        { state: "sample", over: `<div class="dim"></div><div class="over"><b><span class="check">✓</span> temperature arrived</b><span class="m" style="font-size:0.72rem">Stop the sample and show your data?</span><div class="row" style="justify-content:flex-start"><span class="btn p">Show mine</span><span class="btn g">Keep both</span></div></div>` }), "Asked once.")
+    + frame(3, "After", live(chartView("temperature")), "Only the user's data."),
+    [[1, "page (sample)", "robot.speed:0.42 … (the sample)"], [2, "Terminal", "temperature:25.3"], [3, "Terminal", "temperature:25.4 …"]]]);
+
+S.push(["E", "Three doors", [["good", "every way in, side by side"], ["good", "serial and files without a server"], ["risk", "one more click"]],
+    `<p>The first question is "where does your data come from?": from code over the network, a serial port, a file, or nowhere yet (the sample). Each door
+    opens its own short page: the network one is study A, the serial one the port picker, the file one a drop zone.</p>
+    <ul><li>The door that cannot work right now says so (no server: the network door is grey, with why).</li><li>The chosen door is remembered for the next visit.</li></ul>`,
+    frame(1, "At rest", app(`<p class="h">Where does your data come from?</p><div class="grid2">${[["⌁ From my code", "over the network (UDP)"], ["⏚ A serial port", "Arduino, ESP32… (Chrome, Edge)"], ["▤ A file", ".teleplot, .txt, .csv"], ["▶ Nothing yet", "look at a sample robot"]].map(([t, s]) => `<div class="card" style="padding:0.5rem"><b>${t}</b><span>${s}</span></div>`).join("")}</div>${status("ok", "Server ready on port 47269")}`))
+    + frame(2, "From my code", app(`<div class="row" style="align-self:flex-start"><span class="btn g">‹ Back</span><b>From my code</b></div>${seg("Python")}${cmd("Python")}${status("wait", "Listening on port 47269 · from another computer: 192.168.1.20")}`, { top: true }), "Study A behind the first door.")
+    + frame(3, "A serial port", app(`<div class="row" style="align-self:flex-start"><span class="btn g">‹ Back</span><b>A serial port</b></div><div class="card" style="width:100%"><b>No server needed</b><span>Lines that start with &gt; are telemetry, the others a log of the port.</span></div><div class="cmd"><span class="t">Serial.println("&gt;<span class="n">temperature</span>:<span class="v">25.3</span>");</span><span class="copy">Copy</span></div><div class="row"><span class="btn p">Choose a port…</span><span class="m" style="font-size:0.7rem">115200 baud</span></div>`, { top: true }), "The port picker of the browser opens from here."),
+    [[1, "", ""], [2, "", ""], [3, "Arduino", "Serial.println(\">temperature:25.3\");"]]]);
+
+S.push(["F", "A playground", [["good", "instant: no device needed"], ["good", "teaches the syntax by doing"], ["risk", "typed data mixes with real data"]],
+    `<p>A field to type messages, and a small view right under it that draws what was typed, at once. It is the try field of the Help, made the first thing
+    seen. Once the syntax is understood, the same line from code: "now from your code".</p>
+    <ul><li>What is typed is marked as such (source "this page") so it is not taken for the device's.</li><li>Close to the Help's field: one of the two should give way.</li></ul>`,
+    frame(1, "At rest", app(`<p class="h">Type a message</p><div class="field"><span class="ph">temperature:25.3</span><span class="btn p">Send</span></div><div class="hint">name:value · press Enter · the parts are named as you type</div><div class="ghost" style="width:100%;height:5rem">what you type is drawn here</div>`))
+    + frame(2, "Typing", app(`<p class="h">Type a message</p><div class="field"><span><span class="n">speed</span>:<span class="v">1.2</span>;<span class="v">1.4</span>;<span class="v">1.1</span></span><span class="btn p">Send</span></div><div class="hint"><b class="n">name</b> · <b class="v">3 values</b> · a chart</div><div class="view" style="width:100%">${curve("var(--s1)", 3, (i) => [0, 0.4, -0.2, 0.2][i])}</div>`), "Each Send adds points: the user sees what a sample is.")
+    + frame(3, "Now from your code", app(`<div class="view" style="width:100%">${curve()}</div><p class="h" style="font-size:0.9rem">Now from your code</p>${seg("C++")}${cmd("C++")}${status("ok", "speed also came from 192.168.1.30")}`), "The device's data and the typed data, told apart."),
+    [[1, "", ""], [2, "page (typed)", "speed:1.2;1.4;1.1"], [3, "C++", "Teleplot::instance().update(\"speed\", 1.3);"]]]);
+
+S.push(["G", "Set up in steps", [["good", "nothing is missed"], ["good", "detects each step"], ["risk", "feels heavy for experts"]],
+    `<p>A short wizard: 1 your language, 2 where to send, 3 send, 4 done. Each step is ticked by what the page sees (the server reachable, a packet
+    received), never by a Next button. The steps stay visible, so a newcomer knows how far they are.</p>
+    <ul><li>An expert skips it: the command is on step 1 already.</li><li>Risk: it looks like the onboarding tours the Help avoided.</li></ul>`,
+    frame(1, "Step 1", app(`<div class="steps"><span class="now"><i>1</i>Language</span>›<span><i>2</i>Address</span>›<span><i>3</i>Send</span>›<span><i>4</i>Done</span></div><p class="h">How does your device send data?</p><div class="grid2">${["Terminal", "Python", "C++", "Arduino"].map((t, i) => `<div class="card${i == 1 ? " sel" : ""}" style="text-align:center"><b>${t}</b></div>`).join("")}</div>`))
+    + frame(2, "Step 3", app(`<div class="steps"><span class="done"><i>✓</i>Python</span>›<span class="done"><i>✓</i>127.0.0.1</span>›<span class="now"><i>3</i>Send</span>›<span><i>4</i>Done</span></div><p class="h">Run this</p>${cmd("Python")}${status("wait", "Waiting for your first packet…")}`), "Step 2 was ticked by itself: the server answered.")
+    + frame(3, "Step 4", app(`<div class="steps"><span class="done"><i>✓</i>Python</span>›<span class="done"><i>✓</i>127.0.0.1</span>›<span class="done"><i>✓</i>Sent</span>›<span class="now"><i>4</i>Done</span></div><p class="h"><span class="check">✓</span> temperature arrived</p><div class="row"><span class="btn p">Open the Live dashboard</span><span class="btn g">What else can I send?</span></div>`)),
+    [[1, "", ""], [2, "", ""], [3, "Python", "sock.sendto(b\"temperature:25.3\", (\"127.0.0.1\", 47269))"]]]);
+
+S.push(["H", "The empty dashboard, explained", [["good", "no separate page: it is where data lands"], ["good", "teaches where things go"], ["risk", "a bigger change"]],
+    `<p>There is no landing page: the Live dashboard is shown from the start, empty, with ghost views that say what will appear in them ("a number → a
+    chart here", "a text → its value", "a position → a map"). A slim bar on top has the send line. Each ghost fills when its kind of data comes; the bar goes
+    with the first packet.</p>
+    <ul><li>The newcomer sees the place where their data will be, not a page in front of it.</li><li>The ghosts are the auto dashboard's rules, drawn.</li></ul>`,
+    frame(1, "At rest", app(`<div class="grid2" style="margin-top:2.1rem;flex:1;grid-template-rows:1fr 1fr">${[["a number", "→ a chart"], ["a text", "→ its value"], ["a position", "→ a map"], ["a log", "→ the lines"]].map(([a, b]) => `<div class="ghost"><b>${a}</b>${b}</div>`).join("")}</div>`, { top: true, over: `<div class="banner"><i class="dot wait"></i>${cmd().replace('class="cmd"', 'class="cmd"')}</div>` }))
+    + frame(2, "A number came", app(`<div class="grid2" style="margin-top:2.1rem;flex:1;grid-template-rows:1fr 1fr">${chartView("temperature")}<div class="ghost"><b>a text</b>→ its value</div><div class="ghost"><b>a position</b>→ a map</div><div class="ghost"><b>a log</b>→ the lines</div></div>`, { top: true, state: "1 /s", over: `<div class="banner"><span class="check">✓</span> temperature arrived · <span class="m">the bar goes once you are under way</span></div>` }), "The ghost of its kind takes it.")
+    + frame(3, "After", live(chartView("temperature") + valueView("mode", "driving") + `<div class="ghost" style="opacity:0.6">a position → a map</div>`), "Ghosts that were not used fade, then go."),
+    [[1, "", ""], [2, "Terminal", "temperature:25.3"], [3, "Terminal", "mode:driving|t"]]]);
+
+S.push(["I", "Almost nothing", [["good", "fast for experts"], ["good", "nothing to maintain"], ["risk", "newcomers must find the Help"]],
+    `<p>The logo, the line, the status dot. Everything else is in the Help (H). The page says the one thing it cannot do without; the rest is a key away.</p>
+    <ul><li>The fix replaces the line when something is wrong.</li><li>The opposite of D: nothing moves, nothing to read.</li></ul>`,
+    frame(1, "At rest", app(`<div class="logo" style="font-size:1.6rem">Teleplot</div>${cmd()}${status("wait", "port 47269")}<div class="hint">Help: <kbd>H</kbd></div>`))
+    + frame(2, "No server", app(`<div class="logo" style="font-size:1.6rem">Teleplot</div><div class="cmd" style="border-color:var(--bad)"><span class="t">./teleplot-macos-arm64</span><span class="copy">Copy</span></div>${status("bad", "start the server")}<div class="hint">Help: <kbd>H</kbd></div>`), "The same place, the one fix.")
+    + frame(3, "After", live(chartView("temperature"))),
+    [[1, "", ""], [2, "", "(the server is not running)"], [3, "Terminal", "temperature:25.3"]]]);
+
+S.push(["J", "What came in", [["good", "nothing arrives silently"], ["good", "debugs a device"], ["risk", "technical for a first look"]],
+    `<p>A console of what reaches the page, understood or not, with what Teleplot made of each line (the field at the bottom of the Help, made the first
+    screen). A newcomer whose line has a typo sees it at once, and why; one that sends nothing sees the reasons after a while.</p>
+    <ul><li>"Open the Live dashboard" when what came is understood.</li><li>The Sources panel has the same console per source: this is it, before there are sources.</li></ul>`,
+    frame(1, "Nothing for 30 s", app(`<p class="h" style="font-size:0.9rem">What reached this page</p><div class="console"><div class="m">nothing yet</div></div><div class="card" style="width:100%"><b>Nothing comes?</b><span>Port 47269 · the address of this computer from another one · a firewall · the server started on another computer</span></div>${cmd()}`, { top: true }), "The usual causes, after a while only.")
+    + frame(2, "A line not understood", app(`<p class="h" style="font-size:0.9rem">What reached this page</p><div class="console"><div><span class="tm">12:00:01</span><span>temperature=25.3</span><span class="what"><span class="cross">✕</span> name:value</span></div><div><span class="tm">12:00:02</span><span>temperature=25.4</span><span class="what"><span class="cross">✕</span> name:value</span></div></div><div class="card" style="width:100%;border-color:var(--bad)"><b>"temperature=25.3" is not understood</b><span>A message is name:value: <span class="mono" style="color:var(--color-text)">temperature:25.3</span></span></div>`, { top: true }), "Why, with the line it should be.")
+    + frame(3, "Understood", app(`<p class="h" style="font-size:0.9rem">What reached this page</p><div class="console"><div><span class="tm">12:00:05</span><span><span class="n">temperature</span>:<span class="v">25.3</span></span><span class="what"><span class="check">✓</span> a number</span></div><div><span class="tm">12:00:06</span><span><span class="n">temperature</span>:<span class="v">25.4</span></span><span class="what"><span class="check">✓</span></span></div></div><div class="row"><span class="btn p">Open the Live dashboard</span></div>`, { top: true })),
+    [[1, "", ""], [2, "Python", "temperature=25.3  (a typo: = for :)"], [3, "Python", "temperature:25.3"]]]);
+
+document.getElementById("studies").innerHTML = S.map(([id, title, tags, desc, frames, rows]) => `
+    <section class="block" id="${id}">
+        <div><h3><i>${id}</i>${title}</h3><div class="tags">${tags.map(([k, t]) => `<span class="tag ${k}">${t}</span>`).join("")}</div>${desc}</div>
+        <div><div class="stage">${frames}</div>${sent(rows)}</div>
+    </section>`).join("");
+
+// ---- Compare: questions 1 to 7 of "What it must tell", and the cost
+const C = [
+    ["A One line", "●●●●◐○◐", "small"], ["B The path", "●◐◐●○○●", "small"], ["C Gallery", "◐◐●◐◐●○", "medium"], ["D Sample behind glass", "◐○◐●●●○", "medium"],
+    ["E Three doors", "●◐●◐●○○", "medium"], ["F Playground", "○○●●○◐○", "medium"], ["G Steps", "●●●●○○◐", "medium"], ["H Empty dashboard", "◐○●●○●○", "large"],
+    ["I Almost nothing", "●◐●○○○○", "small"], ["J What came in", "◐◐◐●○○●", "medium"]];
+document.getElementById("compare-table").innerHTML = `<table class="cmp"><tr><th>Study</th>${["1 Working?", "2 Where?", "3 What?", "4 Arrived?", "5 Other ways", "6 What is possible", "7 Nothing comes"].map((q) => `<th>${q}</th>`).join("")}<th>Cost</th></tr>`
+    + C.map(([name, marks, cost]) => `<tr><td><a href="#${name[0]}">${name}</a></td>${[...marks].map((m) => `<td>${m}</td>`).join("")}<td>${cost}</td></tr>`).join("") + `</table>`;
+</script>
+</body>
+</html>
