@@ -390,7 +390,7 @@ public:
         Action& color(const char* v) { if (a_) { a_->color = v; } return *this; }
         Action& confirm(bool v = true) { if (a_) { a_->confirm = v; } return *this; }
         Action& longpress(bool v = true) { if (a_) { a_->longpress = v; } return *this; }
-        Action& arg(Arg a) { if (a_ && a_->argCount < TELEPLOT_MAX_ARGS) { a_->args[a_->argCount++] = a; } return *this; }
+        Action& arg(Arg a) { if (a_ && room_(a_->argCount, TELEPLOT_MAX_ARGS)) { a_->args[a_->argCount++] = a; } return *this; }
     private:
         friend class Teleplot;
         Action(Action_* a) : a_(a) {}
@@ -433,7 +433,7 @@ public:
     static Teleplot& instance() { static Teleplot teleplot(Serial); return teleplot; }
 
     // Another destination for the same lines (an SD file: a .teleplot.txt file the page opens)
-    void addOutput(Print& print) { if (outputCount_ < TELEPLOT_MAX_OUTPUTS) { outputs_[outputCount_] = Output_(); outputs_[outputCount_].print = &print; outputCount_++; } }
+    void addOutput(Print& print) { if (room_(outputCount_, TELEPLOT_MAX_OUTPUTS)) { outputs_[outputCount_] = Output_(); outputs_[outputCount_].print = &print; outputCount_++; } }
 
     void enable() { enabled_ = true; }
     void disable() { enabled_ = false; }
@@ -473,7 +473,7 @@ public:
 
     // An action the page may call: handler(args) returns ok() or error("why"). It runs in poll().
     Action action(const char* name, Result (*handler)(Args const&)) {
-        if (actionCount_ >= TELEPLOT_MAX_ACTIONS) { stats_.tooBig++; return Action(0); }
+        if (!room_(actionCount_, TELEPLOT_MAX_ACTIONS)) { stats_.tooBig++; return Action(0); }
         Action_& a = actions_[actionCount_++];
         a = Action_();
         a.name = name;
@@ -621,6 +621,9 @@ private:
     Param_ params_[(TELEPLOT_MAX_PARAMS) > 0 ? (TELEPLOT_MAX_PARAMS) : 1]; // (0: none, the table keeps one unused slot)
     uint8_t paramCount_;
     Action_ actions_[(TELEPLOT_MAX_ACTIONS) > 0 ? (TELEPLOT_MAX_ACTIONS) : 1]; // (0: none, the table keeps one unused slot)
+    // Is there room in a table of max entries holding count ? (A function: a table of 0, which a sketch may ask for, makes the
+    // plain comparison always true, and compilers say so)
+    static bool room_(int count, int max) { return count < max; }
     uint8_t actionCount_;
     StackSlot_ stacks_[(TELEPLOT_MAX_STACKS) > 0 ? (TELEPLOT_MAX_STACKS) : 1]; // (0: none, the table keeps one unused slot)
     uint8_t stackCount_;
@@ -650,7 +653,7 @@ private:
     int8_t entry_(const char* name, bool create) {
         for (uint8_t i = 0; i < entryCount_; ++i) { if (entries_[i].name == name || strcmp(entries_[i].name, name) == 0) { return static_cast<int8_t>(i); } }
         if (!create) { return -1; }
-        if (entryCount_ >= TELEPLOT_MAX_TELEMETRIES) { stats_.tooBig++; return -1; }
+        if (!room_(entryCount_, TELEPLOT_MAX_TELEMETRIES)) { stats_.tooBig++; return -1; }
         Entry_& e = entries_[entryCount_];
         e = Entry_();
         e.name = name;
@@ -866,7 +869,7 @@ private:
 #if TELEPLOT_RESEND
         Threshold_* th = 0;
         for (uint8_t i = 0; i < thresholdCount_; ++i) { if (thresholds_[i].entry == s.index_ && strcmp(thresholds_[i].name, name) == 0) { th = &thresholds_[i]; } }
-        if (!th && s.index_ >= 0 && thresholdCount_ < TELEPLOT_MAX_THRESHOLDS) { th = &thresholds_[thresholdCount_++]; }
+        if (!th && s.index_ >= 0 && room_(thresholdCount_, TELEPLOT_MAX_THRESHOLDS)) { th = &thresholds_[thresholdCount_++]; }
         if (th) { th->entry = s.index_; th->name = name; th->side = side; th->value = static_cast<float>(value); th->color = color; th->t = t; }
 #endif
     }
@@ -1019,7 +1022,7 @@ private:
     // ------------------------------------------------------------------ Stacks (one thread: one path per stack name)
     int8_t stackSlot_(const char* name) {
         for (uint8_t i = 0; i < stackCount_; ++i) { if (strcmp(stacks_[i].name, name) == 0) { return static_cast<int8_t>(i); } }
-        if (stackCount_ >= TELEPLOT_MAX_STACKS) { stats_.tooBig++; return -1; }
+        if (!room_(stackCount_, TELEPLOT_MAX_STACKS)) { stats_.tooBig++; return -1; }
         stacks_[stackCount_].name = name;
         stacks_[stackCount_].path[0] = 0;
         int8_t e = entry_(name, true);
@@ -1092,7 +1095,7 @@ private:
     template<class T> static bool isFloat_(T*) { return false; }
 
     Param_* newParam_(const char* name, void* variable, uint8_t type, bool (*write)(Param_&, const char*, char*), void (*publish)(Teleplot&, Param_&), void (*rest)(void*)) {
-        if (paramCount_ >= TELEPLOT_MAX_PARAMS) { stats_.tooBig++; return 0; }
+        if (!room_(paramCount_, TELEPLOT_MAX_PARAMS)) { stats_.tooBig++; return 0; }
         Param_& p = params_[paramCount_++];
         p = Param_();
         p.name = name; p.variable = variable; p.type = type; p.write = write; p.publish = publish; p.rest = rest;
