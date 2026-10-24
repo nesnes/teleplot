@@ -110,6 +110,7 @@ ACK|robot.goto#21:ok                   done (an instant action may skip run)
 ACK|robot.map.save#4:ok:map-12.pgm     done, with a short result text
 ACK|robot.goto#21:err:unreachable      failed, or refused (bad or missing argument)
 ACK|robot.mode:err:motors off          a setting refused (optional: the echo already tells)
+ACK|robot.cmd_vel:err:not in manual    a continuous setting (a joystick) it cannot apply, answered to each value
 ```
 
 - The answers are stored as log samples of the action's telemetry. A call's duration is measured on them, from `run` to its end:
@@ -136,6 +137,13 @@ A newer request for the same telemetry replaces the pending one. Sliders and con
 A writable with `rate` and `hold`: while it is held, the page sends the current value `rate` times per second; released, the rest
 value (0) a few times, then nothing. **The device stops when nothing came for `hold` ms**: the safety is on the device, the only
 place where it can be trusted. The page also stops sending when it is hidden, loses the focus, or CMD is switched off.
+
+A continuous setting has no request to refuse (it is streamed), so a device that cannot apply what it receives (wrong mode, motors
+off) answers `ACK|name:err:why` to each value instead of echoing it, and keeps sending what it applies. The page keeps the latest
+reason while errs keep coming (1.5 s after the last one: `TELEPLOT.commands.refusal(telem)`) and the joystick shows it, in red,
+under the pad. In binary it is the same call answer as a refused setting (`CALL_ID_SETTING`, status error). Zeros, the rest
+value sent on release, should always be accepted. The robot sample does this: `cmd_vel` is refused unless it is in manual mode,
+motors on.
 
 ### Binary
 
@@ -186,8 +194,13 @@ The lib holds the state (`TELEPLOT.state.commands`) and refuses writes when it i
 ### CMD off
 
 Nothing is sent, and what was added for commands is not drawn: pens, carets, switches, choice lists, action buttons. Views look
-exactly as today, with no exception: a joystick view still shows the reported value, without its knob. Action rows keep their
-last result (it is telemetry).
+exactly as today, with no exception: a joystick view still shows the reported value, without its knob, and says "Commands are
+off" under its pad. Action rows keep their last result (it is telemetry).
+
+Touching a command while CMD is off (pressing a joystick, clicking the value or the bar of a setting, pressing a writable pose on a
+2D view) sends nothing, and says so where it was touched for 4 s: "Commands are off: nothing is sent." with a **Switch on**
+button. `TELEPLOT.commands.blockedWhileOff(telem)` tells the views (true while off) and calls `onBlockedHooks`: the webapp
+flashes its CMD button and keeps the top menu visible meanwhile.
 
 ### Editing in place (values view, 110)
 

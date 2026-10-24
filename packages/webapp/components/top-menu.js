@@ -194,7 +194,7 @@ function initComponent_top_menu(vue) {
 
                 <template v-if="commandCount || commandsOn">
                     <span class="tm-sep"></span>
-                    <button class="tm-btn tm-cmd tm-tipped" :class="{on: commandsOn}" :aria-pressed="commandsOn" :aria-label="'Commands ' + (commandsOn ? 'on' : 'off')" @click="toggleCommands($event);">
+                    <button class="tm-btn tm-cmd tm-tipped" :class="{on: commandsOn, attention: cmdAttention}" :aria-pressed="commandsOn" :aria-label="'Commands ' + (commandsOn ? 'on' : 'off')" @click="toggleCommands($event);">
                         <b>CMD</b><small>{{commandsOn ? 'ON' : 'OFF'}}</small>
                         <span class="tm-tip" role="tooltip">
                             <span class="tm-tip-head"><b>Commands</b><kbd>C</kbd></span>
@@ -382,6 +382,10 @@ function initComponent_top_menu(vue) {
         .tm-cmd small { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-text-muted); opacity: 0.75; }
         .tm-cmd.on { background: color-mix(in srgb, var(--color-success) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--color-success); }
         .tm-cmd.on b, .tm-cmd.on small { color: var(--color-success); opacity: 1; }
+        /* A command was touched while commands are off: the button shows where to switch them on */
+        .tm-cmd.attention { animation: tm-cmd-attention 0.5s ease-in-out 3; }
+        @keyframes tm-cmd-attention { 50% { box-shadow: inset 0 0 0 2px var(--color-warning), 0 0 0 4px color-mix(in srgb, var(--color-warning) 35%, transparent); } }
+        @media (prefers-reduced-motion: reduce) { .tm-cmd.attention { animation: none; box-shadow: inset 0 0 0 2px var(--color-warning); } }
         .tm-edit { background: var(--color-text); color: var(--color-bg-light); font-weight: 600; }
         .tm-edit:hover { background: color-mix(in srgb, var(--color-text) 82%, var(--color-bg-light)); }
         .tm-edit.done { background: var(--tp-edit-container, #e67e22); color: #fff; }
@@ -550,6 +554,7 @@ function initComponent_top_menu(vue) {
         },
         data() {
             return {
+                cmdAttention: false, // A command was touched while commands are off: the CMD button flashes (and the menu shows)
                 panels: [
                     { name: "telemetries", label: "Telemetries", key: "T", icon: "icofont-duotone icofont-chart" },
                     { name: "sources", label: "Sources", key: "S", icon: "icofont-link" },
@@ -583,7 +588,7 @@ function initComponent_top_menu(vue) {
             // A chart is zoomed on a time range: the display no longer follows the latest data, the pause button becomes "back to live"
             zoomed() { return Object.values(this.TP.view.groups).some(g => g.cursorActive); },
             // Reasons to stay on screen even when nothing moves
-            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused || this.commandsOn); },
+            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused || this.commandsOn || this.cmdAttention); },
             away() { return !(this.awake || this.pinned); },
             // The island floats over the dashboard (not over the free band above it)
             over() { return !!this.ctx.activeDashboard && !this.ctx.bandVisible; },
@@ -901,6 +906,13 @@ function initComponent_top_menu(vue) {
         },
         mounted() {
             this.wake();
+            this._onCommandBlocked = () => {
+                this.cmdAttention = false;
+                clearTimeout(this._attentionTimer);
+                this.$nextTick(() => { this.cmdAttention = true; }); // (again from the start when it was already flashing)
+                this._attentionTimer = setTimeout(() => { this.cmdAttention = false; }, 2000);
+            };
+            this.TP.commands.onBlockedHooks.push(this._onCommandBlocked);
             this.refreshRate();
             this._rateTimer = setInterval(() => this.refreshRate(), 250);
         },
@@ -910,6 +922,9 @@ function initComponent_top_menu(vue) {
             for (const type of ACTIVITY_EVENTS) window.removeEventListener(type, this._onActivity, true);
             clearTimeout(this._idleTimer);
             clearInterval(this._rateTimer);
+            clearTimeout(this._attentionTimer);
+            const hooks = this.TP.commands.onBlockedHooks, index = hooks.indexOf(this._onCommandBlocked);
+            if (index >= 0) hooks.splice(index, 1);
         },
         template: vueHTML,
     });

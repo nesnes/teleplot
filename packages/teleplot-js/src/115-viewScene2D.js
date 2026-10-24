@@ -35,6 +35,7 @@ class ViewScene2D extends ViewScene3D {
         // Commands (doc/telecmd.md): writable poses and points can be moved and turned. editables: what can be, as last drawn;
         // ghost: what the user is placing, before it is sent ({id, at: [u, v], yaw, drag: "move" | "turn" | undefined})
         this.editables = TELEPLOT.Vue.markRaw([]);
+        this.lockedEditables = TELEPLOT.Vue.markRaw([]); // What could be placed if commands were on (a press on it says they are off)
         this.ghost = undefined;
         this.pointer = undefined; // Where the pointer is (pixels of the page), to show the handles of what is under it
     }
@@ -497,12 +498,32 @@ class ViewScene2D extends ViewScene3D {
         for(let b of buttons.children) b.addEventListener("pointerdown", (e) => e.stopPropagation());
         host.appendChild(buttons);
         page.ghostButtons = buttons;
+        // Commands are off and a writable pose was pressed: said for a while, with a button to switch them on
+        let note = document.createElement("div");
+        note.className = "teleplot-js-cmd-offnote teleplot-js-2d-offnote";
+        note.setAttribute("role", "status");
+        note.hidden = true;
+        note.innerHTML = '<span></span><button type="button" class="teleplot-js-cmd-button">Switch on</button>';
+        note.children[1].addEventListener("click", (e) => { e.stopPropagation(); TELEPLOT.commands.setEnabled(true); note.hidden = true; this.__requestDraw(); });
+        note.addEventListener("pointerdown", (e) => e.stopPropagation());
+        host.appendChild(note);
+        page.offNote = note;
         page.observer = new ResizeObserver(() => this.__resize2D());
         page.observer.observe(host);
         this.__resize2D();
     }
 
+    __showOffNote(telem) {
+        let note = this.page2D && this.page2D.offNote;
+        if(!note) return;
+        note.children[0].textContent = (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || telem.id) + ": commands are off, nothing is sent.";
+        note.hidden = false;
+        clearTimeout(this.__offTimer);
+        this.__offTimer = setTimeout(() => { note.hidden = true; }, TELEPLOT.commands.OFF_NOTICE_TIME);
+    }
+
     dispose() {
+        clearTimeout(this.__offTimer);
         let page = this.page2D;
         if(page) {
             this.page2D = undefined;
@@ -610,21 +631,23 @@ class ViewScene2D extends ViewScene3D {
             pointColorByHeight: this.options.pointColorByHeight, stl: (url) => this.__stl2D(url) }));
         this.__updateLegend(sources, element);
         this.editables = TELEPLOT.Vue.markRaw(this.__editables(sources));
+        this.lockedEditables = TELEPLOT.Vue.markRaw(TELEPLOT.state.commands ? [] : this.__editables(sources, true));
         if(!this.camera2D.userMoved) this.__keepInFrame2D();
         this.__draw();
     }
 
     // ------------------------------------------------------------------ Commands: writable poses and points
 
-    // What can be placed (CMD on, writable pose2d or xy settings drawn here): [{id, telem, type, at: [u, v], yaw, request}]
-    __editables(sources) {
+    // What can be placed (CMD on, writable pose2d or xy settings drawn here): [{id, telem, type, at: [u, v], yaw, request}]. evenOff: what
+    // could be placed if commands were on (whether its device can be written to is not asked then)
+    __editables(sources, evenOff = false) {
         let list = [];
-        if(!TELEPLOT.state.commands) return list;
+        if(!TELEPLOT.state.commands && !evenOff) return list;
         let axes = ViewScene2D.axes(this.options.axisRight, this.options.axisUp);
         for(let source of sources) {
             let telem = source.telem, declaration = TELEPLOT.commands.declaration(telem);
             if(source.hidden || !declaration || declaration.kind !== "setting" || TELEPLOT.commands.isContinuous(telem) || (declaration.type !== "pose2d" && declaration.type !== "xy")) continue;
-            if(!TELEPLOT.commands.canWrite(telem)) continue;
+            if(!evenOff && !TELEPLOT.commands.canWrite(telem)) continue;
             let reported = TELEPLOT.commands.reported(telem);
             if(!reported) continue;
             let v = reported.value;
@@ -651,8 +674,14 @@ class ViewScene2D extends ViewScene3D {
     // A press on the map: grabs the ghost (its center to move it, its handle to turn it) or a writable pose / point (a ghost starts
     // from where it is). Returns true when something was grabbed.
     __commandDown(px) {
-        if(!TELEPLOT.state.commands || !this.page2D) return false;
+        if(!this.page2D) return false;
         let near = (a, b, r) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= r;
+        if(!TELEPLOT.state.commands) { // A writable pose or point pressed while commands are off: nothing is sent, the view says why
+            let locked = this.lockedEditables.find((e) => near(px, this.__toPage(e.at), 12));
+            if(!locked || !TELEPLOT.commands.blockedWhileOff(locked.telem)) return false;
+            this.__showOffNote(locked.telem);
+            return true;
+        }
         let ghost = this.ghost;
         if(ghost) {
             if(ghost.type === "pose2d" && near(px, this.__turnHandle(ghost.at, ghost.yaw), 9)) { ghost.drag = "turn"; return true; }
@@ -796,6 +825,6 @@ TELEPLOT.view.ViewScene2D = ViewScene2D;
 // The buttons next to a ghost (a pose or a point being placed, see __drawCommands)
 {
     let elem = document.createElement('style');
-    elem.textContent = `@scope (.teleplot-js-style) { .teleplot-js-2d-ghost-buttons { position: absolute; z-index: 3; display: flex; gap: 0.3em; } .teleplot-js-2d-ghost-buttons[hidden] { display: none; } }`;
+    elem.textContent = `@scope (.teleplot-js-style) { .teleplot-js-2d-ghost-buttons { position: absolute; z-index: 3; display: flex; gap: 0.3em; } .teleplot-js-2d-ghost-buttons[hidden] { display: none; } .teleplot-js-2d-offnote { position: absolute; z-index: 4; left: 0.5em; right: 0.5em; bottom: 0.5em; margin: 0; } .teleplot-js-2d-offnote[hidden] { display: none; } }`;
     document.head.appendChild(elem);
 }

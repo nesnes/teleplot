@@ -23,7 +23,7 @@ class ViewCurrentValue extends ViewTelemetries{
         // Commands (doc/telecmd.md): settings are edited in place and actions called from their row, when CMD is on.
         // commandsUI false: never (a list of series of a chart). ui: what is being edited (one thing at a time in a view).
         this.commandsUI = true;
-        this.ui = TELEPLOT.Vue.reactive({ hover: null, drag: null, edit: null, draft: "", error: "", form: {}, confirm: null, press: null });
+        this.ui = TELEPLOT.Vue.reactive({ hover: null, drag: null, edit: null, draft: "", error: "", form: {}, confirm: null, press: null, off: null });
 
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
@@ -50,7 +50,8 @@ class ViewCurrentValue extends ViewTelemetries{
                 }
             },
             computed: {
-                ordered() { return this.displayOrder.map((id) => this.telemetries[id]).filter(Boolean); }
+                ordered() { return this.displayOrder.map((id) => this.telemetries[id]).filter(Boolean); },
+                offRow() { let row = this.ui.off !== null ? this.telemetries[this.ui.off] : undefined; return row && row.cmd && !row.cmd.on ? row : undefined; } // (a setting touched while commands are off)
             },
             methods: {
                 onRowClick: (id) => { if(self.rowHandlers.click) self.rowHandlers.click(id); },
@@ -66,6 +67,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 commitField: (telem) => self.commitField(telem),
                 cancelEdit: () => self.cancelEdit(),
                 toggle: (telem) => self.toggle(telem),
+                switchCommandsOn: () => self.switchCommandsOn(),
                 pick: (telem, value) => self.pick(telem, value),
                 actionDown: (telem, event) => self.actionDown(telem, event),
                 actionUp: (telem) => self.actionUp(telem),
@@ -282,7 +284,22 @@ class ViewCurrentValue extends ViewTelemetries{
         this.ui.hover = { id: row.id, at: ViewCurrentValue.__barAt(event) };
     }
 
+    // A setting touched while commands are off: its row says so for a while, with a button to switch them on (nothing is sent)
+    __blocked(row) {
+        if(!row.cmd || row.cmd.kind !== "setting" || !TELEPLOT.commands.blockedWhileOff(row.telem)) return false;
+        this.ui.off = row.id;
+        clearTimeout(this.__offTimer);
+        this.__offTimer = setTimeout(() => { if(this.ui.off === row.id) this.ui.off = null; }, TELEPLOT.commands.OFF_NOTICE_TIME);
+        return true;
+    }
+
+    switchCommandsOn() {
+        TELEPLOT.commands.setEnabled(true);
+        this.ui.off = null;
+    }
+
     barDown(row, event) {
+        if(event.button === 0 && this.__blocked(row)) return;
         if(!row.cmd || !row.cmd.editable || row.cmd.kind !== "setting" || row.cmd.continuous || !row.bar) return;
         event.preventDefault();
         let bar = event.currentTarget, rect = bar.getBoundingClientRect();
@@ -307,6 +324,7 @@ class ViewCurrentValue extends ViewTelemetries{
 
     // A click on the value of a setting: a field (numbers, texts, points) or the list of its choices
     startEdit(row, event) {
+        if(this.__blocked(row)) { if(event) event.stopPropagation(); return; }
         if(!row.cmd || !row.cmd.editable || row.cmd.kind !== "setting" || row.cmd.continuous || row.cmd.type === "bool") return;
         if(event) event.stopPropagation();
         if(row.cmd.choices.length) { this.ui.edit = this.ui.edit && this.ui.edit.id === row.id ? null : { id: row.id, kind: "choices" }; return; }
@@ -596,6 +614,10 @@ class ViewCurrentValue extends ViewTelemetries{
                     </div>
                 </div>
             </div>
+            <!-- A setting touched while commands are off: nothing is sent, and the view says why (at its bottom, visible however it scrolls) -->
+            <div v-if="offRow" class="teleplot-js-cmd-offnote teleplot-js-cmd-offnote-sticky" role="status" v-on:click.stop v-on:pointerdown.stop>
+                <span><b>{{offRow.name}}</b>: commands are off, nothing is sent.</span><button class="teleplot-js-cmd-button" v-on:click.stop="switchCommandsOn()">Switch on</button>
+            </div>
             </template>
         </div>
     `;
@@ -776,6 +798,12 @@ class ViewCurrentValue extends ViewTelemetries{
             .teleplot-js-cmd-form input::placeholder { color: var(--teleplot-muted); font-style: italic; }
             input.teleplot-js-cmd-bad { border-color: var(--teleplot-error) !important; }
             .teleplot-js-cmd-error { color: var(--teleplot-error); font-size: 0.75em; }
+            /* Commands are off and a command was touched: said where it was touched (values rows, joystick) */
+            .teleplot-js-cmd-offnote { display: flex; align-items: center; gap: 0.6em; margin-top: 0.3em; padding: 0.3em 0.3em 0.3em 0.6em; border-radius: 0.5em; font-size: 0.8em;
+                background: color-mix(in srgb, var(--teleplot-warn) 14%, var(--teleplot-card-bg, var(--teleplot-bg))); color: var(--teleplot-text); animation: teleplot-js-cmd-offnote-in 0.15s ease-out; }
+            .teleplot-js-cmd-offnote span { flex: 1; }
+            .teleplot-js-cmd-offnote-sticky { position: sticky; bottom: 0; z-index: 3; flex: none; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+            @keyframes teleplot-js-cmd-offnote-in { from { opacity: 0; transform: translateY(-0.2em); } }
             .teleplot-js-cmd-choices { flex: 1 0 100%; display: flex; gap: 0.15em; padding: 0.15em; margin: 0.2em 0; border-radius: 0.6em; background: color-mix(in srgb, var(--teleplot-text) 8%, transparent); }
             .teleplot-js-cmd-choices button { flex: 1; font: 0.82em sans-serif; padding: 0.1em 0.3em; border: 1px solid transparent; border-radius: 0.45em; background: none; color: var(--teleplot-muted); cursor: pointer; white-space: nowrap; }
             .teleplot-js-cmd-choices button:hover { background: color-mix(in srgb, var(--teleplot-primary) 12%, transparent); }

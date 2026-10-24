@@ -173,6 +173,22 @@ test('a setting not applied (the device keeps another value), refused (err), or 
     assert.equal(texts(written).filter((t) => t === 'silent:1').length, 9, 'sent again every 250 ms for 2 s');
 });
 
+test('a command touched while CMD is off: blocked, the hooks are told, nothing is sent; on, it goes on', () => {
+    const { T, written, telem } = setup('ATTR|kp|write\nkp:0.4');
+    const told = [];
+    T.commands.onBlockedHooks.push((t) => told.push(t.getAttribute(T.protocol.TELEM_ATTR_NAME)));
+    T.commands.onBlockedHooks.push(() => { throw new Error('a broken hook'); }); // (does not stop the others, nor the view)
+    const error = console.error; console.error = () => {};
+    try { assert.equal(T.commands.blockedWhileOff(telem('kp')), true); }
+    finally { console.error = error; }
+    assert.deepEqual(told, ['kp']);
+    assert.equal(written.length, 0);
+    T.commands.setEnabled(true);
+    assert.equal(T.commands.blockedWhileOff(telem('kp')), false);
+    assert.deepEqual(told, ['kp'], 'on: nothing to tell');
+    assert.ok(T.commands.OFF_NOTICE_TIME >= 2000, 'the view says it long enough to be read');
+});
+
 test('settings are throttled: the latest value waits for its turn', () => {
     const { T, written, telem } = setup('ATTR|kp|write|rate=4\nkp:0');
     T.commands.setEnabled(true);
@@ -304,6 +320,26 @@ test('continuous control: sent at its rate while held, the rest value a few time
     assert.deepEqual(texts(written).at(-1), 'cmd_vel:0:0:0', 'switched off: the rest value');
     T.commands.__update(later(500));
     assert.equal(written.length, 7, 'and then nothing');
+});
+
+test('continuous control refused: the err of the device is kept while it keeps coming (a joystick shows it)', () => {
+    const { T, telem } = setup('ATTR|cmd_vel|write=pose2d|rate=20|hold=200\nATTR|kp|write');
+    T.commands.setEnabled(true);
+    T.commands.hold(telem('cmd_vel'), () => [0.4, 0, 0]);
+    assert.equal(T.commands.refusal(telem('cmd_vel')), undefined);
+    assert.equal(T.parseDataText('ACK|cmd_vel:err:not in manual mode'), 0);
+    const now = Date.now();
+    assert.equal(T.commands.refusal(telem('cmd_vel'), now).reason, 'not in manual mode');
+    assert.equal(T.commands.refusal(telem('cmd_vel'), now + 2000), undefined, 'no err for a while: driven again');
+    T.parseDataText('ACK|kp:err:no');
+    assert.equal(T.commands.refusal(telem('kp')), undefined, 'a setting that is not continuous has its request for that');
+    // The joystick view shows it, only while commands are on
+    const view = new T.view.ViewJoystick('', ['cmd_vel'], 'default');
+    view.update();
+    assert.equal(view.state.refused, 'not in manual mode');
+    T.commands.setEnabled(false);
+    view.update();
+    assert.equal(view.state.refused, '');
 });
 
 test('the Teleplot server: senders of packets, writes back to the sender, read-only, older servers', () => {

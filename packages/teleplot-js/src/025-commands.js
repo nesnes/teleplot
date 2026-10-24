@@ -21,6 +21,8 @@ let _commands_requests = new Map(); // telemetry id -> the latest request of a s
 let _commands_calls = new Map();    // telemetry id -> Map call id -> call made by this page
 let _commands_history = new Map();  // telemetry id -> [request or call], oldest first
 let _commands_holds = new Map();    // telemetry id -> {telemetry, getValue, sentAt, rest}
+let _commands_refusals = new Map(); // telemetry id -> {reason, at (ms)}: the latest err of a continuous setting (it has no request)
+const _commands_REFUSAL_MS = 1500;  // A continuous setting is refused while errs keep coming: this long after the last one
 let _commands_nextId = 1 + Math.floor(Math.random() * 60000); // Call ids: a page that reloads does not reuse those of the previous one
 
 TELEPLOT.commands = {
@@ -82,6 +84,21 @@ TELEPLOT.commands.setEnabled = function(on) {
     if(!on) for(let hold of [..._commands_holds.values()]) TELEPLOT.commands.release(hold.telemetry); // (while it can still be sent)
     TELEPLOT.state.commands = !!on;
 }
+
+// Someone tried to use a command (a joystick, the value of a setting) while commands are off: true then, and the hooks are told (the
+// webapp shows its CMD button). Nothing is sent: the view says so where it was touched, with a button to switch commands on. False
+// while they are on: the view goes on.
+TELEPLOT.commands.onBlockedHooks = [];
+TELEPLOT.commands.blockedWhileOff = function(telem) {
+    if(TELEPLOT.state.commands) return false;
+    for(let hook of TELEPLOT.commands.onBlockedHooks) {
+        try { hook(telem); }
+        catch(e) { console.error("Teleplot commands hook failed:", e); }
+    }
+    return true;
+}
+// How long a view says that commands are off, after a try (ms)
+TELEPLOT.commands.OFF_NOTICE_TIME = 4000;
 
 // What can be commanded, per device: {settings, actions, devices: [{name, settings, actions}]}
 TELEPLOT.commands.summary = function() {
@@ -403,6 +420,8 @@ TELEPLOT.commands.__answer = function(telem, id, status, text, time) {
         if(request && status === "err" && (request.status === "pending" || request.status === "kept")) {
             Object.assign(request, { status: "refused", reason: text || "Refused", endedAt: Date.now() });
         }
+        // A continuous setting (a joystick) is streamed, not requested: the device answers err to what it cannot apply, each time
+        if(status === "err" && TELEPLOT.commands.isContinuous(telem)) _commands_refusals.set(telem.id, { reason: text || "Refused", at: Date.now() });
         return;
     }
     // A call: its answers are log samples of the action ("#21 run"), what calls() reads
@@ -481,6 +500,12 @@ TELEPLOT.commands.release = function(telem) {
     _commands_sendHold(hold, Date.now());
 }
 
+// Why the device refuses a continuous setting, while its errs keep coming: {reason, at}, or undefined
+TELEPLOT.commands.refusal = function(telem, now = Date.now()) {
+    let refusal = telem && _commands_refusals.get(telem.id);
+    return refusal && now - refusal.at < _commands_REFUSAL_MS ? refusal : undefined;
+}
+
 TELEPLOT.commands.isHeld = (telem) => { let hold = telem && _commands_holds.get(telem.id); return hold !== undefined && hold.rest === 0; };
 
 // What a continuous setting is when nobody drives it: zeros (the middle of its range when 0 is out of it)
@@ -516,7 +541,7 @@ TELEPLOT.commands.__update = function(now=Date.now()) {
 
 // Forgets everything that was asked (tests, a page that starts again)
 TELEPLOT.commands.__reset = function() {
-    _commands_requests = new Map(); _commands_calls = new Map(); _commands_history = new Map(); _commands_holds = new Map();
+    _commands_requests = new Map(); _commands_calls = new Map(); _commands_history = new Map(); _commands_holds = new Map(); _commands_refusals = new Map();
 }
 
 // The page is hidden: nothing drives a device from it any more

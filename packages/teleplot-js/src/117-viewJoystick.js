@@ -20,7 +20,7 @@ class ViewJoystick extends ViewTelemetries {
         this.layout.width = 1;
         this.layout.height = 3;
         this.input = TELEPLOT.Vue.markRaw({ pad: [0, 0], rocker: 0, padHeld: false, rockerHeld: false, keys: new Set() }); // What the user holds (-1 to 1)
-        this.state = TELEPLOT.Vue.reactive({ name: "", tip: "", mode: "", on: false, editable: false, why: "", held: false, knob: [0, 0], rocker: 0, reported: [0, 0], reportedRocker: 0, text: "", hasReport: false, keyboard: "off", focused: false });
+        this.state = TELEPLOT.Vue.reactive({ name: "", tip: "", mode: "", on: false, editable: false, why: "", held: false, knob: [0, 0], rocker: 0, reported: [0, 0], reportedRocker: 0, text: "", hasReport: false, keyboard: "off", focused: false, offNotice: false, refused: "" });
         this.telem = undefined;
     }
 
@@ -32,6 +32,7 @@ class ViewJoystick extends ViewTelemetries {
             data() { return { self, options: self.options, layout: self.layout, dragContext: self.dragContext, emptyState: self.emptyState, state: self.state }; },
             methods: {
                 padDown: (e) => self.__press("pad", e),
+                switchOn: () => { TELEPLOT.commands.setEnabled(true); self.state.offNotice = false; },
                 rockerDown: (e) => self.__press("rocker", e),
                 onKey: (e) => self.__key(e, true),
                 onKeyUp: (e) => self.__key(e, false),
@@ -51,6 +52,7 @@ class ViewJoystick extends ViewTelemetries {
 
     dispose() {
         if(this.__releasePress) this.__releasePress();
+        clearTimeout(this.__offTimer);
         if(this.telem && TELEPLOT.commands.isHeld(this.telem)) TELEPLOT.commands.release(this.telem);
         TELEPLOT.commands.keyboardCaptured = false;
         super.dispose();
@@ -141,7 +143,9 @@ class ViewJoystick extends ViewTelemetries {
         let place = ViewJoystick.toPlace(base, reported ? reported.value : 0, range);
         let held = TELEPLOT.commands.isHeld(telem);
         if(!on || why) { this.input.padHeld = this.input.rockerHeld = false; this.input.keys.clear(); }
+        let refusal = on ? TELEPLOT.commands.refusal(telem) : undefined; // (the device answers err to what it cannot apply)
         let next = { name: telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), tip: TELEPLOT.view.telemetryTip(telem), mode, on, editable: on && why === "", why, held,
+            refused: refusal ? refusal.reason : "",
             knob: held ? this.input.pad.slice() : [0, 0], rocker: held ? this.input.rocker : 0, reported: place.pad, reportedRocker: place.rocker, hasReport: reported !== undefined,
             text: reported ? TELEPLOT.commands.formatValue(declaration.type, reported.value) : "", keyboard: this.options.keyboard };
         for(let key in next) if(JSON.stringify(state[key]) !== JSON.stringify(next[key])) state[key] = next[key];
@@ -173,7 +177,14 @@ class ViewJoystick extends ViewTelemetries {
     }
 
     __press(which, event) {
-        if(!this.state.editable || event.button !== 0) return;
+        if(event.button !== 0) return;
+        if(TELEPLOT.commands.blockedWhileOff(this.telem)) { // Nothing is sent: the view says why for a while
+            this.state.offNotice = true;
+            clearTimeout(this.__offTimer);
+            this.__offTimer = setTimeout(() => { this.state.offNotice = false; }, TELEPLOT.commands.OFF_NOTICE_TIME);
+            return;
+        }
+        if(!this.state.editable) return;
         event.preventDefault();
         let target = event.currentTarget;
         let vertical = which === "rocker" && this.state.mode === "vrocker";
@@ -241,20 +252,23 @@ class ViewJoystick extends ViewTelemetries {
             <template v-else-if="state.mode">
                 <div class="teleplot-js-joystick-name" v-bind:title="state.why ? state.tip + '\\n' + state.why : state.tip">{{state.name}}<span v-if="state.on" class="teleplot-js-cmd-pen">✎</span></div>
                 <div class="teleplot-js-joystick-controls" v-bind:class="{'teleplot-js-joystick-vertical': state.mode == 'vrocker'}">
-                    <div v-if="state.mode != 'rocker' && state.mode != 'vrocker'" class="teleplot-js-joystick-pad" v-bind:class="{'teleplot-js-joystick-held': state.held}"
+                    <div v-if="state.mode != 'rocker' && state.mode != 'vrocker'" class="teleplot-js-joystick-pad" v-bind:class="{'teleplot-js-joystick-held': state.held, 'teleplot-js-joystick-refusing': state.held && state.refused}"
                         v-on:pointerdown="padDown" v-bind:title="state.why || ''">
                         <div v-if="state.on" class="teleplot-js-joystick-knob" v-bind:style="{left: (50 + state.knob[0] * 50) + '%', top: (50 - state.knob[1] * 50) + '%'}"></div>
                         <div v-if="state.hasReport" class="teleplot-js-joystick-report" v-bind:style="{left: (50 + state.reported[0] * 50) + '%', top: (50 - state.reported[1] * 50) + '%'}" title="What the device reports"></div>
                     </div>
                     <div v-if="state.mode == 'pad+rocker' || state.mode == 'rocker' || state.mode == 'vrocker'" class="teleplot-js-joystick-rocker"
-                        v-bind:class="{'teleplot-js-joystick-held': state.held}" v-on:pointerdown="rockerDown" v-bind:title="state.mode == 'pad+rocker' ? 'Rotation' : ''">
+                        v-bind:class="{'teleplot-js-joystick-held': state.held, 'teleplot-js-joystick-refusing': state.held && state.refused}" v-on:pointerdown="rockerDown" v-bind:title="state.mode == 'pad+rocker' ? 'Rotation' : ''">
                         <div v-if="state.on" class="teleplot-js-joystick-rocker-knob" v-bind:style="state.mode == 'vrocker' ? {top: (50 - state.rocker * 50) + '%'} : {left: (50 + state.rocker * 50) + '%'}"></div>
                         <div v-if="state.hasReport" class="teleplot-js-joystick-rocker-report" v-bind:style="state.mode == 'vrocker' ? {top: (50 - state.reportedRocker * 50) + '%'} : {left: (50 + state.reportedRocker * 50) + '%'}"></div>
                     </div>
                 </div>
                 <div class="teleplot-js-joystick-value">{{state.text}}</div>
-                <div v-if="state.on && state.keyboard != 'off' && state.editable" class="teleplot-js-joystick-keys">{{state.focused ? 'Keys drive · Esc' : 'Click to drive with the ' + (state.keyboard == 'wasd' ? 'WASD keys' : 'arrow keys')}}</div>
+                <div v-if="state.on && state.refused" class="teleplot-js-joystick-keys teleplot-js-joystick-refused" role="status" v-bind:title="'The device refuses: ' + state.refused">✕ {{state.refused}}</div>
+                <div v-else-if="state.on && state.keyboard != 'off' && state.editable" class="teleplot-js-joystick-keys">{{state.focused ? 'Keys drive · Esc' : 'Click to drive with the ' + (state.keyboard == 'wasd' ? 'WASD keys' : 'arrow keys')}}</div>
                 <div v-else-if="state.on && state.why" class="teleplot-js-joystick-keys">{{state.why}}</div>
+                <div v-else-if="!state.on && !state.offNotice" class="teleplot-js-joystick-keys">Commands are off</div>
+                <div v-if="!state.on && state.offNotice" class="teleplot-js-cmd-offnote" role="status" v-on:click.stop v-on:pointerdown.stop><span>Commands are off: nothing is sent.</span><button class="teleplot-js-cmd-button" v-on:click.stop="switchOn">Switch on</button></div>
             </template>
         </div>
     `;
@@ -284,6 +298,8 @@ class ViewJoystick extends ViewTelemetries {
             .teleplot-js-joystick-off .teleplot-js-joystick-pad, .teleplot-js-joystick-off .teleplot-js-joystick-rocker { cursor: default; opacity: 0.7; }
             .teleplot-js-joystick-value { font: 0.8em var(--teleplot-mono); color: var(--teleplot-muted); white-space: nowrap; }
             .teleplot-js-joystick-keys { font-size: 0.75em; color: var(--teleplot-muted); text-align: center; }
+            .teleplot-js-joystick-refused { color: var(--teleplot-error); font-weight: 600; }
+            .teleplot-js-joystick-held.teleplot-js-joystick-refusing { border-color: var(--teleplot-error); box-shadow: 0 0 0 3px color-mix(in srgb, var(--teleplot-error) 25%, transparent); }
         }
     `;
 }
