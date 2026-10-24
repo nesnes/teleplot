@@ -566,7 +566,7 @@ const HELP_TILES = [
           "Answers are log lines of the action: a timeline shows its calls.",
       ] },
     { id: "joystick", family: "control", title: "A joystick", sub: "drive it", picture: "joystick",
-      format: ["ATTR|name|write=type|rate=per second|hold=ms[|axes=…|min=…|max=…]", "DASH|dashboard/view:joystick:name[|orientation=vertical][|keyboard=arrows]"],
+      format: ["ATTR|name|write=type|rate=per second|hold=ms[|axes=…|min=…|max=…]", "DASH|dashboard/view:joystick:name[|orientation=vertical][|keyboard=arrows]", "ACK|name:err:why    (your device cannot apply it)"],
       fields: [
           ["write=pose2d", "The velocities of a robot (forward x, sideways y, turn yaw): a pad and a rotation rocker."],
           ["axes=x,yaw", "A base that cannot go sideways: one stick, up to go forward, left to turn left. axes= says what moves among x, y, yaw."],
@@ -577,11 +577,13 @@ const HELP_TILES = [
           ["min= max=", "The values at the ends of the pad or the rocker."],
           ["orientation=", "Option of the view: the rocker of a number horizontal (default) or vertical (up for +)."],
           ["keyboard=", "Option of the view: off (default), arrows or wasd: drive it with the keyboard while the view has the focus."],
+          ["ACK|name:err:why", "Answered to each value your device cannot apply now (another mode, motors off), instead of applying it: the joystick says why, in red, while it keeps coming. Zeros (released) should always be fine."],
       ],
       examples: [
         { title: "The joystick", picture: "joy-stick", code: "ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", note: "Forward and turn, 20 times per second: one stick.", expect: { name: "cmd_vel", write: "pose2d", view: "joystick" } },
         { title: "You hold the pad", from: "page", code: "cmd_vel:0.3:0:0.2", note: "Forward speed, sideways (0: no y axis), turn: 20 times per second while held, then 0:0:0 a few times when released.", expect: { name: "cmd_vel", input: "0.3, 0, 0.2" } },
         { title: "What it applies", code: "cmd_vel:0.3:0:0.2|xyz", note: "Shown on the pad. Send again: it moves.", expect: { name: "cmd_vel", type: "3d" } },
+        { title: "Refused", optional: true, code: "ACK|cmd_vel:err:not in manual mode", cycle: ["ACK|cmd_vel:err:motors off"], note: "What it answers instead when it cannot apply it: shown in red under the pad (with commands on) while it keeps coming.", expect: { name: "cmd_vel" } },
       ], more: [
         { title: "A pad and a rotation", picture: "joy-padrocker", code: "ATTR|base_vel|write=pose2d|rate=20|hold=200|min=-1|max=1", note: "A robot that can also go sideways: the pad moves it, the rocker turns it.", expect: { name: "base_vel", write: "pose2d", view: "joystick" } },
         { title: "Its velocities", code: "base_vel:0.2:0.1:0.3|xyz", note: "Forward, sideways, turn: shown on the pad and the rocker.", expect: { name: "base_vel", type: "3d" } },

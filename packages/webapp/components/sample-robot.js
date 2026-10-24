@@ -14,7 +14,7 @@
  * intrinsics, its distortion and where it is, so that an image view can draw the 3D telemetries over its pictures.
  * Commands (doc/telecmd.md, switch CMD on): it is a source of the page (a local connection) that declares what it takes, as a device
  * would with ATTR lines: a speed limit (it cannot go above 0.6 m/s: asked more, it keeps 0.6), its motors, a mode (auto, manual,
- * idle: manual is refused while the motors are off), velocities for a joystick (cmd_vel, one stick: it cannot go sideways), its pose
+ * idle: manual is refused while the motors are off), velocities for a joystick (cmd_vel, one stick: it cannot go sideways; refused with an err while it is not in manual mode), its pose
  * (moved on the map: where it believes it is), and actions: reset odometry (asks first), go to (a target and an optional speed),
  * stop (red), dock (to be held). It reads the lines the page writes (handleCommand) and answers with the lines of a device.
  *
@@ -185,7 +185,16 @@ function createRobotSample(TP) {
             if (value == "manual" && !bot.motors) { send("ACK|robot.mode:err:motors off"); return publishSettings(); }
             setMode(value);
         }
-        else if (name == "robot.cmd_vel") { const [x, , yaw] = value.split(":").map(Number); bot.cmd = { x: x || 0, yaw: yaw || 0, at: bot.t }; send(`robot.cmd_vel:${bot.cmd.x}:0:${bot.cmd.yaw}|xyz`); return; }
+        else if (name == "robot.cmd_vel") {
+            const [x, , yaw] = value.split(":").map(Number);
+            // Driven in manual mode only, motors on: anything else cannot be applied and is refused, each time it comes (what the
+            // joystick shows while it is held). Zeros, sent when it is released, are always fine.
+            const why = !bot.motors ? "motors off" : (bot.mode != "manual" ? "not in manual mode (" + bot.mode + ")" : "");
+            if (why && (x || yaw)) { send("ACK|robot.cmd_vel:err:" + why); return; }
+            bot.cmd = { x: x || 0, yaw: yaw || 0, at: bot.t };
+            send(`robot.cmd_vel:${bot.cmd.x}:0:${bot.cmd.yaw}|xyz`);
+            return;
+        }
         else if (name == "robot.pose") { const [x, y, a] = value.split(":").map(Number); if ([x, y, a].every(Number.isFinite)) { bot.x = Math.max(0.1, Math.min(W - 0.1, x)); bot.y = Math.max(0.1, Math.min(H - 0.1, y)); bot.a = a; } publishPose(); return; }
         publishSettings();
     }
