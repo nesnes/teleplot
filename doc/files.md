@@ -28,7 +28,7 @@ state:1627551892437:forward|t
 ```
 
 - Every line is a line of the text protocol (see the README): numbers, positions, text, logs, point clouds, images, 3D shapes and cameras, ranges (`ATTR|`) and thresholds (`TH|`), dashboards.
-- **Give each line its time** (milliseconds since 1970, or since the start of the device). A line without a time is dated when it is read, like any line received: all of them would get the time of the import.
+- **Give each line its time** (milliseconds since 1970, or since the start of the device: a file is never dated by the page as live times since boot are, see `doc/sources.md`, so such times are shown at the start of 1970). A line without a time is dated when it is read, like any line received: all of them would get the time of the import.
 - A file that was logged from a serial port (telemetry lines start with `>`, the others are logs) is read with the `serial` option.
 - Empty lines are skipped; lines that are not understood are counted and reported.
 

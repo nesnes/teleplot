@@ -295,14 +295,13 @@ Built in five steps, each tested before the next (plan of 2026-10-19). Where thi
   commands, reads them like a device and answers).
 - **Tests**: `packages/teleplot-js/tests/commands.test.js` (parsing, settings, actions, binary, continuous, server and serial
   connections, views), `parseDataText.test.js`, `dashboards.test.js`; `packages/server/tests/server.test.js` (senders, writes back,
-  read-only); `packages/webapp/tests/help.test.js`; `clients/python/test_teleplot.py`; `clients/cpp/test_commands.cpp`.
+  read-only); `packages/webapp/tests/help.test.js`; `clients/python/test_teleplot.py`; `clients/cpp/tests/test_client.cpp`.
   `test.html` has a section "Commands".
 - **Clients**: Python `clients/python/teleplot.py` (text protocol: `param`, `action`, `Arg`, `poll`), C++ `clients/cpp/Teleplot.h`
-  (binary: `param`, `action`, `poll`, `handlePacket`; it also gained the range attribute), Arduino `clients/arduino/commands`
+  (binary: `param`, `action`, `poll`, `handlePacket`, `answer`; see `cpp-client-api.md`), Arduino `clients/arduino/commands`
   (serial). The V1 `Telecmd.h` is removed.
 
-Not done: commands in 3D and image views; picking an action's argument on a map; the C++ client still lacks view labels, logs and
-the other newer attributes.
+Not done: commands in 3D and image views; picking an action's argument on a map.
 
 ## Open questions
 

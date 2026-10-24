@@ -104,16 +104,11 @@ class ConnectionTeleplotServer extends Connection{
         }
     }
 
-    // What to add to a time of the server (ms on a clock that only counts) to get a date on this machine. A message sent at
-    // "serverTime" and received at "now" gives now - serverTime, which is the offset plus the time the message took. The smallest
-    // one seen (the fastest message) is kept: samples then stay as far apart as the server received them, whatever each message
-    // took, and are never dated in the future.
+    // What to add to a time of the server (ms on a clock that only counts) to get a date on this machine (Connection.lowestOffset;
+    // 5 s above: the computer slept)
     __serverClockOffset(serverTime, now) {
-        let measured = now - serverTime;
-        // Two clocks drift apart: the offset is let go up slowly (100 ppm, more than clocks drift), a fast message brings it back
-        if(this.clockOffset !== undefined) this.clockOffset += Math.max(0, now - this.clockCheckedAt) * 1e-4;
-        // Far above: not a slow message but a clock that stopped (a computer that slept), start again from this message
-        if(this.clockOffset === undefined || measured < this.clockOffset || measured > this.clockOffset + 5000) this.clockOffset = measured;
+        let clock = { offset: this.clockOffset, checkedAt: this.clockCheckedAt };
+        this.clockOffset = Connection.lowestOffset(clock, serverTime, now, 5000);
         this.clockCheckedAt = now;
         return this.clockOffset;
     }

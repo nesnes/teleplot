@@ -49,7 +49,7 @@ const HELP_TILES = [
       fields: [
           ["name", "What the telemetry is called: any text without : | , §. The same name again adds a sample to it."],
           [",label", "Optional: telemetries with the same label share a view (see Shown together)."],
-          ["time:", "Optional: milliseconds since 1970, decimals allowed. Without it, the sample is dated when it arrives."],
+          ["time:", "Optional: milliseconds since 1970, decimals allowed, or since the boot of a board that has no date (dated by the page). Without it, the sample is dated when it arrives."],
           ["value", "A number, with a point for decimals: 25.3, -4, 1e3."],
           [";", "Several samples in one message, each with its own time."],
           ["§unit", "Optional: shown after the value. Kept: sending it once is enough."],
@@ -62,15 +62,16 @@ const HELP_TILES = [
           cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [");"]] },
       ], more: [
         { title: "A unit", code: "temperature:25.3§°C", note: "After §: displayed next to the value.", expect: { name: "temperature", type: "number", unit: "°C" },
-          cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [", std::nullopt, { .unit = \""], ["°C", "unit"], ["\" });"]] },
+          cpp: [["Teleplot::instance().telemetry(\""], ["temperature", "name"], ["\").unit(\""], ["°C", "unit"], ["\").update("], ["25.3", "value"], [");"]] },
         { title: "Your own time", code: "temperature:{now}:25.3", note: "Before the value, in milliseconds since 1970 (here the time of this page).", expect: { name: "temperature", type: "number", timestamp: 1627551892.437 },
-          cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [", "], ["timestamp", "time"], [");  // std::chrono::nanoseconds"]] },
+          cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [", Teleplot::ms("], ["timestamp", "time"], ["));  // ms since 1970, or any std::chrono time"]] },
         { title: "Several values", code: "temperature:{now-200}:25.1;{now-100}:25.4;{now}:25.2", note: "Three samples in one message: nothing is lost between two sends.", expect: { name: "temperature", type: "number", samples: 3 } },
         { title: "Start again", code: "temperature:25.3|clr", note: "Forgets what the telemetry held before this value.", expect: { name: "temperature", type: "number", samples: 1 } },
       ],
       notes: [
           "One message is one line. Several lines can travel in one UDP packet, or one after the other on a serial port.",
           "The Live dashboard charts every new number by itself.",
+          "A board without a date can send its time since boot (millis(), micros() / 1000): times before 1973 are dated by the page from when they arrive, and a reboot is noticed (Times since boot, in the Sources panel).",
           "A line Teleplot does not understand is ignored: paste it in the field at the bottom of this panel to know why.",
       ] },
     { id: "together", family: "numbers", title: "Shown together", sub: "a label groups them", picture: "chart2",
@@ -644,7 +645,7 @@ const HELP_CONCEPTS = [
         "Everything that has a name is a telemetry: a temperature, a mode, a position, a shape, a picture. Each message adds a sample to it: a time and a value.",
         "What it is (a number, a text, a position, a shape...) comes from the message: the flags (|t, |xy...) and the prefixes (2D|, 3D|, PNG|). What does not change is said once and kept: its unit, its label, its range, its thresholds, whether the page may change it." ] },
     { id: "time", title: "Time", sub: "what a view shows", schema: "time", text: [
-        "A sample is dated when it arrives, unless the message gives its own time. Views show live data, or, while you zoom or point at a moment, that moment.",
+        "A sample is dated when it arrives, unless the message gives its own time. A time since the boot of a board (before 1973) is dated by the page: the spacing the board measured, placed when it arrives. Views show live data, or, while you zoom or point at a moment, that moment.",
         "Teleplot never invents data: at a given time a view shows the last sample at or before it, never a value between two samples. A state lasts until the next different one; a log line is an instant.",
         "The views of a dashboard share their time: zoom on a chart, and the timeline, the map and the pictures show the same range. Time groups (Edit mode) keep views apart." ] },
     { id: "views", title: "Views and dashboards", sub: "what draws what", schema: "views", text: [
@@ -824,7 +825,7 @@ function helpSchema(kind) {
 const HELP_SENDERS = [
     { id: "sh", name: "Terminal", sub: "UDP, one line", setup: "", setupNote: "Nothing to install: nc comes with Linux and macOS. The Teleplot server receives UDP port 47269 and passes it on to this page (see Sources)." },
     { id: "py", name: "Python", sub: "UDP socket", setup: "import socket\nsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)", setupNote: "The Teleplot server receives UDP port 47269 and passes it on to this page (see Sources). clients/python/teleplot.py does it for you, commands included." },
-    { id: "cpp", name: "C++", sub: "Teleplot.h", setup: "#include \"Teleplot.h\"\n// ... update() calls, then:\nTeleplot::instance().flush();", setupNote: "One header, in clients/cpp. flush() sends what update() queued: call it regularly." },
+    { id: "cpp", name: "C++", sub: "Teleplot.h", setup: "#include \"Teleplot.h\"", setupNote: "One header, in clients/cpp (C++17). What update() gets is sent every 20 ms by itself; poll() reads what the page writes back." },
     { id: "ino", name: "Arduino", sub: "Serial port", setup: "Serial.begin(115200);", setupNote: "Then open the port in the Sources panel (Chrome or Edge). A line that does not start with > is shown as a log." },
 ];
 
@@ -1069,7 +1070,7 @@ const HELP_PART_TIPS = {
     name: "Any text without : | , §. The same name again adds a sample to the same telemetry.",
     label: "After a comma: telemetries with the same label share a view. A path (Robot/Motion) places it in that dashboard.",
     value: "A number, with a point for decimals: 25.3, -4, 1e3.",
-    time: "Optional: milliseconds since 1970 (decimals allowed). Without it, the sample is dated when it arrives.",
+    time: "Optional: milliseconds since 1970 (decimals allowed), or since the boot of a board without a date: the page dates those from when they arrive. Without it, the sample is dated when it arrives.",
     unit: "Optional, after §: shown next to the value.",
     text: "Any text, colons included. The same text again continues the state; an empty text is \"nothing\".",
     "log line": "Any text, colons included: one line of the log.",

@@ -65,7 +65,7 @@ The telemetry format is inspired by `statsd` and *to some extents* compatible wi
 
 The expected format is `A:B:C§D|E` where:
 - **A** is the name of the telemetry variable (be kind and avoid **`:|`** special chars in it!)
-- **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking.
+- **B** is **optional** and represents the timestamp in milliseconds (`1627551892437`). If omitted, like in `myValue:1234|g`, the reception timestamp will be used, wich will create some precision loss due to the networking. A time below 1973 (under `1e11`) is taken as the time since the boot of a board without a date (`millis()`): the page dates it from when it arrives, keeping the spacing the board measured, and notices reboots (option "Times since boot" of each source, on by default: see `doc/sources.md`).
 - **C** is either the integer or floating point value to be plotted or a text format value to be displayed.
 - **D** is **optional** and is the unit of the telemetry ( please avoid **`,;:|.`** special chars in it!)
 - **E** is containing flags that carry information on how to read and display the data.
@@ -404,26 +404,25 @@ echo "myValue:1234" | nc -u -w0 127.0.0.1 47269
 
 ## C++
 
-Copy `Teleplot.h` (from `clients/cpp`) in your project and use its object.
+Copy `Teleplot.h` (from `clients/cpp`, one header, C++17, Linux / macOS / Windows) in your project. It speaks the binary protocol
+and sends by itself every 20 ms. Everything it can do, with samples: `doc/cpp-client-api.md`.
 ```cpp
-#include <math.h>
+#include <cmath>
 #include "Teleplot.h"
-Teleplot teleplot("127.0.0.1");
 
-int main(int argc, char* argv[])
+int main()
 {
-    for(float i=0;i<1000;i+=0.1)
+    Teleplot& tp = Teleplot::instance();                         // 127.0.0.1:47269
+    tp.telemetry("battery").unit("V").range(10.5, 12.6);         // described once
+    tp.telemetry("robot").shape(Teleplot::Cube).size(0.4, 0.3, 0.2);
+    for (double t = 0; t < 100; t += 0.01)
     {
-        // Use instanciated object
-        teleplot.update("sin", sin(i));
-        teleplot.update("cos", cos(i), 10); // Limit at 10Hz
-
-        // Use static localhost object
-        Teleplot::localhost().update("tan", tan(i));
-        
+        tp.update("sin", std::sin(t));
+        tp.update("battery", 12.6 - t * 0.01);
+        tp.telemetry("robot").position(std::cos(t), std::sin(t)).yaw(t);   // a shape that moves
+        tp.log("events", "tick");
         usleep(10000);
     }
-    return 0;
 }
 ```
 
@@ -468,6 +467,18 @@ void loop() {
 ```
 
 The Sources panel shows what the port sends (telemetry lines are hidden there until asked for) and lets you send text back to it.
+
+The Arduino library `clients/arduino/Teleplot` (copy the folder into your Arduino `libraries` folder) writes these lines for you, with
+the API of the C++ client: descriptions, logs, what runs, shapes, pictures, and settings and actions the page can use. It also works
+over UDP (ESP32 `WiFiUDP`) or into a file. Its 22 examples go one step at a time, from a first value to 3D scenes, pictures,
+a joystick and an SD card; its `README.md` says what to know on a small board. All the API: `doc/cpp-client-api.md`.
+
+```cpp
+#include <Teleplot.h>
+Teleplot tp(Serial);
+void setup() { Serial.begin(115200); tp.telemetry("temperature").unit("°C").range(0, 50); }
+void loop() { tp.update("temperature", analogRead(A0) * 0.1); tp.poll(); delay(50); }
+```
 
 ## Not listed?
 
@@ -520,15 +531,16 @@ while True:
 
 ```cpp
 float kp = 0.4f;
-Teleplot::ParamOptions gain; gain.min = 0; gain.max = 10; gain.step = 0.01;
-Teleplot::instance().param("kp", &kp, gain);
-Teleplot::instance().action("reset", [](Teleplot::Args const&) { resetOdometry(); return Teleplot::ok(); });
-for (;;) { Teleplot::instance().poll(); /* use kp */ }
+Teleplot& tp = Teleplot::instance();
+tp.param("kp", &kp).range(0, 10).step(0.01);
+tp.action("reset", [](Teleplot::Args const&) { resetOdometry(); return Teleplot::ok(); });
+for (;;) { tp.poll(); /* use kp */ }
 ```
 
 ## Serial port (Arduino...)
 
-Lines written by the page arrive on the serial port; see `clients/arduino/commands/commands.ino`.
+Lines written by the page arrive on the serial port. The Arduino library reads them in `poll()` (examples
+`07_Settings` and `08_Buttons` of `clients/arduino/Teleplot`); `clients/arduino/commands/commands.ino` does it by hand, without the library.
 
 ## Send a text log
 

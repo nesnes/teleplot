@@ -9,6 +9,8 @@
  *       could not be understood are always shown).
  *     - The robot sample (see sample-controls.js).
  * - "Add a source": a server (address and port) or a serial port (the browser asks which one).
+ * - "Times since boot" (doc/sources.md): per device of a source, times written since its boot (before 1973) are dated by the page.
+ *   On by default; it says when it turned itself off (several clocks on one source).
  * - Commands (doc/telecmd.md): a source's card lists, per device, what the page can change or call, the last result, and how long a
  *   setting takes to be applied (from sending to the device's echo).
  * Everything about connections is in the library (TP.connection); this file only displays it. Rates and the console are not reactive
@@ -103,6 +105,7 @@ function initComponent_panel_sources(vue) {
                 <template v-else><span v-if="s.bytesText" class="sources-bytes" :title="bytesTitle">{{s.bytesText}}</span><span class="sources-rate">{{s.rateText}}</span></template>
               </div>
               <div class="sources-sub">{{s.summary}}</div>
+              <div v-for="c in s.clocks.filter(c => c.offReason)" :key="'off' + c.key" class="sources-sub sources-danger">Times since boot turned off{{c.label ? ' for ' + c.label : ''}}: {{c.offReason}}</div>
 
               <!-- Teleplot server: details -->
               <template v-if="s.kind == 'server' && isOpen(s)">
@@ -114,6 +117,10 @@ function initComponent_panel_sources(vue) {
                   <template v-if="s.dropped"><dt>Dropped</dt><dd class="sources-danger">{{s.dropped}} packets not sent by the server: this page was too slow to receive them</dd></template>
                   <template v-if="s.readOnly"><dt>Commands</dt><dd>refused: the server is read-only (--read-only)</dd></template>
                 </dl>
+                <div v-for="c in s.clocks" :key="c.key" class="sources-line sources-actions">
+                  <button class="sources-pill" :class="{on: c.enabled}" :title="sinceBootTitle" @click="setSinceBoot(s, c)">Times since boot</button>
+                  <span class="sources-sub sources-clock">{{c.label ? c.label + ' · ' : ''}}{{c.text}}</span>
+                </div>
                 <template v-for="d in s.commands" :key="d.name">
                   <div class="sources-cmd-head"><span>Commands · {{d.name}}</span><span class="sources-grow"></span><span v-if="d.roundTrip" title="From sending a setting to the device's echo (median of the latest)">round trip {{d.roundTrip}}</span></div>
                   <table class="sources-cmd">
@@ -137,6 +144,10 @@ function initComponent_panel_sources(vue) {
                   <span class="sources-grow"></span>
                   <button v-if="s.connected" class="sources-btn" @click="s.conn.disconnect()">Disconnect</button>
                   <button class="sources-btn sources-ghost" @click="remove(s)">Remove</button>
+                </div>
+                <div v-for="c in s.clocks" :key="c.key" class="sources-line sources-actions">
+                  <button class="sources-pill" :class="{on: c.enabled}" :title="sinceBootTitle" @click="setSinceBoot(s, c)">Times since boot</button>
+                  <span class="sources-sub sources-clock">{{c.label ? c.label + ' · ' : ''}}{{c.text}}</span>
                 </div>
                 <template v-for="d in s.commands" :key="d.name">
                   <div class="sources-cmd-head"><span>Commands · {{d.name}}</span><span class="sources-grow"></span><span v-if="d.roundTrip" title="From sending a setting to the device's echo (median of the latest)">round trip {{d.roundTrip}}</span></div>
@@ -268,6 +279,7 @@ function initComponent_panel_sources(vue) {
         .sources-kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.8rem; margin: 0.4rem 0 0; font-size: 0.9rem; }
         .sources-kv dt { color: var(--color-text-muted); } .sources-kv dd { margin: 0; overflow-wrap: anywhere; }
         .sources-actions { margin-top: 0.4rem; }
+        .sources-clock { min-width: 0; overflow-wrap: anywhere; }
         .sources-tools { flex-wrap: wrap; row-gap: 0.3rem; }
 
         /* Controls */
@@ -333,6 +345,7 @@ function initComponent_panel_sources(vue) {
                 addError: "",
                 granted: [],       // Serial ports allowed before: [{port, name}]
                 lineEndings: SOURCES_LINE_ENDINGS,
+                sinceBootTitle: "A board without a date writes times since its boot (they would read as 1970): on, the page dates them from when they arrive. Times of 1973 or later are always kept as sent.",
                 bytesTitle: "Data received by this page per second: the content of packets and lines, without network or serial framing",
             }
         },
@@ -354,7 +367,7 @@ function initComponent_panel_sources(vue) {
                         connected: conn.connected, rateText: sourcesFormatRate(rate), problems: conn.stats.problems, dropped: conn.stats.dropped || 0,
                         bytesText: conn.id in sourcesMonitor.byteRates ? sourcesFormatBytes(sourcesMonitor.byteRates[conn.id]) : "",
                         state: conn.connected ? (silent ? "warn" : "ok") : "bad", summary: "", lines: [], hidden: 0, clients: [], telemetryCount: 0,
-                        commands: this.commandsOf(conn.id), readOnly: !!conn.readOnly,
+                        commands: this.commandsOf(conn.id), readOnly: !!conn.readOnly, clocks: this.clocksOf(conn),
                     };
                     if (serial) {
                         if (conn.connected) source.summary = `This browser (Web Serial) · ${conn.baudRate} baud · ${last}`;
@@ -453,6 +466,24 @@ function initComponent_panel_sources(vue) {
                     delete device.roundTrips;
                 }
                 return devices;
+            },
+            // "Times since boot" of each device of a source: [{key, label, enabled, offReason, text}]. Clocks are made by the library when
+            // data comes (or here, when the option is changed): a device that sent nothing yet is shown with the default (on).
+            clocksOf(conn) {
+                let keys = [undefined];
+                if (conn.type == "teleplot-server") keys = [...new Set([...Object.keys(conn.senders || {}).map(Number), ...conn.bootClocks.keys()])];
+                else if (conn.type != "serial") return [];
+                return keys.map((key) => {
+                    const clock = conn.bootClocks.get(key) || { enabled: true, offReason: "", dated: 0 };
+                    const label = key === undefined ? "" : (conn.senders && conn.senders[key]) || "device " + key;
+                    const text = clock.enabled ? (clock.dated ? `on · ${clock.dated} sample${clock.dated == 1 ? "" : "s"} dated on arrival` : "on · no time since boot seen")
+                                               : (clock.offReason ? "off: several clocks" : "off · times kept as sent");
+                    return { key: String(key), endpoint: key, label, enabled: clock.enabled, offReason: clock.offReason, text };
+                });
+            },
+            setSinceBoot(source, clock) {
+                source.conn.bootClock(clock.endpoint).setEnabled(!clock.enabled);
+                this.tick++;
             },
             isOpen(source) { return source.kind == "serial" ? this.opened[source.id] !== false : this.opened[source.id] === true; },
             toggle(source) { this.opened[source.id] = !this.isOpen(source); },

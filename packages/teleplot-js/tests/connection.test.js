@@ -63,9 +63,9 @@ test('text packets of the server: each one is dated when the server received it,
     // A faster one than ever: the estimate improves, samples are never in the future
     conn.__receivePackets({ time: 5150, packets: [[5150, 'a:5']] }, 1_000_000_110);
     assert.equal(times('a')[4], 1_000_000_110);
-    // A sample that has its own timestamp keeps it
-    conn.__receivePackets({ time: 5200, packets: [[5199, 'c:1234:5']] }, 1_000_000_160);
-    assert.deepEqual(times('c'), [1234]);
+    // A sample that has its own timestamp (a date) keeps it
+    conn.__receivePackets({ time: 5200, packets: [[5199, 'c:1627551892437:5']] }, 1_000_000_160);
+    assert.deepEqual(times('c'), [1627551892437]);
     // A clock that stopped for long (the computer slept): started again from that message
     conn.__receivePackets({ time: 5250, packets: [[5250, 'a:6']] }, 1_000_600_000);
     assert.equal(times('a')[5], 1_000_600_000);
@@ -101,7 +101,8 @@ test('several binary packets in one message, framed like a binary file; a cut on
     assert.deepEqual([1, 2, 3].map(v => T.datastore.getTelemetry(0x40000 + v).data[20].data[0]), [[1.5], [3], [4.5]]);
     assert.deepEqual([conn.stats.messages, conn.stats.problems], [3, 0]);
     assert.equal(conn.stats.bytes, packets.reduce((sum, p) => sum + p.length, 0), 'the packets, not the framing');
-    ws.onmessage({ data: frame(packets.slice(0, 2), 3) });
+    const later = [1, 2].map(v => new Uint8Array(new PacketBuilder(4).numbers(v, 2_000_000_000n, [[0, v * 1.5]]).build())); // (the same packet again would be the same sample: kept once)
+    ws.onmessage({ data: frame(later, 3) });
     assert.deepEqual(T.datastore.getTelemetry(0x40001).data[20].data[0], [1.5, 1.5], 'the whole packets before the cut are read');
     assert.equal(conn.stats.problems, 1);
     ws.onmessage({ data: frame([]) });

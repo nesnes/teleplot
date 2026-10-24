@@ -66,6 +66,8 @@ class Telemetry {
         for(let i=0;i<timestamps.length;i++) {
             let timestamp = timestamps[i];
             if (!(timestamp >= 0)) continue; // Do not use negative timestamps (not supported and -1 could interact with getDataPoint), nor what is not a time at all (it would break the order of the data)
+            // The sample it already has, sent again (a device repeats what it sent once, for a page opened later): kept once
+            if (timestamp === lastTimestamp && stored.data.every((channel, j) => channel[channel.length-1] === dataList[j][i])) continue;
             // Fast path: data coming in order is appended (the common case, much cheaper than a search and an insertion)
             if (timestamp >= lastTimestamp) {
                 stored.timestamps.push(timestamp);

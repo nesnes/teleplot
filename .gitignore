@@ -5,3 +5,7 @@ teleplot-js.js
 packages/server/node_modules
 packages/server/www
 packages/server/build
+
+# C++ client: what its tests build
+clients/cpp/build
+clients/arduino/Teleplot/build

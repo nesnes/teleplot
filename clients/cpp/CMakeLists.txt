@@ -1,22 +1,29 @@
 cmake_minimum_required(VERSION 3.15)
-project(teleplot_sample LANGUAGES CXX)
+project(teleplot_cpp LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+find_package(Threads REQUIRED)
 
-# Compiler warnings and pedantic settings
 if(MSVC)
     add_compile_options(/W4 /WX /permissive-)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
-file(GLOB_RECURSE TELEPLOT_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
-)
+add_executable(teleplot_sample sample.cpp)
+target_link_libraries(teleplot_sample Threads::Threads)
+if(WIN32)
+    target_link_libraries(teleplot_sample ws2_32)
+endif()
 
-add_executable(teleplot_sample "sample.cpp")
-
-# Commands (doc/telecmd.md): settings and actions, against packets written as the page writes them
-add_executable(teleplot_test_commands "test_commands.cpp")
+# Tests: ./test.sh runs them all (with the checks done by the library of the page)
+add_executable(teleplot_test_client tests/test_client.cpp)
+add_executable(teleplot_test_scenarios tests/scenarios.cpp)
+target_link_libraries(teleplot_test_client Threads::Threads)
+target_link_libraries(teleplot_test_scenarios Threads::Threads)
+if(WIN32)
+    target_link_libraries(teleplot_test_client ws2_32)
+    target_link_libraries(teleplot_test_scenarios ws2_32)
+endif()

@@ -1,80 +1,47 @@
-#include <math.h>
+// A small robot for Teleplot: numbers, a log, what runs, a shape that moves, and a setting and an action the page can use.
+// Build: c++ -std=c++17 -pthread sample.cpp -o sample, start the Teleplot server, open the page, run ./sample. API: doc/cpp-client-api.md
 #include "Teleplot.h"
-#include <stdlib.h>
+#include <cmath>
+#include <thread>
 
-//Teleplot teleplot("127.0.0.1", 47269);
+// Names only its own level of the stack: "loop/compute" when called from the loop of main()
+static void myComputeFunction() {
+    Teleplot::Stack level(Teleplot::instance(), "sample.task", "compute");
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
 
-int main(int, char*[])
-{
-    // Set client options like name
-    Teleplot::instance().setOptions({ .address = "192.168.0.170", .clientName = "cpp_sample", 
-        /*.sendPacketFunction = [](std::vector<std::byte> const& packet) {
-            // Display packet as hex string
-            std::string hexString;
-            for (std::byte b : packet) {
-                char buf[6];
-                snprintf(buf, sizeof(buf), "0x%02x ", std::to_integer<unsigned char>(b));
-                hexString += buf;
-            }
-            std::cout << "Sending packet: " << hexString << std::endl;
-        }*/
-    });
+int main() {
+    Teleplot& tp = Teleplot::instance(); // 127.0.0.1:47269, client named after the program
 
-    // Telemetry without attributes
-    Teleplot::instance().update("number.simple", 12.5);
+    tp.telemetry("battery").unit("V").range(10.5, 12.6).desc("Main battery").threshold("low", Teleplot::Below, 11.0, "orange");
+    tp.telemetry("robot.body").shape(Teleplot::Cube).size(0.4, 0.3, 0.2).color("#2ecc71");
 
-    // Telemetry without a unit, and without timestamp (will use current time)
-    Teleplot::instance().update("number.noTimestamp", 12.5, std::nullopt, { .unit = "m/s" });
+    float gain = 0.4f; // a setting the page can change (switch CMD on in the page)
+    tp.param("sample.gain", &gain).range(0, 10).step(0.1).desc("A gain the page can change");
 
-    // Telemetry with timestamp
-    auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
-    Teleplot::instance().update("number.timestamped", 12.5, now, { .unit = "m/s" });
+    bool running = true;
+    tp.action("sample.stop", [&](Teleplot::Args const&) {
+        running = false;
+        return Teleplot::ok("stopped");
+    }).title("Stop the sample").confirm();
 
-    Teleplot::instance().flush();
+    for (int i = 0; running && i < 6000; ++i) { // ten minutes at most
+        double t = i * 0.1;
+        Teleplot::Stack loop(tp, "sample.task", "loop");
+        tp.update("sin", gain * std::sin(t));
+        tp.update("battery", 12.6 - std::fmod(t * 0.01, 2.0));
 
-    // Commands (doc/telecmd.md): a setting and an action the page can use (switch CMD on in the page). poll() reads what the
-    // page wrote (it comes back to the socket the telemetry is sent from), applies it, answers, and publishes the settings.
-    float gain = 0.4f;
-    Teleplot::ParamOptions gainOptions;
-    gainOptions.min = 0.0; gainOptions.max = 10.0; gainOptions.step = 0.1;
-    gainOptions.desc = "A gain the page can change";
-    Teleplot::instance().param("sample.gain", &gain, gainOptions);
-    bool keepRunning = true;
-    Teleplot::ActionOptions stopOptions;
-    stopOptions.title = "Stop the sample";
-    stopOptions.confirm = true;
-    Teleplot::instance().action("sample.stop", [&](Teleplot::Args const&) { keepRunning = false; return Teleplot::ok(); }, stopOptions);
-    for (int i = 0; keepRunning && i < 600; ++i) { // A minute at most
-        Teleplot::instance().update("sample.output", gain * std::sin(i * 0.1f));
-        Teleplot::instance().poll();
-        usleep(100000);
+        myComputeFunction();
+
+        tp.telemetry("robot.body").position(std::cos(t * 0.2) * 2, std::sin(t * 0.2) * 2).yaw(t * 0.2 + Teleplot::deg(90));
+        if (i % 50 == 0) {
+            tp.log("sample.events", "lap " + std::to_string(i / 50));
+        }
+
+        // Wait for next cycle
+        Teleplot::Stack level(tp, "sample.task", "wait");
+        tp.poll(); // read any input param or action from the page
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
-
-    /*float i = 0;
-    int state_arr_length = 3;
-    std::string state_arr[state_arr_length] = {"standing", "sitting", "walking"};
-
-    int heights_arr_length = 6; double heights_arr[heights_arr_length] = {20, 5, 8, 4, 1, 2};
-
-    for (;;)
-    {
-        // Use instanciated object
-        teleplot.update("sin", sin(i), "km²");
-        teleplot.update("cos", cos(i), "", 10); // Limit at 10Hz
-        teleplot.update("state", state_arr[rand()%state_arr_length], "", 0, "t");
-
-        teleplot.update3D(
-            ShapeTeleplot("mysquare", "cube")
-            .setCubeProperties(heights_arr[rand()%heights_arr_length])
-            .setPos(sin(i)*10, cos(i)*10)
-        );
-        
-        // Use static localhost object
-        Teleplot::localhost().update("tan", tan(i), "");
-        
-        usleep(10000);
-
-        i+=0.1;
-    }*/
     return 0;
 }

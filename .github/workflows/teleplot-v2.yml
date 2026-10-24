@@ -19,6 +19,86 @@ permissions:
   contents: read
 
 jobs:
+  # The C++ client (clients/cpp/Teleplot.h) on the three systems it supports: its own tests, and what it sends read back by the library
+  cpp:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Test the C++ client (g++ / clang)
+        if: runner.os != 'Windows'
+        run: sh clients/cpp/test.sh
+      - name: Test the C++ client (MSVC)
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: clients/cpp
+        run: |
+          cmake -S . -B build
+          cmake --build build --config Release
+          ./build/Release/teleplot_test_client.exe
+          ./build/Release/teleplot_test_scenarios.exe build
+          TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js
+
+  # The microcontroller library (clients/arduino/Teleplot): its tests on a computer (with the C++ client: one API), and its examples
+  # built for real boards (AVR, ESP32) by the official Arduino action
+  arduino:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Test the microcontroller library
+        run: sh clients/arduino/Teleplot/test.sh
+      - name: Build the examples for an Uno (not the ESP32 ones: 09, 19) and an ESP32 (all)
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: arduino:avr:uno
+          libraries: |
+            - source-path: clients/arduino/Teleplot
+            - name: SD
+          sketch-paths: |
+            - clients/arduino/Teleplot/examples/01_FirstValue
+            - clients/arduino/Teleplot/examples/02_Describe
+            - clients/arduino/Teleplot/examples/03_Together
+            - clients/arduino/Teleplot/examples/04_Logs
+            - clients/arduino/Teleplot/examples/05_WhatRuns
+            - clients/arduino/Teleplot/examples/06_MovingShape
+            - clients/arduino/Teleplot/examples/07_Settings
+            - clients/arduino/Teleplot/examples/08_Buttons
+            - clients/arduino/Teleplot/examples/10_States
+            - clients/arduino/Teleplot/examples/11_MapPosition
+            - clients/arduino/Teleplot/examples/12_Scene3D
+            - clients/arduino/Teleplot/examples/13_Drawings
+            - clients/arduino/Teleplot/examples/14_Lidar
+            - clients/arduino/Teleplot/examples/15_Picture
+            - clients/arduino/Teleplot/examples/16_Joystick
+            - clients/arduino/Teleplot/examples/17_SettingRules
+            - clients/arduino/Teleplot/examples/18_TimeAndRate
+            - clients/arduino/Teleplot/examples/20_SDCard
+            - clients/arduino/Teleplot/examples/21_Dashboard
+            - clients/arduino/Teleplot/examples/22_SmallBoards
+          cli-compile-flags: |
+            - --warnings
+            - all
+      - uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp32:esp32:esp32
+          platforms: |
+            - name: esp32:esp32
+              source-url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          libraries: |
+            - source-path: clients/arduino/Teleplot
+            - name: SD
+          sketch-paths: |
+            - clients/arduino/Teleplot/examples
+
   build:
     runs-on: ubuntu-latest
     steps:

@@ -18,6 +18,20 @@ test('in-order data is appended, equal timestamps keep arrival order', () => {
     assert.equal(telem.data[NUMBER].lateInsertions, 0);
 });
 
+test('the latest sample sent again (same time, same values) is kept once; another value at that time is a sample', () => {
+    const { T, telem } = setup();
+    telem.addData(NUMBER, [1, 2], [[10, 20]]);
+    telem.addData(NUMBER, [2], [[20]]); // (a device repeats what it sent once, for a page opened later)
+    telem.addData(NUMBER, [2], [[21]]);
+    assert.deepEqual(stamps(telem), [1, 2, 2]);
+    assert.deepEqual(values(telem), [10, 20, 21]);
+    const SIZE = T.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_SIZE;
+    telem.addData(SIZE, [5], [[1], [2], [3]]);
+    telem.addData(SIZE, [5], [[1], [2], [3]]);
+    telem.addData(SIZE, [5], [[1], [2], [4]]);
+    assert.deepEqual(telem.data[SIZE].data, [[1, 1], [2, 2], [3, 4]]);
+});
+
 test('late data is inserted at the right place and counted', () => {
     const { telem } = setup();
     telem.addData(NUMBER, [1, 2, 4, 5], [[1, 2, 4, 5]]);

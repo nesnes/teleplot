@@ -56,6 +56,14 @@ TELEPLOT.parseDataText = function(msgIn){
     return problems;
 }
 
+// The time (s) of a sample sent at "ms" (a time written in the line) by telemetry "name", the line having arrived at "now" (s):
+// as sent, or dated by the page when the device counts from its boot (BootClock, 020-connection.js)
+function _parseDataText_time(ms, name, now)
+{
+    if(_connection_bootClock === undefined || !_connection_bootClock.enabled || !(ms < SINCE_BOOT_LIMIT)) return ms / 1000;
+    return _connection_bootClock.date(ms, name, now * 1000) / 1000;
+}
+
 /*function _parseDataText_parseCommandList(msg) // a String containing a list of commands, ex : "|sayHello|world|"
 {
     let cmdList = msg.split("|");
@@ -87,10 +95,10 @@ function _parseDataText_parseLog(msg, now, input)
 {
     let logStart = msg.indexOf(":")+1;
     let logText = msg.substr(logStart);
-    let logTimestamp = (parseFloat(msg.substr(1, logStart-2)))/1000; // /1000 to convert to seconds
-    if(isNaN(logTimestamp) || !isFinite(logTimestamp)) logTimestamp = now;
-    
     let telemName = input && input.type=="serial" ? input.port+_defaultTextLogName : _defaultTextLogName;
+    let logTimestamp = _parseDataText_time(parseFloat(msg.substr(1, logStart-2)), telemName, now);
+    if(isNaN(logTimestamp) || !isFinite(logTimestamp)) logTimestamp = now;
+
     let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemName);
     if(telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) !== true) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, true);
     telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, [logTimestamp], [[logText]]);
@@ -153,7 +161,7 @@ function _parseDataText_parseVariablesData(msg, now)
         // A text may hold colons ("error: motor stalled"). Its time, when it has one, is a first field that is a number; the rest is
         // the text, whatever it holds. (A text that starts with a number and a colon needs its time: "1627551892437:12:30".)
         if(isTextFormatTelem && dims.length > 1) {
-            let time = /^\s*[0-9.eE+-]+\s*$/.test(dims[0]) ? parseFloat(dims[0]) / 1000 : NaN;
+            let time = /^\s*[0-9.eE+-]+\s*$/.test(dims[0]) ? _parseDataText_time(parseFloat(dims[0]), name, now) : NaN;
             if(Number.isFinite(time)) { timestampArray.push(time); xArray.push(dims.slice(1).join(":")); }
             else { timestampArray.push(now); xArray.push(value); }
             continue;
@@ -164,7 +172,7 @@ function _parseDataText_parseVariablesData(msg, now)
             xArray.push(parseFloat(dims[0]));
             yArray.push(parseFloat(dims[1]));
             zArray.push(parseFloat(dims[2]));
-            timestampArray.push(dims.length > 3 ? parseFloat(dims[3])/1000 : now);
+            timestampArray.push(dims.length > 3 ? _parseDataText_time(parseFloat(dims[3]), name, now) : now);
         }
         else if(dims.length == 1){ // Number no timestamp
             timestampArray.push(now);
@@ -178,14 +186,14 @@ function _parseDataText_parseVariablesData(msg, now)
                 yArray.push(parseFloat(dims[1]));
             }
             else { // Number timestamp or Text timestamp
-                timestampArray.push(v1/1000); // convert to seconds
+                timestampArray.push(_parseDataText_time(v1, name, now)); // convert to seconds
                 xArray.push(isTextFormatTelem?dims[1]:parseFloat(dims[1]));
             }
         }
         else if(dims.length == 3){ // xy timestamp
             xArray.push(parseFloat(dims[0]));
             yArray.push(parseFloat(dims[1]));
-            timestampArray.push(parseFloat(dims[2])/1000);// this one is the timestamp we convert to seconds
+            timestampArray.push(_parseDataText_time(parseFloat(dims[2]), name, now));// this one is the timestamp we convert to seconds
         }
 
     }
@@ -378,12 +386,13 @@ function _parseDataText_parseThresholds(msg, now)
     let body = msg.substring(3);
     let nameEnd = body.indexOf(":");
     if(nameEnd < 1) throw new Error("Thresholds: TH|name:threshold<value");
+    let telemName = body.substring(0, nameEnd);
     let timestamps = [], operators = [], values = [], names = [], colors = [];
     for(let group of body.substring(nameEnd + 1).split(";")) {
         let fields = group.split(":").filter((field) => field.trim() !== "");
         let timestamp = now;
         if(fields.length && /^[0-9.eE+-]+$/.test(fields[0].trim())) {
-            let given = parseFloat(fields.shift()) / 1000;
+            let given = _parseDataText_time(parseFloat(fields.shift()), telemName, now);
             if(Number.isFinite(given)) timestamp = given;
         }
         for(let field of fields) {
@@ -399,7 +408,7 @@ function _parseDataText_parseThresholds(msg, now)
             colors.push(match[4] === undefined ? "" : _parseDataText_unescape(match[4]).trim());
         }
     }
-    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(body.substring(0, nameEnd));
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemName);
     if(timestamps.length) telemetry.addData(P.SECTION_TYPE_TELEM_DATA_THRESHOLD, timestamps, [operators, values, names, colors]);
 }
 
@@ -421,7 +430,7 @@ function _parseDataText_parsePointCloud(msg, now)
     let fields = msg.substring(startIdx + 1, endIdx).split(';').filter((field) => field.length > 0).map((field) => field.split(':'));
     let timestamp = now;
     if(fields.length && fields[0].length == 1) { // A field alone: the timestamp
-        let given = parseFloat(fields.shift()[0]) / 1000;
+        let given = _parseDataText_time(parseFloat(fields.shift()[0]), name, now);
         if(Number.isFinite(given)) timestamp = given;
     }
     let width = fields.length ? fields[0].length : 3; // Values per point: 3 (x, y, z), 4 (+ intensity), 6 (+ r, g, b) or 7 (+ intensity, r, g, b)
@@ -568,6 +577,7 @@ function _parseDataText_parseImage(msg, now)
         if(widgetLabel) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, widgetLabel);
 
         // Add image
+        if(timestamp !== now && timestamp * 1000 < SINCE_BOOT_LIMIT) timestamp = _parseDataText_time(timestamp * 1000, name, now); // (the time sent: fragments are put together by it)
         telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE, [timestamp], [[typeCode],[fullB64]]);
     }
 
@@ -675,7 +685,7 @@ function _parseDataText_parse3D(msg, now, flat=false)
         if(tokens.every((t) => t === "")) continue;
         let timestamp = now;
         if(/^[0-9.+-]/.test(tokens[0])) { // Starts with a timestamp (ms), not with a property name
-            let t = parseFloat(tokens.shift()) / 1000;
+            let t = _parseDataText_time(parseFloat(tokens.shift()), name, now);
             if(!isNaN(t) && isFinite(t)) timestamp = t;
         }
         let properties = _parseDataText_parse3DProperties(tokens, flat);
