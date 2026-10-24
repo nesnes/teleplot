@@ -4,6 +4,7 @@
 #include "../TeleplotImage.h"
 #include <atomic>
 #include <cstdio>
+#include <fstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -12,7 +13,7 @@ static int failures = 0;
 #define CHECK(what, cond) do { if (cond) { std::printf("ok   %s\n", what); } else { std::printf("FAIL %s (%s)\n", what, #cond); failures++; } } while (0)
 using namespace TeleplotImage;
 
-static void save(std::string const& path, const void* data, std::size_t size) { FILE* f = std::fopen(path.c_str(), "wb"); std::fwrite(data, 1, size, f); std::fclose(f); }
+static void save(std::string const& path, const void* data, std::size_t size) { std::ofstream(path, std::ios::binary).write(static_cast<const char*>(data), static_cast<std::streamsize>(size)); }
 
 // A test picture in a format: gradients, a checker, edges that are not a multiple of 8 or 16
 static std::vector<std::uint8_t> picture(Format format, int w, int h, std::size_t stride = 0) {
@@ -21,7 +22,7 @@ static std::vector<std::uint8_t> picture(Format format, int w, int h, std::size_
     std::vector<std::uint8_t> data(line * h, 0xEE);
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
-            int r = x * 255 / w, g = y * 255 / h, b = ((x / 6 + y / 6) % 2) ? 220 : 30;
+            std::uint8_t r = static_cast<std::uint8_t>(x * 255 / w), g = static_cast<std::uint8_t>(y * 255 / h), b = ((x / 6 + y / 6) % 2) ? 220 : 30;
             std::uint8_t* p = data.data() + y * line + x * bpp;
             switch (format) {
                 case Gray8: p[0] = static_cast<std::uint8_t>((r + g + b) / 3); break;

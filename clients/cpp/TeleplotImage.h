@@ -453,7 +453,7 @@ namespace TeleplotImage {
             out.resize(8 + line * static_cast<std::size_t>(p.height));
             out[0] = static_cast<std::uint8_t>(p.width); out[1] = static_cast<std::uint8_t>(p.width >> 8);
             out[2] = static_cast<std::uint8_t>(p.height); out[3] = static_cast<std::uint8_t>(p.height >> 8);
-            out[4] = p.format == Float32 ? 1 : 0;
+            out[4] = static_cast<std::uint8_t>(p.format == Float32 ? 1 : 0);
             const std::uint16_t one = 1;
             bool little = *reinterpret_cast<const std::uint8_t*>(&one) == 1;
             for (int y = 0; y < p.height; ++y) {

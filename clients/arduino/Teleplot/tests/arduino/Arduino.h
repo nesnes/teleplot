@@ -3,6 +3,7 @@
 #define TELEPLOT_TEST_ARDUINO_H
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>  // (time(), as the ESP32 core gives it to sketches)
 #include <string>
 #include <vector>
 
