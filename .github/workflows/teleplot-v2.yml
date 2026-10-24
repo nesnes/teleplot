@@ -61,7 +61,7 @@ jobs:
           node-version: 22
       - name: Test the microcontroller library
         run: sh clients/arduino/Teleplot/test.sh
-      - name: Build the examples for an Uno (not the ESP32 ones: 09, 19) and an ESP32 (all)
+      - name: "Build the examples for an Uno (not the ESP32 ones: 09, 19) and an ESP32 (all)"
         uses: arduino/compile-sketches@v1
         with:
           fqbn: arduino:avr:uno
