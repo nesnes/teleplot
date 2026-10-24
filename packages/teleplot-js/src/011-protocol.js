@@ -20,6 +20,7 @@ TELEPLOT.protocol = {
     TELEM_ATTR_ARGS: 13,      // The arguments of an action, in order: [{name, type, optional, default, min, max, step, unit, choices, desc}]
     TELEM_ATTR_DESC: 14,      // A short description (a tooltip)
     TELEM_ATTR_TITLE: 15,     // The text of the button of an action (default: its name)
+    TELEM_ATTR_PIXELS: 16,    // How the pixels of pictures of values (depth maps: 16-bit gray PNG, plain buffers) are read: {scale (value of a pixel = its number x scale, 1 by default), invalid (number of a pixel without measure, 0 by default; null: none), depth (false: not distances along the camera axis; true by default)}
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,
@@ -71,6 +72,10 @@ TELEPLOT.protocol = {
     POINT_CLOUD_RGB: 2,       //                          each point has a color (r, g, b bytes)
     IMAGE_TYPE_JPEG: 0,
     IMAGE_TYPE_PNG: 1,
+    IMAGE_TYPE_RAW: 2,        // Plain pixels: {WIDTH[16]} {HEIGHT[16]} {FORMAT[8]} {3 reserved bytes} then the pixels, row after row, little-endian
+    RAW_FORMAT_GRAY16: 0,     // uint16 per pixel (a depth map in mm...)
+    RAW_FORMAT_FLOAT32: 1,    // float32 per pixel (a depth map in m...)
+    RAW_FORMATS: ["gray16", "float32"], // Names of the formats (binary: the index)
     TEXTURE_TYPE_NONE: 0,
     TEXTURE_TYPE_URL: 1,
     TEXTURE_TYPE_IMAGE: 2

@@ -91,8 +91,9 @@ test('imageAt: the image of an image telemetry as a data url (texture of a shape
     const P = T.protocol, S = T.view.ViewScene3D;
     const camera = T.datastore.getOrCreateTelemetry('camera');
     camera.addData(P.SECTION_TYPE_TELEM_DATA_IMAGE, [1, 2], [[P.IMAGE_TYPE_JPEG, P.IMAGE_TYPE_PNG], ['AAAA', 'BBBB']]);
-    assert.deepEqual(S.imageAt(camera), { t: 2, url: 'data:image/png;base64,BBBB' });
-    assert.deepEqual(S.imageAt(camera, 1.2), { t: 1, url: 'data:image/jpeg;base64,AAAA' });
+    const pick = (image) => ({ t: image.t, url: image.url, index: image.index });
+    assert.deepEqual(pick(S.imageAt(camera)), { t: 2, url: 'data:image/png;base64,BBBB', index: 1 });
+    assert.deepEqual(pick(S.imageAt(camera, 1.2)), { t: 1, url: 'data:image/jpeg;base64,AAAA', index: 0 });
     assert.equal(S.imageAt(undefined), undefined);
     assert.equal(S.imageAt(T.datastore.getOrCreateTelemetry('nothing')), undefined);
 });
@@ -105,7 +106,7 @@ test('3D view: suggested for shapes and 3D numbers, options, clone, empty state'
 
     const view = T.view.createView('3d', ['shape', 'point'], 'g');
     assert.equal(view.type, 'teleplot-3d');
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayGrid', 'displayAxes', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayGrid', 'displayAxes', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
     view.setOption('trailLength', 50);
     const copy = view.clone();
     assert.ok(copy instanceof T.view.ViewScene3D);

@@ -187,7 +187,7 @@ test('images: stored as base64 like the text protocol, an image in several parts
     const IMAGE = P.SECTION_TYPE_TELEM_DATA_IMAGE;
     T.parseDataBinary(new PacketBuilder(4).images(1, 1_000_000_000n, [[0, P.IMAGE_TYPE_PNG, 0, 1, [1, 2, 3]]]).build());
     assert.deepEqual(entry(T, 4, 1, IMAGE).data, [[P.IMAGE_TYPE_PNG], [Buffer.from([1, 2, 3]).toString('base64')]]);
-    assert.deepEqual(T.view.ViewScene3D.imageAt(T.datastore.getTelemetry(id(4, 1))), { t: 1, url: 'data:image/png;base64,AQID' });
+    { const image = T.view.ViewScene3D.imageAt(T.datastore.getTelemetry(id(4, 1))); assert.deepEqual({ t: image.t, url: image.url }, { t: 1, url: 'data:image/png;base64,AQID' }); }
 
     // Three parts, received out of order and in different packets
     T.parseDataBinary(new PacketBuilder(4).images(2, 2_000_000_000n, [[0, P.IMAGE_TYPE_JPEG, 2, 3, [7, 8]], [0, P.IMAGE_TYPE_JPEG, 0, 3, [1, 2, 3]]]).build());

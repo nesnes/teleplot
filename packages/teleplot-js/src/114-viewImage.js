@@ -17,6 +17,9 @@
  * - Time: everything is shown as it was when the picture was taken (the last sample of each telemetry at or before the time of the
  *   image). Nothing is interpolated. Like the other views it follows the cursor of its group.
  * - The WebGL canvas only exists when there is something to draw over the picture.
+ * - A picture of values (a depth map: 16-bit gray PNG or plain pixels, see 108-pictures.js) is decoded by the library and drawn in
+ *   colors (option "colormap", between the range of the telemetry or what the picture holds: option "valueRange"), one color per
+ *   pixel (never smoothed); pixels without measure stay empty. The pointer reads the value of the pixel under it.
  * The scene itself (objects, legend, hide / highlight) is the one of the 3D view.
  */
 class ViewImage extends ViewScene3D {
@@ -31,6 +34,9 @@ class ViewImage extends ViewScene3D {
         this.options.outline = true;      // Only the outlines of the objects (the picture stays visible inside them), not the objects themselves
         this.options.outlineWidth = 3;    // Width of those outlines, in pixels of the page
         this.options.pixelDrawings = true; // The view takes by itself the telemetries drawn in the pixels of its picture (frame FRAME_TYPE_PIXELS)
+        this.options.colormap = "turbo";   // Pictures of values: their colors
+        this.options.valueRange = "range"; // Pictures of values: colors between the ends of the range of the telemetry when it has both ("range"), or what each picture holds ("picture")
+        this.options.displayColorScale = true; // Pictures of values: the colors and their values, under the picture
 
         this.layout.width = 2;
         this.layout.height = 6;
@@ -39,6 +45,10 @@ class ViewImage extends ViewScene3D {
         this.state.frameWidth = 0; // Size of the picture on the page (px): it is fitted in the view
         this.state.frameHeight = 0;
         this.state.note = "";      // Why nothing is drawn over the picture, when something should be
+        this.state.valuesShown = false; // The picture is one of values, drawn in colors on a canvas (not an img)
+        this.state.colorScale = undefined; // {gradient, low, high, unit}: the colors of a picture of values and what they are worth
+        this.state.readout = undefined;    // {text, x, y}: the value of the pixel under the pointer
+        this.values = TELEPLOT.Vue.markRaw({ decoded: undefined, key: "", lut: {}, imageData: undefined, pointer: undefined, settings: undefined, error: "" });
         this.imageKey = "";
         this.natural = undefined;  // {width, height} of the picture, in its own pixels
         this.pixelsKnown = TELEPLOT.Vue.markRaw({ count: -1, taken: new Set() }); // Telemetries drawn in the pixels of the picture that the view took by itself
@@ -85,6 +95,74 @@ class ViewImage extends ViewScene3D {
         // Pixel (0, 0) is the center of the top left pixel: the picture goes from -0.5 to its size - 0.5
         let scale = width / this.natural.width;
         View2D.draw(context, items, { width, height, u: this.natural.width / 2 - 0.5, v: this.natural.height / 2 - 0.5, scale, down: true }, undefined, Math.max(1, Number(this.options.pointSize) || 3));
+    }
+
+    // ------------------------------------------------------------------ Pictures of values
+
+    // Colors of a decoded picture of values on the canvas of the view, again only when the picture or how it is colored changes
+    __drawValues(element, telem, decoded, imageKey) {
+        let settings = TELEPLOT.pictures.settings(telem);
+        let range = decoded.values ? TELEPLOT.pictures.colorRange(decoded, settings, telem, this.options.valueRange) : undefined;
+        let colormap = TELEPLOT.pictures.COLORMAPS[this.options.colormap] ? this.options.colormap : "turbo";
+        let canvas = element && element.querySelector(".teleplot-js-image-values");
+        let key = `${imageKey}:${decoded.width}x${decoded.height}:${colormap}:${range ? range.min + "," + range.max : ""}:${settings.scale}:${settings.invalid}:${!!canvas}`;
+        if(key === this.values.key && this.values.decoded === decoded) return;
+        this.values.key = key;
+        this.values.decoded = decoded;
+        this.values.settings = settings;
+        this.values.error = decoded.error ? "This picture of values cannot be read: " + decoded.error : "";
+        if(!canvas || !decoded.values) return;
+        if(canvas.width !== decoded.width || canvas.height !== decoded.height) { canvas.width = decoded.width; canvas.height = decoded.height; }
+        let context = canvas.getContext("2d");
+        let imageData = this.values.imageData;
+        if(!imageData || imageData.width !== decoded.width || imageData.height !== decoded.height) imageData = this.values.imageData = context.createImageData(decoded.width, decoded.height);
+        if(range) TELEPLOT.pictures.colorize(decoded, { min: range.min, max: range.max, colormap, scale: settings.scale, invalid: settings.invalid }, imageData.data, this.values.lut);
+        else imageData.data.fill(0); // No pixel has a measure
+        context.putImageData(imageData, 0, 0);
+        if(!this.natural || this.natural.width !== decoded.width || this.natural.height !== decoded.height) {
+            this.natural = { width: decoded.width, height: decoded.height };
+            this.__layoutFrame();
+        }
+        let unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT) || "";
+        this.__showValueInfo(range ? { gradient: TELEPLOT.pictures.gradient(colormap), low: this.__formatValue(range.min), high: this.__formatValue(range.max), unit } : undefined);
+        this.__readout();
+    }
+
+    __formatValue(value) {
+        let decimals = Math.max(0, Math.min(10, Math.floor(Number(this.options.displayNumberDecimals)) || 0));
+        return ViewScene3D.formatPosition([value], decimals);
+    }
+
+    __showValueInfo(scale) {
+        if(!this.options.displayColorScale) scale = undefined;
+        if(JSON.stringify(scale) !== JSON.stringify(this.state.colorScale)) this.state.colorScale = scale;
+    }
+
+    // The pointer on the picture (undefined: it left): the value of the pixel under it
+    __framePointer(event) {
+        if(event === undefined) this.values.pointer = undefined;
+        else {
+            let box = event.currentTarget.getBoundingClientRect();
+            this.values.pointer = { x: event.clientX - box.left, y: event.clientY - box.top };
+        }
+        this.__readout();
+    }
+
+    __readout() {
+        let pointer = this.values.pointer, decoded = this.values.decoded;
+        let width = this.state.frameWidth, height = this.state.frameHeight;
+        let readout = undefined;
+        if(pointer && this.state.valuesShown && decoded && decoded.values && width > 0 && height > 0) {
+            let u = Math.floor(pointer.x / width * decoded.width), v = Math.floor(pointer.y / height * decoded.height);
+            if(u >= 0 && v >= 0 && u < decoded.width && v < decoded.height) {
+                let value = TELEPLOT.pictures.valueAt(decoded, u, v, this.values.settings);
+                let telem = this.getImageTelemetry();
+                let unit = telem ? telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT) || "" : "";
+                let text = (value === undefined ? "no measure" : this.__formatValue(value) + (unit ? " " + unit : "")) + "  (" + u + ", " + v + ")";
+                readout = { text, x: pointer.x, y: pointer.y, right: pointer.x > width / 2, below: pointer.y < 40 };
+            }
+        }
+        if(JSON.stringify(readout) !== JSON.stringify(this.state.readout)) this.state.readout = readout;
     }
 
     // ------------------------------------------------------------------ Camera model (no three.js here)
@@ -173,6 +251,9 @@ class ViewImage extends ViewScene3D {
             { key: "outlineWidth", label: "Outline width (px)", type: "int", min: 1, max: 20, step: 1 },
             { key: "overlayOpacity", label: "Overlay opacity (%)", type: "int", min: 0, max: 100, step: 10 },
             { key: "pixelDrawings", label: "Takes what is drawn in its pixels", type: "bool" },
+            { key: "colormap", label: "Colors of values (depth)", type: "choice", choices: TELEPLOT.pictures.COLORMAP_NAMES },
+            { key: "valueRange", label: "Colors between", type: "choice", choices: [["range", "The range of the telemetry"], ["picture", "What each picture holds"]] },
+            { key: "displayColorScale", label: "Color scale", type: "bool" },
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
@@ -198,6 +279,7 @@ class ViewImage extends ViewScene3D {
     __mounted(element) {
         this.imageKey = "";
         this.state.imageUrl = "";
+        this.values.key = "";
         let stage = element.querySelector(".teleplot-js-image-stage");
         this.stageObserver = new ResizeObserver(() => this.__layoutFrame());
         this.stageObserver.observe(stage);
@@ -242,9 +324,21 @@ class ViewImage extends ViewScene3D {
         let imageTelem = this.getImageTelemetry();
         let image = imageTelem ? ViewScene3D.imageAt(imageTelem, cursor) : undefined;
         let imageKey = image ? imageTelem.id + ":" + image.t : "";
-        if(imageKey != this.imageKey) {
+        let values = image !== undefined && TELEPLOT.pictures.isValues(image.entry, image.index);
+        if(values) {
+            // Decoded by the library (a PNG takes a few updates): the picture shown so far stays until then
+            let decoded = TELEPLOT.pictures.decode(image.entry, image.index);
+            if(decoded !== undefined) this.__drawValues(element, imageTelem, decoded, imageKey);
+            if(this.state.imageUrl) this.state.imageUrl = "";
+            if(!this.state.valuesShown) this.state.valuesShown = true;
             this.imageKey = imageKey;
-            this.state.imageUrl = image ? image.url : "";
+        }
+        else {
+            if(this.state.valuesShown) { this.state.valuesShown = false; this.values.decoded = undefined; this.values.key = ""; this.values.error = ""; this.state.readout = undefined; this.__showValueInfo(undefined); }
+            if(imageKey != this.imageKey) {
+                this.imageKey = imageKey;
+                this.state.imageUrl = image ? image.url : "";
+            }
         }
 
         // What to draw over it: the scene as it was when the picture was taken, seen by its camera
@@ -255,11 +349,12 @@ class ViewImage extends ViewScene3D {
         let pixelSources = collected.sources.filter((source) => ViewScene3D.pixelFrame(source.telem) !== undefined); // In the pixels of the picture
         let sources = collected.sources.filter((source) => !pixelSources.includes(source));                           // In the scene: through the camera
         let note = (image && sources.length && !camera) ? "No camera parameters for this image: nothing can be drawn over it" : "";
+        if(values && this.values.error) note = this.values.error;
         if(note != this.state.note) this.state.note = note;
         let draw = sources.length > 0 && camera !== undefined && this.state.frameWidth > 0 && this.state.frameHeight > 0;
         if(draw && !this.three) this.__setupOverlay(element);
 
-        key += `|${since},${JSON.stringify(camera)},${this.state.frameWidth}x${this.state.frameHeight},${draw},${!!this.three},${element ? element.clientWidth : 0},${this.options.outline},${this.options.outlineWidth}`;
+        key += `|${since},${JSON.stringify(camera)},${this.state.frameWidth}x${this.state.frameHeight},${this.natural ? this.natural.width + "x" + this.natural.height : ""},${draw},${!!this.three},${element ? element.clientWidth : 0},${this.options.outline},${this.options.outlineWidth}`;
         if(key == this.lastKey) return;
         this.lastKey = key;
 
@@ -446,13 +541,20 @@ class ViewImage extends ViewScene3D {
         :style=" { '--layout-width': layout.width, '--layout-height': layout.height }"
         ${ViewTelemetries.dragDropHtml}>
           <div class="teleplot-js-image-stage">
-              <div class="teleplot-js-image-frame" v-bind:style="state.frameWidth ? {width: state.frameWidth + 'px', height: state.frameHeight + 'px'} : {}">
+              <div class="teleplot-js-image-frame" v-bind:style="state.frameWidth ? {width: state.frameWidth + 'px', height: state.frameHeight + 'px'} : {}"
+                v-on:pointermove="onFramePointer($event)" v-on:pointerleave="onFrameLeave()">
                   <img v-if="state.imageUrl" v-bind:src="state.imageUrl" draggable="false" alt="" v-on:load="onImageLoad($event)"/>
+                  <canvas v-show="state.valuesShown" class="teleplot-js-image-values"></canvas>
                   <div class="teleplot-js-image-overlay" v-bind:style="{opacity: Math.max(0, Math.min(100, options.overlayOpacity)) / 100}"></div>
                   <canvas class="teleplot-js-image-pixels"></canvas>
+                  <div v-if="state.readout" class="teleplot-js-image-readout" v-bind:class="{right: state.readout.right, below: state.readout.below}"
+                    v-bind:style="{left: state.readout.x + 'px', top: state.readout.y + 'px'}">{{state.readout.text}}</div>
               </div>
           </div>
           ${ViewScene3D.legendHTML}
+          <div v-if="state.colorScale && state.valuesShown" class="teleplot-js-image-scale">
+              <span>{{state.colorScale.low}}</span><i v-bind:style="{background: state.colorScale.gradient}"></i><span>{{state.colorScale.high}}<small v-if="state.colorScale.unit"> {{state.colorScale.unit}}</small></span>
+          </div>
           <div v-if="state.note || state.error || state.loadNote" class="teleplot-js-image-note">{{state.error || state.note || state.loadNote}}</div>
           <div v-if="emptyState.text" class="teleplot-js-empty">
               <div class="teleplot-js-empty-title">{{emptyState.text}}</div>
@@ -489,6 +591,22 @@ class ViewImage extends ViewScene3D {
             .teleplot-js-image-frame { position: relative; flex: none; max-width: 100%; max-height: 100%; }
             .teleplot-js-image-frame img { display: block; width: 100%; height: 100%; }
             .teleplot-js-image-frame:not([style]) img { width: auto; height: auto; max-width: 100%; visibility: hidden; } /* Until its size is known */
+            .teleplot-js-image-frame canvas.teleplot-js-image-values { display: block; width: 100%; height: 100%; image-rendering: pixelated; } /* A pixel is one value: never smoothed */
+            .teleplot-js-image-frame:not([style]) canvas.teleplot-js-image-values { visibility: hidden; }
+            .teleplot-js-image-readout {
+                position: absolute; transform: translate(12px, -130%); white-space: pre; pointer-events: none; z-index: 2;
+                padding: 0.1em 0.6em; border-radius: 6px; font-size: 0.8em; font-variant-numeric: tabular-nums;
+                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 90%, transparent); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            }
+            .teleplot-js-image-readout.right { transform: translate(calc(-100% - 12px), -130%); }
+            .teleplot-js-image-readout.below { margin-top: 2.6em; }
+            .teleplot-js-image-scale {
+                position: absolute; right: 0.6em; bottom: 0.5em; display: flex; align-items: center; gap: 0.4em; pointer-events: none;
+                padding: 0.1em 0.6em; border-radius: 1em; font-size: 0.75em; font-variant-numeric: tabular-nums;
+                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 82%, transparent);
+            }
+            .teleplot-js-image-scale i { display: block; width: 6em; height: 0.6em; border-radius: 0.3em; }
+            .teleplot-js-image-scale small { color: var(--teleplot-muted); font-size: 0.9em; }
             .teleplot-js-image-overlay { position: absolute; inset: 0; pointer-events: none; }
             .teleplot-js-image-overlay canvas { display: block; }
             .teleplot-js-image-pixels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; } /* What is given in the pixels of the picture */

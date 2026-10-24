@@ -43,7 +43,7 @@ TELEPLOT.parseDataText = function(msgIn){
             else if (msg.substring(0,4) == "ACK|")
                 _parseDataText_parseAnswer(msg, now);
             // JPG
-            else if (msg.substring(0,4) == "JPG|" || msg.substring(0,4) == "PNG|")
+            else if (msg.substring(0,4) == "JPG|" || msg.substring(0,4) == "PNG|" || msg.substring(0,4) == "RAW|")
                 _parseDataText_parseImage(msg, now);
             // Data
             else {
@@ -308,14 +308,20 @@ function _parseDataText_parseAttributes(msg)
 
     // A line is taken as a whole: a key that is not known, and nothing of it is applied
     for(let [key] of options) {
-        if(!["min", "max", "unit", "color", "desc", "title", "choices", "write", "action"].includes(key) && !_parseDataText_WRITE_KEYS.includes(key)) throw new Error("Unknown attribute : " + key);
+        if(!["min", "max", "unit", "color", "desc", "title", "choices", "write", "action", "scale", "nodata", "depth"].includes(key) && !_parseDataText_WRITE_KEYS.includes(key)) throw new Error("Unknown attribute : " + key);
     }
-    let range = undefined, write = undefined, writeChanged = false;
+    let range = undefined, write = undefined, writeChanged = false, pixels = undefined;
     let current = telemetry.getAttribute(P.TELEM_ATTR_WRITE);
     for(let [key, raw] of options) {
         if(key === "min" || key === "max") {
             if(range === undefined) range = Object.assign({ min: undefined, max: undefined }, telemetry.getAttribute(P.TELEM_ATTR_RANGE));
             range[key] = number(key, raw);
+        }
+        else if(key === "scale" || key === "nodata" || key === "depth") { // Pictures of values (108-pictures.js)
+            if(pixels === undefined) pixels = Object.assign({ scale: 1, invalid: 0, depth: true }, telemetry.getAttribute(P.TELEM_ATTR_PIXELS));
+            if(key === "scale") { let n = number(key, raw); if(n === 0) throw new Error("Attribute scale cannot be 0"); pixels.scale = n === undefined ? 1 : n; }
+            else if(key === "nodata") { let n = raw === undefined ? 0 : number(key, raw); pixels.invalid = n === undefined ? null : n; } // "nodata=": every number is a measure
+            else pixels.depth = flag(raw);
         }
         else if(key === "unit") telemetry.setAttribute(P.TELEM_ATTR_UNIT, text(raw));
         else if(key === "color") telemetry.setAttribute(P.TELEM_ATTR_COLOR, text(raw) || undefined);
@@ -346,6 +352,7 @@ function _parseDataText_parseAttributes(msg)
     }
     if(range !== undefined) telemetry.setAttribute(P.TELEM_ATTR_RANGE, (range.min === undefined && range.max === undefined) ? undefined : range);
     if(writeChanged) telemetry.setAttribute(P.TELEM_ATTR_WRITE, write === null ? undefined : write);
+    if(pixels !== undefined) telemetry.setAttribute(P.TELEM_ATTR_PIXELS, pixels);
 }
 
 /*
@@ -458,6 +465,7 @@ function _parseDataText_parseImage(msg, now)
 {
     // JPG|key:timestamp:1/4:b64buffer§unit|flags
     // PNG|key:timestamp:1/4:b64buffer§unit|flags
+    // RAW|key:timestamp:1/4:b64buffer§unit|flags   (plain pixels: IMAGE_TYPE_RAW, see 108-pictures.js)
     //         ^^^^^^^^^^^^^^         ^^^^^^^^^^^ optional
     let keyFrom = 0; keyTo = 0;
     let timestampFrom = 0; timestampTo = 0;
@@ -515,6 +523,7 @@ function _parseDataText_parseImage(msg, now)
     let type = msg.substr(0, typeTo);
     let typeCode = TELEPLOT.protocol.IMAGE_TYPE_JPEG;
     if (type.toUpperCase() == "PNG") typeCode = TELEPLOT.protocol.IMAGE_TYPE_PNG;
+    if (type.toUpperCase() == "RAW") typeCode = TELEPLOT.protocol.IMAGE_TYPE_RAW;
     
 
 

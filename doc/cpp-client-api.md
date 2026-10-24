@@ -273,6 +273,8 @@ tp.telemetry("camera").image(TeleplotImage::encode(frame));                 // J
 tp.telemetry("camera").image(TeleplotImage::encode(frame, TeleplotImage::Jpeg{ 60 }));
 TeleplotImage::send(tp.telemetry("camera"), frame);                         // encoded on a thread: the call only copies
 TeleplotImage::send(tp.telemetry("depth"), depth, TeleplotImage::Png{});    // Gray16: lossless, 16 bits
+tp.telemetry("depth").unit("m").depthMap(0.001);                             // its numbers are millimetres, 0 is no measure
+TeleplotImage::send(tp.telemetry("depth"), depth, TeleplotImage::Raw{});    // Gray16 or Float32 as they are: no encoding at all
 TeleplotImage::send(tp.telemetry("camera"), TeleplotImage::shrink(frame, 2)); // half the width and height
 tp.telemetry("map").image(TeleplotImage::load("floor-plan.png"));           // a file, as it is
 ```
@@ -288,15 +290,16 @@ pixels, `pixelsOf()`), no undistortion (pictures are never modified). C++17, no 
 | | |
 | --- | --- |
 | `Pixels{data, width, height, format, stride}` | a view of pixels (stride: bytes from a row to the next, 0: packed) |
-| Formats | `Gray8`, `Gray16` (machine byte order: a depth image), `RGB8`, `BGR8` (OpenCV), `RGBA8`, `BGRA8`, `YUYV` (webcams, BT.601) |
+| Formats | `Gray8`, `Gray16` (machine byte order: a depth image), `Float32` (machine byte order: a depth map in metres, ROS 32FC1; `Raw` only), `RGB8`, `BGR8` (OpenCV), `RGBA8`, `BGRA8`, `YUYV` (webcams, BT.601) |
 | `encode(pixels[, Jpeg{quality}])` → `Picture` | JPEG baseline 4:2:0 (gray: one channel), quality 80 by default; alpha is dropped; `Gray16` is refused |
-| `encode(pixels, Png{})` → `Picture` | the pixels exactly; `Gray16` stays 16 bits, RGBA keeps its alpha |
+| `encode(pixels, Png{})` → `Picture` | the pixels exactly; `Gray16` stays 16 bits, RGBA keeps its alpha; `Float32` is refused |
+| `encode(pixels, Raw{})` → `Picture` | `Gray16` or `Float32` as they are, little-endian, after a header of 8 bytes (`IMAGE_TYPE_RAW`, `doc/depth.md`): nothing to compute, 4/3 bigger in base64 than in bytes |
 | `Picture{type, bytes, error}` | what `image(picture)` sends; empty bytes: it failed, `error` says why (nothing is sent) |
 | `load(path)` → `Picture` | a .jpg / .png file as it is (recognized by its first bytes, not by its name) |
 | `typeOf(bytes, size)` | `Jpeg`, `Png`, or nothing |
-| `shrink(pixels, factor)` → `Image` | smaller by a whole factor, each pixel the average of a square (the camera's intrinsics stay right: the protocol takes any size of the same proportions); `YUYV` gives `RGB8` |
+| `shrink(pixels, factor)` → `Image` | smaller by a whole factor, each pixel the average of a square (the camera's intrinsics stay right: the protocol takes any size of the same proportions); `YUYV` gives `RGB8`; not `Float32` (an empty `Image`) |
 | `copy(pixels)` → `Image` | pixels it holds (an `Image` is also a `Pixels`) |
-| `send(telemetry, pixels[, time][, Jpeg{} \| Png{}])` | encoded on the encoding thread of the Teleplot, then sent; dated when asked (or at `time`); the pixels are copied first (an `Image&&` is taken without copy) |
+| `send(telemetry, pixels[, time][, Jpeg{} \| Png{} \| Raw{}])` | encoded on the encoding thread of the Teleplot, then sent; dated when asked (or at `time`); the pixels are copied first (an `Image&&` is taken without copy) |
 | `stats(tp)` | `encoded`, `replaced`, `failed`, `priorityRefused` |
 
 The encoding thread (one per Teleplot, started by the first `send()`, kept by `Teleplot::extension()` and stopped first when the
@@ -443,13 +446,13 @@ Outputs, as many as wanted: `udp(host, port)` (none given: `udp("127.0.0.1", 472
 
 | Group | Calls |
 | --- | --- |
-| Describe | `unit(text)`, `color(text)`, `label(text)` (a path places it: `Robot/Motion`), `desc(text)`, `range(min, max)`, `min(v)`, `max(v)`, `autoplot(bool)`, `timeout(Time)`, `log()`, `stack()`, `frame(name)`, `pixelsOf(name)` |
+| Describe | `unit(text)`, `color(text)`, `label(text)` (a path places it: `Robot/Motion`), `desc(text)`, `range(min, max)`, `min(v)`, `max(v)`, `autoplot(bool)`, `timeout(Time)`, `log()`, `stack()`, `frame(name)`, `pixelsOf(name)`, `depthMap(scale[, noData])` / `pixelValues(scale[, noData])` (pictures of numbers: a pixel is worth number x scale; `noData` 0 by default, `NAN`: none; a depth map is placed in 3D views, other values are not) |
 | Sending | `maxRate(hz)` (0: all), `precise()` (float64), `nonBlocking([bool])` (full; default from `Options`) |
 | Limits | `threshold(name, Below \| Above, value[, color])`, `removeThreshold(name)` (samples: from their time on) |
 | Samples | `update(value)` (number, bool, text, `Number2D`, `Number3D`) |
 | Shape | `shape(type)`, `stl(url)`, `position(x, y[, z])`, `rotation(roll, pitch, yaw)`, `yaw(a)`, `quaternion(w, x, y, z)`, `size(x, y[, z])`, `size(s)`, `color(text)` / `color(Rgb)` (a sample; `color` before any shape call is the attribute), `opacity(0..1)`, `texture(url)`, `textureFrom(imageTelemetry)`, `vector(x, y[, z])`, `text(text)`, `textSize(h)`, `lineWidth(w)`, `points(pts, n)` |
 | Cloud | `cloud(pts, n)`, `cloud(pts, n, intensities)`, `cloud(pts, n, colors)`, `cloud(pts, n, intensities, colors)` |
-| Camera | `image(Jpeg \| Png, bytes, size)`, `image(picture)` (anything with `.type` and `.bytes`: `TeleplotImage::Picture`), `intrinsics(width, height, fx, fy, cx, cy)`, `distortion(k1, k2, p1, p2, k3)` |
+| Camera | `image(Jpeg \| Png \| Raw, bytes, size)`, `image(picture)` (anything with `.type` and `.bytes`: `TeleplotImage::Picture`), `intrinsics(width, height, fx, fy, cx, cy)`, `distortion(k1, k2, p1, p2, k3)` |
 | Time | `at(time)` → `Samples` whose samples all get that time (first in a chain only; without it, the chain shares one "now") |
 | Threads | `oneThread()` (a stack used from one thread only, the first that uses it: no thread names) |
 

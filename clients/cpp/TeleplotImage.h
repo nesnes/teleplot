@@ -8,9 +8,10 @@
 //     tp.telemetry("camera").image(TeleplotImage::encode(frame));             // JPEG, quality 80, here and now
 //     TeleplotImage::send(tp.telemetry("camera"), frame);                     // the same on a thread: the call only copies
 //     TeleplotImage::send(tp.telemetry("depth"), depth, TeleplotImage::Png{}); // lossless (16 bits for a depth image)
+//     TeleplotImage::send(tp.telemetry("depth"), depth, TeleplotImage::Raw{}); // the numbers as they are (Gray16, Float32): no encoding
 //
-// encode(): JPEG (baseline, 4:2:0) or PNG (lossless). Pixels: Gray8, Gray16 (PNG only), RGB8, BGR8, RGBA8, BGRA8 (JPEG drops
-// alpha), YUYV (webcams). load(): a .jpg / .png file, as it is. shrink(): smaller by a whole factor (the camera of a picture
+// encode(): JPEG (baseline, 4:2:0), PNG (lossless) or Raw (plain numbers, for depth maps: Gray16 or Float32). Pixels: Gray8,
+// Gray16 (PNG, Raw), Float32 (Raw only), RGB8, BGR8, RGBA8, BGRA8 (JPEG drops alpha), YUYV (webcams). load(): a .jpg / .png file, as it is. shrink(): smaller by a whole factor (the camera of a picture
 // stays right: its intrinsics hold for any size of the same proportions).
 // send(): one encoding thread per Teleplot, a slot per telemetry: the picture being encoded always finishes and is sent; of the
 // ones asked meanwhile only the latest is kept (the others are counted in stats()). The thread's priority: Teleplot's
@@ -41,6 +42,7 @@ namespace TeleplotImage {
         Gray16, // 2 bytes per pixel, in the byte order of the machine (a depth image): PNG only
         RGB8, BGR8, RGBA8, BGRA8,
         YUYV,   // 4 bytes per 2 pixels: Y0 U Y1 V (BT.601, the order of most webcams); width must be even
+        Float32, // 4 bytes per pixel, a float in the byte order of the machine (a depth map in metres, ROS 32FC1): Raw only
     };
 
     // A view of pixels that are somewhere else: nothing is copied. stride: bytes from a row to the next (0: rows without padding).
@@ -66,10 +68,11 @@ namespace TeleplotImage {
     };
     struct Jpeg { int quality = 80; };  // 1 (small) to 100 (close to the pixels)
     struct Png {};                      // the pixels exactly
+    struct Raw {};                      // the numbers as they are, not compressed: Gray16 or Float32 (a depth map)
     struct Stats { std::uint64_t encoded = 0, replaced = 0, failed = 0, priorityRefused = 0; };
 
     namespace detail {
-        inline std::size_t bytesPerPixel(Format f) { return f == Gray8 ? 1 : f == Gray16 ? 2 : f == RGB8 || f == BGR8 ? 3 : f == YUYV ? 2 : 4; }
+        inline std::size_t bytesPerPixel(Format f) { return f == Gray8 ? 1 : f == Gray16 ? 2 : f == RGB8 || f == BGR8 ? 3 : f == YUYV ? 2 : 4; } // (RGBA8, BGRA8, Float32: 4)
         inline std::size_t rowBytes(Pixels const& p) { return static_cast<std::size_t>(p.width) * bytesPerPixel(p.format); }
         inline std::size_t strideOf(Pixels const& p) { return p.stride ? p.stride : rowBytes(p); }
         inline const std::uint8_t* row(Pixels const& p, int y) { return static_cast<const std::uint8_t*>(p.data) + static_cast<std::size_t>(y) * strideOf(p); }
@@ -77,7 +80,7 @@ namespace TeleplotImage {
             if (!p.data || p.width <= 0 || p.height <= 0) { return "no pixels"; }
             if (p.stride && p.stride < rowBytes(p)) { return "stride shorter than a row"; }
             if (p.format == YUYV && p.width % 2) { return "YUYV needs an even width"; }
-            if (p.format > YUYV) { return "unknown format"; }
+            if (p.format > Float32) { return "unknown format"; }
             return "";
         }
         inline std::uint8_t clip(int v) { return static_cast<std::uint8_t>(v < 0 ? 0 : v > 255 ? 255 : v); }
@@ -103,6 +106,7 @@ namespace TeleplotImage {
                         }
                     }
                     break;
+                case Float32: break; // (not a picture to show: Raw only, refused before)
             }
         }
 
@@ -210,7 +214,8 @@ namespace TeleplotImage {
             Picture picture;
             picture.type = Teleplot::Jpeg;
             if ((picture.error = check(p)) != "") { return picture; }
-            if (p.format == Gray16) { picture.error = "a JPEG holds 8 bits: Png{} for Gray16"; return picture; }
+            if (p.format == Gray16) { picture.error = "a JPEG holds 8 bits: Png{} or Raw{} for Gray16"; return picture; }
+            if (p.format == Float32) { picture.error = "a JPEG holds 8 bits: Raw{} for Float32"; return picture; }
             if (p.width > 65535 || p.height > 65535) { picture.error = "too big for a JPEG"; return picture; }
             bool gray = p.format == Gray8;
             quality = quality < 1 ? 1 : quality > 100 ? 100 : quality;
@@ -377,6 +382,7 @@ namespace TeleplotImage {
             Picture picture;
             picture.type = Teleplot::Png;
             if ((picture.error = check(p)) != "") { return picture; }
+            if (p.format == Float32) { picture.error = "a PNG holds whole numbers: Raw{} for Float32"; return picture; }
             // What PNG stores: gray 8 or 16 bits (16: big endian), RGB, RGBA
             int channels = p.format == Gray8 || p.format == Gray16 ? 1 : p.format == RGBA8 || p.format == BGRA8 ? 4 : 3;
             int depth = p.format == Gray16 ? 16 : 8;
@@ -434,9 +440,35 @@ namespace TeleplotImage {
         }
     }
 
+    namespace detail {
+        // ------------------------------------------------------------------ Raw: {width[16]} {height[16]} {format[8]: 0 gray16, 1 float32} {3 bytes at 0}, then the numbers, rows packed, little-endian
+        inline Picture raw(Pixels const& p) {
+            Picture picture;
+            picture.type = Teleplot::Raw;
+            if ((picture.error = check(p)) != "") { return picture; }
+            if (p.format != Gray16 && p.format != Float32) { picture.error = "Raw{} is for numbers: Gray16 or Float32"; return picture; }
+            if (p.width > 65535 || p.height > 65535) { picture.error = "too big for a Raw picture"; return picture; }
+            std::size_t size = bytesPerPixel(p.format), line = rowBytes(p);
+            std::vector<std::uint8_t>& out = picture.bytes;
+            out.resize(8 + line * static_cast<std::size_t>(p.height));
+            out[0] = static_cast<std::uint8_t>(p.width); out[1] = static_cast<std::uint8_t>(p.width >> 8);
+            out[2] = static_cast<std::uint8_t>(p.height); out[3] = static_cast<std::uint8_t>(p.height >> 8);
+            out[4] = p.format == Float32 ? 1 : 0;
+            const std::uint16_t one = 1;
+            bool little = *reinterpret_cast<const std::uint8_t*>(&one) == 1;
+            for (int y = 0; y < p.height; ++y) {
+                std::uint8_t* to = out.data() + 8 + line * static_cast<std::size_t>(y);
+                std::memcpy(to, row(p, y), line);
+                if (!little) { for (std::size_t i = 0; i < line; i += size) { for (std::size_t a = i, b = i + size - 1; a < b; ++a, --b) { std::swap(to[a], to[b]); } } }
+            }
+            return picture;
+        }
+    }
+
     // ------------------------------------------------------------------ Encoding, files
     inline Picture encode(Pixels const& pixels, Jpeg jpeg = {}) { return detail::jpeg(pixels, jpeg.quality); }
     inline Picture encode(Pixels const& pixels, Png) { return detail::png(pixels); }
+    inline Picture encode(Pixels const& pixels, Raw) { return detail::raw(pixels); }
 
     // What a picture is, from its first bytes (nothing else is read)
     inline std::optional<Teleplot::ImageType> typeOf(const void* bytes, std::size_t size) {
@@ -460,10 +492,10 @@ namespace TeleplotImage {
     }
 
     // Smaller by a whole factor (2: half the width and height): each pixel is the average of factor x factor pixels; what does not
-    // fill a whole square at the right and bottom edges is left out. YUYV gives RGB8.
+    // fill a whole square at the right and bottom edges is left out. YUYV gives RGB8. Not for Float32 (an empty Image).
     inline Image shrink(Pixels const& p, int factor) {
         Image image;
-        if (detail::check(p) != "" || factor < 1) { return image; }
+        if (detail::check(p) != "" || factor < 1 || p.format == Float32) { return image; }
         image.width = p.width / factor;
         image.height = p.height / factor;
         image.format = p.format == YUYV ? RGB8 : p.format;
@@ -521,12 +553,12 @@ namespace TeleplotImage {
         struct Job {
             std::optional<Teleplot::Telemetry> telemetry;
             Image image;
-            bool png = false;
+            int kind = 0; // 0 JPEG, 1 PNG, 2 Raw
             int quality = 80;
             Teleplot::Time time;
             Teleplot::Scheduling caller;
         };
-        inline Picture encodeJob(Job const& job) { return job.png ? detail::png(job.image) : detail::jpeg(job.image, job.quality); }
+        inline Picture encodeJob(Job const& job) { return job.kind == 2 ? detail::raw(job.image) : job.kind == 1 ? detail::png(job.image) : detail::jpeg(job.image, job.quality); }
 
         // One per Teleplot (Teleplot::extension): a thread, a slot per telemetry
         class Encoder {
@@ -609,12 +641,12 @@ namespace TeleplotImage {
             Stats stats_;
         };
 
-        inline void send(Teleplot::Telemetry telemetry, Image&& image, bool png, int quality, std::optional<Teleplot::Time> time) {
+        inline void send(Teleplot::Telemetry telemetry, Image&& image, int kind, int quality, std::optional<Teleplot::Time> time) {
             Job job;
             job.time = time ? *time : telemetry.teleplot().currentTime(); // (dated when asked, not when encoded)
             job.telemetry = telemetry;
             job.image = std::move(image);
-            job.png = png;
+            job.kind = kind;
             job.quality = quality;
 #if defined(TELEPLOT_SINGLE_THREAD)
             Encoder& encoder = telemetry.teleplot().extension<Encoder>();
@@ -630,12 +662,15 @@ namespace TeleplotImage {
 
     // Encoded on the thread of the Teleplot, then sent (dated now, or at the time given). The pixels are copied: the buffer can be
     // used again as soon as it returns. An Image is taken as it is (moved: no copy).
-    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Jpeg jpeg = {}) { detail::send(telemetry, copy(pixels), false, jpeg.quality, std::nullopt); }
-    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Png) { detail::send(telemetry, copy(pixels), true, 0, std::nullopt); }
-    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Teleplot::Time time, Jpeg jpeg = {}) { detail::send(telemetry, copy(pixels), false, jpeg.quality, time); }
-    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Teleplot::Time time, Png) { detail::send(telemetry, copy(pixels), true, 0, time); }
-    inline void send(Teleplot::Telemetry telemetry, Image&& image, Jpeg jpeg = {}) { detail::send(telemetry, std::move(image), false, jpeg.quality, std::nullopt); }
-    inline void send(Teleplot::Telemetry telemetry, Image&& image, Png) { detail::send(telemetry, std::move(image), true, 0, std::nullopt); }
+    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Jpeg jpeg = {}) { detail::send(telemetry, copy(pixels), 0, jpeg.quality, std::nullopt); }
+    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Png) { detail::send(telemetry, copy(pixels), 1, 0, std::nullopt); }
+    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Raw) { detail::send(telemetry, copy(pixels), 2, 0, std::nullopt); }
+    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Teleplot::Time time, Jpeg jpeg = {}) { detail::send(telemetry, copy(pixels), 0, jpeg.quality, time); }
+    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Teleplot::Time time, Png) { detail::send(telemetry, copy(pixels), 1, 0, time); }
+    inline void send(Teleplot::Telemetry telemetry, Pixels const& pixels, Teleplot::Time time, Raw) { detail::send(telemetry, copy(pixels), 2, 0, time); }
+    inline void send(Teleplot::Telemetry telemetry, Image&& image, Jpeg jpeg = {}) { detail::send(telemetry, std::move(image), 0, jpeg.quality, std::nullopt); }
+    inline void send(Teleplot::Telemetry telemetry, Image&& image, Png) { detail::send(telemetry, std::move(image), 1, 0, std::nullopt); }
+    inline void send(Teleplot::Telemetry telemetry, Image&& image, Raw) { detail::send(telemetry, std::move(image), 2, 0, std::nullopt); }
 
     // What the encoding thread of a Teleplot did: encoded, replaced (a newer picture came before it started), failed, priority refused
     inline Stats stats(Teleplot& tp) { return tp.extension<detail::Encoder>().stats(); }

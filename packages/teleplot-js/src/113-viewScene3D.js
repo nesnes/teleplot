@@ -33,6 +33,7 @@ class ViewScene3D extends ViewTelemetries {
         this.options.pointColorByHeight = false; // Point clouds: colored by their height (z) instead of their own color, intensity, or the color of the telemetry
         this.options.cloudCount = 1;        // Point clouds: how many clouds are drawn together (1: the current one only, more: accumulation)
         this.options.cloudInterval = 0;     // Accumulation: minimum time between two of the clouds drawn, in seconds (0: every cloud)
+        this.options.depthPoints = 250000;  // Depth maps: at most this many of their pixels are placed in the scene (every n-th pixel, along both axes)
 
         this.layout.width = 2;
         this.layout.height = 6;
@@ -50,6 +51,7 @@ class ViewScene3D extends ViewTelemetries {
         this.valueChars = {};                     // Width (characters) of the value slot of each legend entry: only grows, so entries never shake
         this.legendKey = "";
         this.lastKey = "";
+        this.depthClouds = TELEPLOT.Vue.markRaw(new Map()); // camera telemetry id -> what its depth map gives (see __depthSource), buffers used again
     }
 
     // ------------------------------------------------------------------ State of the scene (no three.js here)
@@ -268,6 +270,91 @@ class ViewScene3D extends ViewTelemetries {
         return { width, height, fx, fy, cx, cy, distortion, position: pose.position, quaternion: pose.quaternion, depth: pose.size[0] };
     }
 
+    // Depth maps: the pixels of a picture of width x height that are placed in the scene (one every "step" along both axes), and the
+    // direction each one looks at from the camera, in its frame (x forward, y left, z up) for a distance of 1 along x:
+    // {count, pixels: Uint32Array (index in the picture), rays: Float32Array (y, z per pixel)}. The intrinsics are for an image of
+    // camera.width x camera.height: a picture of another size has the same proportions. With lens distortion each pixel is followed
+    // back to where it looks (undistortPoint): worked out once per camera, not on every picture.
+    static depthRays(camera, width, height, step=1) {
+        step = Math.max(1, Math.floor(step));
+        let columns = Math.ceil(width / step), rows = Math.ceil(height / step);
+        let count = columns * rows, pixels = new Uint32Array(count), rays = new Float32Array(count * 2);
+        let sx = camera.width / width, sy = camera.height / height, n = 0;
+        let undistort = camera.distortion ? TELEPLOT.view.ViewImage.undistortPoint : undefined;
+        for(let v = 0; v < height; v += step) {
+            for(let u = 0; u < width; u += step) {
+                let x = ((u + 0.5) * sx - 0.5 - camera.cx) / camera.fx, y = ((v + 0.5) * sy - 0.5 - camera.cy) / camera.fy; // (pixel centers: whole numbers)
+                if(undistort) [x, y] = undistort(x, y, camera.distortion);
+                pixels[n] = v * width + u;
+                rays[n*2] = -x; rays[n*2+1] = -y;
+                n++;
+            }
+        }
+        return { count: n, pixels, rays };
+    }
+
+    // The points of a depth map (values: distances along the axis of the camera, number x scale), in the frame of the camera, in
+    // "positions" (3 per point), and their colors (r, g, b from 0 to 255 in "colors", on a colormap between range.min and max).
+    // Pixels without measure are left out. Returns {count, min: [x, y, z], max} (the box of the points, undefined when none).
+    static depthPoints(decoded, settings, rays, positions, colors, range, colormap="turbo") {
+        let values = decoded.values, invalid = settings.invalid, scale = settings.scale, noInvalid = invalid === undefined;
+        let table = TELEPLOT.pictures.COLORMAPS[colormap] || TELEPLOT.pictures.COLORMAPS.turbo;
+        let low = range ? range.min : 0, k = range && range.max > range.min ? 255 / (range.max - range.min) : 0;
+        let count = 0, minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+        let pixels = rays.pixels, directions = rays.rays;
+        for(let i = 0; i < rays.count; i++) {
+            let raw = values[pixels[i]];
+            if(!(raw - raw === 0) || (!noInvalid && raw === invalid)) continue;
+            let d = raw * scale;
+            let x = d, y = d * directions[i*2], z = d * directions[i*2+1];
+            let at = count * 3;
+            positions[at] = x; positions[at+1] = y; positions[at+2] = z;
+            if(colors) {
+                let c = Math.round((d - low) * k), rgb = table[c < 0 ? 0 : c > 255 ? 255 : c];
+                colors[at] = rgb[0]; colors[at+1] = rgb[1]; colors[at+2] = rgb[2];
+            }
+            if(x < minX) minX = x; if(y < minY) minY = y; if(z < minZ) minZ = z;
+            if(x > maxX) maxX = x; if(y > maxY) maxY = y; if(z > maxZ) maxZ = z;
+            count++;
+        }
+        return { count, min: count ? [minX, minY, minZ] : undefined, max: count ? [maxX, maxY, maxZ] : undefined };
+    }
+
+    // What the depth map of a camera telemetry gives at a time, for the scene: {key, t, count, positions, colors (both in buffers of
+    // the view, valid until its next update), min, max}, undefined when its picture is not a depth map. While a picture is being
+    // decoded the previous one stays.
+    __depthSource(telem, timestamp, camera) {
+        let settings = TELEPLOT.pictures.settings(telem);
+        if(!settings.depth) return undefined;
+        let image = ViewScene3D.imageAt(telem, timestamp);
+        if(!image || !TELEPLOT.pictures.isValues(image.entry, image.index)) return undefined;
+        let cache = this.depthClouds.get(telem.id);
+        if(cache === undefined) { cache = { raysKey: "", rays: undefined, positions: undefined, colors: undefined, key: "", result: undefined }; this.depthClouds.set(telem.id, cache); }
+        let decoded = TELEPLOT.pictures.decode(image.entry, image.index);
+        if(decoded === undefined) return cache.result ? Object.assign({}, cache.result, { key: cache.result.key + ":waiting" }) : undefined;
+        if(!decoded.values) return undefined;
+        let max = Math.max(1000, Math.floor(Number(this.options.depthPoints)) || 250000);
+        let step = Math.max(1, Math.ceil(Math.sqrt(decoded.width * decoded.height / max)));
+        let raysKey = [camera.width, camera.height, camera.fx, camera.fy, camera.cx, camera.cy, camera.distortion, decoded.width, decoded.height, step].join(",");
+        if(cache.raysKey !== raysKey) {
+            cache.raysKey = raysKey;
+            cache.rays = ViewScene3D.depthRays(camera, decoded.width, decoded.height, step);
+            cache.positions = new Float32Array(cache.rays.count * 3);
+            cache.colors = new Uint8Array(cache.rays.count * 3);
+            cache.key = "";
+        }
+        let range = TELEPLOT.pictures.colorRange(decoded, settings, telem, this.options.valueRange || "range");
+        let colormap = TELEPLOT.pictures.COLORMAPS[this.options.colormap] ? this.options.colormap : "turbo";
+        let key = `${telem.id}:${image.t}:${raysKey}:${settings.scale}:${settings.invalid}:${range ? range.min + "/" + range.max : ""}:${colormap}`;
+        if(cache.key !== key || cache.decoded !== decoded) {
+            cache.key = key;
+            cache.decoded = decoded;
+            let box = ViewScene3D.depthPoints(decoded, settings, cache.rays, cache.positions, cache.colors, range, colormap);
+            cache.result = { key, t: image.t, count: box.count, positions: cache.positions, colors: cache.colors, min: box.min, max: box.max };
+        }
+        return cache.result;
+    }
+
     // Corners of the image of a camera, "depth" in front of it, in the frame of the camera (x forward, y left, z up): top left, top right,
     // bottom right, bottom left. With the camera itself (0, 0, 0) they make the pyramid of what it sees (without lens distortion).
     static cameraCorners(camera, depth=camera.depth) {
@@ -388,14 +475,15 @@ class ViewScene3D extends ViewTelemetries {
         return { from, to };
     }
 
-    // "data:" url of the image of an image telemetry at a time, and the time of that image (to know when it changes). Undefined when none.
+    // "data:" url of the image of an image telemetry at a time, the time of that image (to know when it changes), and where it is in
+    // its entry ({t, url, index, type, entry}). Undefined when none.
     static imageAt(telem, timestamp=-1) {
         const P = TELEPLOT.protocol;
         let entry = telem ? telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] : undefined;
         let index = ViewScene3D.sampleIndex(entry, timestamp);
         if(index < 0) return undefined;
         let type = entry.data[0][index] == P.IMAGE_TYPE_PNG ? "png" : "jpeg";
-        return { t: entry.timestamps[index], url: "data:image/" + type + ";base64," + entry.data[1][index] };
+        return { t: entry.timestamps[index], url: "data:image/" + type + ";base64," + entry.data[1][index], index, type: entry.data[0][index], entry };
     }
 
     getOptionsSchema() {
@@ -413,6 +501,7 @@ class ViewScene3D extends ViewTelemetries {
         { key: "pointColorByHeight", label: "Points colored by height", type: "bool" },
         { key: "cloudCount", label: "Clouds drawn together", type: "int", min: 1, max: ViewScene3D.CLOUD_COUNT_MAX, step: 1 },
         { key: "cloudInterval", label: "Time between them (s)", type: "number", min: 0, max: 3600, step: 0.1 },
+        { key: "depthPoints", label: "Points of a depth map (max)", type: "int", min: 1000, max: 4000000, step: 10000 },
     ];
 
     // Shows or hides what draws a telemetry (click on its legend entry)
@@ -472,6 +561,8 @@ class ViewScene3D extends ViewTelemetries {
                 onDragDrop: self.onDragDrop,
                 onDoubleClick() { self.fitCamera(); },
                 onImageLoad(event) { if(self.__imageLoaded) self.__imageLoaded(event.target); },
+                onFramePointer(event) { if(self.__framePointer) self.__framePointer(event); },
+                onFrameLeave() { if(self.__framePointer) self.__framePointer(undefined); },
                 onLegendClick(id) { self.toggleTelemetry(id); },
                 onLegendEnter(id) { self.highlightTelemetry(id); },
                 onLegendLeave() { self.highlightTelemetry(undefined); },
@@ -758,7 +849,7 @@ class ViewScene3D extends ViewTelemetries {
         const P = TELEPLOT.protocol;
         let sources = [];
         let key = `${timestamp},${this.options.displayLegend},${this.options.trailLength},${this.options.displayNumberDecimals},${this.highlighted},${Object.keys(this.hidden).join("/")}`;
-        key += `,${this.options.pointSize},${this.options.pointColorByHeight},${this.options.cloudCount},${this.options.cloudInterval}`;
+        key += `,${this.options.pointSize},${this.options.pointColorByHeight},${this.options.cloudCount},${this.options.cloudInterval},${this.options.depthPoints}`;
         let serieIdx = 0;
         for(let telemIdOrName of this.telemetryIdOrNameList){
             let telem = TELEPLOT.datastore.getTelemetry(telemIdOrName);
@@ -778,6 +869,8 @@ class ViewScene3D extends ViewTelemetries {
                 if(!source.camera) continue; // Intrinsics that make no sense
                 source.position = source.camera.position;
                 key += ":" + JSON.stringify(source.camera);
+                source.depth = this.__depthSource(telem, timestamp, source.camera); // Its picture is a depth map: its points
+                if(source.depth) key += ":" + source.depth.key;
             }
             else if(kind == "cloud") {
                 let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];
@@ -824,6 +917,7 @@ class ViewScene3D extends ViewTelemetries {
             if(kinds.get(id) == object.kind) continue;
             this.__disposeObject(three, object);
             three.objects.delete(id);
+            this.depthClouds.delete(id);
         }
         for(let source of sources) {
             if(source.kind == "camera") this.__updateCamera(three, source);
@@ -887,6 +981,53 @@ class ViewScene3D extends ViewTelemetries {
             object.color = source.color;
             ViewScene3D.setColor(object.lines.material.color, source.color);
         }
+        this.__updateDepth(three, object, source);
+    }
+
+    // The points of the depth map of a camera, where the camera was. The buffers of the view are given to the renderer as they are
+    // (only the part that holds points is sent again when a new picture comes).
+    __updateDepth(three, object, source) {
+        const THREE = TELEPLOT.THREE;
+        let depth = source.depth;
+        if(!depth) {
+            if(object.depth) { three.scene.remove(object.depth.points); object.depth.points.geometry.dispose(); object.depth.points.material.dispose(); object.depth = undefined; }
+            return;
+        }
+        if(!object.depth) {
+            let points = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ sizeAttenuation: false, transparent: true, vertexColors: true }));
+            points.frustumCulled = false; // (the camera of an image view is not one three.js can test against)
+            object.depth = { points, key: "", positions: undefined, linear: undefined, byHeight: undefined, box: new THREE.Box3() };
+            three.scene.add(points);
+        }
+        let d = object.depth, geometry = d.points.geometry;
+        let byHeight = !!this.options.pointColorByHeight;
+        if(d.key !== depth.key || d.byHeight !== byHeight) {
+            d.key = depth.key; d.byHeight = byHeight;
+            if(d.positions !== depth.positions) { // New buffers (another camera, another size of picture)
+                d.positions = depth.positions;
+                d.linear = new Float32Array(depth.colors.length);
+                geometry.setAttribute("position", new THREE.BufferAttribute(d.positions, 3).setUsage(THREE.DynamicDrawUsage));
+                geometry.setAttribute("color", new THREE.BufferAttribute(d.linear, 3).setUsage(THREE.DynamicDrawUsage));
+            }
+            let n = depth.count * 3;
+            if(byHeight) d.linear.set(ViewScene3D.cloudColors(depth.positions.subarray(0, n), null, null, true) || []);
+            else { let table = ViewScene3D.SRGB_TO_LINEAR, colors = depth.colors; for(let i = 0; i < n; i++) d.linear[i] = table[colors[i]]; }
+            for(let name of ["position", "color"]) {
+                let attribute = geometry.getAttribute(name);
+                attribute.clearUpdateRanges(); attribute.addUpdateRange(0, Math.max(1, n));
+                attribute.needsUpdate = true;
+            }
+            geometry.setDrawRange(0, depth.count);
+            d.box.makeEmpty();
+            if(depth.min) { d.box.min.set(depth.min[0], depth.min[1], depth.min[2]); d.box.max.set(depth.max[0], depth.max[1], depth.max[2]); }
+        }
+        let camera = source.camera;
+        d.points.position.set(camera.position[0], camera.position[1], camera.position[2]);
+        d.points.quaternion.set(camera.quaternion[1], camera.quaternion[2], camera.quaternion[3], camera.quaternion[0]);
+        d.points.updateMatrixWorld(true);
+        d.points.visible = !source.hidden;
+        d.points.material.size = Math.max(1, Math.min(20, Number(this.options.pointSize) || 3));
+        d.points.material.opacity = source.faded ? 0.15 : 1;
     }
 
     __updateShape(three, source) {
@@ -1216,6 +1357,7 @@ class ViewScene3D extends ViewTelemetries {
             three.scene.remove(object.lines);
             object.lines.geometry.dispose();
             object.lines.material.dispose();
+            this.__updateDepth(three, object, {}); // Its depth points, if any
         }
         else if(object.kind == "shape") {
             three.scene.remove(object.mesh);
@@ -1235,7 +1377,10 @@ class ViewScene3D extends ViewTelemetries {
         let box = new THREE.Box3();
         for(let object of this.three.objects.values()) {
             if(object.kind == "cloud") { for(let cloud of object.clouds) { if(cloud.points.visible && !cloud.box.isEmpty()) box.union(cloud.box); } }
-            else if(object.kind == "camera") { if(object.lines.visible) box.expandByObject(object.lines); }
+            else if(object.kind == "camera") {
+                if(object.lines.visible) box.expandByObject(object.lines);
+                if(object.depth && object.depth.points.visible && !object.depth.box.isEmpty()) box.union(object.depth.box.clone().applyMatrix4(object.depth.points.matrixWorld));
+            }
             else if(object.kind == "flat") {
                 if(!object.group.visible) continue;
                 object.group.updateMatrixWorld(true);

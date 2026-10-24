@@ -126,7 +126,7 @@ public:
     static constexpr double deg(double degrees) { return degrees * 3.14159265358979323846 / 180.0; } // degrees to radians
 
     enum ShapeType : std::uint8_t { Cube = 0, Sphere = 1, Cylinder = 2, Rect = 3, Circle = 4, Line = 5, Polygon = 6, Arrow = 7, Text = 8, Stl = 10 };
-    enum ImageType : std::uint8_t { Jpeg = 0, Png = 1 };
+    enum ImageType : std::uint8_t { Jpeg = 0, Png = 1, Raw = 2 }; // Raw: plain numbers (a depth map), see TeleplotImage::Raw
     enum ThresholdSide : std::uint8_t { Below = 0, Above = 1 };
     enum SendFrom : std::uint8_t { Caller = 0, Thread = 1 };
     enum Axis : std::uint8_t { X = 1, Y = 2, Yaw = 4 };
@@ -404,6 +404,11 @@ public:
         Self& stack(bool v = true) { tp_->attrBytes_(index_, ATTR_STACK, Bytes_().u8(v ? 1 : 0)); return self_(); }
         Self& frame(std::string_view name) { tp_->attrBytes_(index_, ATTR_FRAME, Bytes_().u8(0).str(name)); return self_(); }
         Self& pixelsOf(std::string_view imageTelemetry) { tp_->attrBytes_(index_, ATTR_FRAME, Bytes_().u8(1).str(imageTelemetry)); return self_(); }
+        // Pictures of numbers (Gray16 / Float32, 16-bit PNG): a pixel is worth number x scale (in the unit of the telemetry), noData is the
+        // number of a pixel without measure (NAN: every number is one). depthMap: distances along the axis of its camera (placed in 3D
+        // views); pixelValues: other values (a temperature...).
+        Self& depthMap(double scale, double noData = 0) { tp_->attrBytes_(index_, ATTR_PIXELS, Bytes_().f64(scale).f64(noData).u8(0)); return self_(); }
+        Self& pixelValues(double scale, double noData = 0) { tp_->attrBytes_(index_, ATTR_PIXELS, Bytes_().f64(scale).f64(noData).u8(1)); return self_(); }
         Self& shape(ShapeType type) { tp_->shape_(index_, type, ""); return self_(); }
         Self& stl(std::string_view url) { tp_->shape_(index_, Stl, url); return self_(); }
         Self& maxRate(double hz) { tp_->setting_(index_, [hz](Entry_& e) { e.maxRate = hz; }); return self_(); }
@@ -792,6 +797,7 @@ private:
     enum : std::uint8_t {
         ATTR_NAME = 0, ATTR_UNIT = 1, ATTR_COLOR = 2, ATTR_AUTOPLOT = 3, ATTR_DATA_TIMEOUT = 4, ATTR_SHAPE = 5, ATTR_LABEL = 6, ATTR_LOG = 7,
         ATTR_FRAME = 8, ATTR_RANGE = 9, ATTR_STACK = 10, ATTR_WRITE = 11, ATTR_CHOICES = 12, ATTR_ARGS = 13, ATTR_DESC = 14, ATTR_TITLE = 15,
+        ATTR_PIXELS = 16,
     };
     enum : std::uint8_t {
         SEC_CLIENT_NAME = 1, SEC_DASHBOARD = 2, SEC_ATTR = 10, SEC_NUMBER = 20, SEC_NUMBER_2D = 21, SEC_NUMBER_3D = 22, SEC_TEXT = 23,

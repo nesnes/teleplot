@@ -95,3 +95,24 @@ test('the page stores what send() encoded on its thread: the latest picture alwa
     const encoded = U.datastore.findByName('teleplot.images.encoded');
     assert.ok(encoded && encoded.getAttribute(U.protocol.TELEM_ATTR_VIEW_LABEL) === 'teleplot images', 'sendStats(): the encoding thread sends its own');
 });
+
+test('depth maps: Raw gray16 and float32, a 16-bit PNG, their scale; the page reads the same numbers', async () => {
+    const U = loadTeleplot();
+    assert.equal(U.files.importData(new Uint8Array(fs.readFileSync(path.join(OUT, 'depth.teleplot')))).problems, 0);
+    const P = U.protocol;
+    const values = async (name) => { const entry = U.datastore.findByName(name).data[P.SECTION_TYPE_TELEM_DATA_IMAGE]; return U.pictures.decodeAsync(entry, entry.timestamps.length - 1); };
+    const mm = await values('depth.mm'), png = await values('depth.png');
+    const expected = []; for (let y = 0; y < 23; y++) for (let x = 0; x < 37; x++) expected.push((x * 997 + y * 131) & 0xFFFF);
+    assert.deepEqual([mm.width, mm.height, mm.format], [37, 23, 'gray16']);
+    assert.deepEqual(Array.from(mm.values), expected, 'Raw gray16: the numbers (rows given with padding)');
+    assert.deepEqual(Array.from(png.values), expected, 'the same numbers through a 16-bit PNG');
+    const metres = Array.from({ length: 19 * 7 }, (_, i) => i % 5 === 0 ? NaN : 0.25 * i);
+    for (const name of ['depth.m', 'depth.sent']) {
+        const m = await values(name);
+        assert.deepEqual([m.width, m.height, m.format, Array.from(m.values)], [19, 7, 'float32', metres], name);
+    }
+    assert.deepEqual(U.pictures.settings(U.datastore.findByName('depth.mm')), { scale: 0.001, invalid: 0, depth: true });
+    assert.deepEqual(U.pictures.settings(U.datastore.findByName('depth.m')), { scale: 1, invalid: undefined, depth: true }, 'NAN: every number is a measure');
+    assert.deepEqual(U.pictures.settings(U.datastore.findByName('thermal')), { scale: 0.01, invalid: 0, depth: false }, 'pixelValues: not distances');
+    assert.equal(U.pictures.valueAt(mm, 3, 2, U.pictures.settings(U.datastore.findByName('depth.mm'))), (3 * 997 + 2 * 131) * 0.001);
+});

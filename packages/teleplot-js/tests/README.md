@@ -21,6 +21,7 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 | `viewChart.test.js` | data given to the chart (decimation, multi-series, zoom), legend values, marks of text telemetries, thresholds and range of the series, current value view (bar, threshold status) |
 | `viewTimeline.test.js` | timeline: bands of states, holes, ticks of logs, what is too short to draw, period displayed, colors, what is under the pointer |
 | `viewScene3D.test.js` | 3D view: shape state at a time (defaults, rotation/quaternion, colors, textures), trails, suggested view, shared scene of the auto dashboard |
+| `pictures.test.js` | depth maps: 16-bit PNG (every filter) and plain gray16 / float32 decoded, scale and no measure (text and binary), colors and percentiles, the depth map placed in 3D and 2D views, files |
 | `viewImage.test.js` | image view: camera state, projection of a point, lens distortion and its inverse, ideal window, projection matrix, which telemetry is the picture |
 | `connectionSerial.test.js` | serial ports through Web Serial (fake port): lines across chunks, ">" telemetry vs log lines, console, send, baud rate, lost port, browser dialog |
 | `connection.test.js` | WebSocket connection, message routing, UDP and serial inputs |

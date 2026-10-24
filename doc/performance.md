@@ -133,3 +133,27 @@ Found and fixed while checking edge cases:
 
 - A text that held a colon (`mode:error: stalled|t`) was read as "time: text" with a time that is not a number, and stored at that time: the order of the samples was broken and the views that search by time failed. The parser now takes the time of a text only from a first field that is a number, and the datastore refuses any timestamp that is not one.
 - The latest state of a timeline had no width when nothing else made time pass after it. It is given 4 % of the period.
+
+## Depth maps (measured on 2026-10-24)
+
+Chromium (the browser pane of the desktop app) on the Mac of the project, 640 x 480 pictures. Spec in `depth.md`.
+
+| What | Time |
+|---|---|
+| A `RAW|` gray16 text line parsed and stored (800 KB of base64) | 0.5 ms |
+| base64 to bytes / bytes to base64, 600 KB (native `Uint8Array.fromBase64` / `toBase64`) | 0.14 / 0.18 ms |
+| Plain numbers decoded (a view on the bytes, no copy) | 0.12 ms |
+| 16-bit PNG, inflated alone (`DecompressionStream`, 500 KB) | 2.6 to 3.6 ms |
+| 16-bit PNG, unfiltered in the page (before the worker) | 10 to 20 ms |
+| 16-bit PNG, the part left to the page with the worker | 0.5 ms |
+| 1st and 99th percentiles of a picture (once per picture) | 0.65 ms |
+| Colors of a picture: the same range / a new range (table of 65 536 colors built again) | 0.5 / 1 ms |
+| Rays of the pixels of a camera (once per camera): pinhole / with distortion | 7 / 46 ms |
+| Every pixel placed in the scene (307 200 points) | 3.6 ms |
+
+What these say:
+
+- **Decoding a PNG is the only heavy part**, and it is not in the page: a Web Worker made from the functions of the library (a `Blob`, no file to serve) inflates and unfilters it, and gives the numbers back without copy (transferred buffer). Where a worker cannot be made (the tests in Node, a page that forbids them) it is done in the page, asynchronously.
+- **Nothing is decoded when it arrives**, only when a view shows it, and one picture at a time per telemetry: when pictures come faster than they are decoded, the latest one waits and the others are skipped (they are still stored). A plain buffer costs nothing to decode: prefer it on a local network, a PNG where bandwidth counts (a depth map compresses 2 to 10 times).
+- **The page of `test.html` delays everything asynchronous** (dozens of demos drawing 30 times per second): a PNG took 200 ms from the request to the numbers there, against 19 ms in the webapp. Measure in the webapp.
+- **Memory**: a stored picture is its base64 (4/3 of its bytes). 640 x 480 gray16 at 30 per second is 24 MB per second: the memory limit (`doc/performance.md` "Memory") thins them like any data. Decoded pictures are kept 4 per telemetry (1.2 MB each).

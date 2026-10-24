@@ -143,6 +143,17 @@ class ViewScene2D extends ViewScene3D {
                 let corners = ViewScene3D.cameraCorners(camera).map((corner) => place(camera, corner));
                 items.push({ id, kind: "polygon", points: ViewScene2D.hull(corners.concat([camera.position]).map(project)), fill: false, color: source.color, opacity: fade, z: depth(camera.position) });
                 items.push({ id, kind: "dot", at: project(camera.position), color: source.color, opacity: fade, z: depth(camera.position) });
+                if(source.depth && source.depth.count) { // Its depth map: the points it measured, seen from above
+                    let d = source.depth, count = d.count, out = new Float32Array(count * 2), positions = d.positions;
+                    let origin = project(camera.position);
+                    let ex = project(ViewScene3D.rotateVector(camera.quaternion, [1, 0, 0])), ey = project(ViewScene3D.rotateVector(camera.quaternion, [0, 1, 0])), ez = project(ViewScene3D.rotateVector(camera.quaternion, [0, 0, 1]));
+                    for(let i = 0, at = 0; i < count; i++, at += 3) {
+                        let x = positions[at], y = positions[at+1], z = positions[at+2];
+                        out[i*2] = origin[0] + ex[0] * x + ey[0] * y + ez[0] * z;
+                        out[i*2+1] = origin[1] + ex[1] * x + ey[1] * y + ez[1] * z;
+                    }
+                    items.push({ id, kind: "points", positions: out, colors: d.colors.subarray(0, count * 3), color: source.color, opacity: fade, z: depth(camera.position) - 1e-9 });
+                }
             }
             else if(source.kind == "cloud") {
                 let entry = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD];

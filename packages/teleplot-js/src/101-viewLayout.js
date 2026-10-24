@@ -160,6 +160,8 @@ class ViewLayout extends Views {
             .teleplot-js-view-layout-container {
                 display: flex;
                 flex-wrap: wrap;
+                height: 100%; /* A layout inside a row takes the whole height of its place (a column next to a taller view): its views share it */
+                box-sizing: border-box;
             }
         }
     `;

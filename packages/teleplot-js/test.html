@@ -608,14 +608,14 @@
 
     data("Shapes with the binary protocol", "Packet builds binary packets (little-endian, see doc/binaryProtocol.md); binId(n) is the id the datastore gives to telemetry n of this client. One packet holds attributes and every kind of shape data.", () => {
       window.Packet = class Packet {
-        constructor(clientId) { this.bytes = [P.BINARY_MARKER, P.BINARY_VERSION]; this.u16(clientId); }
+        constructor(clientId) { this.bytes = [P.BINARY_MARKER, P.BINARY_VERSION]; this.u16(clientId); this.ns = BigInt(Date.now()) * 1000000n; }
         u8(v) { this.bytes.push(v & 0xff); return this; }
         u16(v) { return this.u8(v).u8(v >> 8); }
         u32(v) { return this.u16(v & 0xffff).u16(Math.floor(v / 65536)); }
         u64(v) { v = BigInt(v); return this.u32(Number(v & 0xffffffffn)).u32(Number(v >> 32n)); }
         f32(v) { this.bytes.push(...new Uint8Array(new Float32Array([v]).buffer)); return this; }
         str(s) { this.bytes.push(...new TextEncoder().encode(s), 0); return this; }
-        section(type, telemId, write) { this.u8(type).u16(telemId).u64(BigInt(Date.now()) * 1000000n).u8(1).u32(0); write(this); return this; } // one sample, at the reference time
+        section(type, telemId, write) { this.u8(type).u16(telemId).u64(this.ns).u8(1).u32(0); write(this); return this; } // one sample, at the time of the packet (the parts of a picture must share it)
         send() { Teleplot.parseDataBinary(Uint8Array.from([...this.bytes, 0, 0]).buffer); }
       };
       window.CLIENT = 7;
@@ -911,6 +911,107 @@
     });
     demo("Nothing to display", "Shapes, but no image.", [340, 200], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["imgdemo.cube"]));
+    });
+
+    // ====================================================================================================================== Depth maps
+    section("Depth maps", "Pictures of values: a 16-bit grayscale PNG, or plain pixels (RAW|: gray16 or float32, see doc/depth.md). The library decodes them itself (a browser only gives 8 bits of a picture) and keeps what was received untouched. A pixel is worth its number times the scale of the telemetry (ATTR|name|scale=0.001), in its unit; 0 is no measure (nodata=). Image views draw the values in colors, one color per pixel; the pointer reads the value under it. A depth map with camera intrinsics is placed in 3D and 2D views: each pixel along its ray, at its distance along the axis of the camera.");
+
+    data("A pretend depth camera", "depthdemo.mm: 160 x 120, uint16 in millimetres (RAW| text line, scale 0.001, unit m), 10 times per second. depthdemo.png: the same as a 16-bit PNG (encoded here with CompressionStream), with a range 0 to 6 m. depthdemo.float (binary, float32 in metres, with lens distortion and NaN where nothing is seen). The scene: the ground, a wall at 6 m, a box, and a ball (depthdemo.ball, also sent as a shape: in the 3D view the points must lie on it).", () => {
+      const W = 160, H = 120;
+      const camera = { width: W, height: H, fx: 120, fy: 120, cx: 79.5, cy: 59.5 };
+      const distortion = [-0.25, 0.06, 0, 0, 0];
+      const pose = { position: [0, 0, 1.2], quaternion: Teleplot.view.ViewScene3D.eulerToQuaternion(0, 0.25, 0) }; // looks a bit down
+      const rotate = Teleplot.view.ViewScene3D.rotateVector;
+      const box = { min: [2.4, -1.4, 0], max: [3.1, -0.7, 0.9] };
+      // Distance along the axis of the camera of what the ray of pixel (u, v) meets first (0: nothing within 8 m)
+      const cast = (ray, ball) => {
+        const d = rotate(pose.quaternion, ray), o = pose.position; // (ray: x = 1 in the frame of the camera: t is the depth)
+        let best = Infinity;
+        if (d[2] < 0) best = Math.min(best, -o[2] / d[2]);                 // the ground
+        if (d[0] > 0) best = Math.min(best, (6 - o[0]) / d[0]);            // a wall at x = 6
+        let near = -Infinity, far = Infinity;                              // the box
+        for (let k = 0; k < 3; k++) {
+          let a = (box.min[k] - o[k]) / d[k], b = (box.max[k] - o[k]) / d[k];
+          near = Math.max(near, Math.min(a, b)); far = Math.min(far, Math.max(a, b));
+        }
+        if (near <= far && near > 0) best = Math.min(best, near);
+        const c = [o[0] - ball.center[0], o[1] - ball.center[1], o[2] - ball.center[2]]; // the ball
+        const A = d[0]*d[0] + d[1]*d[1] + d[2]*d[2], B = 2 * (c[0]*d[0] + c[1]*d[1] + c[2]*d[2]), C = c[0]*c[0] + c[1]*c[1] + c[2]*c[2] - ball.radius * ball.radius;
+        const disc = B * B - 4 * A * C;
+        if (disc >= 0) { const t = (-B - Math.sqrt(disc)) / (2 * A); if (t > 0) best = Math.min(best, t); }
+        return best <= 8 ? best : 0;
+      };
+      const header = (format) => [W & 255, W >> 8, H & 255, H >> 8, format, 0, 0, 0];
+      const base64 = (bytes) => { let text = ""; for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(text); };
+      const png16 = async (values) => { // A 16-bit gray PNG: filter 0 on every row, deflated by the browser (CRCs left at 0: not checked)
+        const raw = new Uint8Array(H * (W * 2 + 1));
+        for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) { const n = values[v * W + u], at = v * (W * 2 + 1) + 1 + u * 2; raw[at] = n >> 8; raw[at + 1] = n & 255; }
+        const idat = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
+        const chunk = (type, data) => { const out = new Uint8Array(12 + data.length), view = new DataView(out.buffer); view.setUint32(0, data.length); out.set([...type].map((c) => c.charCodeAt(0)), 4); out.set(data, 8); return out; };
+        const ihdr = new Uint8Array(13), view = new DataView(ihdr.buffer); view.setUint32(0, W); view.setUint32(4, H); ihdr[8] = 16; ihdr[9] = 0;
+        const parts = [Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), chunk("IHDR", ihdr), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))];
+        return base64(new Uint8Array(await new Blob(parts).arrayBuffer()));
+      };
+      const [w, x, y, z] = pose.quaternion;
+      const place = `K:${camera.fx}:${camera.fy}:${camera.cx}:${camera.cy}:${W}:${H}:P:${pose.position.join(":")}:Q:${x}:${y}:${z}:${w}:W:0.5`;
+      Teleplot.parseDataText(`ATTR|depthdemo.mm|scale=0.001|unit=m|desc=Depth in millimetres (uint16)\nATTR|depthdemo.png|scale=0.001|unit=m|min=0|max=6\n3D|depthdemo.ball:S:sphere:C:#e67e22:O:0.35`);
+      const attr = new Packet(CLIENT).u8(P.SECTION_TYPE_TELEM_ATTR).u16(80).u8(3).u8(P.TELEM_ATTR_NAME).str("depthdemo.float").u8(P.TELEM_ATTR_UNIT).str("m").u8(P.TELEM_ATTR_PIXELS);
+      attr.bytes.push(...new Uint8Array(new Float64Array([1, NaN]).buffer), 0); // scale 1, no number means "no measure" (NaN never is one), a depth map
+      attr.send();
+      const shoot = async () => {
+        const t = Date.now() / 1000, ms = Date.now();
+        const ball = { center: [3.2 + 0.8 * Math.sin(t / 2), 0.6 * Math.cos(t / 1.3), 0.35], radius: 0.35 };
+        const mm = new Uint16Array(W * H), metres = new Float32Array(W * H);
+        for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+          const depth = cast([1, -(u - camera.cx) / camera.fx, -(v - camera.cy) / camera.fy], ball);
+          mm[v * W + u] = Math.round(depth * 1000);
+          const [xd, yd] = Teleplot.view.ViewImage.undistortPoint((u - camera.cx) / camera.fx, (v - camera.cy) / camera.fy, distortion); // the lens of the float camera
+          const seen = cast([1, -xd, -yd], ball);
+          metres[v * W + u] = seen > 0 ? seen : NaN;
+        }
+        Teleplot.parseDataText(`3D|depthdemo.ball:${ms}:P:${ball.center.join(":")}:SC:${2 * ball.radius}`);
+        Teleplot.parseDataText(`3D|depthdemo.mm:${ms}:${place}\nRAW|depthdemo.mm:${ms}:` + base64(Uint8Array.from([...header(P.RAW_FORMAT_GRAY16), ...new Uint8Array(mm.buffer)])));
+        // Float32 through the binary protocol, in two parts (a part holds at most 65535 bytes)
+        const bytes = Uint8Array.from([...header(P.RAW_FORMAT_FLOAT32), ...new Uint8Array(metres.buffer)]);
+        const half = Math.ceil(bytes.length / 2);
+        const packet = new Packet(CLIENT)
+          .section(P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS, 80, (p) => p.u16(W).u16(H).f32(camera.fx).f32(camera.fy).f32(camera.cx).f32(camera.cy))
+          .section(P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION, 80, (p) => distortion.forEach((v) => p.f32(v)))
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_POSITION, 80, (p) => pose.position.forEach((v) => p.f32(v)))
+          .section(P.SECTION_TYPE_TELEM_DATA_SHAPE_3D_QUATERNION, 80, (p) => pose.quaternion.forEach((v) => p.f32(v)));
+        for (let part = 0; part < 2; part++) {
+          const piece = bytes.subarray(part * half, (part + 1) * half);
+          packet.section(P.SECTION_TYPE_TELEM_DATA_IMAGE, 80, (p) => { p.u8(P.IMAGE_TYPE_RAW).u16(part).u16(2).u16(piece.length); p.bytes.push(...piece); });
+        }
+        packet.send();
+        const png = await png16(mm);
+        Teleplot.parseDataText(`3D|depthdemo.png:${ms}:${place}\nPNG|depthdemo.png:${ms}:${png}`);
+      };
+      shoot();
+      setInterval(shoot, 100);
+    });
+    demo("A depth map (gray16, text protocol)", "Colors from the 1st to the 99th percentile of each picture (no range given); the color scale is at the bottom. Hover the picture: the value of the pixel, in metres (number x scale), and where it is. Pixels without measure (0) would stay empty.", [420, 330], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["depthdemo.mm"]));
+    });
+    demo("16-bit PNG, a range, other colors", "depthdemo.png has a range (0 to 6 m): the colors stay put from one picture to the next. colormap viridis.", [420, 330], (id) => {
+      const view = new Teleplot.view.ViewImage(id, ["depthdemo.png"]);
+      view.setOption("colormap", "viridis");
+      Teleplot.view.addView(view);
+    });
+    demo("Float32 through the binary protocol, lens distortion", "NaN pixels are no measure. colormap gray, colors from what each picture holds (valueRange \"picture\").", [420, 330], (id) => {
+      const view = new Teleplot.view.ViewImage(id, [binId(80)]);
+      view.setOption("colormap", "gray");
+      view.setOption("valueRange", "picture");
+      Teleplot.view.addView(view);
+    });
+    demo("Shapes drawn over a depth map", "Its camera draws the ball over the depth map, like over any picture: the outline must fit the disc of the ball.", [420, 330], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.ball"]));
+    });
+    demo("Depth maps in a 3D scene", "Each pixel along its ray from its camera (with distortion: followed back through the lens). The two cameras see the same scene from two places: their points must lie on each other, and on the orange ball. depthPoints (250 000 by default) caps how many pixels are placed.", ["100%", 380], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(id, ["depthdemo.mm", binId(80), "depthdemo.ball"]));
+    });
+    demo("Seen from above", "A 2D view draws the points of the depth maps too.", [420, 330], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewScene2D(id, ["depthdemo.mm", "depthdemo.ball"]));
     });
 
     // ====================================================================================================================== Sources

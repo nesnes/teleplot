@@ -158,6 +158,8 @@ TELEPLOT.files.exportText = function(options = {}) {
         // Its range (an attribute: said once) and its thresholds
         let range = telem.getRange();
         if(range !== undefined) push("ATTR|" + name + (range.min !== undefined ? "|min=" + range.min : "") + (range.max !== undefined ? "|max=" + range.max : ""));
+        let pixels = telem.getAttribute(P.TELEM_ATTR_PIXELS);
+        if(pixels) push("ATTR|" + name + "|scale=" + pixels.scale + "|nodata=" + (Number.isFinite(pixels.invalid) ? pixels.invalid : "") + "|depth=" + (pixels.depth === false ? 0 : 1));
         let escape = (text) => String(text).replace(/[%:;|<>,]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
         write(P.SECTION_TYPE_TELEM_DATA_THRESHOLD, "TH|" + name + ":", "", (d, i, ms) => {
             let thresholdName = String(d[2][i]), color = String(d[3][i] || "");
@@ -190,7 +192,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         if(images !== undefined) {
             let [start, end] = _files_range(images, selection.from, selection.to);
             for(let i = start; i < end; i++) {
-                push((images.data[0][i] === P.IMAGE_TYPE_PNG ? "PNG|" : "JPG|") + key + ":" + _files_ms(images.timestamps[i]) + ":" + images.data[1][i] + flags(""));
+                push((images.data[0][i] === P.IMAGE_TYPE_PNG ? "PNG|" : images.data[0][i] === P.IMAGE_TYPE_RAW ? "RAW|" : "JPG|") + key + ":" + _files_ms(images.timestamps[i]) + ":" + images.data[1][i] + unitText + flags(""));
                 samples++;
             }
         }
@@ -301,10 +303,7 @@ function _files_encoders(P) {
 }
 
 function _files_fromBase64(text) {
-    let binary = atob(text);
-    let bytes = new Uint8Array(binary.length);
-    for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
+    return TELEPLOT.pictures.fromBase64(text);
 }
 
 /*
@@ -379,6 +378,8 @@ TELEPLOT.files.exportBinary = function(options = {}) {
         if(frame && typeof frame.name === "string" && frame.name !== "" && !_files_NUL.test(frame.name)) attributes.push(() => w.u8(P.TELEM_ATTR_FRAME).u8(frame.type === P.FRAME_TYPE_PIXELS ? P.FRAME_TYPE_PIXELS : P.FRAME_TYPE_POSE).str(frame.name));
         let range = telem.getRange();
         if(range !== undefined) attributes.push(() => w.u8(P.TELEM_ATTR_RANGE).f64(range.min === undefined ? NaN : range.min).f64(range.max === undefined ? NaN : range.max));
+        let pixels = telem.getAttribute(P.TELEM_ATTR_PIXELS);
+        if(pixels) attributes.push(() => w.u8(P.TELEM_ATTR_PIXELS).f64(pixels.scale).f64(Number.isFinite(pixels.invalid) ? pixels.invalid : NaN).u8(pixels.depth === false ? 1 : 0));
         if(attributes.length) {
             w.u8(P.SECTION_TYPE_TELEM_ATTR).u16(telemId).u8(attributes.length);
             attributes.forEach((write) => write());

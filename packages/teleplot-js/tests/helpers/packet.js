@@ -27,6 +27,7 @@ class PacketBuilder {
             if (code === P.AUTOPLOT || code === 7 || code === 10) this.u8(value ? 1 : 0); // (7: TELEM_ATTR_LOG, 10: TELEM_ATTR_STACK)
             else if (code === P.TIMEOUT) this.u64(value); // nanoseconds
             else if (code === 9) this.f64(value.min === undefined ? NaN : value.min).f64(value.max === undefined ? NaN : value.max); // (9: TELEM_ATTR_RANGE) {min, max}
+            else if (code === 16) this.f64(value.scale).f64(value.invalid === undefined ? NaN : value.invalid).u8(value.depth === false ? 1 : 0); // (16: TELEM_ATTR_PIXELS) {scale, invalid, depth}
             else if (code === 8) this.u8(value.type).str(value.name); // (8: TELEM_ATTR_FRAME) {type: 0 pose | 1 pixels, name}
             // (11: TELEM_ATTR_WRITE) {kind 0 none | 1 setting | 2 action, type (index in WRITE_TYPES), flags (1 confirm, 2 longpress), step, rate, hold, axes (bits x, y, yaw)}
             else if (code === 11) this.u8(value.kind).u8(value.type || 0).u8(value.flags || 0).f64(value.step === undefined ? NaN : value.step).u16(value.rate || 0).u16(value.hold || 0).u8(value.axes || 0);

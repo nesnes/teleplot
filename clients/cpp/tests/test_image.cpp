@@ -16,7 +16,7 @@ static void save(std::string const& path, const void* data, std::size_t size) { 
 
 // A test picture in a format: gradients, a checker, edges that are not a multiple of 8 or 16
 static std::vector<std::uint8_t> picture(Format format, int w, int h, std::size_t stride = 0) {
-    std::size_t bpp = format == Gray8 ? 1 : format == Gray16 ? 2 : format == RGB8 || format == BGR8 ? 3 : format == YUYV ? 2 : 4;
+    std::size_t bpp = format == Gray8 ? 1 : format == Gray16 ? 2 : format == RGB8 || format == BGR8 ? 3 : format == YUYV ? 2 : 4; // (Float32: not made here)
     std::size_t line = stride ? stride : w * bpp;
     std::vector<std::uint8_t> data(line * h, 0xEE);
     for (int y = 0; y < h; ++y) {
@@ -30,7 +30,7 @@ static std::vector<std::uint8_t> picture(Format format, int w, int h, std::size_
                 case BGR8: p[0] = b; p[1] = g; p[2] = r; break;
                 case RGBA8: p[0] = r; p[1] = g; p[2] = b; p[3] = static_cast<std::uint8_t>(x * 7); break;
                 case BGRA8: p[0] = b; p[1] = g; p[2] = r; p[3] = static_cast<std::uint8_t>(x * 7); break;
-                case YUYV: if (x % 2 == 0) { std::uint8_t* q = data.data() + y * line + x * 2; q[0] = static_cast<std::uint8_t>(16 + r * 219 / 255); q[1] = static_cast<std::uint8_t>(128 + (b - 128) / 2); q[2] = static_cast<std::uint8_t>(16 + g * 219 / 255); q[3] = static_cast<std::uint8_t>(128 + (r - 128) / 2); } break;
+                case YUYV: if (x % 2 == 0) { std::uint8_t* q = data.data() + y * line + x * 2; q[0] = static_cast<std::uint8_t>(16 + r * 219 / 255); q[1] = static_cast<std::uint8_t>(128 + (b - 128) / 2); q[2] = static_cast<std::uint8_t>(16 + g * 219 / 255); q[3] = static_cast<std::uint8_t>(128 + (r - 128) / 2); } break; case Float32: break;
             }
         }
     }
@@ -85,6 +85,13 @@ int main(int argc, char** argv) {
         std::uint8_t odd[6] = {};
         CHECK("YUYV with an odd width: refused", !encode(Pixels{ odd, 3, 1, YUYV }));
         CHECK("no pixels: refused", !encode(Pixels{}, Png{}));
+        float metres[4] = { 1, 2, 3, 4 };
+        CHECK("Float32 in PNG or JPEG: refused, with why", encode(Pixels{ metres, 2, 2, Float32 }, Png{}).error.find("Raw") != std::string::npos && encode(Pixels{ metres, 2, 2, Float32 }).error.find("Raw") != std::string::npos);
+        std::uint8_t gray[4] = {};
+        CHECK("Raw is for numbers: Gray8 refused", !encode(Pixels{ gray, 2, 2, Gray8 }, Raw{}));
+        Picture raw = encode(Pixels{ depth, 2, 2, Gray16 }, Raw{});
+        const std::uint8_t expected[8 + 8] = { 2, 0, 2, 0, 0, 0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0 };
+        CHECK("Raw: width, height, format, 3 bytes at 0, then the numbers little-endian", raw.type == Teleplot::Raw && raw.bytes.size() == 16 && std::memcmp(raw.bytes.data(), expected, 16) == 0);
     }
 
     // typeOf, load
@@ -152,6 +159,22 @@ int main(int argc, char** argv) {
             std::this_thread::sleep_for(std::chrono::milliseconds(i < 2 ? 20 : 0)); // (the first ones encoded, the next asked at once)
         }
         for (int i = 0; i < 400; ++i) { Stats s = stats(tp); if (s.encoded + s.replaced >= 5) { break; } std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
+    }
+
+    {   // Depth maps into a file, for image.test.js: Raw gray16 (rows with padding), the same in a 16-bit PNG, Raw float32 with NaN, and
+        // values that are not distances; Raw sent on the thread too
+        Teleplot tp(Teleplot::Options().file(out + "/depth.teleplot").flushInterval(std::chrono::milliseconds(0)));
+        std::vector<std::uint8_t> mm = picture(Gray16, 37, 23, 37 * 2 + 6);
+        Pixels depth{ mm.data(), 37, 23, Gray16, 37 * 2 + 6 };
+        tp.telemetry("depth.mm").unit("m").depthMap(0.001).image(encode(depth, Raw{}));
+        tp.telemetry("depth.png").unit("m").depthMap(0.001).image(encode(depth, Png{}));
+        std::vector<float> metres(19 * 7);
+        for (std::size_t i = 0; i < metres.size(); ++i) { metres[i] = i % 5 == 0 ? NAN : 0.25f * static_cast<float>(i); }
+        tp.telemetry("depth.m").unit("m").depthMap(1, NAN).image(encode(Pixels{ metres.data(), 19, 7, Float32 }, Raw{}));
+        tp.telemetry("thermal").unit("°C").pixelValues(0.01);
+        send(tp.telemetry("depth.sent"), Pixels{ metres.data(), 19, 7, Float32 }, Raw{});
+        for (int i = 0; i < 400; ++i) { Stats s = stats(tp); if (s.encoded >= 1) { break; } std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
+        CHECK("Raw on the thread", stats(tp).encoded == 1);
     }
 
     // Scheduling: a thread given BelowCaller gets one step under the caller

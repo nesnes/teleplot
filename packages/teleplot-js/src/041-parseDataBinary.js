@@ -341,6 +341,13 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_ARGS, args.filter((a) => a !== undefined).length ? args.filter((a) => a !== undefined) : undefined);
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_PIXELS: { // {SCALE[float64]} {INVALID[float64]: NaN = none} {FLAGS[8]: 1 = not a depth map}
+                let scale = view.getFloat64(offset, _parseDataBinary_LITTLE_ENDIAN), invalid = view.getFloat64(offset + 8, _parseDataBinary_LITTLE_ENDIAN);
+                let flags = view.getUint8(offset + 16);
+                offset += 17;
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_PIXELS, { scale: Number.isFinite(scale) && scale !== 0 ? scale : 1, invalid: Number.isFinite(invalid) ? invalid : null, depth: (flags & 1) === 0 });
+                break;
+            }
             case TELEPLOT.protocol.TELEM_ATTR_DESC:
             case TELEPLOT.protocol.TELEM_ATTR_TITLE: {
                 let [text, newOffset] = _parseDataBinary_readString(view, offset);
@@ -677,9 +684,7 @@ function _parseDataBinary_parseTELEM_DATA_POINT_CLOUD(view, offset, clientId) {
 const _parseDataBinary_cloudParts = {}; // telemetry id -> parts of the point cloud being received
 
 function _parseDataBinary_toBase64(bytes) {
-    let binary = "";
-    for(let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); // By chunks: arguments are limited
-    return btoa(binary);
+    return TELEPLOT.pictures.toBase64(bytes); // (native where the browser has it: a 600 KB depth map in a fraction of a millisecond)
 }
 
 function _parseDataBinary_parseTELEM_DATA_SHAPE_3D_POSITION(view, offset, clientId) {

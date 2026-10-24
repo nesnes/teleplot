@@ -46,6 +46,7 @@ for (const example of HELP_EXAMPLES) {
         assert.ok(telem, 'telemetry ' + e.name + ' exists');
         const S = T.view.ViewScene3D;
         if (e.range) { assert.deepEqual(telem.getRange(), { min: e.range[0], max: e.range[1] }); return; }
+        if (e.scale) { assert.equal(T.pictures.settings(telem).scale, e.scale); return; } // How the pixels of its pictures are read
         // Commands: what the page can change or call
         if (e.write) { assert.equal(T.commands.declaration(telem).type, e.write); if (e.view) assert.equal(T.view.suggestViewType(telem.id), e.view); return; }
         if (e.action) { assert.equal(T.commands.isAction(telem), true); return; }
@@ -77,7 +78,8 @@ for (const example of HELP_EXAMPLES) {
         }
         if (e.image) {
             const entry = telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE];
-            assert.deepEqual([entry.timestamps.length, entry.data[0][0], entry.data[1][0]], [1, e.image === 'jpg' ? P.IMAGE_TYPE_JPEG : P.IMAGE_TYPE_PNG, example.code.slice(example.code.indexOf(':') + 1)]);
+            assert.deepEqual([entry.timestamps.length, entry.data[0][0], entry.data[1][0]], [1, { jpg: P.IMAGE_TYPE_JPEG, raw: P.IMAGE_TYPE_RAW }[e.image] ?? P.IMAGE_TYPE_PNG, example.code.slice(example.code.indexOf(':') + 1)]);
+            if (e.image === 'raw') assert.equal(T.pictures.isValues(entry, 0), true, 'a picture of values');
             assert.equal(T.view.suggestViewType(telem.id), 'image');
             return;
         }
@@ -142,6 +144,7 @@ test('each tile shows what it says by itself, on a fresh page: it never needs wh
         frames: ['Live: 2d[field](robot,heading,bumper)'],
         cloud: ['Live: 2d[](lidar)'],
         picture: ['Live: image[](camera)'],
+        depth: ['Live: image[](depth,wall) 3d[scene](wall,depth)'],
         pixels: ['Live: image[](camera,found,found.name)'],
         camera: ['Live: image[](camera,marker) 3d[scene](marker,camera)'],
         onscene: ['Live: 2d[field](plan,snapshot)'],
@@ -204,7 +207,7 @@ test('each tile shows what it says by itself, on a fresh page: it never needs wh
 
 test('sending a line again shows a change: texts go through their cycle, numbers are nudged', () => {
     // (What does not change on purpose: descriptions said once, pictures, the steps of a stack, nothing, the lens of a camera)
-    const changing = HELP_EXAMPLES.filter(e => !/^(ATTR|TH|DASH|PNG|JPG)\|/.test(e.code) && !/^task:/.test(e.code) && !/:\|t$/.test(e.code) && !/:DC:/.test(e.code));
+    const changing = HELP_EXAMPLES.filter(e => !/^(ATTR|TH|DASH|PNG|JPG|RAW)\|/.test(e.code) && !/^task:/.test(e.code) && !/:\|t$/.test(e.code) && !/:DC:/.test(e.code));
     for (const example of changing) {
         const again = example.cycle ? example.cycle[0] : helpVary(templates.get(example.code) || example.code);
         assert.notEqual(helpFill(again, NOW), example.code, 'sent again, it changes: ' + example.code);
@@ -250,7 +253,7 @@ test('the Help is the reference of the text protocol: the fields of the tiles na
     assert.deepEqual(missing([...T.view.VIEW_TYPES, 'row', 'column', 'grid', 'stack', 'none']), [], 'types of DASH| lines');
     const layout = Object.keys(new T.view.ViewLayout('', 'g').layout).filter(k => !['type', 'selected', 'width', 'height'].includes(k));
     assert.deepEqual(missing([...layout, 'w', 'h', 'title', 'time', 'follow']), [], 'options of DASH| lines (those of each view are listed from the views themselves)');
-    assert.deepEqual(['3D|', '2D|', 'ATTR|', 'TH|', 'DASH|', 'ACK|', 'PNG|', 'JPG|', '>:', '!name#id'].filter(f => !text.includes(f)), [], 'kinds of lines');
+    assert.deepEqual(['3D|', '2D|', 'ATTR|', 'TH|', 'DASH|', 'ACK|', 'PNG|', 'JPG|', 'RAW|', '>:', '!name#id'].filter(f => !text.includes(f)), [], 'kinds of lines');
 });
 
 test('Send all gives what sending the messages one by one gives: the views do not depend on how fast lines come', () => {

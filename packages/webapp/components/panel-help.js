@@ -33,6 +33,8 @@ const HELP_PICTURE_JPG = "JPG|camera,scene:/9j/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISE
 const HELP_PICTURE_PARTS = (() => { const b64 = HELP_PICTURE.slice(HELP_PICTURE.indexOf(":") + 1), half = Math.ceil(b64.length / 2); return ["PNG|camera,scene:1/2:" + b64.slice(0, half), "PNG|camera,scene:2/2:" + b64.slice(half)]; })();
 // A picture that is shown in its own place on a map (see the tile "A picture in the scene")
 const HELP_SNAPSHOT = HELP_PICTURE.replace("PNG|camera,scene:", "PNG|snapshot,field:");
+// A depth map of 8 x 6 pixels in millimetres (gray16): a wall at 4 m, the ground coming closer, a box at 1.5 m; the top left pixel has no measure
+const HELP_DEPTH = "RAW|depth,scene:CAAGAAAAAAAAAKAPoA+gD6APoA+gD6APoA+gD6APoA+gD6APoA+gD6APoA+gD9wF3AXcBaAPoA+gD6APoA/cBdwF3AWgD6APKAooCigK3AXcBdwFKAooCtAH0AfQB9AH0AfQB9AH0Ac=";
 
 // Every result Teleplot gives, and the reference of the text protocol: the Help is also the documentation, so a tile says everything
 // about its kind of message. A sheet reads from the top: `format` (the general form of the messages), `fields` (every part of them:
@@ -402,6 +404,31 @@ const HELP_TILES = [
           "Parts can come in any order; the picture shows when all n are there, and a lost part only loses that picture.",
           "With a time, give every part of a picture the same one: a part with another time starts a new picture.",
       ] },
+    { id: "depth", family: "pictures", title: "A depth map", sub: "a distance per pixel", picture: "depth",
+      format: ["RAW|name[,label]:[time:]base64", "ATTR|name|scale=0.001|nodata=0|depth=1"],
+      fields: [
+          ["RAW|", "Plain pixels: width and height (2 bytes each), the format (1 byte: 0 gray16, 1 float32), 3 bytes at 0, then the numbers row after row, little-endian. All of it in base64."],
+          ["PNG|", "A 16-bit grayscale PNG works too (what OpenCV writes for a depth image): its numbers are read, not its 8-bit look."],
+          ["scale=", "What a number is worth: number x scale, in the unit of the telemetry (0.001 shows millimetres in metres). 1 by default."],
+          ["nodata=", "The number of a pixel without measure: 0 by default. nodata= (empty): every number is a measure. NaN never is one."],
+          ["depth=", "1 by default: distances along the axis of the camera, placed in 3D and 2D views when the picture has a camera (K). depth=0 for other values (a temperature...)."],
+          ["unit=", "The unit of the values, written after them."],
+          ["time:, i/n:, |np |clr", "As for a picture."],
+      ],
+      examples: [
+        { title: "How to read it", code: "ATTR|depth|scale=0.001|unit=m", note: "Its numbers are millimetres: shown in metres.", expect: { name: "depth", scale: 0.001 } },
+        { title: "A depth map", code: HELP_DEPTH, note: "8 x 6 pixels: a box 1.5 m away in front of a wall at 4 m; the top left pixel has no measure. Point at the picture: the value of a pixel.", expect: { name: "depth", image: "raw", label: "scene" } },
+        { title: "Its camera", code: "3D|depth:K:6:6:3.5:2.5:8:6:P:0:0:1", note: "1 m above the ground, looking along x. Send again: it moves.", expect: { name: "depth" } },
+        { title: "A wall to compare", code: "3D|wall,scene:S:cube:P:4.06:0:1.5:SC:0.1:6:2.6:C:gray:O:0.3", note: "A 3D view of scene shows the camera and each pixel where it was measured: the top rows lie on the face of this wall, 4 m away.", expect: { name: "wall", shape: "cube", label: "scene" } },
+      ], more: [
+        { title: "Every number a measure", code: "ATTR|depth|nodata=", note: "0 is a value too: the top left pixel shows.", expect: { name: "depth", scale: 1 } },
+        { title: "Not distances", code: "ATTR|thermal|scale=0.01|unit=°C|depth=0", note: "A thermal camera in hundredths of a degree: colored, never placed in 3D.", expect: { name: "thermal", scale: 0.01 } },
+      ],
+      notes: [
+          "The page decodes the numbers itself (a browser only gives 8 bits of a picture) and keeps what was received as it is.",
+          "Colors go from the 1st to the 99th percentile of each picture, or between min= and max= when the telemetry has both. Image view options: colormap, valueRange, displayColorScale.",
+          "In 3D and 2D views each pixel is placed along its ray (lens distortion followed back) at its distance along the axis of the camera. View option depthPoints caps how many.",
+      ] },
     { id: "pixels", family: "pictures", title: "Boxes on a picture", sub: "in its pixels", picture: "pixels",
       format: ["2D|name:…:FPX:picture"],
       fields: [
@@ -725,6 +752,15 @@ function helpPicture(kind, W = 240, H = 100) {
     }
     else if (kind == "frames") s = `<g transform="translate(${W * 0.45},${H * 0.55}) rotate(-15)"><rect x="-32" y="-15" width="64" height="30" rx="4" fill="var(--hp-1)" opacity="0.85"/>${[[-26, -21], [12, -21], [-26, 15], [12, 15]].map(([x, y]) => `<rect x="${x}" y="${y}" width="14" height="6" rx="2" fill="var(--hp-text)"/>`).join("")}<path d="M32 0 h24" stroke="var(--hp-4)" stroke-width="2"/><path d="M56 0 l-7 -4 v8z" fill="var(--hp-4)"/></g>` + t(6, H - 6, "wheels and arrow: in the frame of the body", 'font-size="9" fill="var(--hp-muted)"');
     else if (kind == "cloud") { for (let i = 0; i < 120; i++) { const a = i / 120 * Math.PI * 2, r = 22 + (i % 7) * 2 + Math.abs(Math.cos(a * 2)) * 12; s += `<circle cx="${(W / 2 + Math.cos(a) * r * 1.7).toFixed(1)}" cy="${(H / 2 + Math.sin(a) * r * 0.9).toFixed(1)}" r="1.3" fill="hsl(${i * 3} 70% 55%)"/>`; } s += `<circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--hp-text)"/>`; }
+    else if (kind == "depth") { // A depth map in colors: far at the top, the ground coming closer, a box, and its color scale
+        const turbo = ["#30123b", "#4686fb", "#1ae4b6", "#a2fc3c", "#fabb39", "#e4460a", "#7a0403"];
+        s = `<defs><linearGradient id="hp-depth" x1="0" y1="1" x2="0" y2="0">${turbo.map((c, i) => `<stop offset="${i / 6}" stop-color="${c}"/>`).join("")}</linearGradient>`
+            + `<linearGradient id="hp-depth-bar" x1="0" y1="0" x2="1" y2="0">${turbo.map((c, i) => `<stop offset="${i / 6}" stop-color="${c}"/>`).join("")}</linearGradient></defs>`
+            + `<rect width="${W}" height="${H}" fill="url(#hp-depth)"/><rect x="${W * 0.55}" y="${H * 0.3}" width="${W * 0.22}" height="${H * 0.45}" fill="#4686fb"/>`
+            + `<rect x="${W - 84}" y="${H - 16}" width="78" height="11" rx="5" fill="var(--hp-bg)"/><rect x="${W - 64}" y="${H - 13}" width="38" height="5" rx="2" fill="url(#hp-depth-bar)"/>`
+            + t(W - 80, H - 7.5, "0.5", 'font-size="7"') + t(W - 24, H - 7.5, "4 m", 'font-size="7"')
+            + `<rect x="${W * 0.2}" y="${H * 0.18}" width="54" height="13" rx="3" fill="var(--hp-bg)"/>` + t(W * 0.2 + 4, H * 0.18 + 9.5, "1.50 m (5, 3)", 'font-size="7.5"');
+    }
     else if (kind == "image" || kind == "pixels" || kind == "camera") {
         s = `<defs><linearGradient id="hp-sky-${kind}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fa3b3"/><stop offset="0.5" stop-color="#c9d1d8"/><stop offset="0.52" stop-color="#6d747b"/><stop offset="1" stop-color="#4c5156"/></linearGradient></defs>`
             + `<rect width="${W}" height="${H}" fill="url(#hp-sky-${kind})"/><path d="M${W * 0.44} ${H * 0.7} l${W * 0.05} -${H * 0.36} l${W * 0.05} ${H * 0.36} z" fill="#e67e22"/>`;
@@ -854,7 +890,7 @@ const HELP_PROPERTIES = (() => {
 // Keys of ATTR| lines
 const HELP_ATTRIBUTES = { min: "lowest", max: "highest", write: "writable", action: "action", title: "button text", confirm: "asks first", longpress: "hold to press",
     color: "color", arg: "argument", type: "type", optional: "optional", default: "default", step: "step", unit: "unit", choices: "choices", desc: "description",
-    rate: "per second", hold: "stops after (ms)", axes: "axes" };
+    rate: "per second", hold: "stops after (ms)", axes: "axes", scale: "value scale", nodata: "no measure", depth: "distances" };
 const HELP_FLAGS = { t: "state", log: "log", xy: "2D point", xyz: "3D point", pc: "point cloud", np: "not charted", clr: "clear first", stack: "stack" };
 
 // A message cut in named parts: [{text, kind, label}]. The kind gives the color: "name", "label" (of a view), "value", "time", "unit" or
@@ -940,7 +976,7 @@ function helpParts(message) {
         if (colon >= 0) { sep(":"); add(rest.slice(colon + 1), "value", "result"); }
         return parts;
     }
-    const prefix = /^(3D|2D|JPG|PNG)\|/.exec(rest);
+    const prefix = /^(3D|2D|JPG|PNG|RAW)\|/.exec(rest);
     if (prefix) {
         add(prefix[0], "flags", prefix[1] == "3D" ? "3D shape" : (prefix[1] == "2D" ? "2D shape" : prefix[1] + " image"));
         rest = rest.slice(prefix[0].length);
@@ -949,7 +985,7 @@ function helpParts(message) {
         if (colon < 0) return parts;
         sep(":");
         const body = rest.slice(colon + 1);
-        if (prefix[1] == "JPG" || prefix[1] == "PNG") { // [time:][i/n:]base64 (base64 has no colon)
+        if (prefix[1] == "JPG" || prefix[1] == "PNG" || prefix[1] == "RAW") { // [time:][i/n:]base64 (base64 has no colon)
             const fields = body.split(":");
             for (const field of fields.slice(0, -1)) {
                 if (isNumber(field)) add(field, "time", "time");
@@ -957,7 +993,7 @@ function helpParts(message) {
                 else add(field, "value", "");
                 sep(":");
             }
-            add(fields[fields.length - 1], "value", "picture in base64");
+            add(fields[fields.length - 1], "value", prefix[1] == "RAW" ? "pixels in base64" : "picture in base64");
             return parts;
         }
         const pieces = split(body, "|");
@@ -1120,6 +1156,11 @@ const HELP_PART_TIPS = {
     "call number": "#: the number of the call the page sent (!name#12).",
     result: "run (started), ok[:text] or err:why.",
     "PNG image": "PNG| (or JPG|) then the name, [time:], [part i/n:] and the picture.", "JPG image": "JPG| (or PNG|) then the name, [time:], [part i/n:] and the picture.",
+    "RAW image": "RAW| then the name, [time:], [part i/n:] and the pixels: plain numbers, a depth map for example.",
+    "pixels in base64": "Width and height (2 bytes each, little-endian), the format (0 gray16, 1 float32), 3 bytes at 0, then the numbers row after row, little-endian.",
+    "value scale": "scale=: what a number of a pixel is worth (number x scale), in the unit of the telemetry.",
+    "no measure": "nodata=: the number of a pixel without measure (0 by default); empty: every number is a measure.",
+    "distances": "depth=: 1 (default) the values are distances along the axis of the camera, placed in 3D views; 0 they are not.",
     "picture in base64": "The bytes of the .png or .jpg file, in base64. A big one is sent in parts: i/n before each.",
     part: "i/n: part i of n (from 1), each in its own message, in any order. The picture shows when all n are there.",
     "button text": "title=: the text of the button (default: the name).", "asks first": "confirm: the button asks before calling.", "hold to press": "longpress: the button must be held.",
@@ -1213,6 +1254,11 @@ function helpDescribe(TP, message, problems) {
             if (TP.commands.isContinuous(telem)) return { ok: true, text: "Received: " + name + " is driven continuously (" + declaration.type + "). Switch CMD on, and use its joystick view." };
             return { ok: true, text: "Received: " + name + " can be changed from the page (" + declaration.type + "). Switch CMD on (top menu), then change it where its value is displayed." + (telem.hasContent() ? "" : " Now send its value, for example " + name + ":1") };
         }
+        // How the pixels of its pictures are read
+        if (/\|(scale|nodata|depth)(=|\||$)/.test(message)) {
+            const how = TP.pictures.settings(telem);
+            return { ok: true, text: "Received: a pixel of " + name + " is its number x " + how.scale + (telem.getAttribute(TP.protocol.TELEM_ATTR_UNIT) ? " " + telem.getAttribute(TP.protocol.TELEM_ATTR_UNIT) : "") + "; " + (how.invalid === undefined ? "every number is a measure" : how.invalid + " is no measure") + "; " + (how.depth ? "distances, placed in 3D when it has a camera." : "not distances.") + (telem.hasContent() ? "" : " Now send its pictures (RAW| or a 16-bit PNG|).") };
+        }
         // Its unit, color, description (no range in the line)
         const words = { unit: "unit", color: "color", desc: "description", title: "title" };
         const keys = message.split("|").slice(2).map((f) => words[f.split("=")[0]]).filter(Boolean);
@@ -1233,13 +1279,13 @@ function helpDescribe(TP, message, problems) {
     }
     if (problems > 0 || !message.includes(":")) return { ok: false, text: "Teleplot did not understand this line. A message is name:value, for example temperature:25.3" };
     if (message.startsWith(">")) return { ok: true, text: "Received: a log line. Text telemetries are shown by a Log view." };
-    const prefix = /^(3D|2D|JPG|PNG)\|/.exec(message);
+    const prefix = /^(3D|2D|JPG|PNG|RAW)\|/.exec(message);
     const body = prefix ? message.slice(prefix[0].length) : message;
     const bar = body.lastIndexOf("|");
     const flags = bar >= 0 ? body.slice(bar + 1) : "";
     const name = body.slice(0, body.indexOf(":")).split(",")[0];
     const telem = TP.datastore.getTelemetry(name);
-    const part = prefix && (prefix[1] == "PNG" || prefix[1] == "JPG") ? /^[^:]*:(?:[0-9.]+:)?([0-9]+)\/([0-9]+):/.exec(body) : null;
+    const part = prefix && (prefix[1] == "PNG" || prefix[1] == "JPG" || prefix[1] == "RAW") ? /^[^:]*:(?:[0-9.]+:)?([0-9]+)\/([0-9]+):/.exec(body) : null;
     if (part && problems == 0) {
         // The part that completes a picture is in the latest picture of the telemetry
         const images = telem && telem.data[TP.protocol.SECTION_TYPE_TELEM_DATA_IMAGE], b64 = body.slice(body.lastIndexOf(":") + 1);
@@ -1255,7 +1301,7 @@ function helpDescribe(TP, message, problems) {
         const isCamera = telem.data[P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS] || telem.data[P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION];
         what = isCamera ? "the camera of the image" : (TP.view.ViewScene3D.isCloud(telem) ? "the pose of the sensor of the point cloud" : (TP.view.ViewScene3D.isPoint(telem) ? "the frame of the point" : (prefix[1] == "2D" ? "a 2D shape" : "a 3D shape")));
     }
-    else if (prefix) what = "an image";
+    else if (prefix) { const images = telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE]; what = images && TP.pictures.isValues(images, images.timestamps.length - 1) ? "a picture of values (a depth map)" : "an image"; }
     else if (flags.includes("pc")) { const cloud = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD]; what = "a point cloud of " + (cloud ? cloud.data[0][cloud.data[0].length - 1].length / 3 : 0) + " points"; }
     else if (flags.includes("xyz")) what = "a point in space";
     else if (flags.includes("xy")) what = "a position";

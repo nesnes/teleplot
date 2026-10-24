@@ -64,7 +64,8 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - `13` **TELEM_ATTR_ARGS** `{INDEX[8]} {TYPE[8]} {FLAGS[8]} {MIN[64]} {MAX[64]} {STEP[64]} {NAME} {UNIT} {DEFAULT} {CHOICES} {DESC}`: one argument of an action (an attribute per argument, in a section that may hold several). **TYPE** as above (`0` removes the argument at INDEX); **FLAGS** bit 0: optional; MIN, MAX, STEP float64 (NaN: none); strings null terminated, CHOICES separated by line feeds. `ATTR|name|arg=..|type=..|optional|default=..` in text.
         - `14` **TELEM_ATTR_DESC** (null terminated string): a short description, the tooltip of the name of the telemetry wherever it is shown (`desc=` in text).
         - `15` **TELEM_ATTR_TITLE** (null terminated string): the text of the button of an action (`title=` in text).
-        - Attributes `11` to `15` are newer than the others: a viewer that does not know them stops reading the packet there (sections have no length). Send them last in a packet, or in a packet of their own.
+        - `16` **TELEM_ATTR_PIXELS** `{SCALE[64]} {INVALID[64]} {FLAGS[8]}`: how the pixels of pictures of values (a 16-bit gray PNG, **IMAGE_TYPE** `2`: depth maps) are read, see `depth.md`. **SCALE** (float64): a pixel is worth its number x SCALE, in the unit of the telemetry (1 without the attribute; 0 is taken as 1). **INVALID** (float64): the number of a pixel without measure (0 without the attribute; NaN: every number is a measure). **FLAGS** bit 0: the values are **not** distances along the axis of the camera (a thermal camera...): never placed in 3D. `ATTR|name|scale=..|nodata=..|depth=0` in text.
+        - Attributes `11` to `16` are newer than the others: a viewer that does not know them stops reading the packet there (sections have no length). Send them last in a packet, or in a packet of their own.
         - `9` **TELEM_ATTR_RANGE** `{MIN[64] - MAX[64]}` (float64): the values a number telemetry is expected between. A side that is not a number (NaN) is open. It changes nothing to the data: views use it as an extent (the bar of a value, the scale of a chart). `ATTR|name|min=..|max=..` in the text protocol, see `time-views.md`.
         - `5` **TELEM_ATTR_SHAPE** `{TELEM_ATTR_SHAPE_TYPE[8] - TELEM_ATTR_SHAPE_DATA[x]}`:
           - `0` **TELEM_ATTR_SHAPE_TYPE_CUBE**: the 2D object is a square, and the 3D object is a cube. (no **TELEM_ATTR_SHAPE_DATA**)
@@ -113,7 +114,8 @@ Here is the list of the defined **SECTION_TYPE** and their specifications:
         - **TIMEDIFF**(uint32, nanoseconds): from the **TIME_REFERENCE**, the offset in nanoseconds at which this telemetry has been generated. `timestamp = TIME_REFERENCE + TIMEDIFF`
         - **IMAGE_TYPE**(uint8): the type of image shared (encoding):
           - `0` : JPEG
-          - `1` : PNG
+          - `1` : PNG (a 16-bit grayscale PNG is a picture of values: its numbers are read, see `depth.md`)
+          - `2` : RAW, plain numbers (a depth map): `{WIDTH[16]} {HEIGHT[16]} {FORMAT[8]} {3 bytes at 0}` then the numbers, row after row, little-endian. **FORMAT** `0` gray16 (uint16), `1` float32. Read with **TELEM_ATTR_PIXELS**. See `depth.md`.
         - **IMAGE_PART_INDEX**(uint16): as images can be too big for a single packet, this allows to split image into parts (smaller buffer, identified by an index, from 0 to **IMAGE_PART_COUNT** - 1). The parts of an image share the same timestamp; they can come in any order and in several packets. The image is stored once all its parts are received; parts of an image that never completes are dropped when the next image starts.
         - **IMAGE_PART_COUNT**(uint16): total number of **IMAGE_PART_INDEX** expected to complete this image.
         - **IMAGE_PART_SIZE**(uint16): size in byte of the **VALUE** buffer.
