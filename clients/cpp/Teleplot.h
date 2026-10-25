@@ -416,7 +416,7 @@ public:
         Self& nonBlocking(bool v = true) { tp_->setting_(index_, [v](Entry_& e) { e.nonBlocking.store(v ? 1 : 0); }); return self_(); }
         Self& oneThread(bool v = true) { tp_->setting_(index_, [v](Entry_& e) { e.oneThread = v; }); return self_(); }
     protected:
-        Describe(Teleplot* tp, std::uint32_t index) : tp_(tp), index_(index) {}
+        Describe(Teleplot* owner, std::uint32_t index) : tp_(owner), index_(index) {}
         Self& self_() { return static_cast<Self&>(*this); }
         Teleplot* tp_;
         std::uint32_t index_;
@@ -477,7 +477,7 @@ public:
     private:
         friend class Teleplot;
         friend class Telemetry;
-        Samples(Teleplot* tp, std::uint32_t index, std::optional<Time> t) : Describe<Samples>(tp, index), time_(t) {}
+        Samples(Teleplot* owner, std::uint32_t index, std::optional<Time> t) : Describe<Samples>(owner, index), time_(t) {}
         std::int64_t t_() { if (!time_) { time_ = Time{}; time_->ns = tp_->nowNs_(); } return time_->ns; }
         std::optional<Time> time_;
     };
@@ -500,7 +500,7 @@ public:
         Teleplot& teleplot() const { return *tp_; }
     private:
         friend class Teleplot;
-        Telemetry(Teleplot* tp, std::uint32_t index) : Describe<Telemetry>(tp, index) {}
+        Telemetry(Teleplot* owner, std::uint32_t index) : Describe<Telemetry>(owner, index) {}
     };
 
     // A setting the page may write: the variable is applied by poll() (clamped to the range, rounded to the step) and published
@@ -522,7 +522,7 @@ public:
         Param& onChange(std::function<Result(T const&)> fn) { std::lock_guard<Lock_> g(tp_->lock_); impl_->onChange = std::move(fn); return *this; }
     private:
         friend class Teleplot;
-        Param(Teleplot* tp, std::uint32_t index, std::shared_ptr<ParamImpl_<T>> impl) : tp_(tp), index_(index), impl_(std::move(impl)) {}
+        Param(Teleplot* owner, std::uint32_t index, std::shared_ptr<ParamImpl_<T>> impl) : tp_(owner), index_(index), impl_(std::move(impl)) {}
         template<class F> Param& set_(F f) { { std::lock_guard<Lock_> g(tp_->lock_); f(*impl_); } tp_->declareParam_(index_, *impl_); return *this; }
         Teleplot* tp_;
         std::uint32_t index_;
@@ -540,7 +540,7 @@ public:
         Action& arg(Arg a) { tp_->actionArg_(index_, impl_, std::move(a)); return *this; }
     private:
         friend class Teleplot;
-        Action(Teleplot* tp, std::uint32_t index, std::shared_ptr<ActionImpl_> impl) : tp_(tp), index_(index), impl_(std::move(impl)) {}
+        Action(Teleplot* owner, std::uint32_t index, std::shared_ptr<ActionImpl_> impl) : tp_(owner), index_(index), impl_(std::move(impl)) {}
         Action& flag_(std::uint8_t bit, bool v) { { std::lock_guard<Lock_> g(tp_->lock_); impl_->flags = static_cast<std::uint8_t>(v ? (impl_->flags | bit) : (impl_->flags & ~bit)); } tp_->declareAction_(index_, *impl_); return *this; }
         Teleplot* tp_;
         std::uint32_t index_;
@@ -550,7 +550,7 @@ public:
     // A level of a stack (what runs) while it lives: Teleplot::Stack level(tp, "robot.task", "plan");
     class Stack {
     public:
-        Stack(Teleplot& tp, std::string_view name, std::string_view level) : tp_(&tp) { index_ = tp.stackPush_(name, level, before_); }
+        Stack(Teleplot& owner, std::string_view name, std::string_view level) : tp_(&owner) { index_ = owner.stackPush_(name, level, before_); }
         ~Stack() { if (index_ != NONE_) { tp_->stackPop_(index_, before_); } }
         Stack(Stack const&) = delete;
         Stack& operator=(Stack const&) = delete;
@@ -935,7 +935,7 @@ private:
     struct ParamImpl_ : ParamBase_ {
         T* variable = nullptr;
         std::function<Result(T const&)> onChange;
-        void publish(Teleplot& tp) override { tp.update(name, *variable); }
+        void publish(Teleplot& owner) override { owner.update(name, *variable); }
         std::optional<std::string> write(Teleplot&, std::vector<double> const& n, std::string const& text) override {
             T value = *variable;
             if constexpr (std::is_same_v<T, bool>) { if (n.empty()) { return "a number"; } value = n[0] != 0; }

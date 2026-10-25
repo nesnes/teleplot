@@ -563,7 +563,7 @@ namespace TeleplotImage {
         // One per Teleplot (Teleplot::extension): a thread, a slot per telemetry
         class Encoder {
         public:
-            explicit Encoder(Teleplot& tp) : tp_(tp) {}
+            explicit Encoder(Teleplot& owner) : tp_(owner) {}
             ~Encoder() {
                 { std::lock_guard<std::mutex> l(mutex_); stop_ = true; }
                 wake_.notify_all();
@@ -673,7 +673,7 @@ namespace TeleplotImage {
     inline void send(Teleplot::Telemetry telemetry, Image&& image, Raw) { detail::send(telemetry, std::move(image), 2, 0, std::nullopt); }
 
     // What the encoding thread of a Teleplot did: encoded, replaced (a newer picture came before it started), failed, priority refused
-    inline Stats stats(Teleplot& tp) { return tp.extension<detail::Encoder>().stats(); }
+    inline Stats stats(Teleplot& owner) { return owner.extension<detail::Encoder>().stats(); }
 }
 
 #endif

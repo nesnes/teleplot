@@ -3,7 +3,11 @@
 #include <Teleplot.h>
 
 Teleplot tp(Serial);
+#ifdef __AVR__
+const int COUNT = 18;  // a point every 20 degrees: 16 bytes per point, and an Uno has 2 KB of RAM
+#else
 const int COUNT = 36;
+#endif
 Teleplot::Number3D scan[COUNT];
 float intensities[COUNT];
 

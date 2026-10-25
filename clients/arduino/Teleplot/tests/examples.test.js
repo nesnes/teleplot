@@ -32,8 +32,8 @@ test('details: 13_Picture is the PNG itself, 15_DepthMap its numbers, 20 keeps 2
     assert.deepEqual(Array.from(Buffer.from(camera, 'base64').subarray(0, 4)), [0x89, 0x50, 0x4E, 0x47]);
     const depth = read('15_DepthMap').U;
     const numbers = Buffer.from(depth.datastore.findByName('depth').data[depth.protocol.SECTION_TYPE_TELEM_DATA_IMAGE].data[1][0], 'base64');
-    assert.equal(numbers.length, 8 + 16 * 12 * 2);
-    assert.deepEqual([numbers.readUInt16LE(0), numbers.readUInt16LE(2), numbers[4]], [16, 12, 0]);
+    assert.equal(numbers.length, 8 + 8 * 8 * 2);
+    assert.deepEqual([numbers.readUInt16LE(0), numbers.readUInt16LE(2), numbers[4]], [8, 8, 0]);
     const timing = read('20_TimeAndRate').U;
     const fast = timing.datastore.findByName('fast').data[timing.protocol.SECTION_TYPE_TELEM_DATA_NUMBER].timestamps;
     const perSecond = fast.length / (fast[fast.length - 1] - fast[0]);
