@@ -309,7 +309,9 @@ C++ client.
   same telemetries as from the C++ client (binary) and the Arduino library (text) (`parity.test.js`).
 - [`tests/test_image.py`](../clients/python/tests/test_image.py): PNGs of the input pixels of the C++ image test, compared pixel by pixel with what the C++ test
   expects (BGR, YUYV included), a `Raw` picture byte for byte, `send()` on its thread (`image.test.js`).
-- Every example, run for about a second ([`tests/run_example.py`](../clients/python/tests/run_example.py)), what it sends read back (`examples.test.js`).
+- Every example, run for about a second ([`tests/run_example.py`](../clients/python/tests/run_example.py)), what it sends read back (`examples.test.js`). They are the
+  examples of every language (01 to 24, the same numbers and names: [clients/README.md](../clients/README.md#examples)), then its own from
+  30 (threads, an action that answers later, the text protocol, NumPy pixels: skipped when NumPy is missing).
 - CI: Python 3.9 with nothing else, the latest with NumPy and Pillow.
 
 ## Decisions

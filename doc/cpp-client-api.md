@@ -12,6 +12,9 @@ Tests: [`clients/cpp/test.sh`](../clients/cpp/test.sh) for the full header, [`cl
 calls built with both headers must give the page the same telemetries). What to know on a small board: the README of the Arduino
 library ([`clients/arduino/Teleplot/README.md`](../clients/arduino/Teleplot/README.md)).
 
+Examples: [`clients/cpp/examples/`](../clients/cpp/examples/) and the Arduino library's `examples/`, numbered as in every language (01 to 24 the
+same everywhere, 30 and up what only that client has: [clients/README.md](../clients/README.md#examples)).
+
 ## Choices behind it
 
 - **Chained calls, no options structs**: `tp.telemetry("battery").unit("V").range(10.5, 12.6)`. Designated initializers

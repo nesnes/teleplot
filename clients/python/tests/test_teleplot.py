@@ -312,5 +312,15 @@ else:
     png = TeleplotImage.encode(TeleplotImage.Pixels(view), TeleplotImage.Png())
     check("a part of an array (not contiguous) is encoded", bool(png))
 
+# ------------------------------------------------------------------------------------------------ pixel values
+sent = []
+tq = Teleplot(output=sent.append, flushInterval=0)
+tq.telemetry("depth").depthMap(0.001)
+tq.telemetry("heat").pixelValues(0.5, math.nan)
+tq.close()
+sent = b"".join(sent)
+check("binary: a depth map is flagged 0, other values 1 (as in C++)",
+      bytes([16]) + struct.pack("<ddB", 0.001, 0, 0) in sent and bytes([16]) + struct.pack("<ddB", 0.5, math.nan, 1) in sent)
+
 print("%d failed" % failures if failures else "python client ok")
 sys.exit(1 if failures else 0)

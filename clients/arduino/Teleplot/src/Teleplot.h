@@ -168,7 +168,7 @@ public:
     static Result error(const char* why) { return Result(1, why); }
 
     enum ShapeType : uint8_t { Cube = 0, Sphere = 1, Cylinder = 2, Rect = 3, Circle = 4, Line = 5, Polygon = 6, Arrow = 7, Text = 8, Stl = 10 };
-    enum ImageType : uint8_t { Jpeg = 0, Png = 1 };
+    enum ImageType : uint8_t { Jpeg = 0, Png = 1, Raw = 2 }; // Raw: plain numbers (a depth map: doc/depth.md)
     enum ThresholdSide : uint8_t { Below = 0, Above = 1 };
     enum Axis : uint8_t { X = 1, Y = 2, Yaw = 4 };
 
@@ -276,10 +276,14 @@ public:
         Self& nonBlocking(bool = true) { return self_(); } // (one thread: nothing to wait for)
         Self& oneThread(bool = true) { return self_(); }
         Self& timeout(Time) { return self_(); }             // (the text protocol has no data timeout)
+        // Pictures of numbers: a pixel is worth its number x scale (noData: what means none, NAN: none). A depth map is placed in 3D.
+        Self& depthMap(double scale, double noData = 0) { return pixels_(1, scale, noData); }
+        Self& pixelValues(double scale, double noData = 0) { return pixels_(2, scale, noData); }
     protected:
         Describe(Teleplot* tp, const char* name, int8_t index) : tp_(tp), name_(name), index_(index) {}
         Self& self_() { return static_cast<Self&>(*this); }
         Entry_* entry_() { return index_ >= 0 ? &tp_->entries_[index_] : 0; }
+        Self& pixels_(uint8_t kind, double scale, double noData) { if (Entry_* e = entry_()) { e->pixels = kind; e->pixelScale = static_cast<float>(scale); e->pixelNoData = static_cast<float>(noData); e->dirty = true; } return self_(); }
         Self& flag_(uint8_t bit, bool v) { if (Entry_* e = entry_()) { if (v) { e->flags |= bit; } else { e->flags &= static_cast<uint8_t>(~bit); } } return self_(); }
         friend class Teleplot;
         Teleplot* tp_;
@@ -561,6 +565,8 @@ private:
         const char* frame;
         const char* url;
         float min, max;
+        uint8_t pixels;         // 1: a depth map, 2: values (pictures of numbers)
+        float pixelScale, pixelNoData;
         uint32_t minGapUs, lastUs;
         uint8_t flags, shape;  // shape: its type, NO_SHAPE_ when not given
         bool dirty, sent;
@@ -914,7 +920,7 @@ private:
         Time t = s.t_();
         for (size_t i = 0; i < count; ++i) {
             lineStart_();
-            puts_(type == Png ? "PNG|" : "JPG|");
+            puts_(type == Png ? "PNG|" : type == Raw ? "RAW|" : "JPG|");
             puts_(s.name_);
             put_(':');
             time_(t);
@@ -939,7 +945,7 @@ private:
     // ------------------------------------------------------------------ Descriptions
     void describe_(Entry_& e) {
         e.dirty = false;
-        if (!e.unit && !e.desc && !e.color && !(e.flags & (HAS_MIN_ | HAS_MAX_))) { return; }
+        if (!e.unit && !e.desc && !e.color && !(e.flags & (HAS_MIN_ | HAS_MAX_)) && !e.pixels) { return; }
         lineStart_();
         puts_("ATTR|");
         puts_(e.name);
@@ -948,6 +954,11 @@ private:
         if (e.color) { puts_("|color="); escaped_(e.color, "%|,=:\n\r"); }
         if (e.flags & HAS_MIN_) { puts_("|min="); number_(e.min, true); }
         if (e.flags & HAS_MAX_) { puts_("|max="); number_(e.max, true); }
+        if (e.pixels) {
+            puts_("|scale="); number_(e.pixelScale, true);
+            puts_("|nodata="); if (!isnan(e.pixelNoData)) { number_(e.pixelNoData, true); }
+            puts_(e.pixels == 1 ? "|depth=1" : "|depth=0");
+        }
         lineEnd_();
     }
     // The stats as lines, when it is time (sendStats)

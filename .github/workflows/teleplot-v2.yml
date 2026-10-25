@@ -48,6 +48,11 @@ jobs:
           ./build/Release/teleplot_test_scenarios.exe build
           mkdir -p build/images
           ./build/Release/teleplot_test_image.exe build/images
+          mkdir -p build/examples
+          for example in examples/*.cpp; do
+            name=$(basename "$example" .cpp)
+            (cd build/examples && python ../../../tools/capture_udp.py 1.5 "$name" "../Release/example_$name.exe")
+          done
           TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js
 
   # The microcontroller library (clients/arduino/Teleplot): its tests on a computer (with the C++ client: one API), and its examples
@@ -61,7 +66,7 @@ jobs:
           node-version: 22
       - name: Test the microcontroller library
         run: sh clients/arduino/Teleplot/test.sh
-      - name: "Build the examples for an Uno (not the ESP32 ones: 09, 19) and an ESP32 (all)"
+      - name: "Build the examples for an Uno (not the ESP32 ones: 21, 30) and an ESP32 (all)"
         uses: arduino/compile-sketches@v1
         with:
           fqbn: arduino:avr:uno
@@ -73,22 +78,26 @@ jobs:
             - clients/arduino/Teleplot/examples/02_Describe
             - clients/arduino/Teleplot/examples/03_Together
             - clients/arduino/Teleplot/examples/04_Logs
-            - clients/arduino/Teleplot/examples/05_WhatRuns
-            - clients/arduino/Teleplot/examples/06_MovingShape
-            - clients/arduino/Teleplot/examples/07_Settings
-            - clients/arduino/Teleplot/examples/08_Buttons
-            - clients/arduino/Teleplot/examples/10_States
-            - clients/arduino/Teleplot/examples/11_MapPosition
-            - clients/arduino/Teleplot/examples/12_Scene3D
-            - clients/arduino/Teleplot/examples/13_Drawings
-            - clients/arduino/Teleplot/examples/14_Lidar
-            - clients/arduino/Teleplot/examples/15_Picture
-            - clients/arduino/Teleplot/examples/16_Joystick
-            - clients/arduino/Teleplot/examples/17_SettingRules
-            - clients/arduino/Teleplot/examples/18_TimeAndRate
-            - clients/arduino/Teleplot/examples/20_SDCard
-            - clients/arduino/Teleplot/examples/21_Dashboard
-            - clients/arduino/Teleplot/examples/22_SmallBoards
+            - clients/arduino/Teleplot/examples/05_States
+            - clients/arduino/Teleplot/examples/06_WhatRuns
+            - clients/arduino/Teleplot/examples/07_MapPosition
+            - clients/arduino/Teleplot/examples/08_MovingShape
+            - clients/arduino/Teleplot/examples/09_Drawings
+            - clients/arduino/Teleplot/examples/10_Scene3D
+            - clients/arduino/Teleplot/examples/11_Looks
+            - clients/arduino/Teleplot/examples/12_Lidar
+            - clients/arduino/Teleplot/examples/13_Picture
+            - clients/arduino/Teleplot/examples/14_Camera
+            - clients/arduino/Teleplot/examples/15_DepthMap
+            - clients/arduino/Teleplot/examples/16_Settings
+            - clients/arduino/Teleplot/examples/17_Buttons
+            - clients/arduino/Teleplot/examples/18_Joystick
+            - clients/arduino/Teleplot/examples/19_SettingRules
+            - clients/arduino/Teleplot/examples/20_TimeAndRate
+            - clients/arduino/Teleplot/examples/22_Recording
+            - clients/arduino/Teleplot/examples/23_Dashboard
+            - clients/arduino/Teleplot/examples/24_Stats
+            - clients/arduino/Teleplot/examples/31_SmallBoards
           cli-compile-flags: |
             - --warnings
             - all
@@ -129,6 +138,17 @@ jobs:
         run: python -m pip install ${{ matrix.extras }}
       - name: Test the Python client
         run: PYTHON=python sh clients/python/test.sh
+
+  # The Bash examples (clients/bash): each one run for a moment, what it sends read back by the library
+  bash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Test the Bash examples
+        run: sh clients/bash/test.sh
 
   build:
     runs-on: ubuntu-latest

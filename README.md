@@ -83,7 +83,7 @@ echo "myValue:1234" | nc -u -w0 127.0.0.1 47269
 ### Python
 
 [`clients/python/teleplot.py`](clients/python/teleplot.py) ([README](clients/python/README.md)): one file, the API of the C++ client
-(descriptions, shapes, pictures, settings and buttons...), 22 examples one step at a time:
+(descriptions, shapes, pictures, settings and buttons...), examples one step at a time:
 
 ```python
 from teleplot import Teleplot
@@ -152,7 +152,7 @@ The Sources panel shows what the port sends and lets you send text back to it ([
 
 The Arduino library [clients/arduino/Teleplot](clients/arduino/Teleplot/README.md) (copy the folder into your Arduino `libraries`
 folder) writes these lines for you, with the API of the C++ client: descriptions, logs, what runs, shapes, pictures, and settings and
-actions the page can use. It also works over UDP (ESP32 `WiFiUDP`) or into a file. Its 22 examples go one step at a time.
+actions the page can use. It also works over UDP (ESP32 `WiFiUDP`) or into a file. Its examples go one step at a time, the same in every language ([clients](clients/README.md#examples)).
 
 ```cpp
 #include <Teleplot.h>

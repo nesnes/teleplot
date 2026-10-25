@@ -715,7 +715,7 @@ class Teleplot:
         if code == A_CHOICES:
             return _cstr("\n".join(value)[:_MAX_ATTR_TEXT])
         if code == A_PIXELS:
-            return struct.pack("<ddB", value[0], value[1], 1 if value[2] else 0)
+            return struct.pack("<ddB", value[0], value[1], 0 if value[2] else 1)  # flags: 1 = not a depth map
         raise ValueError(code)
 
     def _build_packet(self):  # (lock held) the next packet: client name, dashboards, descriptions, samples. None: nothing

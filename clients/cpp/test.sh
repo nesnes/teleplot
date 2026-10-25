@@ -9,7 +9,6 @@ mkdir -p build
 $CXX $FLAGS tests/test_client.cpp -o build/test_client
 $CXX $FLAGS tests/scenarios.cpp -o build/scenarios
 $CXX $FLAGS -O2 tests/test_image.cpp -o build/test_image
-$CXX $FLAGS sample.cpp -o build/sample
 # at() in the middle of a chain must not compile, with a message that says why
 printf '#include "../Teleplot.h"\nint main() { Teleplot tp; tp.telemetry("a").position(1, 2).at(Teleplot::ms(1)); }\n' > build/misuse.cpp
 if $CXX $FLAGS build/misuse.cpp -o build/misuse 2> build/misuse.log; then echo "FAIL: at() in the middle of a chain compiled"; exit 1; fi
@@ -19,4 +18,11 @@ echo "ok   at() in the middle of a chain does not compile"
 ./build/scenarios build
 mkdir -p build/images
 ./build/test_image build/images
+# Every example, run for a moment, what it sends received by a stand-in for the server (port 47269: stop a running Teleplot server)
+mkdir -p build/examples
+for example in examples/*.cpp; do
+    name=$(basename "$example" .cpp)
+    $CXX $FLAGS "$example" -o "build/examples/$name"
+    (cd build/examples && python3 ../../../tools/capture_udp.py 1.5 "$name" "./$name")
+done
 TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js "$@"

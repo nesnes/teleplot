@@ -7,8 +7,9 @@ tp = Teleplot.instance()
 tp.telemetry("motor.left").unit("rpm").label("motors")
 tp.telemetry("motor.right").unit("rpm").label("motors")
 
+t = 0.0
 while True:
-    t = time.time()
     tp.update("motor.left", 100 + 20 * math.sin(t))
     tp.update("motor.right", 100 + 20 * math.cos(t))
+    t += 0.05
     time.sleep(0.05)

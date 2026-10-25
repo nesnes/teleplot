@@ -18,6 +18,12 @@ $CXX -std=c++17 -O2 -pthread ../cpp/tests/test_image.cpp -o build/test_image
 $PYTHON tests/parity.py build
 $PYTHON tests/test_image.py build/cpp-images build/images
 for example in examples/*.py; do
-    $PYTHON tests/run_example.py "$example" "build/examples/$(basename "$example" .py)" > /dev/null
+    name=$(basename "$example" .py)
+    rm -f "build/examples/$name.skip" "build/examples/$name.teleplot"
+    if [ "$name" = 33_numpy_pixels ] && ! $PYTHON -c "import numpy" 2> /dev/null; then
+        echo "NumPy is not installed" > "build/examples/$name.skip"
+        continue
+    fi
+    $PYTHON tests/run_example.py "$example" "build/examples/$name" > /dev/null
 done
 TELEPLOT_PYTHON_OUT="$PWD/build" TELEPLOT_CPP_IMAGES="$PWD/build/cpp-images" node tests/run.js "$@"

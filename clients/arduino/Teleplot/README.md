@@ -14,34 +14,41 @@ void setup() { Serial.begin(115200); }
 void loop() { tp.update("temperature", analogRead(A0) * 0.1); tp.poll(); delay(50); }
 ```
 
-In the page: Sources, "Add a source", Serial port. Or start the Teleplot server on a computer and send over UDP (`09_WiFiUDP`).
+In the page: Sources, "Add a source", Serial port. Or start the Teleplot server on a computer and send over UDP (`30_WiFiUDP`).
 
 ## Examples, one step at a time
+
+The same as in the other languages ([clients/README.md](../../README.md#examples)), then its own from 30. On an Uno: all but
+`21_Clock` and `30_WiFiUDP` (ESP32).
 
 | | |
 | --- | --- |
 | `01_FirstValue` | a value, charted as it comes |
-| `02_Describe` | a unit, a range (a gauge), a description, a limit |
+| `02_Describe` | a unit, a range (a gauge), a description, a limit; a value kept out of Live |
 | `03_Together` | values with the same label share a chart |
 | `04_Logs` | lines to read one after the other |
-| `05_WhatRuns` | what runs, function by function, on a timeline |
-| `06_MovingShape` | a shape described once, then moved |
-| `07_Settings` | a value the page can change |
-| `08_Buttons` | a button in the page, with an argument |
-| `09_WiFiUDP` | the same over WiFi (ESP32) |
-| `10_States` | a text whose latest value matters |
-| `11_MapPosition` | a position on a map, with more digits |
-| `12_Scene3D` | 3D shapes, one placed on the other |
-| `13_Drawings` | a path, an arrow, a text on a map |
-| `14_Lidar` | a point cloud |
-| `15_Picture` | a picture (PNG or JPEG bytes) |
-| `16_Joystick` | a joystick that stops by itself |
-| `17_SettingRules` | choices, and refusing a value |
-| `18_TimeAndRate` | the time a value was measured, fewer samples of a fast value |
-| `19_Dates` | real dates instead of the time since boot (ESP32) |
-| `20_SDCard` | recording to an SD card |
-| `21_Dashboard` | choosing where values go |
-| `22_SmallBoards` | memory on small boards, and the stats in the page |
+| `05_States` | a text whose latest value matters (a state) |
+| `06_WhatRuns` | what runs, function by function, on a timeline |
+| `07_MapPosition` | a position on a map, with more digits |
+| `08_MovingShape` | a shape described once, then moved |
+| `09_Drawings` | a line, a polygon, a circle, an arrow, a text on a map |
+| `10_Scene3D` | 3D shapes, one placed on the other, a quaternion, a point in space |
+| `11_Looks` | colors, opacity, an STL mesh, a picture on a shape |
+| `12_Lidar` | a point cloud, with intensities |
+| `13_Picture` | the bytes of a PNG or JPEG |
+| `14_Camera` | a camera: lens, pose, the scene over its picture, drawings in its pixels |
+| `15_DepthMap` | a depth map (raw 16-bit numbers), made up |
+| `16_Settings` | a value the page can change |
+| `17_Buttons` | a button in the page, with an argument and a confirmation |
+| `18_Joystick` | a joystick that stops by itself |
+| `19_SettingRules` | choices, refusing a value |
+| `20_TimeAndRate` | the time a value was measured, fewer samples of a fast value |
+| `21_Clock` | real dates from NTP (ESP32) |
+| `22_Recording` | recording to an SD card |
+| `23_Dashboard` | choosing where values go (a dashboard) |
+| `24_Stats` | how the client is doing, in the page |
+| `30_WiFiUDP` | the same over WiFi (ESP32) |
+| `31_SmallBoards` | memory on small boards (an Uno), what did not fit |
 
 ## What to know about this library
 
@@ -56,7 +63,7 @@ computers does not have:
 - **Functions, not lambdas that capture.** A handler (`action()`), a check (`onChange()`) or a clock (`clock()`) is a plain function,
   or a lambda without capture. They use global variables.
 - **Text settings are `char` arrays** (`char mode[12]`), not `String`.
-- **Tables have a fixed size**, set before `#include <Teleplot.h>` (`22_SmallBoards`). What does not fit is counted in
+- **Tables have a fixed size**, set before `#include <Teleplot.h>` (`31_SmallBoards`). What does not fit is counted in
   `stats().tooBig` and not kept (values are always sent):
 
   | | default | AVR (Uno, Mega...) |
@@ -80,7 +87,7 @@ computers does not have:
   later.
 - **Times count from the boot** (`micros()`, which the library keeps counting past its 71 minutes). The page dates them when they
   arrive (option "Times since boot" of the source, on by default). A file read later needs a clock that gives the date: `clock()`
-  (`19_Dates`). `at()` dates a sample when it was measured, on the same clock (`Teleplot::now()`, `18_TimeAndRate`).
+  (`21_Clock`). `at()` dates a sample when it was measured, on the same clock (`Teleplot::now()`, `20_TimeAndRate`).
 - **Numbers** are written with 9 significant digits (any `float` exactly), 15 with `precise()`. On AVR a `double` is a `float`: more
   digits cannot be measured there.
 - **Names** must not hold `:` `,` `|` `;` (they separate the parts of a line). Texts are kept on one line.
