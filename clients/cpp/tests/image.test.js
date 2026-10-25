@@ -90,7 +90,8 @@ test('the page stores what send() encoded on its thread: the latest picture alwa
     const cam = U.datastore.findByName('cam'), images = cam.data[U.protocol.SECTION_TYPE_TELEM_DATA_IMAGE];
     const frames = images.timestamps.map((t, i) => ({ t, value: decodePng(Buffer.from(images.data[1][i], 'base64')).pixels[0] }));
     assert.ok(frames.length >= 1 && frames.length <= 5);
-    assert.deepEqual(frames[frames.length - 1], { t: 1.004, value: 200 }, 'the last one asked');
+    const last = frames[frames.length - 1]; // (nanoseconds read back as seconds: within a nanosecond, as below)
+    assert.ok(last.value === 200 && Math.abs(last.t - 1.004) < 1e-9, `the last one asked: ${JSON.stringify(last)}`);
     for (const f of frames) assert.ok(Math.abs(f.t - (1 + f.value / 50 * 0.001)) < 1e-9, `picture ${f.value} dated when it was asked`);
     const encoded = U.datastore.findByName('teleplot.images.encoded');
     assert.ok(encoded && encoded.getAttribute(U.protocol.TELEM_ATTR_VIEW_LABEL) === 'teleplot images', 'sendStats(): the encoding thread sends its own');
