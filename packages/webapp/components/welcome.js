@@ -1,13 +1,13 @@
 /*
  * Welcome: what the main area shows until there is a dashboard to display (nothing received yet, nothing created).
- * Design: doc/landing-split-mockups.html, study 1 (and the studies before it: landing-mockups.html, landing-logo-*.html).
+ * See doc/webapp-layout.md "Welcome".
  * The logo heads the page, as it is (the file, never redrawn): its center point, the red ring where its blue traces meet, is at the
  * center of the page, and a line goes down from just under it between two columns. Send, under the blue part (the sources: from your
  * code with the line to send in the language chosen in the Help, a serial port, a file, the sample), and See, under the red part:
- * what can be seen, as the Help's gallery (doc/landing-views-mockups.html, variant A): its tiles and pictures (HELP_TILES, helpPicture),
+ * what can be seen, as the Help's gallery: its tiles and pictures (HELP_TILES, helpPicture),
  * each with a line that makes it, a click opens the Help on it. They are drawings, never data: "Waiting for data" stays written above. Each source has its icon; a help button next to
- * the languages opens the Help written for the chosen one (ctx.helpRequest). Code and serial cards draw the path of their data
- * (doc/landing-paths-mockups.html, variant "A, lighter"): places as icons (names in tooltips), words on the links, no "this page" at the
+ * the languages opens the Help written for the chosen one (ctx.helpRequest). Code and serial cards draw the path of their data:
+ * places as icons (names in tooltips), words on the links, no "this page" at the
  * end (every path ends here), muted until there is a state: dashed = nothing came yet, solid green = data passed, red = cut (only a
  * link the page can see: from the server to here). The path is the status: a sentence only when it is cut. On a narrow page (its own width: a dock may narrow it) the columns wrap, one
  * under the other, without the line. The first telemetry brings the Live dashboard, which takes the place of this page.

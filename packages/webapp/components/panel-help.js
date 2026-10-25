@@ -9,8 +9,7 @@
  * message that was sent has its numbers nudged (helpVary), so that sending it again shows a change. Tiles of the family "In the page"
  * are what is done with the mouse and the keyboard: no message, a button that opens the right place. "How Teleplot works"
  * (HELP_CONCEPTS) explains the ideas with schematics. A field at the bottom sends a message to the page itself, to try without a
- * device (helpDescribe says what was understood). Design studies: doc/help-gallery-mockups.html (idea 3 of
- * doc/help-panel-mockups-4.html), then doc/help-sheet-mockups.html (the message first).
+ * device (helpDescribe says what was understood). See doc/webapp-layout.md "Help panel".
  */
 
 // Families of tiles, in the order of the gallery

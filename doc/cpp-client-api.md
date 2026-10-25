@@ -2,15 +2,15 @@
 
 Two headers, **one API**: code written for one compiles with the other as long as it uses what both have (marked below).
 
-**Status (2026-10-24):** agreed with the user, both headers done: `clients/cpp/Teleplot.h` (tests `clients/cpp/test.sh`) and the
-Arduino library `clients/arduino/Teleplot` (header `src/Teleplot.h`, examples, tests `test.sh`: among them the same calls built with
-both headers give the page the same telemetries).
-
-- `clients/cpp/Teleplot.h`: computers (Linux, macOS, Windows), binary protocol over UDP, C++17.
-- `clients/arduino/Teleplot/src/Teleplot.h` (an Arduino library: `library.properties`, `examples/`): microcontrollers (AVR, ESP32,
+- [`clients/cpp/Teleplot.h`](../clients/cpp/Teleplot.h): computers (Linux, macOS, Windows), binary protocol over UDP, C++17.
+- [`clients/arduino/Teleplot/src/Teleplot.h`](../clients/arduino/Teleplot/src/Teleplot.h) (an Arduino library: `library.properties`, `examples/`): microcontrollers (AVR, ESP32,
   RP2040, STM32...), text protocol on any `Print` (Serial, a UDP socket, an SD file), C++11, no heap, no STL.
 
-Both declare a class named `Teleplot`. Study that led here: `cpp-client-study.md`.
+Both declare a class named `Teleplot`.
+
+Tests: [`clients/cpp/test.sh`](../clients/cpp/test.sh) for the full header, [`clients/arduino/Teleplot/test.sh`](../clients/arduino/Teleplot/test.sh) for the Arduino library (among them, the same
+calls built with both headers must give the page the same telemetries). What to know on a small board: the README of the Arduino
+library ([`clients/arduino/Teleplot/README.md`](../clients/arduino/Teleplot/README.md)).
 
 ## Choices behind it
 
@@ -240,7 +240,7 @@ void loop() {
 }
 ```
 
-What differs from the full header (it compiles the same code as long as it avoids these; explained for users in `clients/arduino/Teleplot/README.md`):
+What differs from the full header (it compiles the same code as long as it avoids these; explained for users in [`clients/arduino/Teleplot/README.md`](../clients/arduino/Teleplot/README.md)):
 
 | | Full header | Microcontroller header |
 | --- | --- | --- |
@@ -293,7 +293,7 @@ pixels, `pixelsOf()`), no undistortion (pictures are never modified). C++17, no 
 | Formats | `Gray8`, `Gray16` (machine byte order: a depth image), `Float32` (machine byte order: a depth map in metres, ROS 32FC1; `Raw` only), `RGB8`, `BGR8` (OpenCV), `RGBA8`, `BGRA8`, `YUYV` (webcams, BT.601) |
 | `encode(pixels[, Jpeg{quality}])` → `Picture` | JPEG baseline 4:2:0 (gray: one channel), quality 80 by default; alpha is dropped; `Gray16` is refused |
 | `encode(pixels, Png{})` → `Picture` | the pixels exactly; `Gray16` stays 16 bits, RGBA keeps its alpha; `Float32` is refused |
-| `encode(pixels, Raw{})` → `Picture` | `Gray16` or `Float32` as they are, little-endian, after a header of 8 bytes (`IMAGE_TYPE_RAW`, `doc/depth.md`): nothing to compute, 4/3 bigger in base64 than in bytes |
+| `encode(pixels, Raw{})` → `Picture` | `Gray16` or `Float32` as they are, little-endian, after a header of 8 bytes (`IMAGE_TYPE_RAW`, [`doc/depth.md`](depth.md)): nothing to compute, 4/3 bigger in base64 than in bytes |
 | `Picture{type, bytes, error}` | what `image(picture)` sends; empty bytes: it failed, `error` says why (nothing is sent) |
 | `load(path)` → `Picture` | a .jpg / .png file as it is (recognized by its first bytes, not by its name) |
 | `typeOf(bytes, size)` | `Jpeg`, `Png`, or nothing |
@@ -309,7 +309,7 @@ same telemetry only the latest waits (the others are counted as replaced); telem
 that thread's CPUs. With `TELEPLOT_SINGLE_THREAD`, `send()` encodes in the call.
 
 Measured (Apple M-series, -O2): 640 x 480 BGR8, JPEG q80 4 ms, PNG 14 ms. JPEGs are checked against libjpeg (same quality of
-pixels, same size within 10 %), PNGs decoded and compared pixel by pixel (`clients/cpp/tests/image.test.js`).
+pixels, same size within 10 %), PNGs decoded and compared pixel by pixel ([`clients/cpp/tests/image.test.js`](../clients/cpp/tests/image.test.js)).
 
 ## Threads of Teleplot
 
@@ -413,7 +413,7 @@ A source whose times are before 1973 (under 1e11 ms) is dated by the page from w
 | `update(name, value[, time])` | a sample: number, bool, text, `Number2D`, `Number3D` | ✓ |
 | `log([name,] text[, time])` | a log line (default name `log`) | ✓ |
 | `stack(name, path[, time])` | what runs | ✓ |
-| `dashboard(lines)` | dashboard lines (`DASH|Robot/Motion:chart:battery|w=2`, see `dashboard-text.md`) | ✓ |
+| `dashboard(lines)` | dashboard lines (`DASH|Robot/Motion:chart:battery|w=2`, see [`dashboard-text.md`](dashboard-text.md)) | ✓ |
 | `param(name, &variable)` → `Param` | a setting the page may write | ✓ |
 | `action(name, handler)` → `Action` | an action the page may call | ✓ |
 | `poll()` | read what came back, apply, answer, publish settings, send | ✓ |
@@ -437,7 +437,7 @@ A source whose times are before 1973 (under 1e11 ms) is dated by the page from w
 ### `Teleplot::Options` (full header)
 
 Outputs, as many as wanted: `udp(host, port)` (none given: `udp("127.0.0.1", 47269)`), `file(path)` (binary data file, see
-`files.md`), `output(function<void(const std::byte*, size_t)>)`. Then `name("")` (client name; empty: the name of the program), `clientId(0)` (0: from the name),
+[`files.md`](files.md)), `output(function<void(const std::byte*, size_t)>)`. Then `name("")` (client name; empty: the name of the program), `clientId(0)` (0: from the name),
 `flushInterval(ms 20)` (0: only on `flush()` / `poll()`), `sendFrom(Caller | Thread)`, `describeInterval(ms 5000)`,
 `publishInterval(ms 200)` (settings), `maxQueuedBytes(1 MB)` (beyond: the oldest samples go first, counted),
 `nonBlocking(false)` (the default of every telemetry), `threadPriority(...)` and `threadAffinity(...)` (see "Threads of Teleplot").
@@ -476,14 +476,7 @@ a text outside the choices is refused.
 `Number2D {x, y}`, `Number3D {x, y, z}`, `Pose2D {x, y, yaw}` (doubles; sent as float32 unless `precise()`), `Rgb {r, g, b}` (0 to 255), `Time`, `Result`, `Stats`, `Telemetry`
 (describe, samples, `at`), `Samples` (what a sample call and `at()` return: the same calls with the time of its chain, no `at`).
 
-## Dropped from the current header
-
-`TeleplotOptions` (→ `Options`), `TelemetryAttributes` and `update(name, v, t, attributes)` (→ `telemetry(name)...`),
-`ParamOptions` / `ActionOptions` / `ArgSpec` (→ chains), `ArgValue` / `Args` as a map (→ `Args` readers), `Image` struct with a raw
-pointer (→ `image(type, bytes, size)`, copied), the public `Telemetry` struct, `WriteType` (→ `Number`, `Bool`... shared by `Arg`),
-`ParamOptions::pose2d` (→ `Pose2D`).
-
-## Decided
+## Decisions
 
 - `tp.telemetry("x")` for the handle; `color()` as described in "Order of calls"; no client name = the name of the program;
   `flushInterval` 20 ms.
@@ -493,13 +486,17 @@ pointer (→ `image(type, bytes, size)`, copied), the public `Telemetry` struct,
 - Stacks: `Teleplot::Stack` levels; the main thread keeps the name, other threads get `.thread` added, `oneThread()` opts out.
 - Time: one chain, one time; `at()` only first in a chain (checked by the compiler), describing after a sample is allowed.
 - Several outputs (UDP, file, function; micro: several `Print`).
-- Microcontroller clock: `micros()` since boot, no protocol change; the page dates it on arrival (per-source option, on by default;
-  JS side done in its own task).
+- Microcontroller clock: `micros()` since boot, no protocol change; the page dates it on arrival (per-source option, on by default:
+  [`sources.md`](sources.md) "Times since boot").
 
-## Samples sent once (decided)
+## Samples sent once
 
 Descriptions are sent again every 5 s (`describeInterval`); so is the latest sample of what is usually sent once, when nothing newer of
 it was sent in that time: the shape sections (position, orientation, size, color, opacity, texture, vector, text, line width), camera
 intrinsics and distortion, each threshold (by name), the points of a line or polygon. It keeps its own time, so a page opened later
 draws the scene as it is, and a page that already has it keeps it once: `addData` drops a repeat of its latest sample (same time, same
 values). Streams (numbers, texts, pictures, clouds) are not sent again.
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

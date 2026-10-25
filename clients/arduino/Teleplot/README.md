@@ -2,7 +2,7 @@
 
 Send telemetry to [Teleplot](https://github.com/nesnes/teleplot) from a board (Arduino, ESP32, RP2040, STM32...), and let the page
 change settings and press buttons on it. It writes lines of the Teleplot text protocol on the serial port, over UDP, or into a file.
-The calls are the ones of the C++ client for computers (`clients/cpp/Teleplot.h`): the whole API is in `doc/cpp-client-api.md`.
+The calls are the ones of the C++ client for computers ([`clients/cpp/Teleplot.h`](../../cpp/Teleplot.h)): the whole API is in [`doc/cpp-client-api.md`](../../../doc/cpp-client-api.md).
 
 Install: copy this folder into the `libraries` folder of your Arduino sketchbook, then File > Examples > Teleplot.
 
@@ -94,5 +94,5 @@ computers does not have:
 
 ## Tests
 
-`./test.sh` (on a computer: a C++17 compiler and Node): the library alone, the same calls through both clients giving the page the
+[`./test.sh`](test.sh) (on a computer: a C++17 compiler and Node): the library alone, the same calls through both clients giving the page the
 same telemetries, and every example run for a few simulated seconds, its lines read by the library of the page.

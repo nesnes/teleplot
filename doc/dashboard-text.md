@@ -2,9 +2,9 @@
 
 A dashboard can be written as text: one line per view, addressed by its path in the dashboard. The same lines are
 
-- a **file**: the dashboard menu of the webapp exports a dashboard as a `.teleplot.txt` file (the extension of text files: lines of the text protocol, here `DASH|` lines only); such files are opened in the Export and import panel (from "Import…" in the dashboard menu, or dropped on the page), like data files, which can hold dashboards too (`files.md`),
+- a **file**: the dashboard menu of the webapp exports a dashboard as a `.teleplot.txt` file (the extension of text files: lines of the text protocol, here `DASH|` lines only); such files are opened in the Export and import panel (from "Import…" in the dashboard menu, or dropped on the page), like data files, which can hold dashboards too ([`files.md`](files.md)),
 - a **message** of the text protocol: a device describes the dashboard it wants, next to its telemetry,
-- the content of a **binary section** (`SECTION_TYPE_DASHBOARD`, see `binaryProtocol.md`).
+- the content of a **binary section** (`SECTION_TYPE_DASHBOARD`, see [`binaryProtocol.md`](binaryProtocol.md)).
 
 ```
 DASH|Robot:grid
@@ -31,7 +31,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 
 | Option | For | Value |
 |---|---|---|
-| `w`, `h` | everything | width and height (see the layouts in `dashboard-editing.md`: a column span in a grid, a share of the space in a row or column; a height step is 4 em) |
+| `w`, `h` | everything | width and height (see the layouts in [`dashboard-editing.md`](dashboard-editing.md): a column span in a grid, a share of the space in a row or column; a height step is 4 em) |
 | `title` | views | the text in the corner of the view, when it is not the name of the path (`title=` for none) |
 | `time` | everything | time group: `inherit` (default), `dashboard`, or the name of a group shared by the views that name it |
 | `follow` | views | labels the view follows, separated by commas: the telemetries with one of these labels join the view, those already received and those to come |
@@ -51,7 +51,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 
 ## A label that is a path
 
-The view label of a telemetry (`name,label:value`, see the README) can be a path: `dashboard/view`.
+The view label of a telemetry (`name,label:value`, see [`textProtocol.md`](textProtocol.md)) can be a path: `dashboard/view`.
 
 ```
 speed,Robot/Motion:12.5
@@ -65,7 +65,7 @@ The dashboard "Robot" and its views are created if needed, and the telemetry goe
 - telemetries of a path that are displayed the same way share one view, titled with the last name of the path (`speed` and `accel` share the chart "Motion");
 - the others get a view of their own kind next to it (`state` gets a values view, also titled "Motion"; its key is `Motion#values`);
 - as with any label, a camera joins the 3D scene of its path and shapes are drawn over the picture of the camera of their path;
-- longer paths nest the view in layouts (`side`), and a path that ends with `/` (`temp,Robot/:21`) only names the dashboard: the telemetry gets a view of its own (so does a path that ends on a layout: `temp,Robot/side:21`).
+- longer paths nest the view in layouts (`side`), and a path that ends with [`/`](./) (`temp,Robot/:21`) only names the dashboard: the telemetry gets a view of its own (so does a path that ends on a layout: `temp,Robot/side:21`).
 
 Like any label it only decides where a telemetry **first** goes, and telemetries with the `np` flag are left alone. Paths and lines work together, whichever comes first: `DASH|Robot/Motion:chart|w=4|h=3` sizes the chart that `speed,Robot/Motion:...` fills.
 
@@ -83,7 +83,7 @@ Not exported: the state of the page (which tab of a stack is open, zoom, hidden 
 
 ## Library
 
-`packages/teleplot-js/src/151-dashboardText.js`:
+[`packages/teleplot-js/src/151-dashboardText.js`](../packages/teleplot-js/src/151-dashboardText.js):
 
 | Function | |
 |---|---|
@@ -94,4 +94,8 @@ Not exported: the state of the page (which tab of a stack is open, zoom, hidden 
 | `TELEPLOT.dashboards.placeTelemetry(telem)` | puts a telemetry where its label path says (done by itself for new telemetries) |
 | `TELEPLOT.dashboards.parseLine(line)`, `getLabelPath(label)`, `textEncode(text)`, `textDecode(text)` | the pieces |
 
-Views keep the key a line gave them in `view.key`. Tests: `tests/dashboardText.test.js`; demo: "Dashboards as text" in `test.html`.
+Views keep the key a line gave them in `view.key`. Tests: [`tests/dashboardText.test.js`](../packages/teleplot-js/tests/dashboardText.test.js); demo: "Dashboards as text" in `test.html`.
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

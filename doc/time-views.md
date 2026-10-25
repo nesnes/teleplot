@@ -10,7 +10,7 @@ Four things that go together: they show what a telemetry *was* and what it *shou
 The rule of the project holds: **nothing is made up**. A band starts and ends at the timestamps of samples; a limit is a step from one
 sample to the next, never a slope; what is too short to be drawn is drawn as "several things here", never as one of them.
 
-Everything is in the library (`packages/teleplot-js`): the parsers (`040`, `041`), the datastore (`012`: `getThresholds`,
+Everything is in the library ([`packages/teleplot-js`](../packages/teleplot-js/)): the parsers (`040`, `041`), the datastore (`012`: `getThresholds`,
 `getThresholdStatus`, `getThresholdSteps`, `getRange`), the runs of a text (`107-textRuns.js`), the views (`110`, `111`,
 `116-viewTimeline.js`). `test.html` has a section for them; the robot sample of the webapp uses them all.
 
@@ -36,7 +36,7 @@ nav:Path clear|log                   a log line: an instant
 
 ### Stacks: `stack`
 
-A stack is a state whose text is **the path of what is running**, a `/` between levels: `loop/plan/search` says that `search` runs
+A stack is a state whose text is **the path of what is running**, a [`/`](./) between levels: `loop/plan/search` says that `search` runs
 in `plan`, which runs in `loop`. Send it each time something starts or ends; an empty text says nothing runs.
 
 ```
@@ -91,7 +91,7 @@ A threshold has **a name**, **an operator** (`<`: past the limit when the teleme
   past keeps the limit it had then.
 - A value that is not a number (nothing after the operator) **removes** the threshold from then on.
 - In the names, the characters `% : ; | < > ,` are written `%XX` (the hexadecimal code of the character).
-- In the binary protocol: the section `TELEM_DATA_THRESHOLD` (40), a sample per threshold (`binaryProtocol.md`). Both protocols give
+- In the binary protocol: the section `TELEM_DATA_THRESHOLD` (40), a sample per threshold ([`binaryProtocol.md`](binaryProtocol.md)). Both protocols give
   the same telemetry.
 - Thresholds are limits of the **numbers** of the telemetry they are sent to. A telemetry that only has thresholds (or attributes) has
   nothing to display yet: it is placed on a dashboard when its first value comes.
@@ -212,7 +212,7 @@ A chart needs at least one number: with texts only it says so.
   starts: a state keeps its last sample before the window (a log does not), and each threshold keeps its last sample. A threshold sent
   once when a device starts is never forgotten.
 - **Memory limit.** Thresholds are neither thinned nor forgotten when room is made: each sample is one limit, none stands for the others.
-- **Files** (`files.md`). The binary file holds everything. The text file writes `ATTR|` and `TH|` lines; a threshold whose name or
+- **Files** ([`files.md`](files.md)). The binary file holds everything. The text file writes `ATTR|` and `TH|` lines; a threshold whose name or
   color would not come back the same is skipped and counted. A CSV has no thresholds. An export of a period also writes, before its
   own samples, the thresholds in force when the period starts.
 
@@ -238,4 +238,8 @@ chart.overlay                                                 // {thresholds, ma
 ViewCurrentValue.gauge(telem, value, timestamp)               // {status: {name, color}, bar: {fill, min, max, ticks}}
 ```
 
-Performance figures are in `performance.md` ("States, marks and thresholds").
+Performance figures are in [`performance.md`](performance.md) ("States, marks and thresholds").
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

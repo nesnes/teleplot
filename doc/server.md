@@ -1,6 +1,6 @@
 # Server
 
-`packages/server/main.js` receives telemetry as UDP packets and relays it to the pages connected to it through a WebSocket. It also sends the commands of the pages back to the device that sent the telemetry (see `telecmd.md`), and serves the webapp. Browsers cannot receive UDP: this is what the server is for. A serial port needs no server (see `doc/sources.md`).
+[`packages/server/main.js`](../packages/server/main.js) receives telemetry as UDP packets and relays it to the pages connected to it through a WebSocket. It also sends the commands of the pages back to the device that sent the telemetry (see [`telecmd.md`](telecmd.md)), and serves the webapp. Browsers cannot receive UDP: this is what the server is for. A serial port needs no server (see [`doc/sources.md`](sources.md)).
 
 ```bash
 cd packages/server
@@ -18,7 +18,7 @@ Releases also have it as one executable per platform (`teleplot-<os>-<arch>`), w
 | `--host <address>` | every network interface | Address they listen on. `--host 127.0.0.1`: this machine only |
 | `--udp-port <port>` | 47269 | UDP port the telemetry is received on |
 | `--udp-host <address>` | every network interface | Address the telemetry is received on |
-| `--cmd-port <port>` | 47268 | UDP port the raw `{"cmd": text}` messages of the pages are forwarded to (commands of `telecmd.md` go back to their sender) |
+| `--cmd-port <port>` | 47268 | UDP port the raw `{"cmd": text}` messages of the pages are forwarded to (commands of [`telecmd.md`](telecmd.md) go back to their sender) |
 | `--cmd-host <address>` | 127.0.0.1 | Address they are forwarded to |
 | `--read-only` | | Refuse the commands of the pages: the devices are only watched. Pages are told (`hello`) |
 | `--allow-origin <origin>` | | Also accept the pages of this origin. Can be repeated, or a list separated by commas |
@@ -38,7 +38,7 @@ Releases also have it as one executable per platform (`teleplot-<os>-<arch>`), w
 node main.js --serve /maps=/home/me/maps --serve ./assets
 ```
 
-- `/url=folder`: the files of the folder are under that address (`http://127.0.0.1:8080/maps/field.png`). An address starts with `/`.
+- `/url=folder`: the files of the folder are under that address (`http://127.0.0.1:8080/maps/field.png`). An address starts with [`/`](./).
 - `folder` alone: its files are at the root, next to the webapp. When both have a file of the same name, the one of the webapp is served; folders are looked at in the order they are given.
 
 A folder that does not exist is said and skipped. The files are served to anyone who can reach the server, without a list of the folder. Being at the same address as the webapp, they need nothing more to be used as textures (a picture of another site needs that site to allow it).
@@ -71,11 +71,11 @@ Server to page:
 
   A sample without a timestamp is dated when the server received its packet. The page cannot use the clock of the server as it is (another machine, another clock): the library keeps the smallest `receive time - time` it saw, the message that travelled the fastest, as the difference between the two clocks (`ConnectionTeleplotServer.__serverClockOffset`). Samples are then as far apart as the packets were at the server, whatever each message took to come, and never in the future. What it cannot know is the shortest travel time itself: every sample is late by that much (under a millisecond on one machine).
 
-- **Binary packets**: one binary message per batch. A packet alone is sent as it is (it starts with `0x10`). Several are framed like a binary data file (`doc/files.md`): `FILE_MAGIC`, then each packet after its length (uint32, little-endian). The server reads nothing but the first byte of a packet: a version of the protocol it does not know is relayed all the same. Binary samples always carry their time, so the batch changes nothing to them.
+- **Binary packets**: one binary message per batch. A packet alone is sent as it is (it starts with `0x10`). Several are framed like a binary data file ([`doc/files.md`](files.md)): `FILE_MAGIC`, then each packet after its length (uint32, little-endian). The server reads nothing but the first byte of a packet: a version of the protocol it does not know is relayed all the same. Binary samples always carry their time, so the batch changes nothing to them.
 
 Page to server:
 
-- `{"write": "kp:0.42", "to": sender}` and `{"writeBinary": "<base64>", "to": sender}`: a command (`telecmd.md`), sent as a UDP packet
+- `{"write": "kp:0.42", "to": sender}` and `{"writeBinary": "<base64>", "to": sender}`: a command ([`telecmd.md`](telecmd.md)), sent as a UDP packet
   from the telemetry port to the address and port of that sender (an index the server gave, see below). Refused with `--read-only`;
   a sender the server does not know is reported and ignored.
 - `{"cmd": "text"}`: the text is sent as a UDP packet to `--cmd-host`:`--cmd-port`. Other fields are ignored. The commands Teleplot V1 pages send to their server (`listSerialPorts`, `connectSerialPort`, `disconnectSerialPort`, `sendToSerial`) are not forwarded; a message that is not JSON, or without a `cmd` text, is ignored and reported in the output of the server. A message of more than 64 kB closes the connection.
@@ -97,4 +97,8 @@ The server does not wait for a page. When more than `--max-buffer` is waiting to
 
 ## Tests
 
-`packages/server/test.sh` (needs `npm ci`): starts real servers on free ports and talks to them with UDP packets and WebSocket clients (`tests/server.test.js`). `main.js` exports `startServer(options)` (options named as in `DEFAULTS`, resolves with `{port, udpPort, www, served, close()}`), `parseArguments`, `parseServed`, `isOriginAllowed`.
+[`packages/server/test.sh`](../packages/server/test.sh) (needs `npm ci`): starts real servers on free ports and talks to them with UDP packets and WebSocket clients (`tests/server.test.js`). `main.js` exports `startServer(options)` (options named as in `DEFAULTS`, resolves with `{port, udpPort, www, served, close()}`), `parseArguments`, `parseServed`, `isOriginAllowed`.
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

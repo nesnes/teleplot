@@ -4,7 +4,7 @@
 
 uPlot needs all the series of a chart on a shared x axis, so `uPlot.join` merges them. This is costly (it is proportional to the total number of points) and had to run on every frame, which made multi-series charts collapse as soon as a few hundred thousand points were stored.
 
-A chart now only gives uPlot what a screen can show (`src/106-decimator.js`, used by `src/111-viewChart.js`):
+A chart now only gives uPlot what a screen can show ([`src/106-decimator.js`](../packages/teleplot-js/src/106-decimator.js), used by [`src/111-viewChart.js`](../packages/teleplot-js/src/111-viewChart.js)):
 
 - Time is cut in fixed-width buckets, and only the first, minimum, maximum and last samples of each bucket are kept (at most 4 per bucket, about 4 per pixel column). The drawn line is the same as with all the points.
 - When zoomed in far enough that there is at most one sample per bucket, all samples are displayed untouched.
@@ -19,7 +19,7 @@ The decimation is a chart option (on by default): `view.setOption("decimation", 
 ## Ingestion
 
 - **Datastore append fast path**: `Telemetry.addData` appends samples that arrive in order (the common case) directly. Only late samples pay for a binary search and an `splice` insertion (counted in `lateInsertions`). Samples sharing an identical timestamp are now kept in arrival order.
-- **Binary protocol parser** (`src/041-parseDataBinary.js`): no per-packet `console.log`, no BigInt (timestamps and the 64-bit time reference are computed from two 32-bit halves, with the precision of a double as before), strings decoded with a shared `TextDecoder`, no copy of `Uint8Array` inputs.
+- **Binary protocol parser** ([`src/041-parseDataBinary.js`](../packages/teleplot-js/src/041-parseDataBinary.js)): no per-packet `console.log`, no BigInt (timestamps and the 64-bit time reference are computed from two 32-bit halves, with the precision of a double as before), strings decoded with a shared `TextDecoder`, no copy of `Uint8Array` inputs.
 - `TELEM_ATTR_DATA_TIMEOUT` is sent in nanoseconds (uint64) and converted to seconds when parsed, like `Teleplot.state.dataTimeout`. It used to be kept as a BigInt, which made the data timeout code throw and block the views update on every update.
 - The update loop isolates its hooks: if one throws (error reported in the console), the others still run.
 - WebSocket binary messages are received as `ArrayBuffer` (`binaryType`), so they are handled synchronously and in order (`Blob` decoding is asynchronous and doesn't keep the packets order).
@@ -38,7 +38,7 @@ The binary protocol is little-endian: the C++ client doesn't swap bytes on littl
 
 ## Measuring
 
-`packages/teleplot-js/test-performance.html` streams synthetic telemetries (series count, rate, data timeout, out-of-order samples, number of charts and text or binary protocol, all configurable and kept in the URL) straight into the parsers, and reports frame rate, ingestion rate, input size, stored points, JS heap (Chrome only) and the time spent per update.
+[`packages/teleplot-js/test-performance.html`](../packages/teleplot-js/test-performance.html) streams synthetic telemetries (series count, rate, data timeout, out-of-order samples, number of charts and text or binary protocol, all configurable and kept in the URL) straight into the parsers, and reports frame rate, ingestion rate, input size, stored points, JS heap (Chrome only) and the time spent per update.
 
 Reference measurements (headless Chromium, 4 series with distinct timestamps, 15 s window):
 
@@ -136,7 +136,7 @@ Found and fixed while checking edge cases:
 
 ## Depth maps (measured on 2026-10-24)
 
-Chromium (the browser pane of the desktop app) on the Mac of the project, 640 x 480 pictures. Spec in `depth.md`.
+Chromium (the browser pane of the desktop app) on the Mac of the project, 640 x 480 pictures. Spec in [`depth.md`](depth.md).
 
 | What | Time |
 |---|---|
@@ -157,3 +157,7 @@ What these say:
 - **Nothing is decoded when it arrives**, only when a view shows it, and one picture at a time per telemetry: when pictures come faster than they are decoded, the latest one waits and the others are skipped (they are still stored). A plain buffer costs nothing to decode: prefer it on a local network, a PNG where bandwidth counts (a depth map compresses 2 to 10 times).
 - **The page of `test.html` delays everything asynchronous** (dozens of demos drawing 30 times per second): a PNG took 200 ms from the request to the numbers there, against 19 ms in the webapp. Measure in the webapp.
 - **Memory**: a stored picture is its base64 (4/3 of its bytes). 640 x 480 gray16 at 30 per second is 24 MB per second: the memory limit (`doc/performance.md` "Memory") thins them like any data. Decoded pictures are kept 4 per telemetry (1.2 MB each).
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

@@ -1,13 +1,15 @@
 # Sources
 
-Where the data comes from, and whether it is arriving. Connections are a library feature (`packages/teleplot-js`, `src/02x`); the Sources panel of the webapp (`packages/webapp/components/panel-sources.js`) displays them. The design study that led to the panel is in `doc/sources-panel-proposals.html` and `doc/sources-panel-mockups-2.html` (design A was built).
+Where the data comes from, and whether it is arriving. Connections are a library feature ([`packages/teleplot-js`](../packages/teleplot-js/), `src/02x`); the Sources panel of the webapp ([`packages/webapp/components/panel-sources.js`](../packages/webapp/components/panel-sources.js)) displays them.
 
 ## Kinds of sources
 
 | Source | How | Library |
 |---|---|---|
-| Teleplot server | UDP packets (port 47269) received by `packages/server` and relayed to the page through a WebSocket (see `doc/server.md`). Text and binary protocols. | `TELEPLOT.connection.addConnectionTeleplotServer(address, port)` |
+| Teleplot server | UDP packets (port 47269) received by [`packages/server`](../packages/server/) and relayed to the page through a WebSocket (see [`doc/server.md`](server.md)). Text and binary protocols. | `TELEPLOT.connection.addConnectionTeleplotServer(address, port)` |
 | Serial port | Opened by the browser itself with the Web Serial API: no server. Chrome, Edge and Opera on a computer. Text protocol. | `TELEPLOT.connection.requestSerialPort(baudRate)`, `addConnectionSerial(port, baudRate)` |
+| Local connection | A source that lives in the page: the robot sample, the pretend device of the Help panel, demos and tests. Text and binary. | `TELEPLOT.connection.addConnectionLocal(name, onWrite)` |
+| File | Not a connection: a data file is read once by the Export and import panel ([`files.md`](files.md)). | `TELEPLOT.files.importData(data)` |
 
 Every connection is in `TELEPLOT.connection.connections` and has `type`, `name`, `connected`, and:
 
@@ -15,11 +17,11 @@ Every connection is in `TELEPLOT.connection.connections` and has `type`, `name`,
 - the telemetries and clients it created know it: `telemetry.sourceId`, `client.sourceId` are the `id` of the connection that first sent them (`undefined` for what the application created itself). `TELEPLOT.datastore.withSource(id, fn)` is how a connection tells so while it parses.
 - `TELEPLOT.connection.removeConnection(connection)` closes it and forgets it; its telemetries stay.
 
-Text samples that have no timestamp are dated when the server received their packet (`doc/server.md` "Messages"), not when the page got the batch they came in.
+Text samples that have no timestamp are dated when the server received their packet ([`doc/server.md`](server.md) "Messages"), not when the page got the batch they came in.
 
 ## Times since boot
 
-A board has no date, only a clock that counts from its boot (`millis()`, `micros()`): the times it writes (`>speed:52341.207:0.5`) would read as the start of 1970. The protocol does not change; the page dates such times itself. The option is per device of a source and **on by default**: a serial port, each sender of a Teleplot server (the sender index the server gives), a local connection. Library: `connection.bootClock(endpoint)` (endpoint: the sender index, `undefined` for a serial port or a local connection) gives a `BootClock` (`src/020-connection.js`) with `enabled`, `setEnabled(on)`, `offReason`, `dated` (samples dated so far). The clock of the device whose message is being parsed is set by `Connection.receive`, and the text parser asks it for each time written in a line (`_parseDataText_time`: numbers, texts, logs, xy / xyz, thresholds, clouds, 2D / 3D lines, pictures).
+A board has no date, only a clock that counts from its boot (`millis()`, `micros()`): the times it writes (`>speed:52341.207:0.5`) would read as the start of 1970. The protocol does not change; the page dates such times itself. The option is per device of a source and **on by default**: a serial port, each sender of a Teleplot server (the sender index the server gives), a local connection. Library: `connection.bootClock(endpoint)` (endpoint: the sender index, `undefined` for a serial port or a local connection) gives a `BootClock` ([`src/020-connection.js`](../packages/teleplot-js/src/020-connection.js)) with `enabled`, `setEnabled(on)`, `offReason`, `dated` (samples dated so far). The clock of the device whose message is being parsed is set by `Connection.receive`, and the text parser asks it for each time written in a line (`_parseDataText_time`: numbers, texts, logs, xy / xyz, thresholds, clouds, 2D / 3D lines, pictures).
 
 - A time below 1e11 ms (March 1973) is dated: offset = the smallest "arrival - device time" seen for that device, let go up by 100 ppm for drift (`Connection.lowestOffset`, which also dates the packets of the server: `__serverClockOffset`); stored time = device time + offset. Arrival is when the line was read (serial), or when the server received its packet, on the clock of the page (server). Samples that arrive late (out of order between telemetries: a picture dated at its exposure; a burst after an outage) only give bigger differences, which the minimum ignores.
 - **Reboot**, never counted nor limited (debugging over serial resets a board many times a minute): a telemetry whose time goes back below its own previous time (any amount), or a time more than 10 s before the latest time of the device. The offset is measured again from that sample. (The first lines after a reset can be misdated when the board restarts with a telemetry whose new times are still above its old ones and within 10 s of the latest: the next telemetry that goes back corrects it.)
@@ -42,7 +44,7 @@ The parsers report what they could not read: `TELEPLOT.parseDataText()` returns 
 - **Lost port**: when the device is unplugged, `connected` goes false and `error` says why; the connection stays in the list and `connect()` opens it again once it is back. Reloading the page closes every port: the browser remembers the permission, not the open port.
 - While the display is paused, lines still show in the console but are not stored (like any incoming data).
 
-The older server-side serial input (`src/032-dataInputSerial.js`, commands sent to the server) is still in the library, but the V2 server does not implement it (it ignores those commands) and the webapp does not use it.
+The older server-side serial input ([`src/032-dataInputSerial.js`](../packages/teleplot-js/src/032-dataInputSerial.js), commands sent to the server) is still in the library, but the V2 server does not implement it (it ignores those commands) and the webapp does not use it.
 
 ## The Sources panel
 
@@ -53,10 +55,14 @@ The older server-side serial input (`src/032-dataInputSerial.js`, commands sent 
     - *Robot sample*: start and stop.
 - **Times since boot**: the switch says whether it is in use (how many samples were dated). When it turned itself off (several clocks), the card says why in red, even folded; the switch turns it on again.
 - **Add a source**: a Teleplot server (address and port), or a serial port (baud rate, then the browser's dialog; ports used before are offered directly). In a browser without Web Serial the serial tile explains it.
-- How long data is kept (`TP.state.dataTimeout`) and clearing the data (`TELEPLOT.datastore.clearData()`) are not in this panel: the retention setting will go in the pause / rate menu of the top bar (not done yet).
+- How long data is kept (`TP.state.dataTimeout`), the memory limit and clearing the data are not in this panel: they are in the data menu of the top bar ([`top-menu.md`](top-menu.md) "Data menu").
 
 Rates, ages and consoles are not reactive (they change on every message): the panel refreshes four times per second. The rate history is sampled once per second from the start of the application (`startSourcesMonitor`), so the panel has it even when opened later.
 
-Commands (`telecmd.md`): a card lists what each device of its source accepts, the last result of each, and the round trip of a setting (from sending to the device's echo). Connections can write back (`connection.write`, `canWrite`, `whyNotWritable`): the server connection through the server to the sender of the telemetry, a serial port as lines written to it, and `TELEPLOT.connection.addConnectionLocal(name, onWrite)`, a source that lives in the page (the robot sample, demos, tests: `sendText` / `sendBinary` feed the parsers as a device would, `onWrite` gets what the page writes).
+Commands ([`telecmd.md`](telecmd.md)): a card lists what each device of its source accepts, the last result of each, and the round trip of a setting (from sending to the device's echo). Connections can write back (`connection.write`, `canWrite`, `whyNotWritable`): the server connection through the server to the sender of the telemetry, a serial port as lines written to it, and `TELEPLOT.connection.addConnectionLocal(name, onWrite)`, a source that lives in the page (the robot sample, demos, tests: `sendText` / `sendBinary` feed the parsers as a device would, `onWrite` gets what the page writes).
 
-Not there yet: an automated test of the panel itself (the library side is covered by `tests/connection.test.js`, `tests/connectionSerial.test.js` and `tests/bootClock.test.js`, with a fake serial port).
+Not there yet: an automated test of the panel itself (the library side is covered by [`tests/connection.test.js`](../packages/teleplot-js/tests/connection.test.js), [`tests/connectionSerial.test.js`](../packages/teleplot-js/tests/connectionSerial.test.js) and [`tests/bootClock.test.js`](../packages/teleplot-js/tests/bootClock.test.js), with a fake serial port).
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

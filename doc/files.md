@@ -11,7 +11,7 @@ What Teleplot holds (the samples of the telemetries, and the dashboards) can be 
 | Made by a device | log the lines it sends to an SD card | write a header, then each packet after its length |
 | Readable | yes | no |
 
-Both can hold dashboards (`DASH|` lines, see `dashboard-text.md`): a file can be a whole session.
+Both can hold dashboards (`DASH|` lines, see [`dashboard-text.md`](dashboard-text.md)): a file can be a whole session.
 
 A third format, **CSV** (`.teleplot.csv`), is for spreadsheets and scripts: it holds less (see below).
 
@@ -27,8 +27,8 @@ state:1627551892437:forward|t
 3D|box:1627551892437:P:1:0:0.5
 ```
 
-- Every line is a line of the text protocol (see the README): numbers, positions, text, logs, point clouds, images, 3D shapes and cameras, ranges (`ATTR|`) and thresholds (`TH|`), dashboards.
-- **Give each line its time** (milliseconds since 1970, or since the start of the device: a file is never dated by the page as live times since boot are, see `doc/sources.md`, so such times are shown at the start of 1970). A line without a time is dated when it is read, like any line received: all of them would get the time of the import.
+- Every line is a line of the text protocol (see [`textProtocol.md`](textProtocol.md)): numbers, positions, text, logs, point clouds, images, 3D shapes and cameras, ranges (`ATTR|`) and thresholds (`TH|`), dashboards.
+- **Give each line its time** (milliseconds since 1970, or since the start of the device: a file is never dated by the page as live times since boot are, see [`doc/sources.md`](sources.md), so such times are shown at the start of 1970). A line without a time is dated when it is read, like any line received: all of them would get the time of the import.
 - A file that was logged from a serial port (telemetry lines start with `>`, the others are logs) is read with the `serial` option.
 - Empty lines are skipped; lines that are not understood are counted and reported.
 
@@ -44,7 +44,7 @@ What a text file written by Teleplot does not hold, because the text protocol ha
 
 - **MAGIC**: `54 50 4C 54 0A 01 00 00` ("TPLT", a line feed, the file version 1, two reserved bytes).
 - **LENGTH** (uint32, little-endian): the size of the packet that follows.
-- **PACKET**: a packet of the binary protocol, as sent on the network (`binaryProtocol.md`), checksum included.
+- **PACKET**: a packet of the binary protocol, as sent on the network ([`binaryProtocol.md`](binaryProtocol.md)), checksum included.
 
 A device writes the 8 bytes once, then each packet it sends after its length.
 
@@ -52,7 +52,7 @@ What Teleplot writes gives back exactly what was stored:
 
 - values that a float32 (or the integers of some sections) would round are written in `TELEM_DATA_FLOAT64` sections; the others in the section of their data type;
 - timestamps are written so that they are read back to the same value;
-- telemetries that came from the binary protocol keep their client and their id; telemetries that are identified by their name (text protocol) are written under the client id `0xFFFF`, which means just that (see `binaryProtocol.md`);
+- telemetries that came from the binary protocol keep their client and their id; telemetries that are identified by their name (text protocol) are written under the client id `0xFFFF`, which means just that (see [`binaryProtocol.md`](binaryProtocol.md));
 - attributes (name, unit, color, autoplot, data window, shape, view label, log, frame, range) and client names are written before the data;
 - dashboards are written first, in `DASHBOARD` sections.
 
@@ -91,7 +91,7 @@ Opening a CSV: the first line names the columns. One column is the time (the one
 
 ## Library
 
-`packages/teleplot-js/src/160-files.js`:
+[`packages/teleplot-js/src/160-files.js`](../packages/teleplot-js/src/160-files.js):
 
 | Function | |
 |---|---|
@@ -117,10 +117,14 @@ Measured on a million numbers (4 telemetries, Node): binary 10 MB, written in 45
 
 ## In the webapp
 
-The **Export and import** panel (top menu, shortcut X; it opens on the right, in place of Help; `packages/webapp/components/panel-export.js`) has two sections that cannot be mistaken for one another, then the files of the session.
+The **Export and import** panel (top menu, shortcut X; it opens on the right, in place of Help; [`packages/webapp/components/panel-export.js`](../packages/webapp/components/panel-export.js)) has two sections that cannot be mistaken for one another, then the files of the session.
 
 - **Export**: three questions with their defaults selected, so one click saves everything. *What*: everything, what the displayed dashboard shows, or "Choose…" (the telemetries by label, with what each weighs). *When*: all, what the dashboard is zoomed on, or the last minute. *Format*: binary, text or CSV. CSV unfolds its settings (layout, separator, time) and the first lines of the file as a table, empty cells hatched. Under them, before anything is written: how many samples, the period, about how big, the name of the file, and what the format leaves out.
 - **Import**: a file that is chosen (here, or with "Import…" in the dashboard list), or dropped anywhere on the page, is first read without being stored. The panel then shows its receipt: format, period, how many samples in how many telemetries (new, or already here), the dashboards and the names they get, what was not understood, and that the data window will be made longer when the file needs it. When a file holds both data and dashboards, two checkboxes choose what to take from it (its data, its dashboards, or both). Other options appear when they mean something: "logged from a serial port" for a text file; separator, time column and unit, and a prefix for the names for a CSV; "clear the current data first". Then Open, or Cancel; meanwhile the Export section is folded to its header, so the receipt has the room. Large files show their progress and can be cancelled.
 - **Files of this session**: what was opened and saved. An opened file can zoom the dashboard on its period (a file from yesterday is far from the live data), open its dashboards, and be taken back ("Remove its data", confirmed in place). A saved file can be saved again with the same choices.
 
-Tests: `tests/files.test.js` (both formats are read back and compared with what was stored); demos: "Data files" in `test.html`.
+Tests: [`tests/files.test.js`](../packages/teleplot-js/tests/files.test.js) (both formats are read back and compared with what was stored); demos: "Data files" in `test.html`.
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

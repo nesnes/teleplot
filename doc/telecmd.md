@@ -1,8 +1,7 @@
 # Commands: writable telemetries (telecmd)
 
-**Status: implemented (2026-10-19).** This page is the spec, and how it was built ("Implementation"). Reference design:
-`telecmd-reference.html` (one design per element, with what the device sends for each screen). The design studies that led to it:
-`telecmd-mockups.html` (round 1) and `telecmd-mockups-2.html` (round 2).
+This page is the spec of commands, and where they are built ("Implementation"). The client libraries that speak it: Python
+([`clients/python/teleplot.py`](../clients/python/teleplot.py)), C++ and Arduino ([`cpp-client-api.md`](cpp-client-api.md) "5. Settings and actions").
 
 Teleplot shows what a device sends. Telecmd is the other direction: the page changes something on the device (a gain, a mode, a
 pose) or asks it to do something (reset, go to). It replaces the "telecmd" of V1 (`clients/cpp/Telecmd.h`: `|name|params|` over
@@ -173,7 +172,7 @@ the sender address for text), in the protocol that device speaks.
 | UDP, through the server | Sent back to the address and port the device's packets came from. |
 | Imported file | None: telemetries of a file are not writable. |
 
-- **Server** (`server.md`). It learns the address of each sender: text packets become `[time, text, sender]` (`sender` an index,
+- **Server** ([`server.md`](server.md)). It learns the address of each sender: text packets become `[time, text, sender]` (`sender` an index,
   its address in `senders`, given once), and the text message before a binary one lists the senders of its packets (`binary`). A
   page is greeted with `{"hello": {readOnly, senders}}`: an older server never says hello, and the page knows it cannot send
   commands through it. The page writes with `{"write": "kp:0.42", "to": sender}` or `{"writeBinary": base64, "to": sender}`.
@@ -255,7 +254,8 @@ the telemetry.
   view of the telemetry, editable in place when CMD is on): no special drag, since in-place editors need no special view.
 - **Sources**: a "Commands" section per device (its settings and actions, the last result, the round trip from sending to the
   echo); the console shows what the page sent.
-- **Help**: a step "Settings and actions" (`ATTR|…|write`, then an action with an argument).
+- **Help**: the tiles "Settings", "Buttons", "A joystick" and "A pose on the map", sent by a pretend device of the page that applies
+  settings and answers calls, so they can be tried for real ([`webapp-layout.md`](webapp-layout.md) "Help panel").
 
 ### Not now
 
@@ -274,7 +274,7 @@ Built in five steps, each tested before the next (plan of 2026-10-19). Where thi
 - **Path back**: telemetries remember the sender they came from (`telemetry.endpoint`, set through `datastore.withSource(source, fn,
   endpoint)` / `connection.receive(fn, bytes, endpoint)`); connections have `canWrite()`, `whyNotWritable()`, `write({telemetry,
   text, bytes})` (`020`; server `021`, serial `022`); `023-connectionLocal.js`: `TELEPLOT.connection.addConnectionLocal(name,
-  onWrite)` for sources of the page (`sendText`, `sendBinary`). The server: `packages/server/main.js` (senders, hello, `write` /
+  onWrite)` for sources of the page (`sendText`, `sendBinary`). The server: [`packages/server/main.js`](../packages/server/main.js) (senders, hello, `write` /
   `writeBinary`, `--read-only`).
 - **`025-commands.js`** (`TELEPLOT.commands`): `declaration(telem)`, `isWritable`, `isAction`, `isContinuous`, `args`, `whyNot`,
   `canWrite`, `setEnabled` (the state is `TELEPLOT.state.commands`), `summary()`, `deviceName`; settings: `write(telem, value)`
@@ -290,16 +290,16 @@ Built in five steps, each tested before the next (plan of 2026-10-19). Where thi
   `suggestViewType`: actions and settings "values", continuous ones "joystick", pose2d / xy settings "2d"; the auto dashboard puts
   settings and actions without label in one values view titled "Commands". A telemetry that only declares something is announced
   (`hasContent`) and is not "empty" for views.
-- **Webapp**: CMD button (`top-menu.js`), pens (`panel-telemetries.js`), commands of each source (`panel-sources.js`), Help step
+- **Webapp**: CMD button (`top-menu.js`), pens (`panel-telemetries.js`), commands of each source (`panel-sources.js`), Help tiles
   (`panel-help.js`), joystick in the editor menus, the robot sample (`sample-robot.js`: a local connection that declares its
   commands, reads them like a device and answers).
-- **Tests**: `packages/teleplot-js/tests/commands.test.js` (parsing, settings, actions, binary, continuous, server and serial
-  connections, views), `parseDataText.test.js`, `dashboards.test.js`; `packages/server/tests/server.test.js` (senders, writes back,
-  read-only); `packages/webapp/tests/help.test.js`; `clients/python/test_teleplot.py`; `clients/cpp/tests/test_client.cpp`.
+- **Tests**: [`packages/teleplot-js/tests/commands.test.js`](../packages/teleplot-js/tests/commands.test.js) (parsing, settings, actions, binary, continuous, server and serial
+  connections, views), `parseDataText.test.js`, `dashboards.test.js`; [`packages/server/tests/server.test.js`](../packages/server/tests/server.test.js) (senders, writes back,
+  read-only); [`packages/webapp/tests/help.test.js`](../packages/webapp/tests/help.test.js); [`clients/python/test_teleplot.py`](../clients/python/test_teleplot.py); [`clients/cpp/tests/test_client.cpp`](../clients/cpp/tests/test_client.cpp).
   `test.html` has a section "Commands".
-- **Clients**: Python `clients/python/teleplot.py` (text protocol: `param`, `action`, `Arg`, `poll`), C++ `clients/cpp/Teleplot.h`
-  (binary: `param`, `action`, `poll`, `handlePacket`, `answer`; see `cpp-client-api.md`), Arduino `clients/arduino/commands`
-  (serial). The V1 `Telecmd.h` is removed.
+- **Clients**: Python `clients/python/teleplot.py` (text protocol: `param`, `action`, `Arg`, `poll`), C++ [`clients/cpp/Teleplot.h`](../clients/cpp/Teleplot.h)
+  (binary: `param`, `action`, `poll`, `handlePacket`, `answer`; see [`cpp-client-api.md`](cpp-client-api.md)), Arduino library [`clients/arduino/Teleplot`](../clients/arduino/Teleplot/)
+  (`param`, `action`, `poll`; text on a serial port or UDP), and [`clients/arduino/commands`](../clients/arduino/commands/) (by hand, without the library). The V1 `Telecmd.h` is removed.
 
 Not done: commands in 3D and image views; picking an action's argument on a map.
 
@@ -314,3 +314,7 @@ Not done: commands in 3D and image views; picking an action's argument on a map.
 5. **Section lengths**: a version 2 of the binary protocol with a length per section would make every future addition safe.
 6. **Persistence**: proposed: the page never re-applies values by itself; at most "copy the settings as text".
 7. **Exclusive control**: a lease (one page drives, the others see it) if several pages driving at once is a real case.
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)

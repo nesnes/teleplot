@@ -1,6 +1,5 @@
 /*
- * Export and import panel (right dock, in place of Help): saving what Teleplot holds to a file, and opening files. Design studies: doc/export-panel-mockups.html
- * and doc/export-panel-mockups-2.html (mock-up A, with the CSV preview of D).
+ * Export and import panel (right dock, in place of Help): saving what Teleplot holds to a file, and opening files. See doc/files.md "In the webapp".
  *
  * Two sections that cannot be mistaken for one another, then the files of the session:
  * - Export: three questions with their defaults selected (what, when, format), so that one click saves everything. "Choose..." unfolds

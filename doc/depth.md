@@ -57,7 +57,7 @@ give the scale that turns the numbers into the units of the scene (metres, usual
 
 ## In 3D and 2D views
 
-A depth map whose telemetry has camera intrinsics (`K`, section 33; optional distortion `DC`, pose `P`/`R`/`Q`: see `3d.md`
+A depth map whose telemetry has camera intrinsics (`K`, section 33; optional distortion `DC`, pose `P`/`R`/`Q`: see [`3d.md`](3d.md)
 "Cameras") and is a depth map (`depth`, the default) is drawn as points, where its camera was:
 
 - Each pixel goes along its ray (lens distortion followed back, as `ViewImage.undistortPoint`) to its distance **along the axis
@@ -71,7 +71,7 @@ A depth map whose telemetry has camera intrinsics (`K`, section 33; optional dis
 
 ## Performance
 
-Measured in Chromium on the Mac of the project, 640 x 480 (`doc/performance.md` "Depth maps"):
+Measured in Chromium on the Mac of the project, 640 x 480 ([`doc/performance.md`](performance.md) "Depth maps"):
 
 - Decoding: plain numbers are viewed without copy (0.1 ms; base64 with the native `Uint8Array.fromBase64` where it exists). A PNG
   is inflated by the browser (`DecompressionStream`) and unfiltered in a Web Worker made from the library itself (no file to load):
@@ -85,10 +85,14 @@ Measured in Chromium on the Mac of the project, 640 x 480 (`doc/performance.md` 
 
 ## Implementation
 
-`packages/teleplot-js/src/108-pictures.js` (`TELEPLOT.pictures`: `info`, `settings`, `decode` / `decodeAsync`, `valueAt`, `spread`,
+[`packages/teleplot-js/src/108-pictures.js`](../packages/teleplot-js/src/108-pictures.js) (`TELEPLOT.pictures`: `info`, `settings`, `decode` / `decodeAsync`, `valueAt`, `spread`,
 `colorRange`, `colorize`, `COLORMAPS`, `fromBase64` / `toBase64`), the image view (`114-viewImage.js`: `__drawValues`, readout),
 the scene (`113-viewScene3D.js`: `depthRays`, `depthPoints`, `__depthSource`, `__updateDepth`; `115-viewScene2D.js`). Tests:
-`packages/teleplot-js/tests/pictures.test.js`. C++: `TeleplotImage::Raw{}`, formats `Gray16` / `Float32`, `.depthMap(scale)` /
-`.pixelValues(scale)` (`doc/cpp-client-api.md` "Pictures").
+[`packages/teleplot-js/tests/pictures.test.js`](../packages/teleplot-js/tests/pictures.test.js). C++: `TeleplotImage::Raw{}`, formats `Gray16` / `Float32`, `.depthMap(scale)` /
+`.pixelValues(scale)` ([`doc/cpp-client-api.md`](cpp-client-api.md) "Pictures").
 
 Not done yet: a depth map as the texture of a shape (it shows the 8 bits a browser makes of it).
+
+---
+
+[All documentation](README.md) · [Teleplot](../README.md)
