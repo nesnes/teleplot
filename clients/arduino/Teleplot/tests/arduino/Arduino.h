@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+// As the AVR core does (the library must live with them, see src/Teleplot.h)
+#define min(a,b) ((a)<(b)?(a):(b))
+#define max(a,b) ((a)>(b)?(a):(b))
+
 class Print {
 public:
     virtual ~Print() {}

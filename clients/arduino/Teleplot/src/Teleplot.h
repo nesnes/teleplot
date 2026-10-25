@@ -31,6 +31,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+// The AVR core makes min(a, b) and max(a, b) macros: they would take the place of the min(v) and max(v) calls of this library, in
+// it and in the sketch. They are replaced by functions that give the same (the smaller / larger of the two, in their common type).
+#ifdef min
+    #undef min
+    template<class A, class B> inline auto min(A a, B b) -> decltype(a + b) { return a < b ? a : b; }
+#endif
+#ifdef max
+    #undef max
+    template<class A, class B> inline auto max(A a, B b) -> decltype(a + b) { return a > b ? a : b; }
+#endif
+
 #ifndef TELEPLOT_MAX_TELEMETRIES
     #ifdef __AVR__
         #define TELEPLOT_MAX_TELEMETRIES 4
