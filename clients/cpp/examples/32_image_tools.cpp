@@ -2,7 +2,7 @@
 // (shrink), saved to a file and sent from it as it is (load).
 #include "../Teleplot.h"
 #include "../TeleplotImage.h"
-#include <cstdio>
+#include <fstream>
 #include <thread>
 #include <vector>
 
@@ -13,8 +13,7 @@ int main() {
     for (int i = 0; i < width * height; ++i) { bgr[i * 3] = static_cast<std::uint8_t>(i % width); bgr[i * 3 + 1] = static_cast<std::uint8_t>(i / width); bgr[i * 3 + 2] = 200; }
     TeleplotImage::Pixels frame{ bgr.data(), width, height, TeleplotImage::BGR8 };
     TeleplotImage::Picture png = TeleplotImage::encode(frame, TeleplotImage::Png{});
-    std::FILE* f = std::fopen("frame.png", "wb");
-    if (f) { std::fwrite(png.bytes.data(), 1, png.bytes.size(), f); std::fclose(f); }
+    std::ofstream("frame.png", std::ios::binary).write(reinterpret_cast<const char*>(png.bytes.data()), static_cast<std::streamsize>(png.bytes.size()));
     for (;;) {
         tp.telemetry("small").image(TeleplotImage::encode(TeleplotImage::shrink(frame, 4), TeleplotImage::Jpeg{ 60 }));
         TeleplotImage::Pixels corner{ bgr.data() + (40 * width + 40) * 3, 100, 80, TeleplotImage::BGR8, width * 3 };  // 100 x 80 from (40, 40)
