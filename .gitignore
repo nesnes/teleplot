@@ -9,3 +9,5 @@ packages/server/build
 # C++ client: what its tests build
 clients/cpp/build
 clients/arduino/Teleplot/build
+clients/python/build
+__pycache__

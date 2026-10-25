@@ -295,9 +295,9 @@ Built in five steps, each tested before the next (plan of 2026-10-19). Where thi
   commands, reads them like a device and answers).
 - **Tests**: [`packages/teleplot-js/tests/commands.test.js`](../packages/teleplot-js/tests/commands.test.js) (parsing, settings, actions, binary, continuous, server and serial
   connections, views), `parseDataText.test.js`, `dashboards.test.js`; [`packages/server/tests/server.test.js`](../packages/server/tests/server.test.js) (senders, writes back,
-  read-only); [`packages/webapp/tests/help.test.js`](../packages/webapp/tests/help.test.js); [`clients/python/test_teleplot.py`](../clients/python/test_teleplot.py); [`clients/cpp/tests/test_client.cpp`](../clients/cpp/tests/test_client.cpp).
+  read-only); [`packages/webapp/tests/help.test.js`](../packages/webapp/tests/help.test.js); [`clients/python/tests/test_teleplot.py`](../clients/python/tests/test_teleplot.py); [`clients/cpp/tests/test_client.cpp`](../clients/cpp/tests/test_client.cpp).
   `test.html` has a section "Commands".
-- **Clients**: Python `clients/python/teleplot.py` (text protocol: `param`, `action`, `Arg`, `poll`), C++ [`clients/cpp/Teleplot.h`](../clients/cpp/Teleplot.h)
+- **Clients**: Python `clients/python/teleplot.py` (binary or text: `param`, `action`, `Arg`, `poll`; see [`python-client-api.md`](python-client-api.md)), C++ [`clients/cpp/Teleplot.h`](../clients/cpp/Teleplot.h)
   (binary: `param`, `action`, `poll`, `handlePacket`, `answer`; see [`cpp-client-api.md`](cpp-client-api.md)), Arduino library [`clients/arduino/Teleplot`](../clients/arduino/Teleplot/)
   (`param`, `action`, `poll`; text on a serial port or UDP), and [`clients/arduino/commands`](../clients/arduino/commands/) (by hand, without the library). The V1 `Telecmd.h` is removed.
 

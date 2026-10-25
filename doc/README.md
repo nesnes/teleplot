@@ -9,6 +9,7 @@ Back to the project: [README](../README.md).
 | [textProtocol.md](textProtocol.md) | The text protocol (V1, extended): numbers, positions, clouds, texts, ranges and thresholds, labels and dashboards, images, 3D and 2D lines, commands |
 | [binaryProtocol.md](binaryProtocol.md) | The binary protocol: packets, sections, files |
 | [cpp-client-api.md](cpp-client-api.md) | The C++ client ([`clients/cpp`](../clients/cpp/)) and the Arduino library ([`clients/arduino/Teleplot`](../clients/arduino/Teleplot/)): one API, with samples and its reference |
+| [python-client-api.md](python-client-api.md) | The Python client ([`clients/python`](../clients/python/)): the API of the C++ client, with its names, in one file |
 | [telecmd.md](telecmd.md) | Commands: settings and actions the page sends back to a device |
 | [sources.md](sources.md) | Where data comes from (server, serial port, page), times since boot, the Sources panel |
 | [server.md](server.md) | The Teleplot server: options, who can connect, messages, slow pages |

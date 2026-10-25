@@ -82,7 +82,17 @@ echo "myValue:1234" | nc -u -w0 127.0.0.1 47269
 
 ### Python
 
-[`clients/python/teleplot.py`](clients/python/teleplot.py) ([README](clients/python/README.md)), or a plain socket:
+[`clients/python/teleplot.py`](clients/python/teleplot.py) ([README](clients/python/README.md)): one file, the API of the C++ client
+(descriptions, shapes, pictures, settings and buttons...), 22 examples one step at a time:
+
+```python
+from teleplot import Teleplot
+tp = Teleplot.instance()
+tp.telemetry("battery").unit("V").range(10.5, 12.6)
+tp.update("battery", 12.4)
+```
+
+Or a plain socket:
 
 ```python
 import socket, math, time
@@ -213,8 +223,8 @@ All the documentation: [doc/](doc/README.md).
 | [doc](doc/README.md) | Documentation of the protocols and of every feature |
 | [`server/`](server/), [`vscode/`](vscode/), [`images/`](images/) | Teleplot V1, kept for reference |
 
-Tests: `./test.sh` in [`packages/teleplot-js`](packages/teleplot-js/), [`packages/webapp`](packages/webapp/), [`packages/server`](packages/server/), [`clients/cpp`](clients/cpp/) and [`clients/arduino/Teleplot`](clients/arduino/Teleplot/), and
-`python3 clients/python/test_teleplot.py`. The CI ([`.github/workflows/teleplot-v2.yml`](.github/workflows/teleplot-v2.yml)) runs them and builds the release files; a tag
+Tests: `./test.sh` in [`packages/teleplot-js`](packages/teleplot-js/), [`packages/webapp`](packages/webapp/), [`packages/server`](packages/server/), [`clients/cpp`](clients/cpp/), [`clients/arduino/Teleplot`](clients/arduino/Teleplot/) and
+[`clients/python`](clients/python/). The CI ([`.github/workflows/teleplot-v2.yml`](.github/workflows/teleplot-v2.yml)) runs them and builds the release files; a tag
 `v2*` publishes them.
 
 ## Teleplot V1
