@@ -2,6 +2,10 @@
 // The function runs in poll(); what it returns is shown in the page.
 #include <Teleplot.h>
 
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2  // (boards that do not say where their LED is, as the generic ESP32: GPIO 2 on most of them)
+#endif
+
 Teleplot tp(Serial);
 
 Teleplot::Result blink(Teleplot::Args const& args) {
