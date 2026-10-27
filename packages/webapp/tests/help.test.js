@@ -153,7 +153,7 @@ test('each tile shows what it says by itself, on a fresh page: it never needs wh
         camera: ['Live: image[](camera,marker) 3d[scene](marker,camera)'],
         onscene: ['Live: 2d[field](plan,snapshot)'],
         dashboard: ['Live: chart[](voltage) log[](events)', 'Robot: chart[Power](voltage) log[Events](events)'],
-        place: ['Robot: chart[Motion](speed,accel)'],
+        place: ['Live: chart[motion](speed,accel)', 'Robot: chart[Speeds](speed,accel)'],
         settings: ['Live: current-value[Commands](speed_limit)'],
         actions: ['Live: current-value[Commands](reset)'],
         joystick: ['Live: joystick[](cmd_vel)'],
@@ -451,7 +451,7 @@ test('helpDescribe tells what Teleplot made of a message sent from the panel', (
     assert.match(say('left,motors:0.4'), /named left\./);
     assert.match(say('debug:42|np'), /not charted automatically/);
     assert.match(say('>:Motors armed'), /a log line/);
-    assert.match(say('speed,Robot/Motion:1.2'), /named speed\..*on the Robot dashboard/);
+    assert.match(say('speed,Robot/Motion:1.2'), /named speed\..*on the Live dashboard/, 'a slash in a group chooses no dashboard');
     assert.match(say('DASH|Robot/top/Motion:chart:speed'), /the view top\/Motion of the dashboard Robot/);
     assert.match(say('DASH|Robot:row'), /the layout of the dashboard Robot/);
     assert.match(say('DASH|Robot/Motion:none'), /is removed/);

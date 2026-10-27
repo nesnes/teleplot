@@ -185,56 +185,77 @@ test('export of the automatic dashboard can be imported as a plain dashboard', (
     assert.equal(T.dashboards.getDashboard('Live 2').isAuto, false);
 });
 
-test('a view label that is a path places its telemetry: dashboard and view are created, one view per kind', () => {
+test('a label is a group: a "/" in it means nothing, no dashboard is made from it', () => {
     const T = loadTeleplot();
     T.dashboards.enableAutoDashboard('Live');
-    let shown = [];
-    T.dashboards.onReceivedDashboardHooks.push((d) => shown.push(d.name));
-    T.parseDataText('speed,Robot/Motion:1\naccel,Robot/Motion:2\nstate,Robot/Motion:IDLE|t\nnote,Robot/side/Notes:started|log\nplain:1\nalone,Robot/:5');
-    T.__timers.run();
-    assert.deepEqual(shown, ['Robot']);
-    const root = T.dashboards.getDashboard('Robot').getView();
-    assert.deepEqual(tree(T, root), { grid: ['chart(speed,accel)', 'current-value(state)', { grid: ['log(note)'] }, 'chart(alone)'] });
-    assert.deepEqual(root.views.slice(0, 2).map((v) => [v.key, v.options.title]), [['Motion', 'Motion'], ['Motion#values', 'Motion']]);
-    assert.equal(root.views[3].options.title, '', 'a path that ends with / only names the dashboard');
-    assert.deepEqual(tree(T, T.dashboards.getDashboard('Live').getView()), { grid: ['chart(plain)'] }, 'the automatic dashboard leaves them alone');
-    assert.deepEqual(T.dashboards.exportText('Robot').split('\n'), [
-        'DASH|Robot:grid', 'DASH|Robot/Motion:chart:speed,accel', 'DASH|Robot/Motion#values:values:state|title=Motion',
-        'DASH|Robot/side:grid', 'DASH|Robot/side/Notes:log:note', 'DASH|Robot/#1:chart:alone']);
-});
-
-test('label paths and lines work together: the line sets the view up, telemetries join it, whichever comes first', () => {
-    const T = loadTeleplot();
-    T.parseDataText('DASH|Robot/Motion:chart|w=3|h=2');
-    T.parseDataText('speed,Robot/Motion:1');
-    T.__timers.run();
-    const root = T.dashboards.getDashboard('Robot').getView();
-    assert.deepEqual([tree(T, root), root.views[0].layout.width], [{ grid: ['chart(speed)'] }, 3]);
-    // A line that lists telemetries keeps the ones their label put there
-    T.parseDataText('DASH|Robot/Motion:chart:other');
-    assert.deepEqual(namesOf(T, root.views[0]), ['other', 'speed']);
-
-    const U = loadTeleplot();
-    U.parseDataText('speed,Robot/Motion:1');
-    U.__timers.run();
-    U.parseDataText('DASH|Robot/Motion:chart|w=3');
-    const view = U.dashboards.getDashboard('Robot').getView().views[0];
-    assert.deepEqual([tree(U, view), view.layout.width], ['chart(speed)', 3]);
-});
-
-test('a path label ties a camera to its scene, like a label does', () => {
-    const T = loadTeleplot();
-    T.parseDataText('3D|box,Lab/Scene:S:cube:P:1:0:0\nPNG|cam,Lab/Scene:iVBORw0KGgo=');
-    T.__timers.run();
-    const root = T.dashboards.getDashboard('Lab').getView();
-    assert.deepEqual(tree(T, root), { grid: ['3d(box,cam)', 'image(cam,box)'] });
-});
-
-test('telemetries with autoplot off are not placed by their label', () => {
-    const T = loadTeleplot();
-    T.parseDataText('quiet,Robot/Motion:1|np');
+    T.parseDataText('speed,Robot/Motion:1\naccel,Robot/Motion:2');
     T.__timers.run();
     assert.equal(T.dashboards.getDashboard('Robot'), undefined);
+    const live = T.dashboards.getDashboard('Live').getView();
+    assert.deepEqual(tree(T, live), { grid: ['chart(speed,accel)'] });
+    assert.deepEqual([live.views[0].options.title, Array.from(live.views[0].options.followLabels)], ['Robot/Motion', ['Robot/Motion']]);
+});
+
+test('a view that follows a group takes what it can show of it: whichever comes first, wherever the view is, whatever its type, once', () => {
+    const layouts = {
+        'at the top': ['DASH|Robot:grid', 'DASH|Robot/Depth:chart|follow=depth'],
+        'in a row': ['DASH|Robot:grid', 'DASH|Robot/top:row', 'DASH|Robot/top/Whatever:chart|follow=depth'],
+        'with the group in its name': ['DASH|Robot:grid', 'DASH|Robot/depth:chart|follow=depth'],
+    };
+    const expected = {
+        'at the top': { grid: ['chart(d1,d2)'] },
+        'in a row': { grid: [{ row: ['chart(d1,d2)'] }] },
+        'with the group in its name': { grid: ['chart(d1,d2)'] },
+    };
+    for (const [name, dash] of Object.entries(layouts)) {
+        for (const layoutFirst of [true, false]) {
+            const T = loadTeleplot();
+            T.dashboards.enableAutoDashboard('Live');
+            if (layoutFirst) T.parseDataText(dash.join('\n'));
+            T.parseDataText('d1,depth:1\nd2,depth:2');
+            T.__timers.run();
+            if (!layoutFirst) T.parseDataText(dash.join('\n'));
+            T.__timers.run();
+            assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView()), expected[name], name + (layoutFirst ? ', layout first' : ', layout after'));
+        }
+    }
+});
+
+test('a view takes from a group everything it can display; the automatic dashboard, one view per kind, shows nothing twice', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText('DASH|Robot/Numbers:chart|follow=g\nDASH|Robot/Values:values|follow=g');
+    T.parseDataText('speed,g:1\nmode,g:idle|t');
+    T.__timers.run();
+    assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView()), { grid: ['chart(speed,mode)', 'current-value(speed,mode)'] }, 'a chart shows a state as marks');
+    assert.deepEqual(tree(T, T.dashboards.getDashboard('Live').getView()), { grid: ['chart(speed)', 'current-value(mode)'] });
+});
+
+test('a group ties a camera to its scene: the views that follow it take what they can draw', () => {
+    for (const layoutFirst of [true, false]) {
+        const T = loadTeleplot();
+        const dash = 'DASH|Lab/Scene:3d|follow=lab\nDASH|Lab/Camera:image|follow=lab';
+        if (layoutFirst) T.parseDataText(dash);
+        T.parseDataText('3D|box,lab:S:cube:P:1:0:0\nPNG|cam,lab:iVBORw0KGgo=');
+        T.__timers.run();
+        if (!layoutFirst) T.parseDataText(dash);
+        const views = T.dashboards.getDashboard('Lab').getView().views.map((v) => tree(T, v));
+        assert.deepEqual(views.map((v) => v.replace(/\((.*)\)/, (m, list) => '(' + list.split(',').sort().join(',') + ')')), ['3d(box,cam)', 'image(box,cam)'], layoutFirst ? 'layout first' : 'layout after');
+    }
+});
+
+test('a line that lists telemetries keeps those the view has from the groups it follows; a view of another type keeps what it follows', () => {
+    const T = loadTeleplot();
+    T.parseDataText('DASH|Robot/Motion:chart|follow=motion');
+    T.parseDataText('speed,motion:1');
+    T.__timers.run();
+    const root = T.dashboards.getDashboard('Robot').getView();
+    T.parseDataText('DASH|Robot/Motion:chart:other|follow=motion');
+    assert.deepEqual(namesOf(T, root.views[0]), ['other', 'speed']);
+    T.parseDataText('DASH|Robot/Motion:timeline:other|follow=motion');
+    assert.deepEqual([root.views[0].type, Array.from(root.views[0].options.followLabels)], ['teleplot-timeline', ['motion']]);
+    T.parseDataText('DASH|Robot/Motion:values:other');
+    assert.deepEqual(Array.from(root.views[0].options.followLabels), ['motion'], 'a line without follow= leaves the groups followed alone');
 });
 
 test('binary protocol: a dashboard section carries the same lines, telemetries are found by their name attribute', () => {
@@ -247,8 +268,9 @@ test('binary protocol: a dashboard section carries the same lines, telemetries a
     assert.equal(typeof chart.telemetryIdOrNameList[0], 'number', 'the name gave its place to the telemetry');
     assert.deepEqual(namesOf(T, chart), ['speed', 'accel']);
     assert.equal(T.dashboards.exportText('Robot').split('\n')[2], ROBOT[2]);
-    // A label that is a path, as an attribute
-    T.parseDataBinary(new PacketBuilder(1).attrs(6, [[ATTR.NAME, 'temp'], [6, 'Robot/top/Temp']]).numbers(6, 1000000000n, [[0, 20]]).build());
+    // A group, as an attribute, that a view of the section follows
+    T.parseDataBinary(new PacketBuilder(1).dashboard('DASH|Robot/top/Temp:chart|follow=env').build());
+    T.parseDataBinary(new PacketBuilder(1).attrs(6, [[ATTR.NAME, 'temp'], [6, 'env']]).numbers(6, 1000000000n, [[0, 20]]).build());
     T.__timers.run();
     assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView().views[0]), { row: ['chart(speed,accel)', 'chart(temp)'] });
 });
@@ -300,36 +322,3 @@ test('a dashboard received after its telemetries: the views it describes take th
     assert.deepEqual(namesOf(T, motion), ['speed', 'accel', 'jerk']);
 });
 
-test('a layout received after (or before) telemetries placed by their label path: they are where the layout says, the views the label made go', () => {
-    const DASH = ['DASH|Robot:grid', 'DASH|Robot/top:row', 'DASH|Robot/top/Motion:chart:speed,accel', 'DASH|Robot/top/State:values:mode,battery', 'DASH|Robot/Log:log:events'].join('\n');
-    const expected = { grid: [{ row: ['chart(speed,accel)', 'values(mode,battery)'] }, 'log(events)'] };
-    for (const label of ['Robot/Motion', 'Robot/top/Motion', 'Robot/', 'Robot/top']) {
-        for (const layoutFirst of [false, true]) {
-            const T = loadTeleplot();
-            T.dashboards.enableAutoDashboard('Live');
-            if (layoutFirst) T.parseDataText(DASH);
-            T.parseDataText(['speed', 'accel', 'battery'].map((n, i) => n + ',' + label + ':' + i).concat(['mode,' + label + ':idle|t', 'events,' + label + ':hello|log']).join('\n'));
-            T.__timers.run();
-            if (!layoutFirst) T.parseDataText(DASH);
-            const result = JSON.stringify(tree(T, T.dashboards.getDashboard('Robot').getView())).replace(/current-value/g, 'values');
-            assert.equal(result, JSON.stringify(expected), label + (layoutFirst ? ', layout first' : ', layout after'));
-        }
-    }
-    // What the layout does not list still goes where its label says, and a view made by hand stays
-    const T = loadTeleplot();
-    T.parseDataText('speed,Robot/Motion:1\ntemp,Robot/Temp:20');
-    T.__timers.run();
-    const mine = T.view.createView('values', ['speed'], 'g');
-    T.dashboards.getDashboard('Robot').getView().addView(mine);
-    T.parseDataText('DASH|Robot/Motion:chart:speed');
-    assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView()), { grid: ['chart(speed)', 'chart(temp)', 'current-value(speed)'] });
-
-    // A label path whose view becomes a layout: what the layout does not list gets a view of its own in it; the layout does not take
-    // the width of the chart
-    const U = loadTeleplot();
-    U.parseDataText('speed,Robot/top:1\nextra,Robot/top:2');
-    U.__timers.run();
-    U.parseDataText(['DASH|Robot:grid', 'DASH|Robot/top:row', 'DASH|Robot/top/Motion:chart:speed'].join('\n'));
-    assert.deepEqual(tree(U, U.dashboards.getDashboard('Robot').getView()), { grid: [{ row: ['chart(extra)', 'chart(speed)'] }] });
-    assert.equal(U.dashboards.exportText('Robot').split('\n')[1], 'DASH|Robot/top:row');
-});

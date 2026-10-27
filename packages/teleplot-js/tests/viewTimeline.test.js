@@ -184,7 +184,9 @@ test('a timeline takes text telemetries: it suits them, and is a view type like 
     telems[0].addData(TEXT, [1], [['idle']]);
     const speed = T.datastore.getOrCreateTelemetry('speed');
     speed.addData(NUMBER, [1], [[1]]);
-    assert.deepEqual([view.suitsTelemetry(telems[0]), view.suitsTelemetry(speed)], [true, false], 'a timeline that follows a label only takes texts: numbers are added on purpose');
+    assert.deepEqual([view.suitsTelemetry(telems[0]), view.suitsTelemetry(speed)], [true, true], 'a timeline that follows a group takes what it can display: texts, and numbers');
+    view.followOwnKinds = true;
+    assert.deepEqual([view.suitsTelemetry(telems[0]), view.suitsTelemetry(speed)], [true, false], 'a view of the automatic dashboard only takes what its kind shows by default');
     assert.equal(T.view.suggestViewType('state'), 'values', 'a state is still a value by default: a timeline is asked for');
     assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayTelemetryName', 'stackDepth', 'numbers']);
     const copy = view.clone();

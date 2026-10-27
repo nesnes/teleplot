@@ -1,5 +1,5 @@
 // 23. Choosing where values go: dashboard lines describe the views of a dashboard ("Robot": a chart, then the values beside it).
-// A label that is a path does it for one value ("Robot/State"). Sent once; the page shows that dashboard.
+// A view can also follow a group instead of naming telemetries ("follow=heat"): what is labelled heat joins it.
 #include "../Teleplot.h"
 #include <cmath>
 #include <thread>
@@ -8,8 +8,9 @@ int main() {
     Teleplot& tp = Teleplot::instance();
     tp.dashboard("DASH|Robot:row\n"
                  "DASH|Robot/Motion:chart:speed,accel|w=2\n"
-                 "DASH|Robot/State:values:battery,mode");
-    tp.telemetry("temperature").label("Robot/State");  // the same view, by its path
+                 "DASH|Robot/State:values:battery,mode\n"
+                 "DASH|Robot/Heat:chart|follow=heat");
+    tp.telemetry("temperature").label("heat");  // its group: the view Heat follows it
     for (double t = 0;; t += 0.05) {
         tp.update("speed", std::sin(t));
         tp.update("accel", std::cos(t));

@@ -79,7 +79,7 @@ const HELP_TILES = [
       format: ["name,label:value"],
       fields: [
           [",label", "After the name, behind a comma: any text without : | §. Telemetries with the same label share a view of the Live dashboard (one per kind of view), titled with the label."],
-          ["Robot/Motion", "A label with a slash is a path: it chooses the dashboard and the view (see Choose where)."],
+          ["a group", "One per telemetry. A slash is a character like the others: Robot/Motion is just a group name. To show a group in a dashboard of yours: see Choose where."],
       ],
       examples: [
         { title: "A first one", code: "left,motors:0.4", note: "The label is motors: a chart titled motors.", expect: { name: "left", type: "number", label: "motors" } },
@@ -561,22 +561,26 @@ const HELP_TILES = [
           "The dashboard menu exports any dashboard as these lines, and imports them.",
           "The options of each type of view are listed below.",
       ] },
-    { id: "place", family: "dashboards", title: "Choose where", sub: "a label that is a path", picture: "place",
-      format: ["name,dashboard/layout/…/view:value", "name,dashboard/:value"],
+    { id: "place", family: "dashboards", title: "Choose where", sub: "a group, and views that follow it", picture: "place",
+      format: ["name,group:value", "DASH|dashboard/…/view:type|follow=group[,group…]"],
       fields: [
-          ["dashboard/view", "The dashboard, then the view: both are created if needed, and the telemetry stays off the Live dashboard."],
-          ["one view per kind", "Numbers share a chart, texts a values view next to it (Motion#values)…"],
-          ["dashboard/", "A path that ends with /: only the dashboard; the telemetry gets a view of its own."],
+          [",group", "Your device says what goes together: the label after the name. One group per telemetry."],
+          ["follow=", "Your dashboard says where it goes: the view takes the telemetries of these groups, those received and those to come."],
+          ["what it takes", "Everything it can display: a chart numbers and texts (as marks), a values view anything with a value, a log texts, a timeline texts and numbers, a 2D or 3D view what has a place, an image view a picture and what is drawn over it."],
       ],
       examples: [
-        { title: "Into a chart", code: "speed,Robot/Motion:1.2", note: "speed goes to the chart Motion of the dashboard Robot.", expect: { name: "speed", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
-        { title: "The same chart", code: "accel,Robot/Motion:0.3", note: "Same path: the same chart.", expect: { name: "accel", type: "number", label: "Robot/Motion", dashboard: "Robot" } },
+        { title: "A view for a group", code: "DASH|Robot/Speeds:chart|follow=motion", note: "A chart Speeds in the dashboard Robot. Its name is yours: only the group ties it to the data.", expect: { dashboard: "Robot" } },
+        { title: "A telemetry of the group", code: "speed,motion:1.2", note: "speed is in the group motion: it joins the chart (and the Live dashboard).", expect: { name: "speed", type: "number", label: "motion" } },
+        { title: "Another one", code: "accel,motion:0.3", note: "Same group: the same chart.", expect: { name: "accel", type: "number", label: "motion" } },
       ], more: [
-        { title: "Only the dashboard", code: "temp,Robot/:21", note: "A view of its own in Robot.", expect: { name: "temp", type: "number", label: "Robot/", dashboard: "Robot" } },
+        { title: "A text of the group", code: "mode,motion:driving|t", cycle: ["mode,motion:turning|t", "mode,motion:parked|t"], note: "A text of the group: the chart marks where it changes.", expect: { name: "mode", type: "text", label: "motion" } },
+        { title: "A values view", code: "DASH|Robot/State:values|follow=motion", note: "Takes speed, accel and mode, already there: a view also takes what came before it.", expect: { dashboard: "Robot" } },
       ],
       notes: [
-          "With DASH| lines too, the lines win: a telemetry they list goes where they say, whichever comes first.",
-          "Since / has a meaning in a label, a Teleplot V1 label that held one is read as a path.",
+          "Data or dashboard first: the result is the same.",
+          "A slash in a group means nothing: Robot/Motion is a group name, it does not choose a dashboard.",
+          "A view can follow several groups: follow=motion,power. A group can feed several views.",
+          "Without DASH| lines, the Live dashboard gives each group its views.",
       ] },
     { id: "settings", family: "control", title: "Settings", sub: "values the page can change", picture: "controls",
       format: ["ATTR|name|write[=type][|min=…|max=…|step=…|desc=…]", "name:a,b,c|enum     (the texts it can take)", "name:value          (what the page sends, then your device)", "ACK|name:err:why    (your device refuses)"],
@@ -1166,7 +1170,7 @@ function helpVaryParts(cpp, from, to) {
 // What a part accepts, in one sentence (shown when it is pointed at): by label, else by kind
 const HELP_PART_TIPS = {
     name: "Any text without : | , §. The same name again adds a sample to the same telemetry.",
-    label: "After a comma: telemetries with the same label share a view. A path (Robot/Motion) places it in that dashboard.",
+    label: "After a comma: its group. Telemetries of a group share a view of the Live dashboard; a view of your dashboard can follow the group (follow=).",
     value: "A number, with a point for decimals: 25.3, -4, 1e3.",
     time: "Optional: milliseconds since 1970 (decimals allowed), or since the boot of a board without a date: the page dates those from when they arrive. Without it, the sample is dated when it arrives.",
     unit: "Optional, after §: shown next to the value.",
@@ -1386,8 +1390,7 @@ function helpDescribe(TP, message, problems) {
         if (samples > 1) what = samples + " numbers";
     }
     const charted = telem.getAttribute(P.TELEM_ATTR_AUTOPLOT) !== false;
-    const placed = TP.dashboards.getLabelPath(telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL)); // A label that is a path: its own dashboard
-    return { ok: true, text: "Received: " + what + " named " + name + ". It is in the Telemetries panel" + (charted ? " and on the " + (placed ? placed.name : "Live") + " dashboard." : ", not charted automatically.") };
+    return { ok: true, text: "Received: " + what + " named " + name + ". It is in the Telemetries panel" + (charted ? " and on the Live dashboard." : ", not charted automatically.") };
 }
 
 

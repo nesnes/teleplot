@@ -79,7 +79,13 @@ function testExamples(test, names, read, missing, extra, skip = {}) {  // skip: 
             const { U, problems } = read(name);
             assert.equal(problems, 0);
             check(U, expect);
-            if (number(name) === 23) assert.ok(U.dashboards.dashboards.Robot, 'the dashboard "Robot"');
+            if (number(name) === 23) {
+                assert.ok(U.dashboards.dashboards.Robot, 'the dashboard "Robot"');
+                U.__timers.run();
+                const heat = U.dashboards.dashboards.Robot.getView().views.find((v) => v.key === 'Heat');
+                const shown = heat ? Array.from(heat.telemetryIdOrNameList).map((e) => U.datastore.getTelemetry(e)).filter(Boolean).map((t) => t.getAttribute(U.protocol.TELEM_ATTR_NAME)) : [];
+                assert.deepEqual(shown, ['temperature'], 'the view Heat follows the group heat');
+            }
         });
     }
 }

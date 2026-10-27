@@ -283,8 +283,9 @@ test('auto dashboard: a stack gets a timeline; stacks without label share one, a
     T.__timers.run();
     assert.deepEqual(names(T.dashboards.getDashboard('Live').getView().views[0]), ['main', 'worker', 'late']);
     assert.equal(T.dashboards.getDashboard('Live').getView().views.length, 5);
-    // A stack that places itself with a path gets a timeline there too
-    T.parseDataText({ data: 'job,Robot/Tasks:a/b|stack', timestamp: 3000 });
+    // A stack of a group goes to the timeline of a view that follows the group
+    T.parseDataText('DASH|Robot/Tasks:timeline|follow=tasks');
+    T.parseDataText({ data: 'job,tasks:a/b|stack', timestamp: 3000 });
     T.__timers.run();
-    assert.equal(T.dashboards.getDashboard('Robot').getView().views[0].type, 'teleplot-timeline');
+    assert.deepEqual(names(T.dashboards.getDashboard('Robot').getView().views[0]), ['job']);
 });

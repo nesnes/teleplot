@@ -130,7 +130,7 @@ auto lidar = tp.telemetry("robot.lidar");
 auto cam   = tp.telemetry("robot.camera");
 
 // Once
-body.shape(Teleplot::Cube).size(0.4, 0.3, 0.2).color("#2ecc71").label("Robot/Map");
+body.shape(Teleplot::Cube).size(0.4, 0.3, 0.2).color("#2ecc71").label("map");
 lidar.frame("robot.body").position(0.15, 0, 0.25);                  // fixed on the body
 cam.frame("robot.body").position(0.2, 0, 0.3)
    .intrinsics(640, 480, 520, 520, 320, 240).distortion(-0.28, 0.07, 0, 0, 0);

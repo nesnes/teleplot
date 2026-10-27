@@ -400,11 +400,13 @@ test('views that follow a view label get the new telemetries of that label that 
 
     send('right,motors:2\nstate,motors:on|t\n3D|arm,motors:S:cube\nJPG|cam,motors:1000:AAAA\nfree:3\nlog.b,logs:world|t');
     const names = (view) => Array.from(view.telemetryIdOrNameList).map(e => typeof e == 'number' ? T.datastore.getTelemetry(e).getAttribute(T.protocol.TELEM_ATTR_NAME) : e);
-    assert.deepEqual(names(chart), ['left', 'right'], 'numbers of the label; the telemetries that existed before are not added');
-    assert.deepEqual(names(values), ['state', 'log.b'], 'what a values view displays, for both labels it follows');
+    assert.deepEqual(names(chart), ['left', 'right', 'state'], 'everything a chart can display: numbers, and texts as marks; the telemetries that existed before are not added');
+    assert.deepEqual(names(values), ['right', 'state', 'cam', 'log.b'], 'everything a values view can display, for both groups it follows');
     assert.deepEqual(names(log), ['log.a', 'log.b'], 'a log takes text');
     assert.deepEqual(names(scene), ['arm', 'cam'], 'a 3D scene takes the shapes, and the image telemetries of the label: its cameras');
-    assert.deepEqual(names(image), ['arm'], 'an image view takes what can be drawn over its picture, not another picture');
+    assert.deepEqual(names(image), ['arm', 'cam'], 'an image view takes what can be drawn over its picture, and a picture while it has none');
+    send('JPG|cam2,motors:1000:AAAA');
+    assert.deepEqual(names(image), ['arm', 'cam'], 'not a second picture');
     assert.deepEqual(names(other), [], 'a view that follows nothing');
 
     // Not followed anymore; copies follow the same labels (and have their own list)
@@ -413,7 +415,7 @@ test('views that follow a view label get the new telemetries of that label that 
     assert.equal(chart.unfollowLabel('motors'), true);
     assert.equal(chart.unfollowLabel('motors'), false);
     send('torque,motors:4');
-    assert.deepEqual([names(chart), names(copy)], [['left', 'right'], ['left', 'right', 'torque']]);
+    assert.deepEqual([names(chart), names(copy)], [['left', 'right', 'state'], ['left', 'right', 'state', 'torque']]);
     assert.deepEqual(Array.from(chart.options.followLabels), []);
 });
 

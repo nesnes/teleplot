@@ -21,7 +21,7 @@ The extensions are those Teleplot gives to the files it writes (a dashboard expo
 
 ```
 DASH|Robot/Motion:chart:speed,accel|w=4
-speed,Robot/Motion:1627551892437:1.2;1627551892537:1.3
+speed:1627551892437:1.2;1627551892537:1.3
 state:1627551892437:forward|t
 >1627551892437:Motors armed
 3D|box:1627551892437:P:1:0:0.5

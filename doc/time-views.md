@@ -164,8 +164,9 @@ long it lasted.
 
 ### Numbers in a timeline
 
-A number can be given a lane, next to the states it goes with. It is added on purpose (Edit mode, a `DASH|` line, a drop): a
-timeline that follows a label only takes texts. A telemetry that has both text and numbers is shown by its text.
+A number can be given a lane, next to the states it goes with: added in Edit mode, by a `DASH|` line or a drop, or by a group the
+timeline follows (it takes texts and numbers; the timelines the automatic dashboard makes take texts only). A telemetry that has both
+text and numbers is shown by its text.
 
 - **A number that has thresholds is read as a state**: a band where it is past a threshold, named and colored after it, and nothing
   where it is past none. A band starts at the sample that passed the limit and ends at the first sample that is not past it any more:

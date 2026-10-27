@@ -296,7 +296,7 @@ function initDashboardEditor(TP) {
     // shapes and 3D points together in a 3D scene, the rest together in a values view), in the order the kinds appear. Images get a view
     // each: an image view shows one picture (the other telemetries of the view are drawn over it). Unknown ids are ignored. Returns the new views.
     // "label": the ids are the telemetries of a view label (a label card of the Telemetries panel was dropped): the views are titled with
-    // it and follow it (the telemetries of that label that come later are added to them).
+    // it and follow it (the telemetries of that label that come later are added to them, see followOwnKinds below).
     E.dropTelemetries = function(ids, containerId, index = -1, label = "") {
         let groups = new Map();
         for (let id of ids) {
@@ -318,6 +318,9 @@ function initDashboardEditor(TP) {
             }
             created.push(view);
         }
+        // Several views for one label (one per kind): each takes what it is the default display of, so that nothing shows twice. A view
+        // alone takes everything it can display of the label, as any view that follows a label.
+        if (label && created.length > 1) created.forEach((view) => { view.followOwnKinds = true; });
         return created;
     };
 

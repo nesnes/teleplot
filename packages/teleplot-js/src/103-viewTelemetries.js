@@ -63,23 +63,35 @@ class ViewTelemetries extends Views {
         return true;
     }
 
-    // Is a telemetry something a view that follows its label should take ? What this kind of view is the natural display of
-    // (suggestViewType); a log also takes any text, and an image view what can be drawn over its picture.
+    // Is a telemetry something a view that follows its label should take ? Everything this view can display: a chart its numbers and
+    // its texts (marks), a values view anything that has a value (and the commands), a log and a timeline texts (and numbers for a
+    // timeline), a graph structures and stacks, a 2D or 3D view what has a place in a scene (a 3D view also the pictures: its cameras),
+    // an image view what can be drawn over its picture, and a picture while it has none. A view with followOwnKinds (the views the
+    // automatic dashboard makes for a label: one per kind, they would show the same telemetries twice) only takes what its kind is the
+    // default display of (suggestViewType).
     suitsTelemetry(telem) {
-        const P = TELEPLOT.protocol;
-        if(this.type == "teleplot-log" || this.type == "teleplot-timeline") return telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined;
-        if(this.type == "teleplot-graph") return telem.hasStructure() || (telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && telem.getAttribute(P.TELEM_ATTR_STACK) === true);
-        if(this.type == "teleplot-image") return telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined && TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined;
+        const P = TELEPLOT.protocol, S3 = TELEPLOT.view.ViewScene3D;
+        const has = (type) => telem.data[type] !== undefined;
+        if(this.type == "teleplot-image" && has(P.SECTION_TYPE_TELEM_DATA_IMAGE)) return typeof this.getImageTelemetry === "function" && this.getImageTelemetry() === undefined;
+        if(this.type == "teleplot-graph") return telem.hasStructure() || (has(P.SECTION_TYPE_TELEM_DATA_TEXT) && telem.getAttribute(P.TELEM_ATTR_STACK) === true);
+        if(this.type == "teleplot-image") return S3.kindOf(telem) !== undefined;
         // 2D and 3D views show the same things (flat ones lie on the ground of a 3D scene, solids are seen from above in a 2D view),
         // but for what is drawn in the pixels of a picture
-        let inScene = TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined && TELEPLOT.view.ViewScene3D.pixelFrame(telem) === undefined;
-        if(this.type == "teleplot-2d") return inScene && (telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined || TELEPLOT.view.ViewScene3D.kindOf(telem) === "shape"); // (a camera is not, a picture with a place is)
-        if(this.type == "teleplot-3d" && inScene) return true;
-        // A 3D scene also takes the image telemetries of its label: they are its cameras (drawn once they have their parameters)
-        if(this.type == "teleplot-3d" && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return true;
-        // (a timeline that follows a label takes its texts, stacks included; a values view takes its states, but a stack has its timeline)
-        let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-3d": "3d", "teleplot-joystick": "joystick" }[this.type];
-        return kind !== undefined && TELEPLOT.view.suggestViewType(telem.id) === kind;
+        let inScene = S3.kindOf(telem) !== undefined && S3.pixelFrame(telem) === undefined;
+        if(this.type == "teleplot-2d") return inScene && (!has(P.SECTION_TYPE_TELEM_DATA_IMAGE) || S3.kindOf(telem) === "shape"); // (a camera is not, a picture with a place is)
+        if(this.type == "teleplot-3d") return inScene || has(P.SECTION_TYPE_TELEM_DATA_IMAGE); // (the pictures of its group: its cameras, drawn once they have their parameters)
+        if(this.type == "teleplot-joystick") return TELEPLOT.view.suggestViewType(telem.id) === "joystick";
+        if(this.followOwnKinds) {
+            if(this.type == "teleplot-log" || this.type == "teleplot-timeline") return has(P.SECTION_TYPE_TELEM_DATA_TEXT);
+            let kind = { "teleplot-chart": "chart", "teleplot-current-value": "values" }[this.type];
+            return kind !== undefined && TELEPLOT.view.suggestViewType(telem.id) === kind;
+        }
+        if(this.type == "teleplot-chart") return has(P.SECTION_TYPE_TELEM_DATA_NUMBER) || has(P.SECTION_TYPE_TELEM_DATA_TEXT);
+        if(this.type == "teleplot-log") return has(P.SECTION_TYPE_TELEM_DATA_TEXT);
+        if(this.type == "teleplot-timeline") return has(P.SECTION_TYPE_TELEM_DATA_TEXT) || has(P.SECTION_TYPE_TELEM_DATA_NUMBER);
+        if(this.type == "teleplot-current-value") return [P.SECTION_TYPE_TELEM_DATA_NUMBER, P.SECTION_TYPE_TELEM_DATA_TEXT, P.SECTION_TYPE_TELEM_DATA_NUMBER_2D,
+            P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, P.SECTION_TYPE_TELEM_DATA_IMAGE].some(has) || TELEPLOT.commands.declaration(telem) !== undefined;
+        return false;
     }
 
     // Moves a telemetry in the list (display order, series order of a chart): from an index to another. false when an index is out of range.

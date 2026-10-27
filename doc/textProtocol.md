@@ -235,22 +235,27 @@ goes: views can be rearranged freely afterwards. In the Telemetries panel each l
 on a dashboard at once. A view that received a label this way (and the views teleplot made for a label by itself) follows it:
 telemetries that show up later with the same label are added to it. This can be stopped per view in the edit panel.
 
-### Choosing the dashboard, describing dashboards
+A label is a **group**: one per telemetry, and any text (a `/` in it means nothing: `Robot/Motion` is a group name like
+`motors`). The device says what goes together; where it is shown is the dashboard's business (below).
 
-A label that is a path says in which dashboard and which view a telemetry goes; both are created if needed:
+### Describing dashboards
 
-```
-speed,Robot/Motion:12.5
-accel,Robot/Motion:0.3
-```
-
-A whole dashboard can be described with `DASH|` lines, one per view, addressed by the same paths:
+A whole dashboard can be described with `DASH|` lines, one per view, addressed by their path in the dashboard:
 
 ```
 DASH|Robot/Motion:chart:speed,accel|w=4|h=3
 DASH|Robot/side/Log:log:robot.log|maxLines=50
 DASH|Robot/side:column
 DASH|Robot/States:timeline:state,robot.log
+```
+
+Instead of naming telemetries, a view can follow groups: it takes every telemetry of these groups that it can display (numbers and
+texts as marks for a chart, anything with a value for a values view, what has a place for a scene, a picture and what is drawn over it
+for an image view), those received and those to come. Its name is free: only the group ties it to the data.
+
+```
+DASH|Robot/Speeds:chart|follow=motors
+left,motors:0.42
 ```
 
 Lines can come in any order and be sent again at will (a line only does something when it changed). The dashboard menu exports any

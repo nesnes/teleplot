@@ -19,8 +19,9 @@
  *   "time" (time group: "inherit", "dashboard" or the name of a group) and "follow" (labels the view follows). Only what is written changes.
  * - Names and values write the characters % / : , | = and line breaks as %XX (the hexadecimal code of the character).
  *
- * A telemetry can also say where it goes with its view label: "speed,Robot/Motion:12.5" puts speed in the view "Motion" of the dashboard
- * "Robot", both created if needed (see placeTelemetry). Like any label it only decides the first placement.
+ * A device says what belongs together with view labels (a group: "speed,motors:12.5"), a dashboard says where it is shown: a view that
+ * follows a label ("follow=motors") takes the telemetries of that group it can display, received or to come. A label never places a
+ * telemetry by itself in a dashboard ("/" in a label means nothing).
  */
 const _dashText_PREFIX = "DASH|";
 const _dashText_LAYOUTS = ["row", "column", "grid"];
@@ -34,7 +35,7 @@ const _dashText_OPTIONS_SKIPPED = ["_telemetry", "title", "followLabels", "timeG
 // (Dashboards are compared by id, and always taken from TELEPLOT.dashboards.dashboards: an application may wrap the library in
 // proxies, and an object and its proxy are not equal.)
 TELEPLOT.dashboards.received = TELEPLOT.Vue.markRaw({});
-// Called with the dashboard when one is created by what was received (a DASH line or a label path): applications can display it
+// Called with the dashboard when one is created by what was received (DASH lines): applications can display it
 TELEPLOT.dashboards.onReceivedDashboardHooks = [];
 
 TELEPLOT.dashboards.textEncode = function(text) {
@@ -179,31 +180,16 @@ TELEPLOT.dashboards.parseLine = function(line) {
     };
 }
 
-// Dashboard and view path a view label points at ("Robot/top/Motion"), undefined for a label that is only a label (no "/")
-TELEPLOT.dashboards.getLabelPath = function(label) {
-    if(typeof label !== "string" || !label.includes("/")) return undefined;
-    let segments = label.split("/").map((s) => TELEPLOT.dashboards.textDecode(s));
-    let name = segments.shift();
-    segments = segments.filter((s) => s !== "");
-    if(name === "") return undefined;
-    return { name: name, segments: segments };
-}
-
 function _dashText_findChild(container, key) {
     return container.views.find((child) => _dashText_keyOf(child) === key);
 }
 
 // Puts a view where another one was (same parent, same place), or as the view of the dashboard. A view that gives its place to a
-// layout (or a layout to a view) does not hand down what it showed: the telemetries placed there by their label path are placed again.
+// layout (or a layout to a view) does not hand down what it showed.
 function _dashText_replace(dashboard, parent, old, view) {
     view.key = old.key;
     let sameKind = _dashText_isContainer(old) === _dashText_isContainer(view);
     if(sameKind) view.layout.width = old.layout.width;
-    let shown = [];
-    if(!sameKind) {
-        let collect = (v) => { if(Array.isArray(v.views)) v.views.forEach(collect); else if(v.telemetryIdOrNameList) shown.push(...v.telemetryIdOrNameList); };
-        collect(old);
-    }
     if(_dashText_isContainer(old) && _dashText_isContainer(view)) {
         let children = Array.from(old.views);
         old.views.splice(0, old.views.length); // (they are not forgotten with the old view)
@@ -212,6 +198,7 @@ function _dashText_replace(dashboard, parent, old, view) {
     else if(!_dashText_isContainer(old) && !_dashText_isContainer(view)) {
         for(let entry of old.telemetryIdOrNameList) view.telemetryIdOrNameList.push(entry);
         view.options.title = old.options.title;
+        if(Array.isArray(old.options.followLabels) && typeof view.followLabel === "function") old.options.followLabels.forEach((label) => view.followLabel(label));
     }
     if(parent === undefined) {
         TELEPLOT.view.removeView(old);
@@ -222,11 +209,6 @@ function _dashText_replace(dashboard, parent, old, view) {
         parent.removeView(old.id);
         TELEPLOT.view.removeView(old);
         parent.addView(view, index);
-    }
-    for(let entry of shown) {
-        let telem = TELEPLOT.datastore.getTelemetry(entry);
-        let path = telem !== undefined ? TELEPLOT.dashboards.getLabelPath(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL)) : undefined;
-        if(path !== undefined && _dashText_dashboardFor(path.name) === dashboard) TELEPLOT.dashboards.placeTelemetry(telem);
     }
     return view;
 }
@@ -248,9 +230,8 @@ function _dashText_addDashboard(name) {
 }
 
 // The layout at a path of a dashboard, created with everything missing on the way (grids). A view that shows telemetries and stands
-// on the way gives its place to a layout. placing: for a label path (placeTelemetry), what is created is marked "placed"; otherwise
-// (a received line) the layouts on the way are part of the received layout.
-function _dashText_container(dashboard, segments, placing = false) {
+// on the way gives its place to a layout.
+function _dashText_container(dashboard, segments) {
     let group = dashboard.getGroupName();
     if(!dashboard.view) dashboard.setView(_dashText_create("grid", group));
     else if(!_dashText_isContainer(dashboard.view)) _dashText_replace(dashboard, undefined, dashboard.view, _dashText_create("grid", group));
@@ -260,11 +241,9 @@ function _dashText_container(dashboard, segments, placing = false) {
         if(child === undefined) {
             child = _dashText_create("grid", group);
             child.key = key;
-            child.placed = placing;
             container.addView(child);
         }
         else if(!_dashText_isContainer(child)) child = _dashText_replace(dashboard, container, child, _dashText_create("grid", group));
-        if(!placing) child.placed = false;
         container = child;
     }
     return container;
@@ -286,8 +265,8 @@ function _dashText_setValue(target, key, text) {
     return true;
 }
 
-// Telemetries of a view from a line: the list of the line, and what a label path put in the view (the line does not know about them)
-function _dashText_setTelemetries(view, names, path) {
+// Telemetries of a view from a line: the list of the line, and what the view has from the labels it follows (the line does not list them)
+function _dashText_setTelemetries(view, names) {
     let entries = [];
     let add = (entry) => {
         let telem = TELEPLOT.datastore.findByName(entry); // (a binary telemetry that is already there has its name as an attribute)
@@ -297,8 +276,8 @@ function _dashText_setTelemetries(view, names, path) {
     names.forEach(add);
     for(let entry of view.telemetryIdOrNameList) {
         let telem = TELEPLOT.datastore.getTelemetry(entry);
-        let label = telem !== undefined ? TELEPLOT.dashboards.getLabelPath(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL)) : undefined;
-        if(label !== undefined && [label.name, ...label.segments].join("/") === path) add(entry);
+        let label = telem !== undefined ? telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) : undefined;
+        if(label && Array.isArray(view.options.followLabels) && view.options.followLabels.includes(label)) add(entry);
     }
     let list = view.telemetryIdOrNameList;
     if(list.length !== entries.length || entries.some((entry, i) => list[i] !== entry)) list.splice(0, list.length, ...entries);
@@ -351,12 +330,11 @@ function _dashText_apply(dashboard, parsed) {
         else view = _dashText_replace(dashboard, parent, view, _dashText_create(type, group));
     }
     if(!isRoot && !view.key) view.key = key; // (a view found by its title: it keeps this key if the title changes)
-    view.placed = false; // (a view a label path made is now one of the layout: see _dashText_tidy)
 
     let problems = 0;
     let leaf = !_dashText_isContainer(view);
     if(parsed.telemetries !== undefined) {
-        if(leaf) _dashText_setTelemetries(view, parsed.telemetries, [parsed.name, ...parsed.segments].join("/"));
+        if(leaf) _dashText_setTelemetries(view, parsed.telemetries);
         else if(parsed.telemetries.length) problems++;
     }
     for(let [name, text] of parsed.options) {
@@ -424,7 +402,6 @@ TELEPLOT.dashboards.receiveLine = function(line) {
     if(parsed.type === "none" && parsed.segments.length === 0) record.lines.clear(); // What was said before is not said again
     record.lines.set(path, line);
     if(dashboard !== undefined) problems = _dashText_apply(dashboard, parsed);
-    if(dashboard !== undefined && _dashText_isListed(dashboard)) _dashText_tidy(dashboard, record);
     if(created && _dashText_isListed(dashboard)) {
         if(!dashboard.view) dashboard.setView(_dashText_create("grid", dashboard.getGroupName()));
         _dashText_created(dashboard);
@@ -502,123 +479,3 @@ TELEPLOT.dashboards.withImport = function(job, fn) {
     finally { _dashText_importJob = previous; }
 }
 
-/*
- * A view label that is a path ("speed,Robot/Motion:12.5" in text, TELEM_ATTR_VIEW_LABEL in binary) places its telemetry: in the
- * dashboard "Robot", in the view "Motion", both created if needed. As with labels in the automatic dashboard, telemetries of a path
- * that are displayed the same way share one view, titled with the last name of the path; the others get a view of their own kind
- * next to it (key "Motion#values"), and a view also takes what else it can show of its path (the camera of a 3D scene, the shapes to
- * draw over a picture). A path that ends with "/" ("speed,Robot/") only names the dashboard: the telemetry gets its own view, as it
- * does in a layout when the path ends on one ("speed,Robot/top" where "top" is a row). A dashboard whose sender described its layout
- * (received lines) has the telemetries the lines list where the lines say: their label path does not place them (see _dashText_tidy).
- * Returns the view the telemetry was put in, undefined when its label is not a path (or when it is not to be displayed: autoplot off).
- */
-TELEPLOT.dashboards.placeTelemetry = function(telem) {
-    const P = TELEPLOT.protocol;
-    let label = telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL);
-    let path = TELEPLOT.dashboards.getLabelPath(label);
-    if(path === undefined || telem.getAttribute(P.TELEM_ATTR_AUTOPLOT) === false) return undefined;
-    if(TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined && telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return undefined; // Drawn in the pixels of a picture: its image views take it
-    if(!telem.hasContent()) return undefined; // No data (yet): nothing to display
-
-    let dashboard = _dashText_dashboardFor(path.name);
-    let listed = dashboard !== undefined ? _dashText_listed(TELEPLOT.dashboards.received[path.name]) : undefined;
-    if(listed !== undefined && listed.all.has(telem.id)) return listed.views(dashboard).find((v) => v.telemetryIdOrNameList.includes(telem.id)); // The received layout says where it goes
-    let created = dashboard === undefined;
-    if(created) {
-        dashboard = _dashText_addDashboard(path.name);
-        if(TELEPLOT.dashboards.received[path.name] === undefined) TELEPLOT.dashboards.received[path.name] = { lines: new Map(), dashboardId: undefined };
-        TELEPLOT.dashboards.received[path.name].dashboardId = dashboard.id;
-    }
-    let container = _dashText_container(dashboard, path.segments.slice(0, -1), true);
-    let key = path.segments.length ? path.segments[path.segments.length - 1] : "";
-    let layout = key !== "" ? _dashText_findChild(container, key) : undefined;
-    if(layout !== undefined && _dashText_isContainer(layout)) { container = layout; key = ""; } // A path that ends on a layout: a view of its own in it
-    let type = TELEPLOT.view.suggestViewType(telem.id);
-    let siblings = key === "" ? [] : container.views.filter((v) => !_dashText_isContainer(v) && (_dashText_keyOf(v) === key || _dashText_keyOf(v).startsWith(key + "#")));
-    let view = siblings.find((v) => _dashText_typeOf(v) === type);
-    if(view !== undefined) view.addTelemetry(telem.id);
-    else {
-        view = TELEPLOT.view.createView(type, [telem.id], dashboard.getGroupName());
-        view.placed = true;
-        if(key !== "") {
-            view.key = siblings.some((v) => _dashText_keyOf(v) === key) ? key + "#" + type : key;
-            view.options.title = key;
-            // What already has this path and belongs in this view too
-            for(let id in TELEPLOT.datastore.telemetries) {
-                let other = TELEPLOT.datastore.telemetries[id];
-                if(other.id === telem.id || other.getAttribute(P.TELEM_ATTR_VIEW_LABEL) !== label) continue;
-                if(listed !== undefined && listed.all.has(other.id)) continue;
-                if(TELEPLOT.view.suggestViewType(other.id) !== type && view.suitsTelemetry(other)) view.addTelemetry(other.id);
-            }
-        }
-        container.addView(view);
-    }
-    for(let other of siblings) {
-        if(other.id !== view.id && typeof other.suitsTelemetry === "function" && other.suitsTelemetry(telem)) other.addTelemetry(telem.id);
-    }
-    if(created) _dashText_created(dashboard);
-    return view;
-}
-
-TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => { TELEPLOT.dashboards.placeTelemetry(telem); });
-
-// The telemetries the received lines of a dashboard list (record: TELEPLOT.dashboards.received[name]), when there are some:
-// { all: Set of ids, at: Map path -> Set of ids, views(dashboard): the views of the dashboard that are at one of these paths }
-function _dashText_listed(record) {
-    if(record === undefined || !record.lines.size) return undefined;
-    let all = new Set(), at = new Map();
-    for(let [path, line] of record.lines) {
-        let parsed = TELEPLOT.dashboards.parseLine(line);
-        if(parsed === undefined || !parsed.telemetries) continue;
-        let ids = new Set();
-        for(let name of parsed.telemetries) {
-            let telem = TELEPLOT.datastore.findByName(name);
-            if(telem !== undefined) { ids.add(telem.id); all.add(telem.id); }
-        }
-        at.set(path, ids);
-    }
-    if(!all.size) return undefined;
-    let views = (dashboard) => {
-        let found = [];
-        let walk = (container, path) => {
-            for(let child of container.views) {
-                let own = [...path, TELEPLOT.dashboards.textEncode(_dashText_keyOf(child))];
-                if(_dashText_isContainer(child)) walk(child, own);
-                else if(at.has(own.join("/"))) found.push(child);
-            }
-        };
-        if(dashboard.view && _dashText_isContainer(dashboard.view)) walk(dashboard.view, []);
-        return found;
-    };
-    return { all, at, views };
-}
-
-// A dashboard whose sender described its layout: the telemetries its lines list are where the lines say. Placed by their label path
-// before the layout came (see placeTelemetry), they leave the views the label made (which go when they have nothing left to show:
-// layouts too), and the views of the layout that only had them by their label.
-function _dashText_tidy(dashboard, record) {
-    let listed = _dashText_listed(record);
-    if(listed === undefined || !dashboard.view || !_dashText_isContainer(dashboard.view)) return;
-    let remove = (container, child) => { container.removeView(child.id); TELEPLOT.view.removeView(child); };
-    let walk = (container, path) => {
-        for(let child of Array.from(container.views)) {
-            let own = [...path, TELEPLOT.dashboards.textEncode(_dashText_keyOf(child))];
-            if(_dashText_isContainer(child)) {
-                walk(child, own);
-                if(child.placed && !child.views.length) remove(container, child);
-                continue;
-            }
-            if(!child.telemetryIdOrNameList) continue;
-            let mine = listed.at.get(own.join("/"));
-            for(let entry of Array.from(child.telemetryIdOrNameList)) {
-                if(!child.placed && mine === undefined) break;
-                let telem = TELEPLOT.datastore.getTelemetry(entry);
-                if(telem === undefined || !listed.all.has(telem.id) || (mine !== undefined && mine.has(telem.id))) continue;
-                let byLabel = TELEPLOT.dashboards.getLabelPath(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL));
-                if(child.placed || (mine !== undefined && byLabel !== undefined && _dashText_dashboardFor(byLabel.name) === dashboard)) child.removeTelemetry(entry); // (a view made by hand keeps what it was given)
-            }
-            if(child.placed && !child.telemetryIdOrNameList.length) remove(container, child);
-        }
-    };
-    walk(dashboard.view, []);
-}

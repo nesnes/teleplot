@@ -51,8 +51,8 @@ const TEXT = [
     '3D|tex:1627551892437:S:stl:U:"http://x/a.stl":T:url:"http://x/t.png":C:"rgb(1, 2, 3)"',
     'PNG|camera,scene:1627551892437:' + PNG,
     '3D|camera:1627551892437:K:554.25:554:320:240:640:480:P:0:0:1:DC:-0.26:0.07:0:0:0',
-    'speed,Robot/Motion:1627551892437:1.2',
-    'DASH|Robot/Motion:chart|w=4|h=3',
+    'speed,motion:1627551892437:1.2',
+    'DASH|Robot/Motion:chart|w=4|h=3|follow=motion',
     'DASH|Robot/side/Log:log:nav,state|maxLines=50',
 ].join('\n');
 
@@ -167,7 +167,7 @@ test('export options: some telemetries, a time range, dashboards or not', () => 
     assert.deepEqual(U.datastore.getTelemetry('temp').data[20].timestamps, [1627551892.53725, 1627551893], 'limits included');
     assert.equal(U.datastore.getTelemetry('state').data[23], undefined);
     const text = joinText(T.files.exportText({ telemetries: ['temp'], from: 1627551893, dashboards: ['Robot'] }).parts);
-    assert.equal(text, 'DASH|Robot:grid\nDASH|Robot/Motion:chart:speed|w=4|h=3\nDASH|Robot/side:grid\nDASH|Robot/side/Log:log:nav,state|maxLines=50\n'
+    assert.equal(text, 'DASH|Robot:grid\nDASH|Robot/Motion:chart:speed|w=4|h=3|follow=motion\nDASH|Robot/side:grid\nDASH|Robot/side/Log:log:nav,state|maxLines=50\n'
         + 'ATTR|temp|min=-40.5|max=85\n'
         + 'TH|temp:1627551892437:hot>70;1627551892437:critical>85.123456789,#ff0000;1627551892437:cold<-10,rgb(0, 0, 255);1627551899000:hot>75.5;1627551899000:critical>;1627551899000.5:50%25 %3A half>0.1\n'
         + 'temp,env:1627551893000:1e-7;1627551999999:123456789.123§°C\n', 'the thresholds in force when the period starts are written before its own');

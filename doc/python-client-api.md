@@ -80,7 +80,7 @@ Threads as in C++: the main thread sends to the stack as named, another thread t
 
 ```python
 body = tp.telemetry("robot.body")
-body.shape(Teleplot.Cube).size(0.4, 0.3, 0.2).color("#2ecc71").label("Robot/Map")
+body.shape(Teleplot.Cube).size(0.4, 0.3, 0.2).color("#2ecc71").label("map")
 tp.telemetry("lidar").frame("robot.body").position(0.15, 0, 0.25)
 
 body.position(x, y).yaw(theta)                # one chain, one time

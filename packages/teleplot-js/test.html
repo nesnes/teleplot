@@ -1190,7 +1190,7 @@
       }, 50);
     });
 
-    demo("Dashboards as text: received, exported, imported", "A dashboard is also a text, one line per view addressed by its path: DASH|dashboard/view:type:telemetries|option=value. Here the text protocol receives three lines, the binary protocol a fourth (section SECTION_TYPE_DASHBOARD), and two telemetries place themselves with a label that is a path (dash.temp,Text demo/right/Temp). Lines can come in any order, missing layouts are created; a line received again changes nothing, a line that changed updates its view (the chart grows and shrinks every 4 seconds). Under the dashboard: what exportText() gives, which importText() turns back into a dashboard.", ["100%", "auto"], (id) => {
+    demo("Dashboards as text: received, exported, imported", "A dashboard is also a text, one line per view addressed by its path: DASH|dashboard/view:type:telemetries|option=value. Here the text protocol receives three lines, the binary protocol a fourth (section SECTION_TYPE_DASHBOARD), and two views follow a group (follow=climate) that two telemetries are in (dash.temp,climate): each takes what it shows. Lines can come in any order, missing layouts are created; a line received again changes nothing, a line that changed updates its view (the chart grows and shrinks every 4 seconds). Under the dashboard: what exportText() gives, which importText() turns back into a dashboard.", ["100%", "auto"], (id) => {
       const card = document.getElementById(id);
       const exported = document.createElement("pre");
       exported.style.cssText = "margin: 0.8em 0 0; font-size: 0.85em; white-space: pre-wrap;";
@@ -1204,12 +1204,14 @@
         "DASH|Text demo/right/State:values:dash.state|displayLayoutRow=true",  // "right" does not exist yet: created
         "DASH|Text demo:row",
         "DASH|Text demo/Waves:chart:dash.sin,dash.cos|w=3|h=3",
+        "DASH|Text demo/right/Temp:chart|follow=climate",  // takes the numbers of the group
+        "DASH|Text demo/right/Note:values|follow=climate", // and this one its texts
       ].join("\n"));
       new Packet(CLIENT).u8(P.SECTION_TYPE_DASHBOARD).str("DASH|Text demo/right:column|w=2").send();
       setInterval(() => {
         const now = Date.now() / 1000;
         Teleplot.parseDataText(`dash.sin:${Math.sin(now).toFixed(3)}\ndash.cos:${Math.cos(now).toFixed(3)}\ndash.state:${Math.sin(now) > 0 ? "up" : "down"}|t`);
-        Teleplot.parseDataText(`dash.temp,Text demo/right/Temp:${(20 + Math.sin(now / 3)).toFixed(2)}\ndash.note,Text demo/right/Temp:${Math.floor(now % 60)} s|t`); // A path: a view per kind
+        Teleplot.parseDataText(`dash.temp,climate:${(20 + Math.sin(now / 3)).toFixed(2)}\ndash.note,climate:${Math.floor(now % 60)} s|t`); // A group: the views that follow it take them
         Teleplot.parseDataText(`DASH|Text demo/Waves|h=${Math.floor(now / 4) % 2 ? 3 : 4}`); // Same line most of the time: nothing happens
         exported.textContent = Teleplot.dashboards.exportText("Text demo");
       }, 100);

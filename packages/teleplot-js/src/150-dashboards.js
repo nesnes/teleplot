@@ -249,8 +249,6 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
     let labelled = {};     // "label|view type" -> the view of the telemetries of that label
     TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if (telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_AUTOPLOT) === false) return;
-        // A label that is a path ("Robot/Motion") says in which dashboard the telemetry goes: see placeTelemetry (151-dashboardText.js)
-        if (TELEPLOT.dashboards.getLabelPath(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL)) !== undefined) return;
         if (!telem.hasContent()) return; // No data (yet): nothing to display
         // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
         // scene is in the 3D view of its label, and still gets its image view.)
@@ -281,6 +279,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
             let ownLabel = type == "image" ? telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) : label;
             if (label) { labelled[label + "|" + type] = view; view.setOption("title", label); }
             if (ownLabel) {
+                view.followOwnKinds = true; // (one view per kind of a label: each takes what it is the default display of, nothing twice)
                 view.followLabel(ownLabel);
                 // What already has this label and belongs in this view too (the camera of a scene, the shapes to draw over a picture)
                 for (let id in TELEPLOT.datastore.telemetries) {

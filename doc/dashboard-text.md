@@ -15,7 +15,7 @@ DASH|Robot/top/side/State:values:state,battery
 DASH|Robot/top/side/Log:log:robot.log|maxLines=50
 ```
 
-For the simple cases there is an even shorter way, without any dashboard line: [a label that is a path](#a-label-that-is-a-path).
+A view can also take the telemetries of a group instead of naming them: [following groups](#following-groups).
 
 ## A line
 
@@ -45,33 +45,28 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 - A line is applied **when it differs from the last one received for the same path**. A device can therefore send its dashboard again and again (every second, at each boot...): nothing happens, and what the user changed by hand stays. When the device changes a line, the view is updated in place (same view, new options, new telemetries).
 - A dashboard that the user deleted stays deleted while its lines are repeated, and comes back whole as soon as one of them changes. A dashboard that the user renamed still gets the lines of its sender.
 - Changing the type of a layout to another layout keeps the view; other changes replace it and keep what it holds (the children of a layout, the telemetries and the title of a view).
-- A line that lists telemetries sets the list of its view; telemetries that a label path put there stay.
+- A line that lists telemetries sets the list of its view; telemetries it has from the groups it follows stay. A line without `follow=` leaves the groups followed alone.
 - Lines that are not understood are counted like any other bad line of the text protocol (`parseDataText` returns their number); what can be applied still is. On a serial port, a dashboard line starts with `>` like telemetry: `>DASH|Robot/Motion:chart:speed`.
 - The webapp displays a dashboard when it is created this way, unless the user is looking at a dashboard of their own or editing.
 
-## A label that is a path
+## Following groups
 
-The view label of a telemetry (`name,label:value`, see [`textProtocol.md`](textProtocol.md)) can be a path: `dashboard/view`.
+The view label of a telemetry (`name,label:value`, see [`textProtocol.md`](textProtocol.md)) is its **group**: the device says what goes together (a depth map, the boxes drawn over it, the points it makes in 3D), and says nothing about where it is shown. One group per telemetry; a `/` in a group means nothing (`Robot/depth` is a group name, it chooses no dashboard).
+
+A view follows groups with `follow=`, and the dashboard decides where they go:
 
 ```
-speed,Robot/Motion:12.5
-accel,Robot/Motion:0.3
-state,Robot/Motion:IDLE|t
-note,Robot/side/Notes:started|log
+DASH|Robot/top/Depth:image|follow=depth
+DASH|Robot/Scene:3d|follow=depth
+depth.map,depth:...
+depth.boxes,depth:...
 ```
 
-The dashboard "Robot" and its views are created if needed, and the telemetry goes there instead of the automatic "Live" dashboard:
-
-- telemetries of a path that are displayed the same way share one view, titled with the last name of the path (`speed` and `accel` share the chart "Motion");
-- the others get a view of their own kind next to it (`state` gets a values view, also titled "Motion"; its key is `Motion#values`);
-- as with any label, a camera joins the 3D scene of its path and shapes are drawn over the picture of the camera of their path;
-- longer paths nest the view in layouts (`side`), and a path that ends with [`/`](./) (`temp,Robot/:21`) only names the dashboard: the telemetry gets a view of its own (so does a path that ends on a layout: `temp,Robot/side:21`).
-
-Like any label it only decides where a telemetry **first** goes, and telemetries with the `np` flag are left alone. Paths and lines work together, whichever comes first: `DASH|Robot/Motion:chart|w=4|h=3` sizes the chart that `speed,Robot/Motion:...` fills.
-
-When lines also list telemetries, **the lines win**, whichever comes first: a telemetry that a line of its dashboard lists is not placed by its label path, and when the lines come after the data, it leaves the views its label path made (those left empty go, layouts too) and the views of the lines that only had it by its label. What the lines do not list stays where its label path puts it, and views made by hand are not touched. A view that a line turns into a layout (or the other way) hands its telemetries back to their label paths.
-
-Since `/` now has a meaning in a label, a V1 label that contained one is read as a path.
+- The view takes every telemetry of these groups that it can display: numbers and texts for a chart (texts are its marks), anything that has a value for a values view (numbers, texts, positions, pictures, commands), texts for a log, texts and numbers for a timeline, structures and stacks for a graph, shapes, points and clouds for a 2D or 3D view (and the pictures of the group for a 3D view: its cameras), what is drawn over a picture for an image view, and a picture while it has none.
+- The views that Teleplot makes by itself for a group, one per kind of view (the automatic "Live" dashboard, a label card dropped in the editor), take only what their kind shows by default (`view.followOwnKinds`): nothing is shown twice.
+- Those already received and those to come: the result does not depend on what came first, data or dashboard.
+- The name of the view and its place are free: only the group ties it to the data. A view can follow several groups (`follow=depth,camera`) and several views can follow one group.
+- Without dashboard lines, the automatic "Live" dashboard gives each group its views (titled with the group), and they follow it.
 
 ## Export and import
 
@@ -91,8 +86,8 @@ Not exported: the state of the page (which tab of a stack is open, zoom, hidden 
 | `TELEPLOT.dashboards.importText(text)` | creates the dashboards of a text; returns `{ dashboards: [names], problems }` |
 | `TELEPLOT.dashboards.receiveLine(line)` / `receiveText(text)` | what the protocols call: applies a line when it changed |
 | `TELEPLOT.dashboards.onReceivedDashboardHooks` | called with a dashboard created by what was received, to display it |
-| `TELEPLOT.dashboards.placeTelemetry(telem)` | puts a telemetry where its label path says (done by itself for new telemetries) |
-| `TELEPLOT.dashboards.parseLine(line)`, `getLabelPath(label)`, `textEncode(text)`, `textDecode(text)` | the pieces |
+| `TELEPLOT.dashboards.parseLine(line)`, `textEncode(text)`, `textDecode(text)` | the pieces |
+| `view.followLabel(label)` / `unfollowLabel(label)`, `view.suitsTelemetry(telem)` | following a group, and what a view takes of it ([`103-viewTelemetries.js`](../packages/teleplot-js/src/103-viewTelemetries.js)) |
 
 Views keep the key a line gave them in `view.key`. Tests: [`tests/dashboardText.test.js`](../packages/teleplot-js/tests/dashboardText.test.js); demo: "Dashboards as text" in `test.html`.
 
