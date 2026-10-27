@@ -484,35 +484,40 @@ function createRobotSample(TP) {
         const stack = (w, h) => { const s = new TP.view.ViewStack("", group); s.setSize(w, h); return s; };
         const timeGroup = (view, name) => { view.setOption("timeGroup", "custom"); view.setOption("timeGroupName", name); return view; };
 
-        // On top, where the robot is: the 3D scene; the same telemetries on a map (a 2D view) over what its camera and its depth camera
-        // see; the camera with the 3D drawn over it, over the commands and the joystick; its state over the merged logs of all subsystems.
-        // Under it, the motion charts. The plain camera picture is alone in a time group of its own ("Live"): nothing moves its
+        // On top, where the robot is: the 3D scene over what its camera and its depth camera see; the same telemetries on a map (a 2D
+        // view) over the speeds of its wheels; the camera with the 3D drawn over it, over the commands and the joystick; its state over
+        // the merged logs of all subsystems. The plain camera picture is alone in a time group of its own ("Live"): nothing moves its
         // cursor, so it keeps showing the latest picture while the rest of the dashboard is zoomed or follows the pointer.
-        // Between them, the timeline: the states of the robot as bands (where it is leaves holes: it is in no zone most of the time) and
-        // two of its logs as ticks. On the charts, the state and the motor log are marks, and the thresholds are dashed lines.
-        const main = layout("column"), top = layout("row"), bottom = layout("row");
-        const places = layout("column", 4, 7), pictures = layout("row", 1, 2), cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(2, 5);
+        // Then the timeline: the states of the robot as bands (where it is leaves holes: it is in no zone most of the time) and two of its
+        // logs as ticks, next to its graphs (what it decides, its state machine). At the bottom the currents, and the distance and the
+        // gyro in tabs. On the charts, the state and the motor log are marks, and the thresholds are dashed lines.
+        // (In a row the widths of the views share out its width, in a column they share out its height.)
+        const main = layout("column"), top = layout("row"), middle = layout("row"), bottom = layout("row");
+        const sight = layout("column", 4, 7), places = layout("column", 4, 7), pictures = layout("row", 2, 2), cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(4, 5);
         dashboard.setView(main);
         main.addView(top);
         // (numbers can have a lane too: the distance has a threshold, it is a band while a wall is too close; the gyro is a plain line)
         const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.mode", "robot.goto", "robot.camera.task", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
-        timeline.setSize(12, 5);
-        main.addView(timeline);
+        timeline.setSize(9, 5);
+        main.addView(middle);
+        middle.addView(timeline);
         main.addView(bottom);
 
         const scene = new TP.view.ViewScene3D("", ["robot.3d.floor", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.3d.screen", "robot.3d.obstacle", "robot.camera", "robot.depth", "robot.path", "robot.lidar", "robot.map.dock", "robot.map.dock.name", "robot.map.heading", "robot.map.reach", "robot.map.obstacle.name"], group);
-        scene.setSize(4, 7);
+        scene.setSize(3, 7);
         scene.setOption("trailLength", 500);
-        top.addView(scene);
+        top.addView(sight);
+        sight.addView(scene);
+        sight.addView(pictures); // (3 against 2: the scene takes most of the height)
         // The map: the same telemetries seen from above (solids are drawn as what they cover on the ground). Nothing is sent twice.
         const map = new TP.view.ViewScene2D("", ["robot.3d.floor", "robot.map.dock", "robot.map.dock.name", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.map.reach", "robot.path", "robot.lidar", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.camera", "robot.map.heading", "robot.3d.obstacle", "robot.map.obstacle.name", "robot.pose"], group);
-        map.setSize(4, 5);
+        map.setSize(1, 5);
         map.setOption("trailLength", 500);
         map.setOption("displayLegend", false);
         map.setOption("title", "Map"); // (seen from above: x to the right, y up. axisRight / axisUp choose another way to look at it)
         top.addView(places);
         places.addView(map);
-        places.addView(pictures); // (in a column the width shares out the height left: 1 against 4, the map takes most of it)
+        places.addView(chart(["robot.wheel.left", "robot.wheel.right", "robot.state"], 1, 5)); // (as tall as the map)
         top.addView(cameras);
         top.addView(state);
 
@@ -539,16 +544,15 @@ function createRobotSample(TP) {
         logView.setSize(3, 4);
         state.addView(logView);
 
-        bottom.addView(chart(["robot.current.left", "robot.current.right", "robot.motor.log"], 3, 5));
-        bottom.addView(chart(["robot.wheel.left", "robot.wheel.right", "robot.state"], 3, 5));
+        bottom.addView(chart(["robot.current.left", "robot.current.right", "robot.motor.log"], 6, 5));
         bottom.addView(tabs);
         // Its graphs: what it decides (a behavior tree) and its state machine, in tabs
-        const graphs = stack(4, 5), tree = new TP.view.ViewGraph("", ["robot.bt"], group), machine = new TP.view.ViewGraph("", ["robot.state"], group);
+        const graphs = stack(3, 5), tree = new TP.view.ViewGraph("", ["robot.bt"], group), machine = new TP.view.ViewGraph("", ["robot.state"], group);
         tree.setOption("title", "Behavior");
         machine.setOption("title", "States");
         graphs.addView(tree);
         graphs.addView(machine);
-        bottom.addView(graphs);
+        middle.addView(graphs);
         // Commands (switch CMD on), under the camera: its settings and actions, edited and called in place, and a joystick for the manual mode
         const settings = values(["robot.speed_limit", "robot.motors", "robot.mode", "robot.odometry.reset", "robot.goto", "robot.stop", "robot.dock"], 2, 2);
         settings.setOption("title", "Commands");

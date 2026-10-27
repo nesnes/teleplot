@@ -11,7 +11,7 @@ echo "myData:4" | nc -u -w0 127.0.0.1 47269
 
 ![The page of Teleplot waiting for data: the ways to send it on the left, what can be displayed on the right](doc/images/landing.png)
 
-![The robot sample of Teleplot: a 3D scene, a map, a camera, a depth map, commands, values, logs, a timeline and charts, all live](doc/images/robot-sample.gif)
+![The robot sample of Teleplot: a 3D scene, a map, a camera, a depth map, commands, values, logs, a timeline, a behavior tree and charts, all live](doc/images/robot-sample.gif)
 
 *Above: the page waiting for data, then the robot sample (welcome screen, "Try me"): a simulated robot, nothing to install.*
 
