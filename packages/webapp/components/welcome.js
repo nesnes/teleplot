@@ -237,7 +237,7 @@ function initComponent_welcome(vue) {
     }
 
     // The gallery of the See column: tiles of the Help, by family, each with one line that makes it
-    const GALLERY = [["Numbers", ["curve", "gauge", "together", "marks"]], ["Text over time", ["state", "log", "timeline", "stack"]],
+    const GALLERY = [["Numbers", ["curve", "gauge", "together", "marks"]], ["Text over time", ["state", "log", "timeline", "stack", "statemachine", "behaviortree"]],
         ["Space", ["map", "scene", "cloud", "mesh"]], ["Pictures and control", ["camera", "pixels", "settings", "joystick"]]];
     // The line of a tile: its first message that is data (not a dashboard, an attribute or a picture, which say less on their own)
     const tileLine = (tile) => {

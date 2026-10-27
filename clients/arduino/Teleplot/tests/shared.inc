@@ -48,6 +48,11 @@ static void sharedScenario(Teleplot& tp) {
     tp.telemetry("tex").shape(Teleplot::Cube).texture("http://x/a.png");
     tp.telemetry("stl").stl("http://x/a.stl");
     tp.dashboard("DASH|Robot/Motion:chart:battery|w=2");
+    static const char* const STATES[] = { "idle#waiting", "mission/goto", "mission/grasp", "error" };
+    static const char* const TRANSITIONS[] = { "idle>mission=start", "mission/goto>mission/grasp=arrived", "mission>error=fault" };
+    tp.telemetry("machine").stack().enumValues(STATES).edges(TRANSITIONS);
+    tp.stack("machine", "mission/goto");
+    tp.update("machine", "mission/goto=failure,error");
 
     tp.param("kp", &kp).range(0, 10).step(0.5).desc("Proportional gain").unit("1/s");
     tp.action("goto", gotoHandler)

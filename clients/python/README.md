@@ -49,12 +49,13 @@ The same as in the other languages ([clients/README.md](../README.md#examples)),
 | `16_settings` | a value the page can change |
 | `17_buttons` | a button in the page, with an argument and a confirmation |
 | `18_joystick` | a joystick that stops by itself |
-| `19_setting_rules` | choices, refusing a value, a setting bound to an attribute |
+| `19_setting_rules` | choices (an enum), refusing a value, a setting bound to an attribute |
 | `20_time_and_rate` | the time a value was measured, fewer samples of a fast value |
 | `21_clock` | a clock of your own |
 | `22_recording` | recording to a file the page opens |
 | `23_dashboard` | choosing where values go (a dashboard) |
 | `24_stats` | how the client is doing, in the page |
+| `25_graphs` | a state machine and a behavior tree: their structure, where they are, the results of a tick |
 | `30_threads` | a sending thread, a loop that never waits, a lane per thread |
 | `31_long_action` | an action that answers later |
 | `32_text_protocol` | the same as text lines (a terminal, a pipe) |

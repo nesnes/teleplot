@@ -45,14 +45,14 @@ _PART_BYTES = 1380
 _CALL_ID_SETTING = 0xFFFF
 _FILE_MAGIC = bytes([0x54, 0x50, 0x4C, 0x54, 0x0A, 0x01, 0x00, 0x00])
 
-(A_NAME, A_UNIT, A_COLOR, A_AUTOPLOT, A_TIMEOUT, A_SHAPE, A_LABEL, A_LOG, A_FRAME, A_RANGE, A_STACK, A_WRITE, A_CHOICES, A_ARGS,
- A_DESC, A_TITLE, A_PIXELS) = range(17)
+(A_NAME, A_UNIT, A_COLOR, A_AUTOPLOT, A_TIMEOUT, A_SHAPE, A_LABEL, A_LOG, A_FRAME, A_RANGE, A_STACK, A_WRITE, _A_RETIRED, A_ARGS,
+ A_DESC, A_TITLE, A_PIXELS) = range(17)  # (12: retired, the texts a setting can take are an enum structure: S_ENUM)
 S_CLIENT_NAME, S_DASHBOARD, S_ATTR = 1, 2, 10
 (S_NUMBER, S_NUMBER_2D, S_NUMBER_3D, S_TEXT, S_IMAGE, S_POSITION, S_ROTATION, S_QUATERNION, S_COLOR_STR, S_COLOR_RGB, S_OPACITY,
  S_SIZE, S_TEXTURE, S_INTRINSICS, S_DISTORTION, S_CLOUD, S_FLOAT64, S_VECTOR, S_SHAPE_TEXT, S_LINE_WIDTH, S_THRESHOLD, S_CALL,
- S_CALL_ANSWER) = range(20, 43)
+ S_CALL_ANSWER, S_ENUM, S_EDGES) = range(20, 45)  # (43, 44: the structure of a telemetry, doc/graph.md)
 # Samples usually sent once: sent again with the descriptions (a page opened later gets them). Streams are not.
-_LATCHED = set(range(S_POSITION, S_DISTORTION + 1)) | {S_VECTOR, S_SHAPE_TEXT, S_LINE_WIDTH, S_THRESHOLD}
+_LATCHED = set(range(S_POSITION, S_DISTORTION + 1)) | {S_VECTOR, S_SHAPE_TEXT, S_LINE_WIDTH, S_THRESHOLD, S_ENUM, S_EDGES}
 _NUMERIC = {S_NUMBER, S_NUMBER_2D, S_NUMBER_3D, S_POSITION, S_ROTATION, S_QUATERNION, S_COLOR_RGB, S_OPACITY, S_SIZE, S_INTRINSICS,
             S_DISTORTION, S_VECTOR, S_LINE_WIDTH}
 _SHAPE_NAMES = {0: "cube", 1: "sphere", 2: "cylinder", 3: "rect", 4: "circle", 5: "line", 6: "polygon", 7: "arrow", 8: "text", 10: "stl"}
@@ -407,7 +407,18 @@ class Teleplot:
             return
         with self._lock:
             self._entries[index].stack_path = str(path)
-        Telemetry(self, index)._chain(time).update(str(path))
+        Telemetry(self, index)._chain(time if time is not None else self._stack_now(index)).update(str(path))
+
+    def _stack_now(self, index):
+        """The time of a stack sample the client dates itself: at least 1 µs after the previous one of the stack. Samples of a stack
+        with the same time are parts of one for the page (several paths at once, doc/graph.md): one step and the next must not look so"""
+        ns = self._now_ns()
+        with self._lock:
+            e = self._entries[index]
+            if e.last_stack_ns is not None and ns < e.last_stack_ns + 1000:
+                ns = e.last_stack_ns + 1000
+            e.last_stack_ns = ns
+        return Teleplot.ns(ns)
 
     def dashboard(self, lines):
         """Dashboard lines of the text protocol (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds"""
@@ -612,9 +623,9 @@ class Teleplot:
         if not self._lock_for(entry):
             return
         try:
-            if kind >= S_POSITION and kind not in (S_INTRINSICS, S_DISTORTION, S_THRESHOLD, S_CLOUD, S_IMAGE):
+            if kind >= S_POSITION and kind not in (S_INTRINSICS, S_DISTORTION, S_THRESHOLD, S_CLOUD, S_IMAGE, S_ENUM, S_EDGES):
                 entry.is_shape = True
-            if entry.max_rate > 0 and kind not in (S_THRESHOLD,):
+            if entry.max_rate > 0 and kind not in (S_THRESHOLD, S_ENUM, S_EDGES):
                 last = entry.last_kept.get(kind)
                 if last is not None and 0 <= ns - last < 1e9 / entry.max_rate:
                     return
@@ -651,6 +662,8 @@ class Teleplot:
             self._push(entry, kind, ns, text.split(b"\0")[0] + b"\0")
         elif kind == S_TEXTURE:
             self._push(entry, kind, ns, bytes([values[0]]) + _cstr(values[1]))
+        elif kind in (S_ENUM, S_EDGES):  # a part of a structure: its items separated by line feeds
+            self._push(entry, kind, ns, _cstr(values[0]))
         elif kind == S_THRESHOLD:
             operator, value, name, color = values
             self._push(entry, kind, ns, bytes([operator]) + struct.pack("<d", value) + _cstr(name) + _cstr(color))
@@ -712,8 +725,6 @@ class Teleplot:
         if code == A_WRITE:
             kind, write_type, flags, step, rate, hold, axes = value
             return struct.pack("<BBBdHHB", kind, write_type, flags, math.nan if step is None else step, rate, hold, axes)
-        if code == A_CHOICES:
-            return _cstr("\n".join(value)[:_MAX_ATTR_TEXT])
         if code == A_PIXELS:
             return struct.pack("<ddB", value[0], value[1], 0 if value[2] else 1)  # flags: 1 = not a depth map
         raise ValueError(code)
@@ -928,8 +939,6 @@ class Teleplot:
         for code, key in ((A_UNIT, "unit"), (A_DESC, "desc")):
             if a.get(code):
                 line += "|%s=%s" % (key, _escape(a[code], "%|,=:\n\r"))
-        if a.get(A_CHOICES):
-            line += "|choices=" + ",".join(_escape(c, "%|,=:\n\r") for c in a[A_CHOICES])
         return line
 
     def _text_sample(self, entry, kind, ns, values):  # (lock held) the line of a sample
@@ -947,6 +956,9 @@ class Teleplot:
                 self._stats["tooBig"] += 1
                 text = text.encode()[:_MAX_TEXT].decode(errors="ignore")
             self._line("%s:%s:%s%s" % (self._text_head(entry), t, text, self._text_flags(entry, "log" if entry.log else "stack" if entry.stack else "t")))
+        elif kind in (S_ENUM, S_EDGES):  # name:time:item,item|enum (or |edges), the items as given ("," ";" "|" in them as %XX)
+            items = ",".join(_escape(item, ",;|\r") for item in str(values[0]).split("\n"))
+            self._line("%s:%s:%s%s" % (self._text_head(entry), t, items, self._text_flags(entry, "edges" if kind == S_EDGES else "enum")))
         elif kind == S_THRESHOLD:
             operator, value, name, color = values
             self._line("TH|%s:%s:%s%s%s%s" % (entry.name, t, _escape(name, "%:;|<>,"), ">" if operator == Teleplot.Above else "<",
@@ -1247,7 +1259,7 @@ _thread_names = threading.local()
 
 class _Entry:
     __slots__ = ("name", "id", "attrs", "args", "text_args", "items", "dirty", "attr_cursor", "attrs_sent_ms", "is_shape", "shape_type",
-                 "log", "stack", "precise", "max_rate", "non_blocking", "one_thread", "owner", "stack_path", "queues", "latched",
+                 "log", "stack", "precise", "max_rate", "non_blocking", "one_thread", "owner", "stack_path", "queues", "latched", "structures", "last_stack_ns",
                  "last_kept", "range")
 
     def __init__(self, name):
@@ -1257,6 +1269,7 @@ class _Entry:
         self.is_shape, self.shape_type, self.log, self.stack, self.precise = False, None, False, False, False
         self.max_rate, self.non_blocking, self.one_thread, self.owner = 0.0, None, False, None
         self.stack_path, self.queues, self.latched, self.last_kept = "", {}, {}, {}
+        self.structures, self.last_stack_ns = {}, None  # (the structure sent last, by kind; the time of the last sample of its stack)
         self.range = [None, None]
 
 
@@ -1464,6 +1477,16 @@ class _Describe:
         s._send(S_THRESHOLD, (Teleplot.Below, math.nan, str(name), ""), str(name))
         return s
 
+    def enumValues(self, values):
+        """Its structure (doc/graph.md), from the time of the chain until a newer one: the texts it can take (states, nodes: paths
+        with "/" between levels, "#kind" at the end of one). Sent once, again with the descriptions; a long one in several parts with
+        the same time"""
+        return self._samples()._structure(S_ENUM, values)
+
+    def edges(self, values):
+        """Its transitions: "from>to" or "from>to=event" (see enumValues)"""
+        return self._samples()._structure(S_EDGES, values)
+
     def position(self, x, y, z=0.0):
         return self._samples()._send(S_POSITION, [float(x), float(y), float(z)])
 
@@ -1555,6 +1578,28 @@ class Samples(_Describe):
         if self._ns is None:
             self._ns = self._tp._now_ns()
         self._tp._sample(self._index, kind, self._ns, values, latch_key)
+        return self
+
+    def _structure(self, kind, values):
+        """Parts that fit a packet, with the time of the chain (the page makes them one again); the same items as the structure in
+        force are not sent again (a setting declared again)"""
+        parts, part = [], ""
+        for item in (str(v)[:_MAX_TEXT - 1] for v in values):
+            if part and len((part + "\n" + item).encode()) > _MAX_TEXT - 1:
+                parts.append(part)
+                part = ""
+            part = item if not part else part + "\n" + item
+        parts.append(part)
+        tp = self._tp
+        with tp._lock:
+            e = tp._entries[self._index]
+            if e.structures.get(kind) == parts:
+                return self
+            e.structures[kind] = parts
+            for key in [k for k in e.latched if k[0] == kind]:  # (the parts of the one it replaces)
+                del e.latched[key]
+        for i, part in enumerate(parts):
+            self._send(kind, [part], i)
         return self
 
     def at(self, t):
@@ -1654,7 +1699,8 @@ class Param:
         self._declare()
         return self
 
-    def choices(self, values):
+    def enumValues(self, values):
+        """The texts it can take (its enum structure, doc/graph.md); "text#caption": words shown with a choice"""
         return self._set(_choices=[str(v) for v in values])
 
     def rate(self, hz):
@@ -1677,7 +1723,8 @@ class Param:
             e = tp._entries[self._index]
             tp._attr(e, A_WRITE, (1, self._type, 0, self._step, self._rate, self._hold, self._axes))
             tp._attr(e, A_RANGE, (self._min, self._max))
-            tp._attr(e, A_CHOICES, tuple(self._choices))
+        if self._choices:
+            Telemetry(tp, self._index).enumValues(self._choices)
 
     def _publish(self):
         v = self.value
@@ -1704,8 +1751,9 @@ class Param:
         why = None
         if self._type == 3:
             value = text
-            if self._choices and value not in self._choices:
-                why = "one of " + ", ".join(self._choices)
+            texts = [_unescape(c.rsplit("#", 1)[0] if "#" in c else c) for c in self._choices]  # (its kind is not part of a choice)
+            if texts and value not in texts:
+                why = "one of " + ", ".join(texts)
         elif not numbers_:
             why = "a number"
         elif self._type == 2:
@@ -1803,7 +1851,7 @@ class Action:
                 if v:
                     line += "|%s=%s" % (key, _escape(v, "%|,=:\n\r"))
             if a._choices:
-                line += "|choices=" + ",".join(_escape(c, "%|,=:\n\r") for c in a._choices)
+                line += "|enum=" + ",".join(_escape(c, "%|,=:\n\r") for c in a._choices)
             e.text_args.append(line)
             e.dirty = True
         return self
@@ -1859,7 +1907,8 @@ class Arg:
         self._unit = str(text)
         return self
 
-    def choices(self, values):
+    def enumValues(self, values):
+        """The texts it can take"""
         self._choices = [str(v) for v in values]
         return self
 
@@ -1929,7 +1978,7 @@ class Stack:
             befores.append((index, len(e.stack_path)))
             e.stack_path = (e.stack_path + "/" if e.stack_path else "") + self._level
             path = e.stack_path
-        Telemetry(tp, index)._chain(None).update(path)
+        Telemetry(tp, index)._chain(tp._stack_now(index)).update(path)
         return self
 
     def __exit__(self, *exc):
@@ -1942,7 +1991,7 @@ class Stack:
             e = tp._entries[index]
             e.stack_path = e.stack_path[:length]
             path = e.stack_path
-        Telemetry(tp, index)._chain(None).update(path)
+        Telemetry(tp, index)._chain(tp._stack_now(index)).update(path)
         return False
 
     def __call__(self, fn):

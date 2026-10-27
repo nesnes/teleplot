@@ -177,10 +177,12 @@ class ViewLog extends ViewTelemetries{
         this.afterRender(() => this.scrollToFollow());
     }
 
-    // 2 for lines that look like errors, 1 for warnings, 0 otherwise (the word, in any case, anywhere in the line: "[ERROR] ...", "warning: ...")
+    // 2 for texts that look like errors or failures, 1 for warnings, 3 for successes, 0 otherwise (a word of the lists, in any case,
+    // anywhere in the text: "[ERROR] ...", "warning: ...", "failed"). The same lists color logs, timelines and graphs (doc/graph.md).
     static getLevel(text) {
-        if(/\b(error|err|fatal|critical|crit)\b/i.test(text)) return 2;
-        if(/\b(warn|warning)\b/i.test(text)) return 1;
+        if(/\b(error|err|fail|failed|failure|fatal|critical|crit)\b/i.test(text)) return 2;
+        if(/\b(warn|warning|timeout)\b/i.test(text)) return 1;
+        if(/\b(ok|success|succeeded|done|pass|passed)\b/i.test(text)) return 3;
         return 0;
     }
 
@@ -240,7 +242,7 @@ class ViewLog extends ViewTelemetries{
           <div class="teleplot-js-log-scroll" @scroll="onScroll($event)">
             <div v-if="state.hidden > 0" class="teleplot-js-log-hidden">&hellip; {{state.hidden}} older line{{state.hidden > 1 ? 's' : ''}} not shown</div>
             <div v-for="(row, index) in state.rows" v-bind:key="index" class="teleplot-js-log-row"
-                v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex, 'teleplot-js-log-row-warn': row.level == 1, 'teleplot-js-log-row-error': row.level == 2}"
+                v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex, 'teleplot-js-log-row-warn': row.level == 1, 'teleplot-js-log-row-error': row.level == 2, 'teleplot-js-log-row-ok': row.level == 3}"
                 v-bind:style="state.multi && options.displayTelemetryColor ? {'border-left-color': row.color} : {}"
                 v-bind:title="row.text" @mouseenter="onRowEnter(row)">
                 <span v-if="options.displayTimestamp" class="teleplot-js-log-time">{{row.time}}</span>
@@ -291,6 +293,7 @@ class ViewLog extends ViewTelemetries{
             .teleplot-js-log-row-warn .teleplot-js-log-text { color: var(--teleplot-warn); }
             .teleplot-js-log-row-error .teleplot-js-log-text { color: var(--teleplot-error); }
             .teleplot-js-log-row-error { border-left-color: var(--teleplot-error); }
+            .teleplot-js-log-row-ok .teleplot-js-log-text { color: var(--teleplot-ok); }
             .teleplot-js-log-time {
                 flex: 0 0 auto;
                 color: var(--teleplot-muted);

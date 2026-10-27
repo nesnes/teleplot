@@ -12,7 +12,7 @@
  * - Path: the dashboard, then the views down to the one described. Layouts that are missing on the way are created (grids), so lines can
  *   come in any order, and a line can be sent again to change its view. The last name is the key of the view among its siblings and, for
  *   a view that shows telemetries, its title; a key that starts with "#" is only a key (no title).
- * - Type: "row", "column", "grid", "stack" (layouts), "chart", "values", "log", "timeline", "2d", "3d", "image", "joystick", or "none" (removes the view, or the
+ * - Type: "row", "column", "grid", "stack" (layouts), "chart", "values", "log", "timeline", "graph", "2d", "3d", "image", "joystick", or "none" (removes the view, or the
  *   dashboard). Without a type an existing view keeps its own, a new one gets what suits its first telemetry (a grid without telemetry).
  * - Telemetries: by name. They do not have to exist yet: the view waits for them.
  * - Options: the layout (w, h, align, gap, columnWidth...) and the options of the view (maxLines, displayGrid...), plus "title",
@@ -24,7 +24,7 @@
  */
 const _dashText_PREFIX = "DASH|";
 const _dashText_LAYOUTS = ["row", "column", "grid"];
-const _dashText_LEAF_TYPES = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-log": "log", "teleplot-timeline": "timeline", "teleplot-2d": "2d", "teleplot-3d": "3d", "teleplot-image": "image", "teleplot-joystick": "joystick" };
+const _dashText_LEAF_TYPES = { "teleplot-chart": "chart", "teleplot-current-value": "values", "teleplot-log": "log", "teleplot-timeline": "timeline", "teleplot-graph": "graph", "teleplot-2d": "2d", "teleplot-3d": "3d", "teleplot-image": "image", "teleplot-joystick": "joystick" };
 const _dashText_ALIASES = { w: "width", h: "height" };
 const _dashText_LAYOUT_SKIPPED = ["type", "selected"];                                              // Not options of a line: the type has its own field
 const _dashText_OPTIONS_SKIPPED = ["_telemetry", "title", "followLabels", "timeGroup", "timeGroupName"]; // Written another way ("title", "follow", "time"), or not at all

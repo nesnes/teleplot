@@ -70,7 +70,9 @@ depending on the network.
 | `pc` | a point cloud: all the points of the line are one sample |
 | `t` | a text that is a state |
 | `log` | a text that is a log |
-| `stack` | a text that is the path of what runs |
+| `stack` | a text that is the path of what runs (several at once separated by `,`, each with an optional `=status`) |
+| `enum` | the states or nodes of a telemetry, or the texts a setting can take (its structure: see "Graphs") |
+| `edges` | the transitions of a state machine (see "Graphs") |
 | `np` | no plot: teleplot does not display it by itself |
 | `clr` | clear the previous values of the telemetry first (cyclic data, like lidar points) |
 
@@ -133,8 +135,32 @@ task:loop/plan/search|stack
 task:1627551892437.25:loop/plan|stack
 ```
 
+Several things can run at once: their paths separated by commas, each with an optional status after `=` (what it ended with, any
+word: `failure`, `success`...). A path without status runs, and so do the levels that hold it. Lines with the same time (written by
+your device) are parts of one sample: a tick too long for one message can be split.
+
+```
+bt:root/patrol/battery_ok=failure,root/patrol=failure,root/dock|stack
+nav:1627551892437:nav/follow|stack
+nav:1627551892437:arm/idle|stack          (the same time: nav/follow and arm/idle run at once)
+```
+
 Text telemetries can also be seen along the time: as bands in a **timeline** view (a tick per line for a log), and as **marks** on a
 chart they are added to. Both are views you ask for (edit mode, or a `DASH|` line): see [`time-views.md`](time-views.md).
+
+### Graphs: state machines and behavior trees
+
+A state or a stack can have a **structure**: its states or nodes (`|enum`: paths, a slash between levels, an optional `#kind` at the
+end of one) and its transitions (`|edges`: `from>to` or `from>to=event`). A graph view draws it, and what runs in it. A structure is
+a sample: it holds from its time until a newer one; lines with the same time are parts of one (a big structure in several messages).
+In names, `,` `;` `|` `#` `/` `>` `=` `%` are written `%XX`. Everything is in [`graph.md`](graph.md).
+
+```
+mode:idle,mission/goto,mission/grasp,error|enum                     its states: mission holds goto and grasp
+mode:idle>mission=start,mission/goto>mission/grasp=arrived|edges    its transitions, with what makes them happen
+mode:mission/goto|stack                                             where it is
+bt:root#fallback,root/patrol#sequence,root/dock#action|enum         a behavior tree: no edges, the paths make the tree
+```
 
 ### Log lines
 
@@ -384,7 +410,8 @@ address and port your packets come from), or from the serial port.
 ```
 ATTR|kp|write|min=0|max=10|step=0.01          a setting: the page shows a slider; it sends kp:0.42
 kp:0.4                                        keep sending the value: when it comes back as asked, the page knows it was applied
-ATTR|mode|write|choices=auto,manual           a text among choices
+ATTR|mode|write=text                          a text…
+mode:auto,manual#by hand|enum                 …among these (its enum; #: a caption)
 ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200    driven by a joystick view; stop when nothing came for 200 ms
 ATTR|goto|action|title=Go to                  an action: a button
 ATTR|goto|arg=target|type=xy                  its arguments, one line each: the button opens a form

@@ -59,6 +59,10 @@ def shared_scenario(tp):
     tp.telemetry("tex").shape(Teleplot.Cube).texture("http://x/a.png")
     tp.telemetry("stl").stl("http://x/a.stl")
     tp.dashboard("DASH|Robot/Motion:chart:battery|w=2")
+    tp.telemetry("machine").stack().enumValues(["idle#waiting", "mission/goto", "mission/grasp", "error"]) \
+        .edges(["idle>mission=start", "mission/goto>mission/grasp=arrived", "mission>error=fault"])
+    tp.stack("machine", "mission/goto")
+    tp.update("machine", "mission/goto=failure,error")
 
     tp.param("kp", 0.5).range(0, 10).step(0.5).desc("Proportional gain").unit("1/s")
     tp.action("goto", goto_handler) \

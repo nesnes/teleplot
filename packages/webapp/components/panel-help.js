@@ -15,7 +15,7 @@
 // Families of tiles, in the order of the gallery
 const HELP_FAMILIES = [
     { id: "numbers", title: "Numbers", sub: "the basics" },
-    { id: "text", title: "Text over time", sub: "states, logs, what runs" },
+    { id: "text", title: "Text over time", sub: "states, logs, what runs, graphs" },
     { id: "space", title: "Space", sub: "positions, shapes, meshes, scans" },
     { id: "pictures", title: "Pictures", sub: "images and cameras" },
     { id: "dashboards", title: "Dashboards", sub: "where things go" },
@@ -56,7 +56,7 @@ const HELP_TILES = [
           ["§unit", "Optional: shown after the value. Kept: sending it once is enough."],
           ["|np", "Flag: not put on the Live dashboard by itself (it stays in the Telemetries panel)."],
           ["|clr", "Flag: what the telemetry held before this message is forgotten (a new run)."],
-          ["|t |log |stack |xy |xyz |pc", "Flags of other kinds of data: a text, a log line, a stack, a position, a point in space, a point cloud (their own tiles)."],
+          ["|t |log |stack |xy |xyz |pc |enum |edges", "Flags of other kinds of data: a text, a log line, a stack, a position, a point in space, a point cloud, the states and the transitions of a graph (their own tiles)."],
       ],
       examples: [
         { title: "A value", code: "temperature:25.3", note: "Charted as it arrives, at the time it arrives. Send it again: a new point.", expect: { name: "temperature", type: "number" },
@@ -185,7 +185,7 @@ const HELP_TILES = [
       fields: [
           ["a state", "A band per state, from its sample to the next different one."],
           ["a log", "A tick per line."],
-          ["a stack", "A row per level (see What runs)."],
+          ["a stack", "A row per level; what runs at the same time has a row each, under what holds it (see What runs)."],
           ["a number with limits", "A band where it is past a limit (see A gauge)."],
           ["another number", "A small line of its values; numbers=text shows them as states."],
       ],
@@ -220,6 +220,8 @@ const HELP_TILES = [
           ["time:", "The time of the device (ms, with decimals when it measures finer). Short calls need it."],
           ["|stack", "The flag of a stack: still a state, read as a path."],
           ["name:|stack", "Empty: nothing runs."],
+          ["path,path", "Several things at once, separated by commas (see A behavior tree)."],
+          ["path=status", "A result: what ended so (failure, success...); a path without status runs."],
       ],
       examples: [
         { title: "One level", code: "task:loop|stack", note: "loop is running.", expect: { name: "task", type: "text", text: "loop", stack: true, view: "timeline" } },
@@ -228,11 +230,53 @@ const HELP_TILES = [
         { title: "Nothing runs", code: "task:|stack", note: "An empty text.", expect: { name: "task", type: "text", text: "", stack: true } },
       ], more: [
         { title: "Your own time", code: "task:{now}.25:loop/plan|stack", note: "The time of the device, before the path.", expect: { name: "task", type: "text", timestamp: 1627551892.43725, stack: true } },
+        { title: "Two at once", code: "task:nav/follow,arm/idle|stack", note: "Two things run at the same time: a row each in the timeline, under what holds them.", expect: { name: "task", type: "text", text: "nav/follow,arm/idle", stack: true } },
         { title: "Where you want", code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A timeline in the dashboard Robot; stackDepth: rows of full height before they get thinner.", expect: { dashboard: "Robot" } },
       ],
       notes: [
           "Send a message each time something starts or ends. Hover a band: what it is, what it runs in, for how long.",
           "Stacks without a label share one timeline on the Live dashboard.",
+      ] },
+    { id: "statemachine", family: "text", title: "A state machine", sub: "its states, where it is", picture: "statemachine",
+      format: ["name:[time:]state,box/state,…|enum", "name:[time:]from>to[=event],…|edges", "name:[time:]box/state|stack       (where it is)"],
+      fields: [
+          ["state,box/state", "Its states, separated by commas. box/state: a state inside another one, drawn as a box around it."],
+          ["from>to=event", "A transition, and what makes it happen. from and to are states or boxes."],
+          ["|enum |edges", "The flags of its structure. The same time again (yours) adds to it: a big one in several lines; a newer time replaces it."],
+          ["#kind", "After a state: free text written above it."],
+          ["|stack", "Where it is: the path of the current state (a |t state works too)."],
+      ],
+      examples: [
+        { title: "Its states", code: "mode:idle,mission/goto,mission/grasp,error|enum", note: "mission holds goto and grasp.", expect: { name: "mode", enum: ["idle", "mission", "mission/goto", "mission/grasp", "error"] } },
+        { title: "Its transitions", code: "mode:idle>mission=start,mission/goto>mission/grasp=arrived,mission>error=fault,error>idle=reset|edges", note: "Each with the event that makes it happen.", expect: { name: "mode", edges: 4 } },
+        { title: "Where it is", code: "mode:mission/goto|stack", cycle: ["mode:mission/grasp|stack", "mode:error|stack", "mode:idle|stack"], note: "The current state, in blue; the transition it came by, in bold. Send again: the next state.", expect: { name: "mode", type: "text", text: "mission/goto", stack: true } },
+      ], more: [
+        { title: "A state with a kind", code: "mode:idle#waiting for a mission,mission/goto,mission/grasp,error|enum", note: "Words written above the state.", expect: { name: "mode", enum: ["idle", "mission", "mission/goto", "mission/grasp", "error"] } },
+        { title: "Where you want", code: "DASH|Robot/Mode:graph:mode|trail=false", note: "A graph view Mode in the dashboard Robot, without its recent path.", expect: { dashboard: "Robot" } },
+      ],
+      notes: [
+          "A graph view draws it on the Live dashboard: a state that holds others is a box; under it, the recent path (the last states, how long, the event between them).",
+          "Its stack also gets a lane in the timeline. Hover a state: how many times it ran, for how long.",
+          "A state that was not declared is drawn dashed. Graph view options: trail, events, kinds.",
+      ] },
+    { id: "behaviortree", family: "text", title: "A behavior tree", sub: "what ran, what failed", picture: "behaviortree",
+      format: ["name:[time:]node#kind,node/child#kind,…|enum", "name:[time:]path=status,path,…|stack       (a tick)"],
+      fields: [
+          ["node/child", "Its nodes, a path each: the tree is drawn from the paths (no |edges)."],
+          ["#kind", "Free text above the node: fallback, sequence, condition, action..."],
+          ["path=status", "A result of the tick, any word: failure, error, fail (red), timeout, warning (yellow), success, ok, done (green); another word is gray."],
+          ["path", "Without status: it runs, and so do the nodes that hold it (blue)."],
+          ["a,b", "Several paths in one tick. A tick too long for one message: several lines with the same time (yours) are one."],
+      ],
+      examples: [
+        { title: "Its nodes", code: "bt:root#fallback,root/patrol#sequence,root/patrol/battery_ok#condition,root/patrol/goto#action,root/dock#action|enum", note: "A fallback over a sequence and an action.", expect: { name: "bt", enum: ["root", "root/patrol", "root/patrol/battery_ok", "root/patrol/goto", "root/dock"] } },
+        { title: "A tick", code: "bt:root/patrol/battery_ok=success,root/patrol/goto|stack", cycle: ["bt:root/patrol/battery_ok=failure,root/patrol=failure,root/dock|stack"], note: "The check passed, goto runs. Send again: the check fails, the fallback docks.", expect: { name: "bt", type: "text", text: "root/patrol/battery_ok=success,root/patrol/goto", stack: true } },
+      ], more: [
+        { title: "A tick in two lines", code: "bt:{now}:root/patrol/battery_ok=success|stack", cycle: ["bt:{now}:root/patrol/goto|stack"], note: "With your time: two lines with the same time are one tick.", expect: { name: "bt", type: "text", stack: true } },
+      ],
+      notes: [
+          "The active path (what runs, from the root down) is emphasized; a result off it is quieter.",
+          "Its stack gets a lane in the timeline too: a row per node that runs beside another one.",
       ] },
     { id: "trail", family: "space", title: "A trail", sub: "x and y over time", picture: "xy",
       format: ["name[,label]:x:y[:time][;x:y[:time]…]|xy", "name[,label]:x:y:z[:time][;…]|xyz"],
@@ -488,7 +532,7 @@ const HELP_TILES = [
       format: ["DASH|dashboard/layout/…/view[:type[:telemetry,telemetry…]][|option=value…]"],
       fields: [
           ["dashboard/…/view", "The path: the dashboard, the layouts, the view. Missing layouts are created (grids). The last name is the title of the view; #1 is a name without title."],
-          ["type", "chart, values, log, timeline, 2d, 3d, image, joystick; row, column, grid, stack (layouts); none removes it. Left out: what suits its first telemetry."],
+          ["type", "chart, values, log, timeline, graph, 2d, 3d, image, joystick; row, column, grid, stack (layouts); none removes it. Left out: what suits its first telemetry."],
           ["telemetries", "Their names, separated by commas: they do not have to exist yet."],
           ["w= h=", "Width (columns of a grid, a share of a row) and height (steps of 4 em)."],
           ["title=", "The text in the corner, when it is not the name."],
@@ -535,12 +579,12 @@ const HELP_TILES = [
           "Since / has a meaning in a label, a Teleplot V1 label that held one is read as a path.",
       ] },
     { id: "settings", family: "control", title: "Settings", sub: "values the page can change", picture: "controls",
-      format: ["ATTR|name|write[=type][|min=…|max=…|step=…|choices=a,b,c|desc=…]", "name:value          (what the page sends, then your device)", "ACK|name:err:why    (your device refuses)"],
+      format: ["ATTR|name|write[=type][|min=…|max=…|step=…|desc=…]", "name:a,b,c|enum     (the texts it can take)", "name:value          (what the page sends, then your device)", "ACK|name:err:why    (your device refuses)"],
       fields: [
           ["write", "The page may change it. Alone: the type of its data."],
           ["write=type", "number, bool (a switch: 0 or 1), text, xy, xyz, pose2d (x, y and an angle in radians)."],
           ["min= max= step=", "A slider, and what it moves by (also how close the echo must be)."],
-          ["choices=a,b,c", "A text among these."],
+          ["name:a,b#caption,c|enum", "A text among these (its enum, see A state machine); #caption: words shown with a choice."],
           ["desc=", "A sentence: the tooltip of its name, and of its control."],
           ["write=", "Empty: no longer writable."],
           ["name:value", "What the page sends: the line your device would send, without a time."],
@@ -552,7 +596,8 @@ const HELP_TILES = [
         { title: "You move the slider", from: "page", code: "speed_limit:1.5", note: "The page sends the line your device would send, without a time: it asks 1.5. Resent every 250 ms for 2 s until it comes back.", expect: { name: "speed_limit", input: "1.5" } },
         { title: "Applied", code: "speed_limit:1.5", note: "Your device applies it and sends its value: the page sees it applied.", expect: { name: "speed_limit", type: "number" } },
       ], more: [
-        { title: "Among choices", code: "ATTR|drive_mode|write|choices=auto,manual,idle", note: "A click on its value opens them.", expect: { name: "drive_mode", write: "text" } },
+        { title: "A text", code: "ATTR|drive_mode|write=text", note: "The page may change it…", expect: { name: "drive_mode", write: "text" } },
+        { title: "Among choices", code: "drive_mode:auto#follows the line,manual,idle|enum", note: "…to one of these: a click on its value opens them.", expect: { name: "drive_mode", enum: ["auto", "manual", "idle"] } },
         { title: "Its value", code: "drive_mode:auto|t", cycle: ["drive_mode:manual|t", "drive_mode:idle|t"], note: "The choice that is applied.", expect: { name: "drive_mode", type: "text", text: "auto" } },
         { title: "You pick one", from: "page", code: "drive_mode:manual", note: "The text alone; in it, % and line breaks are written %XX.", expect: { name: "drive_mode", input: "manual" } },
         { title: "A switch", code: "ATTR|motors|write=bool", note: "On or off.", expect: { name: "motors", write: "bool" } },
@@ -566,14 +611,14 @@ const HELP_TILES = [
           "What the page sends is logged in the telemetry commands.sent.",
       ] },
     { id: "actions", family: "control", title: "Buttons", sub: "functions of your device", picture: "actions",
-      format: ["ATTR|name|action[|title=…|confirm|longpress|color=…|desc=…]", "ATTR|name|arg=argument|type=…[|optional|default=…|min|max|step|unit|choices|desc]", "!name#id[:argument=value:…]    (what the page sends)", "ACK|name#id:run | ok[:result] | err:why"],
+      format: ["ATTR|name|action[|title=…|confirm|longpress|color=…|desc=…]", "ATTR|name|arg=argument|type=…[|optional|default=…|min|max|step|unit|enum|desc]", "!name#id[:argument=value:…]    (what the page sends)", "ACK|name#id:run | ok[:result] | err:why"],
       fields: [
           ["action", "A button. action= removes it."],
           ["title=", "The text of the button (else the name)."],
           ["confirm", "It asks before calling."],
           ["longpress", "It must be held 1 s."],
           ["color=", "The color of the button."],
-          ["arg=argument", "One line per argument, in order: the button opens a form. type= (number, bool, text, xy, xyz, pose2d), optional, default=, min=, max=, step=, unit=, choices=, desc=. type= empty removes the argument."],
+          ["arg=argument", "One line per argument, in order: the button opens a form. type= (number, bool, text, xy, xyz, pose2d), optional, default=, min=, max=, step=, unit=, enum= (the texts it can take, separated by commas), desc=. type= empty removes the argument."],
           ["!name#id", "The call: an id that grows, then the arguments by name; several numbers are separated by commas (target=1.5,2)."],
           ["run, ok, err", "Your answer: started, done (with a short result), failed."],
       ],
@@ -711,6 +756,18 @@ function helpPicture(kind, W = 240, H = 100) {
     }
     else if (kind == "marks") s = grid + curve((i) => Math.sin(i / 6), "var(--hp-1)") + [[0.3, "turning"], [0.62, "forward"]].map(([x, text]) => `<line x1="${x * W}" y1="4" x2="${x * W}" y2="${H}" stroke="var(--hp-3)" stroke-dasharray="3 2"/>` + t(x * W + 3, 13, text, 'font-size="9" fill="var(--hp-3)"')).join("");
     else if (kind == "stack") s = [[0, 1, 0.08, "loop"], [0.04, 0.46, 0.36, "plan"], [0.5, 0.92, 0.36, "act"], [0.08, 0.3, 0.64, "search"]].map(([a, b, y, text], i) => `<rect x="${a * W}" y="${H * y}" width="${(b - a) * W}" height="${H * 0.24}" fill="var(--hp-${i + 1})" opacity="0.45"/>` + t(a * W + 4, H * y + 15, text, 'font-size="9"')).join("");
+    else if (kind == "statemachine") { // States in boxes, the current one in blue, the transition it came by in bold
+        const node = (x, y, w, text, on) => `<rect x="${x}" y="${y}" width="${w}" height="16" rx="4" fill="${on ? "var(--hp-1)" : "none"}" fill-opacity="${on ? 0.35 : 1}" stroke="${on ? "var(--hp-1)" : "var(--hp-muted)"}" stroke-width="${on ? 1.6 : 1}"/>` + t(x + w / 2, y + 11.5, text, 'font-size="9" text-anchor="middle"' + (on ? ' font-weight="700"' : ""));
+        s = `<rect x="${W * 0.36}" y="${H * 0.1}" width="${W * 0.3}" height="${H * 0.8}" rx="7" fill="none" stroke="var(--hp-1)" stroke-width="1.4"/>` + t(W * 0.36 + 4, H * 0.1 + 10, "mission", 'font-size="8" fill="var(--hp-1)" font-weight="700"')
+            + node(6, H * 0.42, W * 0.22, "idle") + node(W * 0.4, H * 0.3, W * 0.22, "goto") + node(W * 0.4, H * 0.62, W * 0.22, "grasp", true) + node(W * 0.74, H * 0.42, W * 0.22, "error")
+            + `<path d="M${6 + W * 0.22} ${H * 0.42 + 8} L${W * 0.36} ${H * 0.42 + 8}" stroke="var(--hp-muted)"/><path d="M${W * 0.51} ${H * 0.3 + 16} L${W * 0.51} ${H * 0.62}" stroke="var(--hp-1)" stroke-width="2"/><path d="M${W * 0.66} ${H * 0.5} L${W * 0.74} ${H * 0.5}" stroke="var(--hp-muted)"/>`;
+    }
+    else if (kind == "behaviortree") { // A tree: the running path in blue, a failure in red
+        const node = (x, y, text, color) => `<rect x="${x - 22}" y="${y}" width="44" height="14" rx="4" fill="${color || "none"}" fill-opacity="0.35" stroke="${color || "var(--hp-muted)"}" stroke-width="${color ? 1.5 : 1}"/>` + t(x, y + 10.5, text, 'font-size="8.5" text-anchor="middle"');
+        const link = (x1, y1, x2, y2, color) => `<path d="M${x1} ${y1} L${x2} ${y2}" stroke="${color || "var(--hp-muted)"}" stroke-width="${color ? 1.8 : 1}"/>`;
+        s = link(W / 2, 18, W * 0.3, H * 0.42) + link(W / 2, 18, W * 0.72, H * 0.42, "var(--hp-1)") + link(W * 0.3, H * 0.42 + 14, W * 0.17, H * 0.72) + link(W * 0.3, H * 0.42 + 14, W * 0.43, H * 0.72)
+            + node(W / 2, 4, "root", "var(--hp-1)") + node(W * 0.3, H * 0.42, "patrol", "var(--hp-5)") + node(W * 0.72, H * 0.42, "dock", "var(--hp-1)") + node(W * 0.17, H * 0.72, "check", "var(--hp-5)") + node(W * 0.43, H * 0.72, "goto");
+    }
     else if (kind == "xy") { const p = []; for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; p.push(`${(W / 2 + Math.sin(a * 2) * W * 0.3).toFixed(1)},${(H / 2 + Math.sin(a * 3) * H * 0.32).toFixed(1)}`); } s = grid + `<polyline points="${p.join(" ")}" fill="none" stroke="var(--hp-3)" stroke-width="1.5"/><circle cx="${W / 2}" cy="${H / 2}" r="4" fill="var(--hp-3)"/>`; }
     else if (kind == "map" || kind == "pose") {
         const p = []; for (let i = 0; i < 30; i++) p.push(`${W * 0.2 + i * 3},${(H * 0.7 - Math.sin(i / 6) * 20).toFixed(1)}`);
@@ -888,9 +945,9 @@ const HELP_PROPERTIES = (() => {
 })();
 // Keys of ATTR| lines
 const HELP_ATTRIBUTES = { min: "lowest", max: "highest", write: "writable", action: "action", title: "button text", confirm: "asks first", longpress: "hold to press",
-    color: "color", arg: "argument", type: "type", optional: "optional", default: "default", step: "step", unit: "unit", choices: "choices", desc: "description",
+    color: "color", arg: "argument", type: "type", optional: "optional", default: "default", step: "step", unit: "unit", enum: "choices", desc: "description",
     rate: "per second", hold: "stops after (ms)", axes: "axes", scale: "value scale", nodata: "no measure", depth: "distances" };
-const HELP_FLAGS = { t: "state", log: "log", xy: "2D point", xyz: "3D point", pc: "point cloud", np: "not charted", clr: "clear first", stack: "stack" };
+const HELP_FLAGS = { t: "state", log: "log", xy: "2D point", xyz: "3D point", pc: "point cloud", np: "not charted", clr: "clear first", stack: "stack", enum: "structure", edges: "transitions flag" };
 
 // A message cut in named parts: [{text, kind, label}]. The kind gives the color: "name", "label" (of a view), "value", "time", "unit" or
 // "flags" (and prefixes); separators have neither kind nor label. The parts join back to the message, also while it is being typed. For
@@ -1024,8 +1081,14 @@ function helpParts(message) {
         sep(":");
         const values = rest.slice(colon + 1);
         const isText = /\b(t|log|stack)\b/.test(flags);
+        const structure = /\b(enum|edges)\b/.test(flags) ? (flags.includes("edges") ? "transitions" : "nodes") : "";
         const points = flags.includes("xyz") ? 3 : (flags.includes("xy") ? 2 : 0);
-        if (isText) { // [time:]text (the text may hold colons)
+        if (structure) { // [time:]items, separated by commas
+            const first = values.indexOf(":");
+            if (first > 0 && isNumber(values.slice(0, first))) { add(values.slice(0, first), "time", "time"); sep(":"); add(values.slice(first + 1), "value", structure); }
+            else add(values, "value", structure);
+        }
+        else if (isText) { // [time:]text (the text may hold colons)
             const first = values.indexOf(":");
             const label = flags.includes("stack") ? "path" : (flags.includes("log") ? "log line" : "text");
             if (first > 0 && isNumber(values.slice(0, first))) { add(values.slice(0, first), "time", "time"); sep(":"); add(values.slice(first + 1), "value", label); }
@@ -1109,7 +1172,11 @@ const HELP_PART_TIPS = {
     unit: "Optional, after §: shown next to the value.",
     text: "Any text, colons included. The same text again continues the state; an empty text is \"nothing\".",
     "log line": "Any text, colons included: one line of the log.",
-    path: "What runs, levels separated by /. An empty text: nothing runs.",
+    path: "What runs, levels separated by /. Several at once separated by commas; =status after one: what it ended with. An empty text: nothing runs.",
+    nodes: "States or nodes, a path each (levels separated by /), separated by commas; #kind after one: words written above it. The same time again adds to them, a newer time replaces them.",
+    transitions: "from>to or from>to=event, separated by commas: the states it goes between, and what makes it go.",
+    structure: "The enum flag: the texts it can take (states, nodes, choices of a setting).",
+    "transitions flag": "The edges flag: the transitions of a state machine.",
     "x:y": "Two numbers: x and y, in your units.",
     "x:y:z": "Three numbers: x forward, y to the left, z up.",
     intensity: "A fourth value per point: the points are colored from the lowest intensity to the highest.",
@@ -1123,7 +1190,7 @@ const HELP_PART_TIPS = {
     "not charted": "The np flag: not put on the Live dashboard by itself.",
     "clear first": "The clr flag: what the telemetry held before is forgotten.",
     stack: "The stack flag: the text is the path of what is running.",
-    flags: "Optional, after the last |: t, log, stack, xy, xyz, pc, np, clr.",
+    flags: "Optional, after the last |: t, log, stack, xy, xyz, pc, enum, edges, np, clr.",
     "3D shape": "3D| then the name, then properties, each a key and its values.",
     "2D shape": "2D| is 3D| written flat: x:y positions, one angle.",
     kind: "S: cube, sphere, cylinder, stl; flat: rect, circle, line, polygon, arrow, text.",
@@ -1146,7 +1213,7 @@ const HELP_PART_TIPS = {
     argument: "arg=name: one argument of the action, in order; type, optional, default... follow on the same line.",
     dashboard: "DASH| describes one view (or layout) of a dashboard by its path.",
     "dashboard/view": "The dashboard, then the layouts and the view, separated by /.",
-    "view type": "chart, values, log, timeline, 2d, 3d, image, joystick; row, column, grid, stack; none removes it.",
+    "view type": "chart, values, log, timeline, graph, 2d, 3d, image, joystick; row, column, grid, stack; none removes it.",
     telemetries: "The names of the telemetries it shows, separated by commas: they do not have to exist yet.",
     option: "An option of the view: w, h, title, follow (labels), time (time group), or one of its settings.",
     answer: "ACK| your device's answer to a call of the page.",
@@ -1164,7 +1231,7 @@ const HELP_PART_TIPS = {
     part: "i/n: part i of n (from 1), each in its own message, in any order. The picture shows when all n are there.",
     "button text": "title=: the text of the button (default: the name).", "asks first": "confirm: the button asks before calling.", "hold to press": "longpress: the button must be held.",
     type: "type=: number, bool, text, xy, xyz or pose2d.", optional: "optional: the argument may be left empty.", default: "default=: the value the form starts with.",
-    step: "step=: what the value moves by.", choices: "choices=: the texts it can take, separated by commas.", description: "desc=: a sentence shown as a tooltip.",
+    step: "step=: what the value moves by.", choices: "enum=: the texts an argument can take, separated by commas.", description: "desc=: a sentence shown as a tooltip.",
     "per second": "rate=: how many times per second the page sends it while it is held.", "stops after (ms)": "hold=: your device stops by itself when nothing came for that long.",
     axes: "axes=: what a joystick moves, for example x,yaw.", attribute: "A key=value field.",
     file: "U: the url of an STL file, in quotes: relative to this page, or on a site that allows it (CORS).", texture: "T:url:\"...\" an image file, or T:telem:name the pictures of an image telemetry.", precision: "PR: how many faces a round shape has.",
@@ -1301,6 +1368,12 @@ function helpDescribe(TP, message, problems) {
         what = isCamera ? "the camera of the image" : (TP.view.ViewScene3D.isCloud(telem) ? "the pose of the sensor of the point cloud" : (TP.view.ViewScene3D.isPoint(telem) ? "the frame of the point" : (prefix[1] == "2D" ? "a 2D shape" : "a 3D shape")));
     }
     else if (prefix) { const images = telem.data[P.SECTION_TYPE_TELEM_DATA_IMAGE]; what = images && TP.pictures.isValues(images, images.timestamps.length - 1) ? "a picture of values (a depth map)" : "an image"; }
+    else if (/\b(enum|edges)\b/.test(flags)) {
+        const structure = flags.includes("edges") ? telem.getEdges() : telem.getEnum();
+        const count = structure ? (flags.includes("edges") ? structure.edges.length : structure.items.length) : 0;
+        return { ok: true, text: "Received: " + count + (flags.includes("edges") ? " transitions" : " states or nodes") + " of " + name + ", in force from " + (structure ? TP.view.ViewLog.formatTime(structure.timestamp) : "now") + ". " + (telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] ? "A graph view draws them." : "Now send where it is, for example " + name + ":" + (telem.getEnum() && telem.getEnum().items.length ? telem.getEnum().items[telem.getEnum().items.length - 1].path : "a") + "|stack") };
+    }
+    else if (flags.includes("stack")) what = "what runs";
     else if (flags.includes("pc")) { const cloud = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD]; what = "a point cloud of " + (cloud ? cloud.data[0][cloud.data[0].length - 1].length / 3 : 0) + " points"; }
     else if (flags.includes("xyz")) what = "a point in space";
     else if (flags.includes("xy")) what = "a position";

@@ -88,6 +88,24 @@ void search() { Teleplot::Stack level(tp, "robot.task", "search"); /* ... */ }  
 A function names only its own level: `Teleplot::Stack` adds it to the path of the stack while it lives, and sends the path back
 without it when it is destroyed (the end of the block, an exception too). `tp.stack(name, path)` still sends a whole path.
 
+Samples of a stack with the same time are parts of one for the page (several paths at once, [`graph.md`](graph.md)). So when the
+client dates a stack sample itself (`Teleplot::Stack`, `tp.stack(name, path)` without a time), it is at least 1 µs after the previous
+one of that stack, even within the resolution of the clock: one step and the next never look like parts of one.
+
+Graphs ([`graph.md`](graph.md)): a structure is sent once (and again with the descriptions, with its own time); what runs is a stack.
+
+```cpp
+tp.telemetry("mode").stack()
+    .enumValues({ "idle", "mission/goto", "mission/grasp", "error" })                         // its states: mission holds goto and grasp
+    .edges({ "idle>mission=start", "mission/goto>mission/grasp=arrived", "mission>error=fault" }); // its transitions, with their events
+tp.stack("mode", "mission/goto");                                                            // where it is
+tp.telemetry("bt").stack().enumValues({ "root#fallback", "root/patrol#sequence", "root/patrol/goto#action", "root/dock#action" });
+tp.update("bt", "root/patrol=failure,root/dock");                                            // a tick: results, and what runs
+```
+
+A structure bigger than a packet goes in parts with the same time; the same structure again is not sent. With the microcontroller
+header, lists are static arrays (`static const char* const STATES[] = {...};`).
+
 Threads (full header): each thread has its own path. The main thread (the one that runs `main()`) sends to the stack as named;
 every other thread to a telemetry of its own, the name of the stack and the name of the thread, all with the label of the stack
 (unless it was given another one), so one timeline shows a lane per thread:
@@ -147,7 +165,7 @@ Teleplot::Pose2D cmdVel;                      // x, y, yaw
 
 tp.param("kp", &kp).range(0, 10).step(0.01).desc("Proportional gain");
 tp.param("motors", &motors);
-tp.param("mode", &mode).choices({"auto", "manual"});     // microcontroller: an array of const char*
+tp.param("mode", &mode).enumValues({"auto", "manual#by hand"});  // the texts it can take (#: a caption); microcontroller: an array of const char*
 tp.param("cmd_vel", &cmdVel).axes(Teleplot::X | Teleplot::Yaw).rate(20).hold(200)   // a joystick
   .onChange([&](Teleplot::Pose2D const&) {              // called before applying: refuse, nothing changes (micro: no capture, globals)
       return mode == "manual" ? Teleplot::ok() : Teleplot::error("manual mode only");
@@ -254,7 +272,7 @@ What differs from the full header (it compiles the same code as long as it avoid
 | Callbacks | lambdas with captures (`std::function`) | functions and lambdas without captures |
 | Texts and lists | `std::string`, `std::vector` overloads too | `const char*`, Arduino `String`, pointer + count |
 | Strings given to descriptions | copied | kept as pointers: literals, or strings that live as long (`F("...")` is not taken) |
-| Lists (`choices`) | `{"auto", "manual"}` | a static array: `static const char* const MODES[] = {"auto", "manual"};` |
+| Lists (`enumValues`, `edges`) | `{"auto", "manual"}` (or a static array) | a static array: `static const char* const MODES[] = {"auto", "manual"};` |
 | Text settings | `std::string` | `char[N]` |
 | How many | no limit | `TELEPLOT_MAX_TELEMETRIES` (16; 4 on AVR), `_PARAMS` (8; 2), `_ACTIONS` (4; 1), `_ARGS` (4; 2), `_THRESHOLDS` (8; 2), `_STACKS` (4; 1). About 5 KB of RAM with the defaults, about 0.6 KB on AVR |
 | Sent again every 5 s | descriptions and every sample sent once | descriptions, shape type and frame; with `TELEPLOT_RESEND` (not on AVR): position, orientation, size, color of a shape, camera, thresholds. Not: opacity, texture, vector, text, line width, points |
@@ -452,6 +470,7 @@ Outputs, as many as wanted: `udp(host, port)` (none given: `udp("127.0.0.1", 472
 | Describe | `unit(text)`, `color(text)`, `label(text)` (a path places it: `Robot/Motion`), `desc(text)`, `range(min, max)`, `min(v)`, `max(v)`, `autoplot(bool)`, `timeout(Time)`, `log()`, `stack()`, `frame(name)`, `pixelsOf(name)`, `depthMap(scale[, noData])` / `pixelValues(scale[, noData])` (pictures of numbers: a pixel is worth number x scale; `noData` 0 by default, `NAN`: none; a depth map is placed in 3D views, other values are not) |
 | Sending | `maxRate(hz)` (0: all), `precise()` (float64), `nonBlocking([bool])` (full; default from `Options`) |
 | Limits | `threshold(name, Below \| Above, value[, color])`, `removeThreshold(name)` (samples: from their time on) |
+| Structure | `enumValues(list)` (states, nodes: paths, `#kind`; the choices of a setting), `edges(list)` (`from>to=event`): samples from their time on, [`graph.md`](graph.md) |
 | Samples | `update(value)` (number, bool, text, `Number2D`, `Number3D`) |
 | Shape | `shape(type)`, `stl(url)`, `position(x, y[, z])`, `rotation(roll, pitch, yaw)`, `yaw(a)`, `quaternion(w, x, y, z)`, `size(x, y[, z])`, `size(s)`, `color(text)` / `color(Rgb)` (a sample; `color` before any shape call is the attribute), `opacity(0..1)`, `texture(url)`, `textureFrom(imageTelemetry)`, `vector(x, y[, z])`, `text(text)`, `textSize(h)`, `lineWidth(w)`, `points(pts, n)` |
 | Cloud | `cloud(pts, n)`, `cloud(pts, n, intensities)`, `cloud(pts, n, colors)`, `cloud(pts, n, intensities, colors)` |
@@ -463,7 +482,7 @@ Angles in radians. Frame of the scene: x forward, y left, z up.
 
 ### `Teleplot::Param<T>` (chainable; what `param()` returns)
 
-`range(min, max)`, `min(v)`, `max(v)`, `step(s)`, `unit(text)`, `desc(text)`, `choices(list)`, `rate(hz)`, `hold(ms)` (an int or a `std::chrono` duration),
+`range(min, max)`, `min(v)`, `max(v)`, `step(s)`, `unit(text)`, `desc(text)`, `enumValues(list)` (its enum: the texts it can take, `#caption`), `rate(hz)`, `hold(ms)` (an int or a `std::chrono` duration),
 `axes(X | Y | Yaw)`, `onChange(fn(value const&) → Result)`. Variable types: `float`, `double`, integers, `bool`, `std::string` (micro:
 `char[N]`), `Number2D` (xy), `Number3D` (xyz), `Pose2D` (pose2d). A written number is clamped to the range and rounded to the step;
 a text outside the choices is refused.
@@ -471,7 +490,7 @@ a text outside the choices is refused.
 ### `Teleplot::Action`, `Teleplot::Arg`, `Teleplot::Args`
 
 - `Action`: `title(text)`, `desc(text)`, `color(text)`, `confirm()`, `longpress()`, `arg(Arg)`.
-- `Arg(name[, Arg::Type])`: `optional()`, `defaultValue(v)`, `range(min, max)`, `step(s)`, `unit(text)`, `choices(list)`, `desc(text)`.
+- `Arg(name[, Arg::Type])`: `optional()`, `defaultValue(v)`, `range(min, max)`, `step(s)`, `unit(text)`, `enumValues(list)`, `desc(text)`.
 - `Args`: `has`, `number`, `flag`, `text`, `xy`, `xyz`, `pose2d`, `call()` (full).
 
 ### Types
@@ -496,7 +515,7 @@ a text outside the choices is refused.
 
 Descriptions are sent again every 5 s (`describeInterval`); so is the latest sample of what is usually sent once, when nothing newer of
 it was sent in that time: the shape sections (position, orientation, size, color, opacity, texture, vector, text, line width), camera
-intrinsics and distortion, each threshold (by name), the points of a line or polygon. It keeps its own time, so a page opened later
+intrinsics and distortion, each threshold (by name), the points of a line or polygon, a structure (`enumValues`, `edges`: all its parts). It keeps its own time, so a page opened later
 draws the scene as it is, and a page that already has it keeps it once: `addData` drops a repeat of its latest sample (same time, same
 values). Streams (numbers, texts, pictures, clouds) are not sent again.
 

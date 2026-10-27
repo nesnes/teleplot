@@ -40,7 +40,7 @@ Everything lives inside one function, `initTeleplot(TELEPLOT)`, opened in `000-i
 | `03x` | older data inputs (UDP, serial through a V1 server) |
 | `040`, `041` | parsers: text ([textProtocol.md](../../doc/textProtocol.md)) and binary ([binaryProtocol.md](../../doc/binaryProtocol.md)) |
 | `10x` | views, layouts, stacks, theme, colors, decimator ([performance.md](../../doc/performance.md)), runs of texts, pictures ([depth.md](../../doc/depth.md)) |
-| `110` to `117` | values, chart, log, 3D, image ([3d.md](../../doc/3d.md)), 2D ([2d.md](../../doc/2d.md)), timeline ([time-views.md](../../doc/time-views.md)), joystick |
+| `110` to `118` | values, chart, log, 3D, image ([3d.md](../../doc/3d.md)), 2D ([2d.md](../../doc/2d.md)), timeline ([time-views.md](../../doc/time-views.md)), joystick, graph ([graph.md](../../doc/graph.md)) |
 | `150`, `151` | dashboards, dashboards as text ([dashboard-text.md](../../doc/dashboard-text.md)) |
 | `160` | data files ([files.md](../../doc/files.md)) |
 | `998` | the update loop (30 per second) |

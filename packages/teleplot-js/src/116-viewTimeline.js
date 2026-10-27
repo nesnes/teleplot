@@ -9,10 +9,14 @@
  *   charts covers the same time as them), within the data window; the latest state is given a little room at its end. Drag to zoom (shared with the group, like on a chart), double
  *   click to go back to the latest data; the pointer moves the cursor of the group and tells what is under it.
  * - Each text has its color: the texts of a view take the colors of the palette in the order they show up, so that the states of
- *   a telemetry are told apart; texts that look like errors or warnings take the colors of the theme for them, as in the Log view.
- * - A stack (TELEM_ATTR_STACK, "stack" flag: a state whose text is the path of what is running, "loop/plan/search") is a lane with
- *   a row per level: a band at a level lasts while that level and the ones above it do not change. The lane opens with the depth of
- *   what is displayed, up to "stackDepth" rows of full height; deeper, its rows get thinner down to a minimum, then it grows again.
+ *   a telemetry are told apart; texts that look like errors, warnings or successes take the colors of the theme for them, as in the Log view.
+ * - A stack (TELEM_ATTR_STACK, "stack" flag: a state whose text is the path of what is running, "loop/plan/search", or several of
+ *   them with their statuses, doc/graph.md) is a lane drawn by branches (buildBranches): a band per run of a node, that lasts while
+ *   its state (running, or a status) does not change; rows depth first, a node's row then the rows of its children; siblings that
+ *   follow each other share a row (a plain stack has a row per level), siblings that overlap in time have a row each under their
+ *   parent. The tree is drawn at the right of the names. The lane opens with its rows, up to "stackDepth" rows of full height;
+ *   more, its rows get thinner down to a minimum, then it grows again. A stack that has a structure (a graph, Telemetry.getEnum)
+ *   takes the colors of the graph view: what runs in the primary color, a status in the color of its words (ViewLog.getLevel).
  * - Numbers can be given a lane too (they are added on purpose: a timeline that follows a label only takes texts):
  *     a number that has thresholds is read as a state: a band where it is past a threshold, named and colored after it, from the
  *       sample that passed it to the first one that is not past it any more;
@@ -152,7 +156,7 @@ class ViewTimeline extends ViewTelemetries{
     // a telemetry get different colors; past COLOR_MEMORY texts (a "state" that is never twice the same), the color comes from the text itself.
     static colorOf(text, known) {
         let level = TELEPLOT.view.ViewLog.getLevel(text);
-        if(level) return level == 2 ? "error" : "warn";
+        if(level) return ViewTimeline.LEVEL_COLORS[level];
         let index = known ? known.get(text) : undefined;
         if(index === undefined) {
             if(known && known.size < ViewTimeline.COLOR_MEMORY) { index = known.size; known.set(text, index); }
@@ -160,8 +164,65 @@ class ViewTimeline extends ViewTelemetries{
         }
         return TELEPLOT.colors.palette[ViewTimeline.PALETTE[index % ViewTimeline.PALETTE.length]].toStrRGB();
     }
+    static LEVEL_COLORS = { 1: "warn", 2: "error", 3: "ok" }; // (levels of ViewLog.getLevel)
+    // Color of a status (doc/graph.md): the color of its words, muted when it has none (no meaning is made up for a word not known)
+    static statusColor(text) {
+        return ViewTimeline.LEVEL_COLORS[TELEPLOT.view.ViewLog.getLevel(TELEPLOT.protocol.decodeName(text))] || "muted";
+    }
     static PALETTE = [1, 2, 4, 3, 5, 6, 10, 11, 12, 13, 7]; // Colors of the palette that are told apart, blue first. No red: it reads as an alarm, and is what a text that looks like an error gets
     static COLOR_MEMORY = 500;
+
+    /*
+     * A stack lane by branches (doc/graph.md), from its nodes (TELEPLOT.stackRuns): { rows: [items], tree: [{depth, parent (row
+     * index, -1 for a root), first (the row starts a new root, not the first one), label (the name of its node when it holds only
+     * one)}], entries: Map path -> the runs of the node as a text entry (for the real extent of a band) }.
+     * Items are those of buildLane, with node (its path), label (its name) and status (null while it runs, else the status).
+     * Rows come depth first: a row, then the rows of the children of its nodes. Siblings share a row unless their bands overlap in
+     * time (several things that run at once, or a result next to what runs): then each has its own, under their parent. "rank"
+     * orders siblings (path -> number: the order of a structure), else the order they showed up in.
+     */
+    static buildBranches(runs, from, to, minDuration=0, rank=undefined) {
+        const RUN = ViewTimeline.RUNNING;
+        let entries = new Map(), items = new Map(), children = new Map(), roots = [];
+        let order = (path) => rank && rank.has(path) ? rank.get(path) : 1e9 + runs.order.indexOf(path);
+        for(let path of runs.order) {
+            let node = runs.nodes.get(path);
+            let entry = { timestamps: node.timestamps, data: [node.data[0].map((state) => state === null ? "" : (state === "" ? RUN : "=" + state))] };
+            entries.set(path, entry);
+            let list = ViewTimeline.buildLane(entry, false, from, to, minDuration);
+            if(!list.length) continue;
+            for(let item of list) {
+                item.node = path;
+                item.label = TELEPLOT.protocol.decodeName(node.name);
+                item.status = item.text === RUN ? null : item.text.slice(1);
+            }
+            items.set(path, list);
+        }
+        for(let path of items.keys()) {
+            let parent = runs.nodes.get(path).parent;
+            if(parent !== "" && items.has(parent)) { if(!children.has(parent)) children.set(parent, []); children.get(parent).push(path); }
+            else roots.push(path);
+        }
+        let overlap = (a, b) => items.get(a).some((x) => items.get(b).some((y) => x.from < y.to && y.from < x.to));
+        let pack = (paths) => {
+            let slots = [];
+            for(let path of paths.slice().sort((a, b) => order(a) - order(b))) {
+                let slot = slots.find((candidate) => candidate.every((other) => !overlap(path, other)));
+                if(slot) slot.push(path); else slots.push([path]);
+            }
+            return slots;
+        };
+        let rows = [], tree = [];
+        let layout = (slot, depth, parent, first) => {
+            let row = rows.length;
+            rows.push(slot.flatMap((path) => items.get(path)).sort((a, b) => a.from - b.from));
+            tree.push({ depth, parent, first, label: slot.length === 1 ? TELEPLOT.protocol.decodeName(runs.nodes.get(slot[0]).name) : "" });
+            for(let childSlot of pack(slot.flatMap((path) => children.get(path) || []))) layout(childSlot, depth + 1, row, false);
+        };
+        pack(roots).forEach((slot, i) => layout(slot, 0, -1, i > 0));
+        return { rows, tree, entries };
+    }
+    static RUNNING = "\u0001"; // (a node that runs, among the texts of its runs: never a status, which follows "=")
 
     // What the telemetries of the view give a lane, in the order of its list: [{telem, entry, kind}]. A text is a "state", a "stack"
     // (a state whose text is a path: a row per level) or a "log".
@@ -357,6 +418,8 @@ class ViewTimeline extends ViewTelemetries{
             let limits = kind === "limits" ? telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD] : undefined;
             if(limits !== undefined) key += `:${limits.lastUpdate}:${limits.timestamps.length}`;
             if(kind === "line") { let range = telem.getRange(); if(range !== undefined) key += `:${range.min}:${range.max}`; }
+            let structure = kind === "stack" ? telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM] : undefined; // (it orders and colors a stack)
+            if(structure !== undefined) key += `:${structure.lastUpdate}:${structure.timestamps.length}:${structure.lateInsertions}`;
         }
         let cursor = TELEPLOT.view.groups[this.group].cursorTimestamp;
         if(key === this.lastKey && cursor === this.lastCursor && !this.selection) return;
@@ -371,15 +434,18 @@ class ViewTimeline extends ViewTelemetries{
                 let declaration = TELEPLOT.commands.declaration(telem);
                 if(declaration && declaration.kind === "setting" && period) lane.requests = ViewTimeline.buildRequests(TELEPLOT.commands.history(telem), declaration.type, period.from, period.to);
                 if(kind === "calls") lane.calls = period ? ViewTimeline.buildCalls(TELEPLOT.commands.calls(telem), period.from, period.to, now) : [];
-                else if(kind === "stack") { // A row per level of the stack: the bands of a level are the runs of the path down to it
-                    lane.levels = TELEPLOT.stackRuns(entry).levels;
-                    lane.rows = [];
-                    if(period) for(let level of lane.levels) lane.rows.push(ViewTimeline.buildLane(level, false, period.from, period.to, minDuration));
-                    while(lane.rows.length && !lane.rows[lane.rows.length - 1].length) lane.rows.pop(); // (levels that nothing reaches in this period take no room)
+                else if(kind === "stack") { // Rows by branch (see buildBranches): the bands of a row are the runs of its nodes
+                    let structure = telem.getEnum(), rank = undefined;
+                    if(structure !== undefined) { rank = new Map(); structure.items.forEach((item, i) => rank.set(item.path, i)); }
+                    let graph = telem.hasStructure(); // (a graph: the colors of the graph view)
+                    let branches = period ? ViewTimeline.buildBranches(TELEPLOT.stackRuns(entry), period.from, period.to, minDuration, rank) : { rows: [], tree: [], entries: new Map() };
+                    lane.rows = branches.rows;
+                    lane.tree = branches.tree;
+                    lane.entries = branches.entries;
                     for(let row of lane.rows) for(let item of row) {
                         if(item.mixed) continue;
-                        item.label = item.text.slice(item.text.lastIndexOf("/") + 1); // (what runs at this level; item.text is its whole path)
-                        item.color = ViewTimeline.colorOf(item.label, this.colors);
+                        if(item.status === null) item.color = graph ? "primary" : ViewTimeline.colorOf(item.label, this.colors);
+                        else { item.color = graph ? ViewTimeline.statusColor(item.status) : ViewTimeline.colorOf(TELEPLOT.protocol.decodeName(item.status), this.colors); item.label += ": " + TELEPLOT.protocol.decodeName(item.status); }
                     }
                 }
                 else if(kind === "line") { // A number without thresholds: a line from sample to sample
@@ -551,8 +617,16 @@ class ViewTimeline extends ViewTelemetries{
         page.context.font = ViewTimeline.FONT;
         let widest = 0;
         for(let lane of this.lanes) widest = Math.max(widest, page.context.measureText(lane.name).width);
-        return Math.round(Math.min(page.width * 0.3, widest + 14));
+        page.tree = this.__treeWidth();
+        return Math.round(Math.min(page.width * 0.3, widest + 14) + page.tree);
     }
+    // Width of the tree of the stack lanes, drawn at the right of the names (0 when no lane has more than one row)
+    __treeWidth() {
+        let depth = -1;
+        for(let lane of this.lanes) if(lane.tree && lane.tree.length > 1) for(let row of lane.tree) depth = Math.max(depth, row.depth);
+        return depth < 0 ? 0 : ViewTimeline.TREE_STEP * (depth + 1) + 6;
+    }
+    static TREE_STEP = 9; // Indent of a level in the tree of a stack lane
     static FONT = "11px system-ui, -apple-system, 'Segoe UI', sans-serif";
     static AXIS = 20;     // Height of the time axis
     static LANE_MIN = 16; // Lanes share the height of the view between these two heights; more lanes than fit: the view scrolls
@@ -657,9 +731,9 @@ class ViewTimeline extends ViewTelemetries{
         }
         else {
             // (the band is cut to the period displayed: the state itself may have started before, and may last longer)
-            let runs = lane.rows ? lane.levels[row] : lane.runs;
+            let runs = lane.rows ? lane.entries.get(item.node) : lane.runs;
             let extent = (runs && ViewTimeline.extentOf(runs, time)) || { start: item.from, end: item.to };
-            let above = lane.rows && row > 0 ? item.text.slice(0, item.text.length - item.label.length - 1).split("/").join(" / ") : ""; // (what a level of a stack runs in)
+            let above = lane.rows && item.node.includes("/") ? item.node.split("/").slice(0, -1).map(TELEPLOT.protocol.decodeName).join(" / ") : ""; // (what a node of a stack runs in)
             tip.text = lane.rows ? item.label : item.text;
             tip.detail = (lane.kind === "limits" ? ViewTimeline.describeLimit(telem, item.text, time) : "") + (above !== "" ? "in " + above + ", " : "") + "from " + TELEPLOT.view.ViewLog.formatTime(extent.start) + (extent.end === undefined ? ", still the latest" : ", for " + ViewTimeline.formatDuration(extent.end - extent.start));
         }
@@ -676,7 +750,7 @@ class ViewTimeline extends ViewTelemetries{
         let context = page.context, ratio = page.ratio;
         let width = page.width, height = page.height, gutter = page.gutter, plot = Math.max(1, width - gutter);
         let color = (name, fallback) => TELEPLOT.theme.color(name, page.host, fallback);
-        let style = { text: color("--teleplot-text", "black"), muted: color("--teleplot-muted", "gray"), grid: color("--teleplot-grid", "rgba(128,128,128,0.2)"), error: color("--teleplot-error", "red"), warn: color("--teleplot-warn", "orange"), primary: color("--teleplot-primary", "blue") };
+        let style = { text: color("--teleplot-text", "black"), muted: color("--teleplot-muted", "gray"), grid: color("--teleplot-grid", "rgba(128,128,128,0.2)"), error: color("--teleplot-error", "red"), warn: color("--teleplot-warn", "orange"), ok: color("--teleplot-ok", "green"), primary: color("--teleplot-primary", "blue") };
         let from = this.period.from, to = this.period.to, span = to - from;
         let x = (time) => gutter + (time - from) / span * plot;
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -701,7 +775,27 @@ class ViewTimeline extends ViewTelemetries{
             if(gutter > 0) {
                 context.fillStyle = style.muted;
                 context.textAlign = "left";
-                context.fillText(ViewTimeline.fitText(context, lane.name, gutter - 10), 2, top + Math.min(laneHeight, page.laneHeight) / 2);
+                context.fillText(ViewTimeline.fitText(context, lane.name, gutter - (page.tree || 0) - 10), 2, top + Math.min(laneHeight, page.laneHeight) / 2);
+            }
+            if(lane.tree && lane.tree.length > 1 && page.tree) { // The tree of a stack: from each row to the row of its parent
+                let x0 = gutter - page.tree + 2, step = ViewTimeline.TREE_STEP, mid = (r) => top + r * lane.rowHeight + lane.rowHeight / 2;
+                context.strokeStyle = style.muted;
+                context.fillStyle = style.muted;
+                context.globalAlpha = 0.75;
+                context.lineWidth = 1;
+                context.beginPath();
+                lane.tree.forEach((row, r) => {
+                    let lx = Math.round(x0 + row.depth * step) + 0.5;
+                    if(row.parent >= 0) {
+                        let px = Math.round(x0 + lane.tree[row.parent].depth * step) + 0.5;
+                        context.moveTo(px, mid(row.parent) + 2); context.lineTo(px, Math.round(mid(r)) + 0.5); context.lineTo(lx, Math.round(mid(r)) + 0.5);
+                    }
+                });
+                context.stroke();
+                lane.tree.forEach((row, r) => { context.beginPath(); context.arc(x0 + row.depth * step + 0.5, mid(r), 1.8, 0, Math.PI * 2); context.fill(); });
+                context.globalAlpha = 1;
+                context.fillStyle = style.grid;
+                lane.tree.forEach((row, r) => { if(row.first) context.fillRect(x0 - 2, top + r * lane.rowHeight - 1, width - x0 + 2, 1); }); // (a new root: another branch)
             }
             context.fillStyle = style.grid; // The lane itself: a hole shows as the lane without band
             context.fillRect(gutter, top, plot, laneHeight);
@@ -774,8 +868,8 @@ class ViewTimeline extends ViewTelemetries{
                     let left = Math.max(gutter, x(item.from));
                     if(item.tick) {
                         let paint = item.color;
-                        context.fillStyle = paint === "error" ? style.error : (paint === "warn" ? style.warn : style.text);
-                        context.globalAlpha = paint === "error" || paint === "warn" ? 1 : 0.6;
+                        context.fillStyle = paint === "error" || paint === "warn" || paint === "ok" ? style[paint] : style.text;
+                        context.globalAlpha = paint === "error" || paint === "warn" || paint === "ok" ? 1 : 0.6;
                         context.fillRect(Math.round(left) - (item.count > 1 ? 1 : 0), rowTop, item.count > 1 ? 3 : 1, rowHeight);
                         context.globalAlpha = 1;
                         continue;
@@ -788,7 +882,7 @@ class ViewTimeline extends ViewTelemetries{
                         context.globalAlpha = 1;
                         continue;
                     }
-                    let paint = item.color === "error" ? style.error : (item.color === "warn" ? style.warn : item.color);
+                    let paint = style[item.color] || item.color; // (a word of the theme, or a color of the palette)
                     context.fillStyle = paint;
                     context.globalAlpha = 0.32;
                     context.fillRect(left, rowTop, bandWidth, rowHeight);

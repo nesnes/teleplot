@@ -400,7 +400,8 @@ test('a stack is a text state whose text is a path ("stack" flag); the device ca
     assert.deepEqual(['plain', 'notes'].map(n => T.datastore.getTelemetry(n).getAttribute(STACK) === true), [false, false], 'a slash alone does not make a stack');
     parse(T, 'now:idle|t');
     assert.equal(T.datastore.getTelemetry('now').getAttribute(STACK), false);
-    // Levels: for each depth, a run per path down to it
-    const levels = T.stackRuns(entry(T, 'task', TEXT)).levels.map(l => l.timestamps.map((t, i) => Math.round((t - 1627551892.437) * 1e5) / 100 + ':' + l.data[0][i]));
-    assert.deepEqual(levels, [['0:loop', '3:'], ['0.25:loop/plan', '3:'], ['1.5:loop/plan/A*', '3:']]);
+    // Nodes: a run per state of each node (null: not in the stack)
+    const runs = T.stackRuns(entry(T, 'task', TEXT));
+    const nodes = runs.order.map((path) => path + ' ' + runs.nodes.get(path).timestamps.map((t, i) => Math.round((t - 1627551892.437) * 1e5) / 100 + ':' + runs.nodes.get(path).data[0][i]).join(' '));
+    assert.deepEqual(nodes, ['loop 0: 3:null', 'loop/plan 0.25: 3:null', 'loop/plan/A* 1.5: 3:null']);
 });

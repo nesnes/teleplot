@@ -285,6 +285,7 @@ test('stack attribute: a text telemetry whose text is a path, dated by the devic
     // The same telemetry as the text protocol gives
     const U = loadTeleplot();
     U.parseDataText('task:1627551892437:loop|stack\ntask:1627551892437.25:loop/plan|stack\ntask:1627551892438.5:loop/plan/A*|stack\ntask:1627551892440:|stack');
-    assert.deepEqual(U.stackRuns(U.datastore.getTelemetry('task').data[TEXT]).levels.map(l => l.data[0]), T.stackRuns(task.data[TEXT]).levels.map(l => l.data[0]));
+    const nodes = (runs) => runs.order.map((path) => path + '=' + runs.nodes.get(path).data[0].join(','));
+    assert.deepEqual(nodes(U.stackRuns(U.datastore.getTelemetry('task').data[TEXT])), nodes(T.stackRuns(task.data[TEXT])));
     assert.deepEqual([T.view.suggestViewType(id(5, 1)), T.view.suggestViewType(id(5, 2))], ['timeline', 'values']);
 });

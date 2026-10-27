@@ -48,6 +48,8 @@ for (const example of HELP_EXAMPLES) {
         if (e.range) { assert.deepEqual(telem.getRange(), { min: e.range[0], max: e.range[1] }); return; }
         if (e.scale) { assert.equal(T.pictures.settings(telem).scale, e.scale); return; } // How the pixels of its pictures are read
         // Commands: what the page can change or call
+        if (e.enum) { assert.deepEqual(telem.getEnum().items.map((i) => i.path), e.enum); return; } // A structure (doc/graph.md)
+        if (e.edges) { assert.equal(telem.getEdges().edges.length, e.edges); return; }
         if (e.write) { assert.equal(T.commands.declaration(telem).type, e.write); if (e.view) assert.equal(T.view.suggestViewType(telem.id), e.view); return; }
         if (e.action) { assert.equal(T.commands.isAction(telem), true); return; }
         if (e.args) { assert.deepEqual(T.commands.args(telem).map((a) => a.name), e.args); return; }
@@ -136,6 +138,8 @@ test('each tile shows what it says by itself, on a fresh page: it never needs wh
         timeline: ['Live: current-value[](mode)', 'Robot: timeline[States](mode)'],
         marks: ['Live: chart[](velocity) current-value[](mode)', 'Robot: chart[Drive](velocity,mode)'],
         stack: ['Live: timeline[](task)'],
+        statemachine: ['Live: graph[](mode) timeline[](mode)'],
+        behaviortree: ['Live: graph[](bt) timeline[](bt)'],
         trail: ['Live: 2d[](position)'],
         map: ['Live: 2d[field](robot,route)'],
         scene: ['Live: 3d[scene](box,ball)'],
@@ -206,8 +210,8 @@ test('each tile shows what it says by itself, on a fresh page: it never needs wh
 });
 
 test('sending a line again shows a change: texts go through their cycle, numbers are nudged', () => {
-    // (What does not change on purpose: descriptions said once, pictures, the steps of a stack, nothing, the lens of a camera)
-    const changing = HELP_EXAMPLES.filter(e => !/^(ATTR|TH|DASH|PNG|JPG|RAW)\|/.test(e.code) && !/^task:/.test(e.code) && !/:\|t$/.test(e.code) && !/:DC:/.test(e.code));
+    // (What does not change on purpose: descriptions said once, pictures, the steps of a stack, nothing, the lens of a camera, a structure)
+    const changing = HELP_EXAMPLES.filter(e => !/^(ATTR|TH|DASH|PNG|JPG|RAW)\|/.test(e.code) && !/^task:/.test(e.code) && !/:\|t$/.test(e.code) && !/:DC:/.test(e.code) && !/\|(enum|edges)$/.test(e.code));
     for (const example of changing) {
         const again = example.cycle ? example.cycle[0] : helpVary(templates.get(example.code) || example.code);
         assert.notEqual(helpFill(again, NOW), example.code, 'sent again, it changes: ' + example.code);
@@ -245,7 +249,7 @@ test('the Help is the reference of the text protocol: the fields of the tiles na
     assert.deepEqual(missing(keysOf('const _parseDataText_3DProperties')), [], 'properties of 3D| and 2D| lines, short and long names');
     assert.deepEqual(keysOf('const _parseDataText_3DProperties').filter(k => !HELP_PROPERTIES[k]), [], 'the parts of a message are named for every property (helpParts)');
     assert.deepEqual(missing(Object.keys(JSON.parse(block('const _parseDataText_shapeTypes =').replace(/^[^{]*/, '').replace(/(\w+):/g, '"$1":')))), [], 'kinds of shapes');
-    assert.deepEqual(['t', 'log', 'stack', 'xy', 'xyz', 'pc', 'np', 'clr'].filter(f => !text.includes('|' + f)), [], 'flags');
+    assert.deepEqual(['t', 'log', 'stack', 'xy', 'xyz', 'pc', 'enum', 'edges', 'np', 'clr'].filter(f => !text.includes('|' + f)), [], 'flags');
     const attributes = [...listOf('if(!["min"'), ...listOf('const _parseDataText_WRITE_KEYS'), ...listOf('const _parseDataText_ARG_KEYS'), 'arg'];
     assert.ok(attributes.length > 15);
     assert.deepEqual(missing(attributes), [], 'keys of ATTR| lines');
@@ -276,7 +280,7 @@ test('a sheet has its format, every part of it, and what is good to know; a view
         for (const f of t.fields) assert.ok(f.length == 2 && f[0] && f[1].length > 5, t.id + ': ' + f[0]);
     }
     const tables = helpViewOptions(loadTeleplot());
-    assert.deepEqual(tables.map(t => t.type), ['chart', 'values', 'log', 'timeline', '2d', '3d', 'image', 'joystick']);
+    assert.deepEqual(tables.map(t => t.type), ['chart', 'values', 'log', 'timeline', 'graph', '2d', '3d', 'image', 'joystick']);
     const log = tables.find(t => t.type == 'log').options.find(o => o.key == 'maxLines');
     assert.match(log.values, /^a whole number from 10 to 100000 \(default [0-9]+\)$/);
     assert.match(tables.find(t => t.type == 'chart').options.find(o => o.key == 'scale').values, /^auto, range \(default auto\)$/);

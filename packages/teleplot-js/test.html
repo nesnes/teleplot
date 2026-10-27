@@ -426,7 +426,7 @@
         depth += way; if (depth >= 14 || depth <= 1) way = -way;
       }, 250);
     });
-    demo("A stack in a timeline", "A lane with a row per level: a band lasts while its level and the ones above it do not change (loop stays one band while what it runs changes). Hover a band: what it is, what it runs in, when it started and for how long. Next to it, a plain state for comparison.", ["100%", 170], (id) => {
+    demo("A stack in a timeline", "A lane with a row per level (a stack that runs one thing at a time: rows by branch give one row per depth): a band lasts while its node runs (loop stays one band while what it runs changes). Hover a band: what it is, what it runs in, when it started and for how long. Next to it, a plain state for comparison.", ["100%", 170], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["tl.task", "tl.mode"]));
     });
     demo("Deeper than the lane opens to", "stackDepth (4 by default) is how many rows of full height a stack lane opens to. tl.deep goes down to 14 levels: past 4 the rows get thinner (their texts go away under 11 pixels: the pointer still tells them), down to 7 pixels, then the lane grows again. On the right the same with stackDepth 0: always full rows (the view scrolls).", ["100%", 240], (id) => {
@@ -484,6 +484,57 @@
     });
 
     // ====================================================================================================================== Layouts
+    section("Graphs: state machines and behavior trees", "A state or a stack with a structure (doc/graph.md): an enum sample gives its nodes (paths, a slash between levels, an optional #kind), an edges sample its transitions (from>to=event). Samples with the same time are parts of one structure; a newer time is a whole new one. What runs is the text of the telemetry: a stack can hold several paths at once, each with a status (path=failure). ViewGraph draws the structure in force at the time shown and what runs in it; the timeline draws the same stack by branches.");
+
+    data("A state machine, a behavior tree, parallel states", "g.mode moves through idle, mission/goto, mission/grasp, sometimes dock or error, every 1.5 s or so, with its edges. g.bt ticks 4 times per second: a fallback over a sequence (a battery check, then go to the waypoint) and dock; the check fails one tick in six, so the sequence fails and the fallback docks. g.par runs two regions at once (nav and arm), without a structure.", () => {
+      const now = () => (performance.timeOrigin + performance.now()).toFixed(3);
+      Teleplot.parseDataText([
+        "g.mode:1000:idle,mission/goto,mission/grasp,dock,error|enum",
+        "g.mode:1000:idle>mission=start,mission/goto>mission/grasp=arrived,mission/grasp>idle=done,mission>dock=battery low,dock>idle=charged|edges",
+        "g.mode:1000:mission>error=fault,dock>error=fault,error>idle=reset|edges",
+        "g.bt:1000:root#fallback,root/patrol#sequence,root/patrol/battery_ok#condition,root/patrol/goto#action,root/dock#action|enum",
+      ].join("\n"));
+      const steps = { idle: [["mission/goto", 1]], "mission/goto": [["mission/grasp", 0.8], ["dock", 0.1], ["error", 0.1]], "mission/grasp": [["idle", 0.85], ["error", 0.15]], dock: [["idle", 1]], error: [["idle", 1]] };
+      let mode = "idle";
+      Teleplot.parseDataText(`g.mode:${now()}:${mode}|stack`);
+      setInterval(() => {
+        let r = Math.random(), next = steps[mode].find(([, p]) => (r -= p) < 0) || steps[mode][0];
+        mode = next[0];
+        Teleplot.parseDataText(`g.mode:${now()}:${mode}|stack`);
+      }, 1500);
+      let tick = 0;
+      setInterval(() => {
+        tick++;
+        const fail = tick % 6 == 0;
+        Teleplot.parseDataText(`g.bt:${now()}:` + (fail ? "root/patrol/battery_ok=failure,root/patrol=failure,root/dock" : "root/patrol/battery_ok=success,root/patrol/goto") + "|stack");
+      }, 250);
+      let nav = "follow", arm = "idle";
+      setInterval(() => {
+        if (Math.random() < 0.5) nav = nav == "follow" ? "avoid" : "follow"; else arm = arm == "idle" ? "reach" : "idle";
+        Teleplot.parseDataText(`g.par:${now()}:nav/${nav},arm/${arm}|stack`);
+      }, 1100);
+    });
+    demo("A state machine", "Edges sent: the states that hold others are boxes. What runs is filled in blue, the box that holds it too; the last change is the blue edge with its event in bold. Under it, the recent path: the last states, how long each lasted, the event between them (point at one: the cursor of the group goes there, and every view of the page shows that moment). Wheel to zoom, drag to pan, double click to fit again. Hover a state: how many times it ran and for how long.", [520, 300], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewGraph(id, ["g.mode"]));
+    });
+    demo("A behavior tree", "No edges: the hierarchy is drawn as links from parent to child. The kind is written above each node, the status under it in the color of its words (failure red, success green, a word not known muted). The active path (what runs, from the root down) is emphasized; a result off it is quieter.", [460, 300], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewGraph(id, ["g.bt"]));
+    });
+    demo("Parallel states, no structure", "A stack without a structure is drawn too: its paths, as a tree. Two roots run at once.", [300, 200], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewGraph(id, ["g.par"]));
+    });
+    demo("The same in a timeline: rows by branch", "A band lasts while its node keeps its state (running or a status). Siblings that follow each other share a row; siblings that overlap in time (patrol failing while dock runs, nav and arm) get a row each, under their parent: the tree on the left of the bands says which. A stack with a structure takes the colors of the graph view.", ["100%", 230], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewTimeline(id, ["g.mode", "g.bt", "g.par"]));
+    });
+    demo("Values of a stack", "What runs is the value; where it runs, and the results of the tick, under it.", [340, 160], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["g.mode", "g.bt", "g.par"]));
+    });
+    demo("Options: no recent path, no events, no kinds", "trail, events and kinds off.", [460, 240], (id) => {
+      const view = new Teleplot.view.ViewGraph(id, ["g.mode"]);
+      ["trail", "events", "kinds"].forEach((option) => view.setOption(option, false));
+      Teleplot.view.addView(view);
+    });
+
     section("Layouts and look", "ViewLayout arranges views in a row, a column or a grid, and chooses how they look (cards or flat, top color). What an editor needs is here too: titles, clone(), adding and removing telemetries, the options a form can edit.");
 
     demo("Row: titles, clone(), add and remove a telemetry", "The third view is a copy of the first one. The first chart gets a second series after 2 seconds and loses it 3 seconds later. The options schema is printed in the console.", ["100%", 260], (id) => {
@@ -1079,7 +1130,8 @@
       send([
         "ATTR|cmd.limit|write|min=0|max=2|step=0.1|unit=m/s|desc=Speed limit: the device keeps 1.5 at most",
         "ATTR|cmd.power|write=bool",
-        "ATTR|cmd.mode|write|choices=slow,fast,off|desc=fast is refused while the power is off",
+        "ATTR|cmd.mode|write|desc=fast is refused while the power is off",
+        "cmd.mode:slow,fast#refused while the power is off,off|enum", // (the texts it can take: an enum structure, with a caption)
         "ATTR|cmd.drive|write=pose2d|rate=20|hold=300|min=-1|max=1",
         "ATTR|cmd.turn|write=number|rate=20|hold=300|min=-1|max=1",
         "ATTR|cmd.pose|write=pose2d",

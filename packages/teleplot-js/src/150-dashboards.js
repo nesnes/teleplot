@@ -175,9 +175,9 @@ TELEPLOT.dashboards.createDashboard = function(name = "") {
 /*
  * Which view displays a telemetry best, and creating that view. Used by the auto dashboard and by applications that let users
  * add views (drop a telemetry on a dashboard...).
- * View types: "chart", "values", "log", "timeline", "2d", "3d", "image".
+ * View types: "chart", "values", "log", "timeline", "graph", "2d", "3d", "image", "joystick".
  */
-TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "timeline", "2d", "3d", "image", "joystick"];
+TELEPLOT.view.VIEW_TYPES = ["chart", "values", "log", "timeline", "graph", "2d", "3d", "image", "joystick"];
 
 // Numbers are plotted, shapes, 3D numbers and point clouds go to a 3D scene, images to an image view, text emitted as a log
 // (TELEM_ATTR_LOG) to a log view, anything else (text emitted as a state, 2D...) is shown as values.
@@ -198,7 +198,9 @@ TELEPLOT.view.suggestViewType = function(telemIdOrName) {
     if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined) return "image";
     if(TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined) return "image"; // Drawn in the pixels of a picture: with that picture
     if(TELEPLOT.view.ViewScene3D.kindOf(telem) !== undefined) return TELEPLOT.view.ViewScene3D.isFlat(telem) ? "2d" : "3d"; // (both views show both: this is only the default)
-    let dataType = Object.keys(telem.data).find((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds are limits of its numbers)
+    // A state or a stack with a structure (doc/graph.md): a graph, what runs in it
+    if(telem.hasStructure() && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) !== true) return "graph";
+    let dataType = Object.keys(telem.data).find((type) => !TELEPLOT.protocol.isMetaDataType(type)); // (thresholds are limits of its numbers, a structure describes its texts)
     if(dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER) { // A number expected between two values is a gauge: its value with a bar (the range given before its first value decides)
         let range = telem.getRange();
         return range && range.min !== undefined && range.max !== undefined ? "values" : "chart";
@@ -216,6 +218,7 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
     else if(type == "values") view = new TELEPLOT.view.ViewCurrentValue("", telemetries, group);
     else if(type == "log") { view = new TELEPLOT.view.ViewLog("", telemetries, group); view.setSize(2, 4); }
     else if(type == "timeline") view = new TELEPLOT.view.ViewTimeline("", telemetries, group);
+    else if(type == "graph") { view = new TELEPLOT.view.ViewGraph("", telemetries, group); view.setSize(2, 3); }
     else if(type == "3d") view = new TELEPLOT.view.ViewScene3D("", telemetries, group);
     else if(type == "2d") view = new TELEPLOT.view.ViewScene2D("", telemetries, group);
     else if(type == "image") view = new TELEPLOT.view.ViewImage("", telemetries, group);
@@ -230,7 +233,8 @@ TELEPLOT.view.createView = function(type, telemetries = [], group = "default") {
  * A label also ties a camera to its scene: the 3D view of a label shows the image telemetries of that label as cameras, and the image view
  * of a labelled image telemetry gets the shapes, points and clouds of the label drawn over its pictures.
  * Number telemetries get a chart, shapes and 3D numbers share one 3D scene, texts emitted as logs share one log view (their lines are
- * merged by time), stacks share one timeline (a lane each), other types a current value view, telemetries with the autoplot
+ * merged by time), stacks share one timeline (a lane each; a stack with a structure gets a graph view too), states with a structure
+ * a graph view, other types a current value view, telemetries with the autoplot
  * attribute set to false (text protocol flag "np") are left alone. Views are added to a "grid" layout (charts two columns wide, values one).
  * The dashboard is created when the first telemetry shows up; onCreated(dashboard) lets the caller
  * display it (the library doesn't decide where a dashboard goes on the page).
@@ -251,7 +255,7 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         // A telemetry that was forgotten and comes back (forgetTelemetries) is already displayed. (By a view of its kind: the camera of a
         // scene is in the 3D view of its label, and still gets its image view.)
         if (TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return; // Drawn in the pixels of a picture: the image views of that picture take it
-        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", timeline: "teleplot-timeline", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image", joystick: "teleplot-joystick" }[TELEPLOT.view.suggestViewType(telem.id)];
+        let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", timeline: "teleplot-timeline", graph: "teleplot-graph", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image", joystick: "teleplot-joystick" }[TELEPLOT.view.suggestViewType(telem.id)];
         if (layout !== undefined && layout.views.some((v) => v.type === ownViewType && v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
 
         let isNew = layout === undefined;
@@ -291,6 +295,11 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
             else if (type == "timeline") stacks = view;
             else if (isCommand) { commands = view; view.setOption("title", "Commands"); }
             layout.addView(view);
+        }
+        // A stack drawn as a graph keeps its lane in the timeline of the stacks: the graph tells where it is, the lane when it was there
+        if (type == "graph" && !label && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK) === true) {
+            if (stacks !== undefined && layout.getViewFromId(stacks.id) !== undefined) stacks.addTelemetry(telem.id);
+            else { stacks = TELEPLOT.view.createView("timeline", [telem.id], dashboard.getGroupName()); layout.addView(stacks); }
         }
         if (isNew) onCreated(dashboard);
     });

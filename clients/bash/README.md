@@ -33,6 +33,7 @@ the page sends back (no settings, buttons or joystick: 16 to 19), and has no lib
 | `20_time_and_rate` | the time a value was measured, several samples in one line |
 | `22_recording` | the same lines into a file (tee) |
 | `23_dashboard` | choosing where values go (a dashboard) |
+| `25_graphs` | a state machine and a behavior tree (`|enum`, `|edges`, stacks with results) |
 
 - `printf` writes to `/dev/udp` in pieces of 1 KB, each a datagram: a longer line arrives broken. `12_lidar` writes its scan with
   `cat` instead.

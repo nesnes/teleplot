@@ -41,7 +41,8 @@ data.
 ```
 ATTR|kp|write|min=0|max=10|step=0.01|desc=Proportional gain     a number, between 0 and 10
 ATTR|motors|write=bool                                          a switch (a number, 0 or 1)
-ATTR|mode|write|choices=idle,auto,manual                        a text among these
+ATTR|mode|write=text                                            a text…
+mode:idle,auto#on its own,manual|enum                           …among these: its enum (#: a caption shown with a choice)
 ATTR|name|write=text                                            a free text
 ATTR|goal|write=xy                                              a 2D point, in the frame of the telemetry
 ATTR|pose|write=pose2d                                          x, y and yaw (radians, like R of 2D| lines)
@@ -52,7 +53,10 @@ ATTR|kp|write=                                                  no more writable
 
 - **Type.** `write` alone takes the type of the data the telemetry already has; `write=<type>` gives it: `number`, `bool`, `text`,
   `xy`, `xyz`, `pose2d`.
-- **Keys.** `step` (what a slider moves by, and the tolerance of the echo), `choices` (separated by `,`), `rate` (writes per second
+- **Choices.** The texts a setting can take are its **enum** structure ([`graph.md`](graph.md)): a sample `name:a,b,c|enum` (binary
+  section 43), sent once and again with the descriptions; `#caption` after a text: words shown with that choice. A text outside them
+  is refused before it is sent.
+- **Keys.** `step` (what a slider moves by, and the tolerance of the echo), `rate` (writes per second
   of a continuous control), `hold` (ms: the device stops when nothing came for that long), `axes` (the axes of an `xy` or `pose2d`
   that exist), `desc` (a short description, shown in tooltips; any telemetry may have one). `min` / `max` are the range attribute
   that exists; `unit=` and `color=` set the unit and color attributes that exist.
@@ -66,7 +70,7 @@ One line for the action, then one line per argument, in their order. An argument
 ATTR|robot.goto|action|title=Go to|desc=Drive to a pose on the map, avoiding obstacles.
 ATTR|robot.goto|arg=target|type=pose2d|desc=Where to go, in the map frame.
 ATTR|robot.goto|arg=speed|type=number|optional|default=0.5|min=0|max=2|unit=m/s|desc=Top speed.
-ATTR|robot.goto|arg=avoid|type=text|choices=none,people,all|optional|default=people
+ATTR|robot.goto|arg=avoid|type=text|enum=none,people,all|optional|default=people
 ATTR|robot.stop|action|title=Stop|color=red
 ATTR|imu.calibrate|action|title=Calibrate|confirm
 ATTR|robot.dock|action|title=Dock|longpress
@@ -148,8 +152,8 @@ motors on.
 
 - Attributes: `TELEM_ATTR_WRITE` (11) `{KIND[8]} {TYPE[8]} {FLAGS[8]} {STEP[64]} {RATE[16]} {HOLD[16]} {AXES[8]}` (kind: 0 none,
   1 setting, 2 action; type: 0 = the type of the data, then number, bool, text, xy, xyz, pose2d; flags: bit 0 confirm, bit 1
-  longpress; step NaN = none; rate and hold 0 = none; axes: a bit per axis, 0 = all), `TELEM_ATTR_CHOICES` (12, a string, choices
-  separated by line feeds), `TELEM_ATTR_ARG` (13) `{INDEX[8]} {TYPE[8]} {FLAGS[8]} {MIN[64]} {MAX[64]} {STEP[64]} {NAME} {UNIT}
+  longpress; step NaN = none; rate and hold 0 = none; axes: a bit per axis, 0 = all), the choices as a `TELEM_DATA_ENUM` section
+  (43, the texts separated by line feeds; attribute 12 is retired), `TELEM_ATTR_ARG` (13) `{INDEX[8]} {TYPE[8]} {FLAGS[8]} {MIN[64]} {MAX[64]} {STEP[64]} {NAME} {UNIT}
   {DEFAULT} {CHOICES} {DESC}` (strings null terminated; flags: bit 0 optional; type 0 removes the argument), `TELEM_ATTR_DESC` (14,
   a string), `TELEM_ATTR_TITLE` (15, a string).
 - A setting: a packet with the **client id of the device** in its header and the usual data section with **the telemetry id the
@@ -267,8 +271,8 @@ command views, a "controls" kind of values view (the joystick view replaces it).
 
 Built in five steps, each tested before the next (plan of 2026-10-19). Where things are:
 
-- **Protocol** (`011-protocol.js`): `TELEM_ATTR_WRITE` 11 `{kind, type, step, rate, hold, axes, confirm, longpress}`, `TELEM_ATTR_CHOICES`
-  12, `TELEM_ATTR_ARGS` 13 (the list of arguments), `TELEM_ATTR_DESC` 14, `TELEM_ATTR_TITLE` 15, `SECTION_TYPE_CALL` 41,
+- **Protocol** (`011-protocol.js`): `TELEM_ATTR_WRITE` 11 `{kind, type, step, rate, hold, axes, confirm, longpress}`, the choices
+  as an enum structure (`SECTION_TYPE_TELEM_DATA_ENUM` 43, `telem.getEnum()`; attribute 12 retired on 2026-10-27), `TELEM_ATTR_ARGS` 13 (the list of arguments), `TELEM_ATTR_DESC` 14, `TELEM_ATTR_TITLE` 15, `SECTION_TYPE_CALL` 41,
   `SECTION_TYPE_CALL_ANSWER` 42, `WRITE_TYPES`, `WRITE_AXES`. Parsing: `ATTR|` keys and `ACK|` lines in `040`, the attributes and
   section 42 in `041`.
 - **Path back**: telemetries remember the sender they came from (`telemetry.endpoint`, set through `datastore.withSource(source, fn,

@@ -24,6 +24,7 @@ class BootClock {
         this.latest = -Infinity;   // Latest device time seen (ms) and when it arrived (page ms)
         this.latestAt = 0;
         this.previous = new Map(); // Telemetry name -> its previous device time (ms) since the last (re)boot
+        this.dates = new Map();    // Telemetry name -> {sent, date} of its previous sample (the parts of a sample get one date)
         this.dated = 0;            // Samples dated (shown by the Sources panel: it is in use)
     }
 
@@ -39,6 +40,7 @@ class BootClock {
         this.offset = undefined;
         this.latest = -Infinity;
         this.previous.clear();
+        this.dates.clear();
     }
 
     // The date (ms) of a device time "sent" (ms) of telemetry "name" that arrived at "now" (page ms)
@@ -57,10 +59,16 @@ class BootClock {
                 this.__restart();
             }
         }
+        // The same time again for the same telemetry: another part of the same sample (a structure or a tick in several lines,
+        // doc/graph.md). It gets the date the first part got, whatever the offset learnt in between: parts of one sample stay one.
+        let last = this.dates.get(name);
+        if(this.offset !== undefined && last !== undefined && last.sent === sent) { this.dated++; return last.date; }
         this.previous.set(name, sent);
         if(sent >= this.latest) { this.latest = sent; this.latestAt = now; }
         this.dated++;
-        return sent + Connection.lowestOffset(this, sent, now);
+        let date = sent + Connection.lowestOffset(this, sent, now);
+        this.dates.set(name, { sent, date });
+        return date;
     }
 }
 

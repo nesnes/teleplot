@@ -557,26 +557,33 @@ test('new telemetries are announced when the datastore hands out wrapped objects
     assert.deepEqual(seen, ['battery', 'speed', 'again']);
 });
 
-test('levels of a stack: a run per path at each depth, completed as samples come, built again when samples are inserted or removed', () => {
+test('nodes of a stack: a run per node and state (runs, a status, or not there), completed as samples come, built again when samples are inserted or removed', () => {
     const T = loadTeleplot();
     const TEXT = T.protocol.SECTION_TYPE_TELEM_DATA_TEXT;
     const telem = T.datastore.getOrCreateTelemetry('task');
-    const levels = () => T.stackRuns(telem.data[TEXT]).levels.map(l => l.timestamps.map((t, i) => t + ':' + l.data[0][i]));
+    const nodes = (entry = telem.data[TEXT]) => { let runs = T.stackRuns(entry), out = {}; for(let path of runs.order) { let n = runs.nodes.get(path); out[path] = n.timestamps.map((t, i) => t + ':' + (n.data[0][i] === null ? '-' : n.data[0][i] === '' ? 'run' : n.data[0][i])); } return out; };
     telem.addData(TEXT, [1, 2, 3, 4, 5, 6, 7], [['main', 'main/read', 'main/read', 'main/plan', 'main/plan/search', 'main/plan', 'other/plan']]);
-    assert.deepEqual(levels(), [['1:main', '7:other'], ['2:main/read', '4:main/plan', '7:other/plan'], ['5:main/plan/search', '6:']],
-        'a level lasts while it and what is above it do not change: "plan" under "other" is not "plan" under "main"');
+    assert.deepEqual(nodes(), { main: ['1:run', '7:-'], 'main/read': ['2:run', '4:-'], 'main/plan': ['4:run', '7:-'], 'main/plan/search': ['5:run', '6:-'], 'other/plan': ['7:run'], other: ['7:run'] },
+        'a node lasts while its state does not change: "plan" under "other" is not "plan" under "main"');
     const first = T.stackRuns(telem.data[TEXT]);
     telem.addData(TEXT, [8, 9], [['', 'main']]);
-    assert.deepEqual(levels(), [['1:main', '7:other', '8:', '9:main'], ['2:main/read', '4:main/plan', '7:other/plan', '8:'], ['5:main/plan/search', '6:']]);
+    assert.deepEqual(nodes().main, ['1:run', '7:-', '9:run']);
+    assert.deepEqual(nodes().other, ['7:run', '8:-']);
     assert.equal(T.stackRuns(telem.data[TEXT]), first, 'completed, not built again');
     telem.addData(TEXT, [4.5], [['main/plan/a/b']]); // late
-    assert.deepEqual(levels()[3], ['4.5:main/plan/a/b', '5:']);
+    assert.deepEqual(nodes()['main/plan/a/b'], ['4.5:run', '5:-']);
+    assert.notEqual(T.stackRuns(telem.data[TEXT]), first, 'built again');
     telem.removeRange(TEXT, 2, 6);
-    assert.deepEqual(levels(), [['1:main', '7:other', '8:', '9:main'], ['7:other/plan', '8:']]);
-    // Odd paths are taken as they are; a path that is absurdly deep is cut
+    assert.deepEqual(Object.keys(nodes()), ['main', 'other/plan', 'other']);
+    // Several paths at once, with statuses: a path holds its parents (they run), unless they have a status of their own
+    const bt = T.datastore.getOrCreateTelemetry('bt');
+    bt.addData(TEXT, [1, 2, 3], [['root/patrol/battery_ok=success,root/patrol/goto', 'root/patrol/battery_ok=failure,root/patrol=failure,root/dock', 'root/dock']]);
+    assert.deepEqual(nodes(bt.data[TEXT]), { 'root/patrol/battery_ok': ['1:success', '2:failure', '3:-'], root: ['1:run'], 'root/patrol': ['1:run', '2:failure', '3:-'], 'root/patrol/goto': ['1:run', '2:-'], 'root/dock': ['2:run'] });
+    assert.deepEqual([...T.stackStates('a/b=x,a=y')], [['a/b', 'x'], ['a', 'y']]);
+    // Odd paths: empty parts are dropped; a path that is absurdly deep is cut
     const odd = T.datastore.getOrCreateTelemetry('odd');
     odd.addData(TEXT, [1, 2, 3], [['a//b', '/x', Array.from({ length: 200 }, (v, i) => 'f' + i).join('/')]]);
-    const built = T.stackRuns(odd.data[TEXT]).levels;
-    assert.deepEqual([built[0].data[0], built[1].data[0].slice(0, 2), built[2].data[0][0], built.length], [['a', '', 'f0'], ['a/', '/x'], 'a//b', 64]);
-    assert.deepEqual(T.stackRuns({ timestamps: [], data: [[]] }).levels, []);
+    const built = T.stackRuns(odd.data[TEXT]);
+    assert.deepEqual([built.nodes.has('a/b'), built.nodes.has('x'), Math.max(...[...built.nodes.values()].map((n) => n.depth))], [true, true, 63]);
+    assert.deepEqual(T.stackRuns({ timestamps: [], data: [[]] }).order, []);
 });

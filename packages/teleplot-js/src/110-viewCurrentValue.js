@@ -130,7 +130,7 @@ class ViewCurrentValue extends ViewTelemetries{
             let tip = TELEPLOT.view.telemetryTip(telem); // (its description, when it has one)
             if(this.telemetries[telem.id].tip !== tip) this.telemetries[telem.id].tip = tip;
             this.telemetries[telem.id].unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
-            let dataTypes = Object.keys(telem.data).filter((type) => type != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD); // (thresholds are not a value: they qualify the number)
+            let dataTypes = Object.keys(telem.data).filter((type) => !TELEPLOT.protocol.isMetaDataType(type)); // (thresholds and a structure are not a value: they describe it)
             this.telemetries[telem.id].empty = dataTypes.length == 0;
             this.telemetries[telem.id].imageOnly = dataTypes.length == 1 && dataTypes[0] == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE; // The image fills the block, the name is overlaid on it
             for(let dataType of dataTypes) {
@@ -174,6 +174,14 @@ class ViewCurrentValue extends ViewTelemetries{
                     }
                     this.telemetries[telem.id].data[dataType].lastDisplayValue[channelIdx] = displayStr;
                     channelIdx++;
+                }
+                // A stack: what runs is the value, where it runs and the results are written under it (doc/graph.md)
+                if(dataType == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK) === true) {
+                    let shown = this.telemetries[telem.id].data[dataType];
+                    let summary = ViewCurrentValue.stackSummary(String(dataPoint.data[0]));
+                    shown.lastDisplayValue[0] = summary.value;
+                    let key = JSON.stringify(summary);
+                    if(shown.stackKey !== key) { shown.stackKey = key; shown.stack = summary; }
                 }
             }
 
@@ -222,7 +230,7 @@ class ViewCurrentValue extends ViewTelemetries{
         let why = on ? C.whyNot(telem) : "";
         let name = telem.getAttribute(P.TELEM_ATTR_NAME) || String(telem.id);
         let state = { kind: declaration.kind, type: declaration.type, on, why, editable: on && why === "", continuous: C.isContinuous(telem),
-            choices: declaration.choices || [], title: telem.getAttribute(P.TELEM_ATTR_TITLE) || name, desc: telem.getAttribute(P.TELEM_ATTR_DESC) || "",
+            choices: declaration.choices || [], captions: declaration.captions || {}, title: telem.getAttribute(P.TELEM_ATTR_TITLE) || name, desc: telem.getAttribute(P.TELEM_ATTR_DESC) || "",
             confirm: declaration.confirm === true, longpress: declaration.longpress === true, color: telem.getAttribute(P.TELEM_ATTR_COLOR) || "" };
         if(declaration.kind === "setting") {
             let reported = C.reported(telem);
@@ -441,6 +449,20 @@ class ViewCurrentValue extends ViewTelemetries{
         }
     }
 
+    // What a stack text says, for a row (doc/graph.md): { value: the names of what runs at the deepest ("" when nothing does), where:
+    // what that runs in ("mission", "nav / follow"; "" for a root or several of them), results: [{name, status, level (ViewLog.getLevel)}] }
+    static stackSummary(text) {
+        const decode = TELEPLOT.protocol.decodeName;
+        let states = TELEPLOT.stackStates(text);
+        let running = [...states].filter(([path, state]) => state === "").map(([path]) => path);
+        let leaves = running.filter((path) => !running.some((other) => other.startsWith(path + "/")));
+        let name = (path) => decode(path.slice(path.lastIndexOf("/") + 1));
+        let parentOf = (path) => path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+        let where = leaves.length === 1 && parentOf(leaves[0]) !== "" ? parentOf(leaves[0]).split("/").map(decode).join(" / ") : "";
+        let results = [...states].filter(([path, state]) => state !== "").map(([path, state]) => ({ name: name(path), status: decode(state), level: TELEPLOT.view.ViewLog.getLevel(decode(state)) }));
+        return { value: leaves.map(name).join(", "), where, results };
+    }
+
     // What the range and the thresholds of a telemetry say about a value at a time (the latest ones without time):
     //   status: { name, color } of the threshold the value is past (color "": none was given), undefined when it is past none
     //   bar: { fill (0 to 1: where the value is in the range), min, max, ticks: [{ at (0 to 1), name, color }] the thresholds inside
@@ -530,6 +552,10 @@ class ViewCurrentValue extends ViewTelemetries{
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-text" 
                         v-bind:title="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].lastValue[0]">
                         <span>{{telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].lastDisplayValue[0]}}</span><span v-if="telem.unit" class="teleplot-js-current-value-unit">{{telem.unit}}</span>
+                        <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].stack && (telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].stack.where || telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].stack.results.length)" class="teleplot-js-current-value-stack">
+                            <span v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].stack.where">in {{telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].stack.where}}</span>
+                            <span v-for="result in telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].stack.results">{{result.name}} <b v-bind:class="'teleplot-js-level-' + result.level">{{result.status}}</b></span>
+                        </div>
                     </div>
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-number"
                         v-bind:title="''+telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER}].lastValue[0]"
@@ -578,10 +604,10 @@ class ViewCurrentValue extends ViewTelemetries{
                 <!-- The choices of a setting, opened by a click on its value -->
                 <div v-if="ui.edit && ui.edit.id == telem.id && ui.edit.kind == 'choices'" class="teleplot-js-cmd-choices" v-on:click.stop>
                     <template v-if="telem.cmd.choices.length <= 5">
-                        <button v-for="choice in telem.cmd.choices" v-bind:key="choice" v-bind:class="{'teleplot-js-cmd-choice-current': choice == telem.cmd.reportedText}" v-on:click.stop="pick(telem, choice)">{{choice}}</button>
+                        <button v-for="choice in telem.cmd.choices" v-bind:key="choice" v-bind:class="{'teleplot-js-cmd-choice-current': choice == telem.cmd.reportedText}" v-on:click.stop="pick(telem, choice)">{{choice}}<small v-if="telem.cmd.captions[choice]" class="teleplot-js-cmd-caption">{{telem.cmd.captions[choice]}}</small></button>
                     </template>
                     <select v-else v-on:change="pick(telem, $event.target.value)">
-                        <option v-for="choice in telem.cmd.choices" v-bind:key="choice" v-bind:value="choice" v-bind:selected="choice == telem.cmd.reportedText">{{choice}}</option>
+                        <option v-for="choice in telem.cmd.choices" v-bind:key="choice" v-bind:value="choice" v-bind:selected="choice == telem.cmd.reportedText">{{choice}}{{telem.cmd.captions[choice] ? ' (' + telem.cmd.captions[choice] + ')' : ''}}</option>
                     </select>
                 </div>
 
@@ -717,6 +743,9 @@ class ViewCurrentValue extends ViewTelemetries{
             .teleplot-js-current-value-empty {
                 opacity: 0.4;
             }
+            .teleplot-js-current-value-stack { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 0.7em; font-size: 0.6em; font-weight: 400; color: var(--teleplot-muted); } /* where a stack runs, its results */
+            .teleplot-js-current-value-stack b { font-weight: 600; }
+            .teleplot-js-level-1 { color: var(--teleplot-warn); } .teleplot-js-level-2 { color: var(--teleplot-error); } .teleplot-js-level-3 { color: var(--teleplot-ok); }
             .teleplot-js-current-value-unit { /* after the value, smaller and quiet: the value is what is read first */
                 margin-left: 0.3em;
                 font-size: 0.6em;
@@ -807,6 +836,7 @@ class ViewCurrentValue extends ViewTelemetries{
             .teleplot-js-cmd-choices { flex: 1 0 100%; display: flex; gap: 0.15em; padding: 0.15em; margin: 0.2em 0; border-radius: 0.6em; background: color-mix(in srgb, var(--teleplot-text) 8%, transparent); }
             .teleplot-js-cmd-choices button { flex: 1; font: 0.82em sans-serif; padding: 0.1em 0.3em; border: 1px solid transparent; border-radius: 0.45em; background: none; color: var(--teleplot-muted); cursor: pointer; white-space: nowrap; }
             .teleplot-js-cmd-choices button:hover { background: color-mix(in srgb, var(--teleplot-primary) 12%, transparent); }
+            .teleplot-js-cmd-caption { display: block; font-size: 0.85em; font-weight: 400; color: var(--teleplot-muted); white-space: normal; } /* the kind of a choice ("auto#follows the line") */
             .teleplot-js-cmd-choices .teleplot-js-cmd-choice-current { background: var(--teleplot-surface); color: var(--teleplot-text); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
             .teleplot-js-cmd-action { flex: 0 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 0.35em; flex-wrap: wrap; }
             .teleplot-js-cmd-last { display: inline-flex; align-items: center; font: 0.8em var(--teleplot-mono); color: var(--teleplot-muted); white-space: nowrap; }

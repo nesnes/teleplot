@@ -14,7 +14,7 @@ serial port, needs none: one line of the text protocol ([doc/textProtocol.md](..
 ## Examples
 
 Every language has the same examples, with the same numbers and the same telemetry names, so that one is easy to find in another
-language: 01 to 24 below. A language that cannot do one says why (Bash cannot read what the page sends back, so it has no settings or
+language: 01 to 25 below. A language that cannot do one says why (Bash cannot read what the page sends back, so it has no settings or
 buttons). From 30 on, what only that language has (threads, WiFi, NumPy...).
 
 | | What it shows | C++ | Arduino | Python | Bash |
@@ -37,12 +37,13 @@ buttons). From 30 on, what only that language has (threads, WiFi, NumPy...).
 | 16 | a value the page can change | yes | yes | yes | - |
 | 17 | a button in the page, with an argument and a confirmation | yes | yes | yes | - |
 | 18 | a joystick that stops by itself | yes | yes | yes | - |
-| 19 | choices, refusing a value | yes | yes | yes | - |
+| 19 | choices (an enum), refusing a value | yes | yes | yes | - |
 | 20 | the time a value was measured, fewer samples of a fast value | yes | yes | yes | yes |
 | 21 | a clock of your own | yes | yes | yes | - |
 | 22 | recording to a file the page opens | yes | yes | yes | yes |
 | 23 | choosing where values go (a dashboard) | yes | yes | yes | yes |
 | 24 | how the client is doing, in the page | yes | yes | yes | - |
+| 25 | a state machine and a behavior tree (graphs) | yes | yes | yes | yes |
 
 Each test suite runs every example of its language for a moment and reads what it sent with the library of the page:
 [`examples.js`](examples.js) holds the common set (what each example must give the page) and checks that a language has all of it,

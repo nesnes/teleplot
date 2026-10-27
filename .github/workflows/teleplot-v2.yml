@@ -97,6 +97,7 @@ jobs:
             - clients/arduino/Teleplot/examples/22_Recording
             - clients/arduino/Teleplot/examples/23_Dashboard
             - clients/arduino/Teleplot/examples/24_Stats
+            - clients/arduino/Teleplot/examples/25_Graphs
             - clients/arduino/Teleplot/examples/31_SmallBoards
           cli-compile-flags: |
             - --warnings

@@ -5,7 +5,7 @@ const { loadTeleplot, captureConsole } = require('./helpers/load');
 const { PacketBuilder, ATTR } = require('./helpers/packet');
 const { FakeWebSocket } = require('./helpers/stubs');
 
-const WRITE = 11, CHOICES = 12, ARGS = 13, DESC = 14, TITLE = 15;
+const WRITE = 11, ARGS = 13, DESC = 14, TITLE = 15;
 const NUMBER = 20, NUMBER_2D = 21, NUMBER_3D = 22, TEXT = 23;
 
 // A page with a device of its own (a local connection): what the page writes is in "written"
@@ -19,22 +19,28 @@ function setup(lines = '') {
 const later = (ms) => Date.now() + ms;
 const texts = (written) => written.map((m) => m.text);
 
-test('ATTR lines declare settings: type, choices, step, rate, hold, axes; "write=" removes it', () => {
+test('ATTR lines declare settings: type, step, rate, hold, axes; "write=" removes it; the choices are an enum sample', () => {
     const { T, telem } = setup([
         'ATTR|kp|write|min=0|max=10|step=0.01|desc=Proportional gain|unit=',
         'ATTR|motors|write=bool',
-        'ATTR|mode|write|choices=idle,auto,manual%2C slow',
+        'ATTR|mode|write',
+        'mode:idle,auto#all on its own,manual%2C slow|enum',
         'ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200',
         'ATTR|name|write=text|color=red',
     ].join('\n'));
     const C = T.commands;
-    assert.deepEqual(C.declaration(telem('kp')), { kind: 'setting', type: 'number', step: 0.01, choices: undefined });
+    assert.deepEqual(C.declaration(telem('kp')), { kind: 'setting', type: 'number', step: 0.01, choices: undefined, captions: undefined });
     assert.deepEqual(telem('kp').getRange(), { min: 0, max: 10 });
     assert.equal(telem('kp').getAttribute(DESC), 'Proportional gain');
     assert.equal(C.declaration(telem('motors')).type, 'bool');
     assert.deepEqual(C.declaration(telem('mode')).choices, ['idle', 'auto', 'manual, slow'], 'values are unescaped one by one');
     assert.equal(C.declaration(telem('mode')).type, 'text', 'choices are texts');
-    assert.deepEqual(C.declaration(telem('cmd_vel')), { kind: 'setting', type: 'pose2d', axes: ['x', 'yaw'], rate: 20, hold: 200, choices: undefined });
+    assert.deepEqual(C.declaration(telem('mode')).captions, { auto: 'all on its own' }, 'a kind is the caption of a choice');
+    T.commands.setEnabled(true);
+    assert.match(C.write(telem('mode'), 'fast'), /One of idle, auto, manual, slow/);
+    T.commands.setEnabled(false);
+    assert.equal(T.parseDataText('ATTR|mode|choices=a,b'), 1, 'choices= is not an attribute any more');
+    assert.deepEqual(C.declaration(telem('cmd_vel')), { kind: 'setting', type: 'pose2d', axes: ['x', 'yaw'], rate: 20, hold: 200, choices: undefined, captions: undefined });
     assert.equal(C.isContinuous(telem('cmd_vel')), true);
     assert.equal(telem('name').getAttribute(ATTR.COLOR), 'red');
     // The type of the data when none is declared
@@ -60,7 +66,7 @@ test('ATTR lines declare actions and their arguments, in order; an argument line
         'ATTR|robot.goto|action|title=Go to|desc=Drive to a pose%3A avoiding obstacles|confirm',
         'ATTR|robot.goto|arg=target|type=pose2d|desc=Where to go',
         'ATTR|robot.goto|arg=speed|type=number|optional|default=0.5|min=0|max=2|unit=m/s',
-        'ATTR|robot.goto|arg=avoid|type=text|choices=none,people,all|optional|default=people',
+        'ATTR|robot.goto|arg=avoid|type=text|enum=none,people,all|optional|default=people',
     ].join('\n'));
     const goto = telem('robot.goto');
     assert.equal(T.commands.isAction(goto), true);
@@ -81,15 +87,15 @@ test('ATTR lines declare actions and their arguments, in order; an argument line
     assert.equal(goto.hasContent(), true);
 });
 
-test('binary attributes: write, choices, arguments, description, title', () => {
+test('binary attributes: write, arguments, description, title; the choices are an enum section', () => {
     const T = loadTeleplot();
-    T.parseDataBinary(new PacketBuilder(3).attrs(1, [[ATTR.NAME, 'mode'], [WRITE, { kind: 1, type: 3, flags: 1, rate: 10, hold: 300, axes: 0b101 }], [CHOICES, 'idle\nauto'], [DESC, 'The mode']]).build());
+    T.parseDataBinary(new PacketBuilder(3).attrs(1, [[ATTR.NAME, 'mode'], [WRITE, { kind: 1, type: 3, flags: 1, rate: 10, hold: 300, axes: 0b101 }], [DESC, 'The mode']]).enums(1, 5e9, [[0, 'idle\nauto']]).build());
     T.parseDataBinary(new PacketBuilder(3).attrs(2, [[ATTR.NAME, 'goto'], [WRITE, { kind: 2, flags: 2 }], [TITLE, 'Go to'],
         [ARGS, { index: 0, type: 6, name: 'target' }], [ARGS, { index: 1, type: 1, flags: 1, min: 0, max: 2, name: 'speed', unit: 'm/s', default: '0.5', desc: 'Top speed' }]]).build());
     const mode = T.datastore.getTelemetry(3 * 0x10000 + 1), goto = T.datastore.getTelemetry(3 * 0x10000 + 2);
-    assert.deepEqual(T.commands.declaration(mode), { kind: 'setting', type: 'text', confirm: true, longpress: false, rate: 10, hold: 300, axes: ['x', 'yaw'], choices: ['idle', 'auto'] });
+    assert.deepEqual(T.commands.declaration(mode), { kind: 'setting', type: 'text', confirm: true, longpress: false, rate: 10, hold: 300, axes: ['x', 'yaw'], choices: ['idle', 'auto'], captions: {} });
     assert.equal(mode.getAttribute(DESC), 'The mode');
-    assert.deepEqual(T.commands.declaration(goto), { kind: 'action', type: '', confirm: false, longpress: true, choices: undefined });
+    assert.deepEqual(T.commands.declaration(goto), { kind: 'action', type: '', confirm: false, longpress: true, choices: undefined, captions: undefined });
     assert.equal(goto.getAttribute(TITLE), 'Go to');
     assert.deepEqual(T.commands.args(goto), [{ name: 'target', type: 'pose2d', optional: false },
         { name: 'speed', type: 'number', optional: true, min: 0, max: 2, unit: 'm/s', default: '0.5', desc: 'Top speed' }]);
@@ -141,7 +147,7 @@ test('a setting: the line the device would send, the echo applies it; the conver
 });
 
 test('a setting not applied (the device keeps another value), refused (err), or without answer', () => {
-    const { T, device, written, telem } = setup('ATTR|limit|write|step=0.1\nlimit:1.2\nATTR|mode|write|choices=idle,auto,manual\nmode:idle|t\nATTR|silent|write=bool');
+    const { T, device, written, telem } = setup('ATTR|limit|write|step=0.1\nlimit:1.2\nATTR|mode|write\nmode:idle,auto,manual|enum\nmode:idle|t\nATTR|silent|write=bool');
     T.commands.setEnabled(true);
     T.commands.write(telem('limit'), 1.9);
     device.sendText('limit:1.5');
@@ -446,7 +452,7 @@ test('values view: what a row shows of a setting or an action (no DOM)', () => {
     const { T, device, telem } = setup('ATTR|kp|write|min=0|max=10|desc=Gain\nkp:4\nATTR|go|action|title=Go|confirm\nATTR|go|arg=to|type=xy\nATTR|led|write=bool\nled:1');
     const V = T.view.ViewCurrentValue;
     const bar = { min: 0, max: 10 };
-    assert.deepEqual(V.commandState(telem('kp'), bar), { kind: 'setting', type: 'number', on: false, why: '', editable: false, continuous: false, choices: [],
+    assert.deepEqual(V.commandState(telem('kp'), bar), { kind: 'setting', type: 'number', on: false, why: '', editable: false, continuous: false, choices: [], captions: {},
         title: 'kp', desc: 'Gain', confirm: false, longpress: false, color: '', reportedText: '4', status: '' }, 'CMD off: nothing asked, nothing editable');
     T.commands.setEnabled(true);
     T.commands.write(telem('kp'), 5);

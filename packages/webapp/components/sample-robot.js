@@ -14,6 +14,9 @@
  * intrinsics, its distortion and where it is, so that an image view can draw the 3D telemetries over its pictures. Next to it a depth camera
  * (robot.depth, the same lens) measures the distance of what each pixel sees: a depth map in millimetres (RAW gray16, scale 0.001),
  * shown in colors and placed in the 3D scene and on the map.
+ * Graphs (doc/graph.md): its state (robot.state) is a state machine (its states and transitions are a structure: enum and edges
+ * samples), and what it decides 5 times per second is a behavior tree (robot.bt: a stack with the result of each node), each drawn by a
+ * graph view (tabs at the bottom).
  * Commands (doc/telecmd.md, switch CMD on): it is a source of the page (a local connection) that declares what it takes, as a device
  * would with ATTR lines: a speed limit (it cannot go above 0.6 m/s: asked more, it keeps 0.6), its motors, a mode (auto, manual,
  * idle: manual is refused while the motors are off), velocities for a joystick (cmd_vel, one stick: it cannot go sideways; refused with an err while it is not in manual mode), its pose
@@ -134,7 +137,8 @@ function createRobotSample(TP) {
         send([
             "ATTR|robot.speed_limit|write|min=0|max=0.8|step=0.05|unit=m/s|desc=Cruise speed. The motors cannot go above 0.6 m/s",
             "ATTR|robot.motors|write=bool|desc=Power of the motors",
-            "ATTR|robot.mode|write|choices=auto,manual,idle|desc=auto: wanders and avoids walls; manual: the joystick drives; idle: stays still",
+            "ATTR|robot.mode|write|desc=auto: wanders and avoids walls; manual: the joystick drives; idle: stays still",
+            "robot.mode:auto#wanders,manual#joystick,idle#stays still|enum", // (the texts it can take, with a caption)
             "ATTR|robot.cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=300|min=-1|max=1|desc=Joystick (manual mode): forward speed and turn",
             "ATTR|robot.pose|write=pose2d|desc=Where the robot believes it is: move it on the map to correct it",
             "ATTR|robot.odometry.reset|action|title=Reset odometry|confirm|desc=Forgets the path driven so far",
@@ -316,6 +320,29 @@ function createRobotSample(TP) {
             if (TP.datastore.getTelemetry("robot.map.reach")) put("robot.map.reach", SIZE, [bot.reach * 2, bot.reach * 2, 1]); // (the circle around the robot on the map)
         }
     }
+    // The structure of its state machine and of its behavior tree (doc/graph.md), said again when it was forgotten (data cleared),
+    // and a tick of the tree: what it decides now, each node with its result (a path without result runs)
+    const STATES = ["forward#auto", "turning#auto", "going#go to", "waiting#manual", "driven#manual", "idle", "motors off"];
+    const TRANSITIONS = ["forward>turning=wall", "turning>forward=clear", "forward>going=go to", "turning>going=go to", "going>forward=arrived", "waiting>driven=joystick", "driven>waiting=released"];
+    const TREE = ["root#fallback", "root/hold#sequence", "root/hold/not_auto#condition", "root/hold/wait#action", "root/command#sequence", "root/command/has_goal#condition",
+        "root/command/goto#action", "root/wander#fallback", "root/wander/avoid#sequence", "root/wander/avoid/wall_close#condition", "root/wander/avoid/turn#action", "root/wander/forward#action"];
+    function publishGraphs() {
+        const state = TP.datastore.getTelemetry("robot.state");
+        if (!state.data[P.SECTION_TYPE_TELEM_DATA_ENUM]) { put("robot.state", P.SECTION_TYPE_TELEM_DATA_ENUM, [STATES.join("\n")]); put("robot.state", P.SECTION_TYPE_TELEM_DATA_EDGES, [TRANSITIONS.join("\n")]); }
+        if (!TP.datastore.getTelemetry("robot.bt") || !TP.datastore.getTelemetry("robot.bt").data[P.SECTION_TYPE_TELEM_DATA_ENUM]) {
+            put("robot.bt", P.SECTION_TYPE_TELEM_DATA_ENUM, [TREE.join("\n")]);
+            TP.datastore.getTelemetry("robot.bt").setAttribute(P.TELEM_ATTR_STACK, true);
+            TP.datastore.getTelemetry("robot.bt").setAttribute(P.TELEM_ATTR_DESC, "What the robot decides, 5 times per second: a behavior tree");
+        }
+        // The tick: the first branch that does not fail wins (a fallback); a sequence fails at its first failing child
+        let tick;
+        if (!bot.motors || bot.mode != "auto" && !bot.goal) tick = ["root/hold/not_auto=success", "root/hold/wait"];
+        else if (bot.goal) tick = ["root/hold/not_auto=failure", "root/hold=failure", "root/command/has_goal=success", "root/command/goto"];
+        else if (bot.state == "turning") tick = ["root/hold/not_auto=failure", "root/hold=failure", "root/command/has_goal=failure", "root/command=failure", "root/wander/avoid/wall_close=success", "root/wander/avoid/turn"];
+        else tick = ["root/hold/not_auto=failure", "root/hold=failure", "root/command/has_goal=failure", "root/command=failure", "root/wander/avoid/wall_close=failure", "root/wander/avoid=failure", "root/wander/forward"];
+        put("robot.bt", TEXT, [tick.join(",")]);
+    }
+
     function publishSlow() { // 5 Hz
         put("robot.position", NUMBER_2D, [bot.x, bot.y], "m");
         // Commands: what it applies (the echo of the settings), where it believes it is, the velocity it applies (zero once dropped)
@@ -328,6 +355,7 @@ function createRobotSample(TP) {
         describe("robot.heading", [0, 360]);
         describe("robot.battery", [20, 25.2], [["low", "<", 22], ["empty", "<", 20.5, "#e74c3c"]]);
         put("robot.state", TEXT, [bot.state]);
+        publishGraphs();
         // Where it is: the name of the zone, or nothing (an empty text: a hole in the timeline)
         put("robot.zone", TEXT, [bot.x > DOCK[0] && bot.x < DOCK[2] && bot.y > DOCK[1] && bot.y < DOCK[3] ? "dock" : ""]);
         // The camera: its parameters and where it is on the robot (once: it is in the frame of the body, looking along its x), then
@@ -514,6 +542,13 @@ function createRobotSample(TP) {
         bottom.addView(chart(["robot.current.left", "robot.current.right", "robot.motor.log"], 3, 5));
         bottom.addView(chart(["robot.wheel.left", "robot.wheel.right", "robot.state"], 3, 5));
         bottom.addView(tabs);
+        // Its graphs: what it decides (a behavior tree) and its state machine, in tabs
+        const graphs = stack(4, 5), tree = new TP.view.ViewGraph("", ["robot.bt"], group), machine = new TP.view.ViewGraph("", ["robot.state"], group);
+        tree.setOption("title", "Behavior");
+        machine.setOption("title", "States");
+        graphs.addView(tree);
+        graphs.addView(machine);
+        bottom.addView(graphs);
         // Commands (switch CMD on), under the camera: its settings and actions, edited and called in place, and a joystick for the manual mode
         const settings = values(["robot.speed_limit", "robot.motors", "robot.mode", "robot.odometry.reset", "robot.goto", "robot.stop", "robot.dock"], 2, 2);
         settings.setOption("title", "Commands");

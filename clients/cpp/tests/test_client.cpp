@@ -35,7 +35,7 @@ int main() {
     tp.param("kp", &kp).range(0, 10).step(0.01);
     tp.param("motors", &motors);
     tp.param("pose", &pose).range(-5, 5);
-    tp.param("mode", &mode).choices({ "auto", "manual" });
+    tp.param("mode", &mode).enumValues({ "auto", "manual#by hand" });
     tp.param("count", &count).onChange([](int const& v) { return v % 2 ? Teleplot::ok() : Teleplot::error("odd only"); });
     tp.flush();
     CHECK("declarations are sent", !sent.empty());

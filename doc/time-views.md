@@ -57,7 +57,10 @@ task:|stack
 - **Time.** For function timing the device should date its messages: in text, the time before the path, in milliseconds with as
   many decimals as it measures; in binary, the timestamp of the text sample (nanoseconds). Without a time a message is dated when
   it is received, which is fine for slow things and too coarse for short calls.
-- One stack per telemetry: something that runs several things at once (threads, tasks) sends one telemetry for each.
+- **Several things at once**: their paths separated by `,`, each with an optional status after `=` (what it ended with: a result of a
+  behavior tree node, any word), `bt:root/patrol=failure,root/dock|stack`. A path without status runs, and the levels that hold it.
+  Lines with the same time written by the device are parts of one sample (a tick split in several messages). Threads that run on
+  their own are better sent as one telemetry each. A stack with a structure (`|enum`, `|edges`) is a graph: see [`graph.md`](graph.md).
 
 ### A range: `ATTR|`
 
@@ -122,8 +125,10 @@ others a timeline, and a text in a chart, are asked for: in the Edit mode of the
 - **Too short to be drawn**: several states within a couple of pixels are one neutral block (half the height of the lane) that knows
   how many states it holds; several lines within a couple of pixels are one thicker tick. Zoom to see them.
 - **Colors**: the texts of a view take the colors of the palette in the order they show up, so the states of a telemetry are told
-  apart (the first 11 are all different; none is red, which is kept for errors). Texts that look like an error or a warning take the colors of the theme for them, as in the
-  Log view. Lines of logs have no color of their own.
+  apart (the first 11 are all different; none is red, which is kept for errors). Texts that hold a word of the lists take the colors of
+  the theme for them, as in the Log view: failure (`error err fail failed failure fatal critical crit`) red, warning (`warn warning
+  timeout`) yellow, success (`ok success succeeded done pass passed`) green (`--teleplot-ok`). Lines of logs have no color of their
+  own, but these.
 - **The period** is the zoom of the time group, or else what the numbers and texts shown by the views of the group cover: a state that
   is not sent again does not make time pass, the charts next to it do, and the timeline covers the same time as them. It never goes
   further back than the data window. When the latest state has just shown up and nothing else has made time pass since, it is given a
@@ -135,13 +140,21 @@ others a timeline, and a text in a chart, are asked for: in the Edit mode of the
 
 ### Stacks in a timeline
 
-A stack is a lane with **a row per level**. A band at a level lasts while that level and the ones above it do not change, whatever
-happens deeper: `loop` is one band while it runs `read`, then `plan`. A band is written with what runs at its level, and colored by
-that name (the same function has the same color wherever it is called from). Calls too short to be drawn are a block at their level.
+A stack is a lane **by branches** (decided on 2026-10-27, [`graph.md`](graph.md)):
+
+- **A band per run of a node**: it lasts while the node keeps its state (running, or a status), whatever happens under it or beside
+  it: `loop` is one band while it runs `read`, then `plan`.
+- **Rows depth first**: a node's row, then the rows of its children. Siblings that follow each other share a row, so a stack that runs
+  one thing at a time has **a row per level**. Siblings that overlap in time (two things at once, or a result next to what runs) get a
+  row each, under their parent. Several roots (`nav/…,arm/…`) each start a group of rows, a thin line between them.
+- **The tree** is drawn at the right of the names: a connector from each row to the row of its parent.
+- A band is written with the name of its node (and its status), and colored by that name (the same function has the same color
+  wherever it is called from). A stack with a structure (a graph) takes the colors of the graph view: what runs in the primary color,
+  a status in the color of its words. Runs too short to be drawn are a block in their row.
 
 The height of the lane (option `stackDepth`, "Stack rows", 4 by default):
 
-1. the lane **opens with the stack**: a row of full height for each level reached in the period displayed, up to `stackDepth` rows;
+1. the lane **opens with the stack**: a row of full height for each row it has in the period displayed, up to `stackDepth` rows;
 2. deeper than that, the lane keeps that height and **its rows get thinner**, down to 7 pixels (under 11 pixels the texts are not
    written: the pointer tells them);
 3. deeper still, rows stay at 7 pixels and **the lane grows again**.
@@ -225,11 +238,13 @@ telem.getThresholdStatus(value, timestamp)// the threshold a value is past, or u
 telem.getThresholdSteps(from, to)         // [{name, operator, color, steps: [{from, to, value}]}] over a period
 telem.hasContent()                        // false for a telemetry that only has attributes or thresholds
 TELEPLOT.textRuns(entry)                  // {timestamps, data: [texts]}: a text entry with one item per run of the same text (cached)
-TELEPLOT.stackRuns(entry)                 // {levels: [{timestamps, data: [paths]}]}: for each depth of a stack, a run per path down to it (cached)
+TELEPLOT.stackRuns(entry)                 // {nodes: Map path -> {path, name, depth, parent, timestamps, data: [states]}, order}: a run per state of each node of a stack (state: "" runs, a status, null not there; cached)
+TELEPLOT.stackStates(text)                // Map path -> "" (runs) or its status: what a stack text says of each node
 
 new TELEPLOT.view.ViewTimeline(divId, telemetries, group)     // or TELEPLOT.view.createView("timeline", telemetries, group)
 ViewTimeline.buildLane(entry, isLog, from, to, minDuration)   // [{from, to, text, count, mixed, tick}]: what a lane draws (no canvas)
 ViewTimeline.laneSize(depth, limit, rowHeight, minRow)        // {height, rowHeight} of a stack lane
+ViewTimeline.buildBranches(runs, from, to, minDuration, rank) // {rows: [items], tree: [{depth, parent, first, label}], entries}: a stack lane by branches
 ViewTimeline.limitRuns(telem)                                 // a number read through its thresholds: runs of "past the same threshold" (cached)
 ViewTimeline.buildLine(entry, decimator, from, to, width, range) // {timestamps, values, min, max}: the line of a number over a period
 ViewTimeline.extentOf(entry, time)                            // {start, end}: how long the state in force at a time really lasts

@@ -1,6 +1,6 @@
 # Graphs: state machines and behavior trees
 
-**Status: specification, decided with the user on 2026-10-27. Nothing of it is built yet.**
+**Status: built (2026-10-28), from the specification decided with the user on 2026-10-27.** Demos in `packages/teleplot-js/test.html` (section "Graphs"), tests in `packages/teleplot-js/tests/graph.test.js`, the robot sample of the webapp, Help tiles, and example 25 of every client.
 
 A graph view draws a state machine, a nested state machine or a behavior tree, and shows what runs in it at the time shown. A device sends two things:
 
@@ -105,6 +105,7 @@ robot.bt:2100.5:root/patrol/battery_ok=failure,root/patrol=failure,root/dock|sta
 - **Parallel states** (orthogonal regions) are several paths that run: `nav/follow,arm/idle`.
 - **Contradictions are shown as sent:** a running path under a failed node is drawn running under a failed node.
 - **Same time, several parts:** stack samples merge too, like the structure. A tick that doesn't fit one datagram (about 1432 bytes on a local network, 512 on the Internet) is split across lines with the same time. Splitting needs an explicit time, as above. Until the last part arrives, the view shows the parts it has.
+- **Two steps are never parts of one.** Since the same time means "parts of one sample", a device must give two samples that follow each other two different times. The clients do it for the stack samples they date themselves (`Teleplot::Stack`, `stack(name, path)` without a time): at least 1 µs after the previous one of that stack, even within the resolution of the clock (1 µs: what the page tells apart, its times being seconds in a double at the dates of today). A time given by the program is kept as it is: that is how a tick is split on purpose.
 - `,` and `=` in a stack path are written `%2C` / `%3D`.
 
 ## How it is drawn
@@ -187,7 +188,8 @@ The stack lane of a graph telemetry takes the graph's colors: blue while a path 
 - **Commands (025) and the values view (110):** a setting's choices come from `getEnum()` (the latest), with the kinds as captions.
 - **The view: `118-viewGraph.js`** (`ViewGraph`, type `teleplot-graph`, `"graph"` in `createView`, `VIEW_TYPES`, `DASH|` lines and the editor menus). It is a 2D canvas like the timeline.
   - **Time:** it draws the structure in force at the time shown and the stack sample at that time, following the cursor and zoom of its time group.
-  - **Layout:** computed by the page, cached per structure sample, and written in the library. One layered layout whose links are the edges when there are any, otherwise the parent links; nested boxes for the hierarchy when there are edges. Cycles are broken by reversing back edges. No dependency is added (dagre is unmaintained; elkjs is about 1.5 MB).
+  - **Layout:** computed by the page (`ViewGraph.layout`), cached per structure sample, and written in the library; no dependency is added (dagre is unmaintained; elkjs is about 1.5 MB). Without edges: a tidy tree, top-down, a parent centered over its children. With edges: each level of the hierarchy is layered on the edges between its nodes (an edge between nodes of two boxes counts for the boxes that hold them), cycles broken by reversing the edges that go back in a depth-first walk in the order of the structure, a layer per longest path, nodes ordered in their layer by where their neighbours are (two sweeps). Layers go left to right at the top level and top to bottom inside a box, and so on (a state machine on one line was too small to read). Edges that leave or reach the same side of a box are spread along it (`ViewGraph.anchors`), so that their events do not start from one point; back edges are arcs under the boxes.
+  - **Pan and zoom:** the wheel zooms, a drag pans, a double click fits the drawing again. A canvas mounted again (a tab of a stack) is drawn on the next update.
   - **Drawing:** see "How it is drawn". The drawing is computed without a canvas (like `ViewTimeline.buildLane`), so that it can be tested.
   - **Default view:** `suggestViewType` answers `"graph"` for a stack or state that has an `enum` structure.
 
@@ -198,7 +200,7 @@ The same calls in C++, Arduino, Python (and lines in Bash):
 - `edges(...)`;
 - a stack with several paths and statuses.
 
-The structure is sent once with its time and resent with the descriptions (`describeInterval`). The common examples get a new number: a state machine and a behavior tree.
+The structure is sent once with its time and resent with the descriptions (`describeInterval`); a structure bigger than a packet goes in parts with the same time, and the same structure again is not sent. A setting's `enumValues` is its enum structure, its value checked against the texts (the `#caption` and the `%XX` of an item are not part of its text). With the microcontroller header, lists are static arrays (also accepted by the full one: one API). Common example 25 (graphs) in every language: a state machine and a behavior tree.
 
 ## Webapp
 
@@ -206,7 +208,7 @@ The structure is sent once with its time and resent with the descriptions (`desc
 - **Edit panel:** the options `trail`, `events` and `kinds`, plus the time group.
 - **Telemetries panel:** a telemetry with a structure gets a graph icon, and dropping it on a "+" slot offers "Graph" first.
 - **Auto dashboard:** a stack with an `enum` gets a graph view, and keeps its lane in the shared timeline.
-- **The robot sample** gets a state machine (its mode) and a small behavior tree.
+- **The robot sample:** its state (`robot.state`) is a state machine (states and transitions), and what it decides 5 times per second is a behavior tree (`robot.bt`), both in graph tabs ("Behavior", "States") at the bottom of its dashboard. Its mode setting takes its choices from an enum with captions.
 
 ## Not decided yet
 

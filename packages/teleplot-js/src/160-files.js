@@ -42,6 +42,7 @@ function _files_range(entry, from, to) {
 
 // Indexes of the samples of a data entry to export for a period. Thresholds are limits that hold until they are replaced: the ones
 // in force when the period starts (the last sample of each name before it) are part of what the period needs, and come first.
+// So is the structure in force when it starts (doc/graph.md).
 function _files_indexes(dataType, entry, from, to) {
     let [start, end] = _files_range(entry, from, to);
     let indexes = [];
@@ -54,6 +55,8 @@ function _files_indexes(dataType, entry, from, to) {
             if(Number.isFinite(entry.data[1][i])) indexes.unshift(i);
         }
     }
+    let P = TELEPLOT.protocol;
+    if((dataType == P.SECTION_TYPE_TELEM_DATA_ENUM || dataType == P.SECTION_TYPE_TELEM_DATA_EDGES) && start > 0 && (start >= entry.timestamps.length || entry.timestamps[start] > from)) indexes.push(start - 1);
     for(let i = start; i < end; i++) indexes.push(i);
     return indexes;
 }
@@ -166,6 +169,11 @@ TELEPLOT.files.exportText = function(options = {}) {
             if(thresholdName.trim() === "" || thresholdName !== thresholdName.trim() || /[\r\n]/.test(thresholdName) || /[:;|\r\n]/.test(color) || color !== color.trim()) return undefined;
             return ms + ":" + escape(thresholdName) + (d[0][i] === P.THRESHOLD_ABOVE ? ">" : "<") + (Number.isFinite(d[1][i]) ? d[1][i] : "") + (color !== "" ? "," + color.replace(/%/g, "%25") : "");
         }, 100);
+
+        // Its structure (doc/graph.md): a sample per line, its items as written (names keep their %XX)
+        let structure = (d, i, ms) => { let text = String(d[0][i]); return /[,;|\r]/.test(text) ? undefined : ms + ":" + text.split("\n").join(","); };
+        write(P.SECTION_TYPE_TELEM_DATA_ENUM, key + ":", flags("enum"), structure, 1);
+        write(P.SECTION_TYPE_TELEM_DATA_EDGES, key + ":", flags("edges"), structure, 1);
 
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER, key + ":", unitText + flags(""), (d, i, ms) => ms + ":" + d[0][i]);
         write(P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, key + ":", unitText + flags("xy"), (d, i, ms) => d[0][i] + ":" + d[1][i] + ":" + ms);
@@ -285,6 +293,8 @@ function _files_encoders(P) {
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_VECTOR] = floats(3);
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH] = floats(1);
     encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT] = { skip: (d, i) => _files_NUL.test(String(d[0][i])), write: (w, d, i) => w.str(String(d[0][i])) };
+    encoders[P.SECTION_TYPE_TELEM_DATA_ENUM] = encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT]; // (a structure: its items separated by line feeds)
+    encoders[P.SECTION_TYPE_TELEM_DATA_EDGES] = encoders[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT];
     encoders[P.SECTION_TYPE_TELEM_DATA_CAMERA_INTRINSICS] = {
         exact: (d, i) => _files_isUint(d[0][i], 65535) && _files_isUint(d[1][i], 65535) && [2, 3, 4, 5].every((c) => _files_isF32(d[c][i])),
         write: (w, d, i) => { w.u16(d[0][i]).u16(d[1][i]); for(let c = 2; c < 6; c++) w.f32(d[c][i]); }
@@ -616,7 +626,7 @@ TELEPLOT.files.estimate = function(format, options = {}) {
             let dataType = Number(key), entry = telem.data[key];
             let [start, end] = _files_range(entry, selection.from, selection.to);
             let count = end - start;
-            if(format !== "csv" && dataType === P.SECTION_TYPE_TELEM_DATA_THRESHOLD) count = _files_indexes(dataType, entry, selection.from, selection.to).length; // (with the ones in force when the period starts)
+            if(format !== "csv" && P.isMetaDataType(dataType)) count = _files_indexes(dataType, entry, selection.from, selection.to).length; // (with the ones in force when the period starts)
             if(count === 0) continue;
             if(format === "csv" && !_files_CSV_TYPES.includes(dataType)) { skipped += count; continue; }
             let per;
@@ -629,7 +639,7 @@ TELEPLOT.files.estimate = function(format, options = {}) {
                 per = format === "binary" ? points * (12 + (entry.data[1][start] ? 4 : 0) + (entry.data[2][start] ? 3 : 0)) + 24 : points * 24 + nameLength + timeLength;
             }
             else if(format === "binary") {
-                let strings = [P.SECTION_TYPE_TELEM_DATA_TEXT, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT].includes(dataType);
+                let strings = [P.SECTION_TYPE_TELEM_DATA_TEXT, P.SECTION_TYPE_TELEM_DATA_SHAPE_COLOR_STR, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE, P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT, P.SECTION_TYPE_TELEM_DATA_ENUM, P.SECTION_TYPE_TELEM_DATA_EDGES].includes(dataType);
                 if(dataType === P.SECTION_TYPE_TELEM_DATA_THRESHOLD) per = 15.1 + average(entry.data[2], start, end, textLength) + average(entry.data[3], start, end, textLength);
                 else if(strings) per = 4.1 + average(entry.data[entry.data.length - 1], start, end, textLength) + 1;
                 else {

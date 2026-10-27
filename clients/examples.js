@@ -28,6 +28,7 @@ const COMMON = {
     22: ['recording', { temperature: 'number' }],
     23: ['dashboard', { speed: 'number', mode: 'text' }],
     24: ['stats', { 'teleplot.samples': 'number', 'teleplot.bytes': 'number' }],
+    25: ['graphs', { mode: 'graph', bt: 'graph' }],
 };
 
 function holds(U, telem, kind) {
@@ -46,6 +47,7 @@ function holds(U, telem, kind) {
         case 'depth': return has(P.SECTION_TYPE_TELEM_DATA_IMAGE) && (telem.getAttribute(P.TELEM_ATTR_PIXELS) || {}).depth === true;
         case 'setting': return (telem.getAttribute(P.TELEM_ATTR_WRITE) || {}).kind === 'setting';
         case 'action': return (telem.getAttribute(P.TELEM_ATTR_WRITE) || {}).kind === 'action';
+        case 'graph': return has(P.SECTION_TYPE_TELEM_DATA_TEXT) && telem.hasStructure(); // (a structure, doc/graph.md, and what runs in it)
     }
     throw new Error('unknown kind ' + kind);
 }

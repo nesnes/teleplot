@@ -81,6 +81,9 @@ class PacketBuilder {
     // samples: [[timeDiffNs, operator (0: below, 1: above), value, name, color]]
     thresholds(telemId, refNs, samples) { return this._data(40, telemId, refNs, samples, v => this.u8(v[0]).f64(v[1]).str(v[2]).str(v[3] || '')); }
     text(telemId, refNs, samples) { return this._data(SECTION.TEXT, telemId, refNs, samples, v => this.str(v[0])); }
+    // Structure (doc/graph.md): samples [[timeDiffNs, items separated by line feeds]]; 43: the texts it can take (enum), 44: its transitions (edges)
+    enums(telemId, refNs, samples) { return this._data(43, telemId, refNs, samples, v => this.str(v[0])); }
+    edges(telemId, refNs, samples) { return this._data(44, telemId, refNs, samples, v => this.str(v[0])); }
     // An answer to a command (42): status 0 ok, 1 error, 2 running; callId 0xFFFF for a setting
     answer(telemId, callId, status, text = '') { return this.u8(42).u16(telemId).u16(callId).u8(status).str(text); }
 

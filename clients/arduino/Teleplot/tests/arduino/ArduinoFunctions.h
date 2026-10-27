@@ -20,5 +20,6 @@ inline int analogRead(int) { return 512; }
 inline void pinMode(int, int) {}
 inline void digitalWrite(int, int) {}
 inline long random(long from, long to) { return from + rand() % (to - from); }
+inline long random(long to) { return random(0, to); }
 inline void configTime(long, int, const char*) {}
 #endif

@@ -15,8 +15,8 @@ echo "myData:4" | nc -u -w0 127.0.0.1 47269
 
 *Above: the page waiting for data, then the robot sample (welcome screen, "Try me"): a simulated robot, nothing to install.*
 
-Teleplot displays what your program sends, as it sends it: numbers as curves or gauges, texts as states, logs or timelines, positions
-on a map, shapes, point clouds and cameras in 3D, pictures and depth maps. Send one line of text over UDP or a serial port, and it is
+Teleplot displays what your program sends, as it sends it: numbers as curves or gauges, texts as states, logs or timelines, state machines
+and behavior trees, positions on a map, shapes, point clouds and cameras in 3D, pictures and depth maps. Send one line of text over UDP or a serial port, and it is
 on screen; arrange dashboards by hand or from your code; keep the data in files; drive your robot from the page.
 
 **Teleplot V2** (this branch, beta) is a rework of the library, the web application and the server, with a much faster display and
@@ -203,7 +203,8 @@ Everything about commands: [doc/telecmd.md](doc/telecmd.md).
 - **Dashboards**: the Live dashboard displays every telemetry by itself; make your own in edit mode
   ([doc/dashboard-editing.md](doc/dashboard-editing.md)) or describe them from your code
   ([doc/dashboard-text.md](doc/dashboard-text.md)).
-- **Views**: charts with marks and thresholds, values and gauges, logs, timelines ([doc/time-views.md](doc/time-views.md)), 2D maps
+- **Views**: charts with marks and thresholds, values and gauges, logs, timelines ([doc/time-views.md](doc/time-views.md)), graphs of state
+  machines and behavior trees ([doc/graph.md](doc/graph.md)), 2D maps
   ([doc/2d.md](doc/2d.md)), 3D scenes and cameras ([doc/3d.md](doc/3d.md)), depth maps ([doc/depth.md](doc/depth.md)), joysticks.
   Drag on a chart to zoom: every view of the dashboard follows the same moment.
 - **Files**: export data and dashboards as binary, text or CSV, and open them again ([doc/files.md](doc/files.md)).

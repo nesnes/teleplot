@@ -346,7 +346,8 @@ public:
         Arg& max(double v) { max_ = v; return *this; }
         Arg& step(double v) { step_ = v; return *this; }
         Arg& unit(std::string v) { unit_ = std::move(v); return *this; }
-        Arg& choices(std::vector<std::string> v) { choices_ = std::move(v); return *this; }
+        Arg& enumValues(std::vector<std::string> v) { choices_ = std::move(v); return *this; } // the texts it can take
+        template<std::size_t N> Arg& enumValues(const char* const (&list)[N]) { choices_.assign(list, list + N); return *this; }
         Arg& desc(std::string v) { desc_ = std::move(v); return *this; }
     private:
         friend class Teleplot;
@@ -438,6 +439,14 @@ public:
         Samples& threshold(std::string_view name, ThresholdSide side, double value, std::string_view color = "") { tp_->threshold_(index_, t_(), name, side, value, color); return *this; }
         Samples& removeThreshold(std::string_view name) { tp_->threshold_(index_, t_(), name, Below, std::nan(""), ""); return *this; }
 
+        // Its structure (doc/graph.md), from the time of the chain until a newer one: the texts it can take (states, nodes: paths with
+        // "/" between levels, "#kind" at the end of one) and its transitions ("from>to" or "from>to=event"). Sent once, again with the
+        // descriptions; a long one goes in several parts with the same time.
+        Samples& enumValues(std::vector<std::string> const& items) { tp_->structure_(index_, t_(), SECT_ENUM, items); return *this; }
+        Samples& edges(std::vector<std::string> const& items) { tp_->structure_(index_, t_(), SECT_EDGES, items); return *this; }
+        template<std::size_t N> Samples& enumValues(const char* const (&list)[N]) { return enumValues(std::vector<std::string>(list, list + N)); } // (a static array, as with the Arduino library)
+        template<std::size_t N> Samples& edges(const char* const (&list)[N]) { return edges(std::vector<std::string>(list, list + N)); }
+
         Samples& position(double x, double y, double z = 0) { tp_->numbers_(index_, SECT_POSITION, t_(), { x, y, z }); return *this; }
         Samples& rotation(double roll, double pitch, double yaw) { tp_->numbers_(index_, SECT_ROTATION, t_(), { roll, pitch, yaw }); return *this; }
         Samples& yaw(double a) { return rotation(0, 0, a); }
@@ -496,6 +505,10 @@ public:
         TELEPLOT_SAMPLE_CALL_(text) TELEPLOT_SAMPLE_CALL_(textSize) TELEPLOT_SAMPLE_CALL_(lineWidth) TELEPLOT_SAMPLE_CALL_(points)
         TELEPLOT_SAMPLE_CALL_(cloud) TELEPLOT_SAMPLE_CALL_(image) TELEPLOT_SAMPLE_CALL_(intrinsics) TELEPLOT_SAMPLE_CALL_(distortion)
         #undef TELEPLOT_SAMPLE_CALL_
+        Samples enumValues(std::vector<std::string> const& items) { Samples s(tp_, index_, std::nullopt); s.enumValues(items); return s; } // (a list in braces: not through a template)
+        Samples edges(std::vector<std::string> const& items) { Samples s(tp_, index_, std::nullopt); s.edges(items); return s; }
+        template<std::size_t N> Samples enumValues(const char* const (&list)[N]) { return enumValues(std::vector<std::string>(list, list + N)); }
+        template<std::size_t N> Samples edges(const char* const (&list)[N]) { return edges(std::vector<std::string>(list, list + N)); }
         std::string_view name() const { return tp_->entry_(index_).name; }
         Teleplot& teleplot() const { return *tp_; }
     private:
@@ -513,7 +526,9 @@ public:
         Param& step(double v) { return set_([=](ParamBase_& p) { p.step = v; }); }
         Param& unit(std::string_view v) { tp_->attrText_(index_, ATTR_UNIT, v); return *this; }
         Param& desc(std::string_view v) { tp_->attrText_(index_, ATTR_DESC, v); return *this; }
-        Param& choices(std::vector<std::string> v) { return set_([v = std::move(v)](ParamBase_& p) mutable { p.choices = std::move(v); }); }
+        // The texts it can take (its enum structure, doc/graph.md); "text#caption": words shown with a choice
+        Param& enumValues(std::vector<std::string> v) { return set_([v = std::move(v)](ParamBase_& p) mutable { p.choices = std::move(v); }); }
+        template<std::size_t N> Param& enumValues(const char* const (&list)[N]) { return enumValues(std::vector<std::string>(list, list + N)); }
         Param& rate(double hz) { return set_([=](ParamBase_& p) { p.rate = static_cast<std::uint16_t>(std::clamp(hz, 0.0, 65535.0)); }); }
         Param& hold(std::chrono::milliseconds v) { return set_([=](ParamBase_& p) { p.hold = static_cast<std::uint16_t>(std::clamp<long long>(v.count(), 0, 65535)); }); }
         Param& hold(int ms) { return hold(std::chrono::milliseconds(ms)); }
@@ -796,18 +811,18 @@ private:
     static constexpr std::uint32_t NONE_ = 0xFFFFFFFF;
     enum : std::uint8_t {
         ATTR_NAME = 0, ATTR_UNIT = 1, ATTR_COLOR = 2, ATTR_AUTOPLOT = 3, ATTR_DATA_TIMEOUT = 4, ATTR_SHAPE = 5, ATTR_LABEL = 6, ATTR_LOG = 7,
-        ATTR_FRAME = 8, ATTR_RANGE = 9, ATTR_STACK = 10, ATTR_WRITE = 11, ATTR_CHOICES = 12, ATTR_ARGS = 13, ATTR_DESC = 14, ATTR_TITLE = 15,
+        ATTR_FRAME = 8, ATTR_RANGE = 9, ATTR_STACK = 10, ATTR_WRITE = 11, ATTR_ARGS = 13, ATTR_DESC = 14, ATTR_TITLE = 15, // (12: retired)
         ATTR_PIXELS = 16,
     };
     enum : std::uint8_t {
         SECT_CLIENT_NAME = 1, SECT_DASHBOARD = 2, SECT_ATTR = 10, SECT_NUMBER = 20, SECT_NUMBER_2D = 21, SECT_NUMBER_3D = 22, SECT_TEXT = 23,
         SECT_IMAGE = 24, SECT_POSITION = 25, SECT_ROTATION = 26, SECT_QUATERNION = 27, SECT_COLOR_STR = 28, SECT_COLOR_RGB = 29, SECT_OPACITY = 30,
         SECT_SIZE = 31, SECT_TEXTURE = 32, SECT_INTRINSICS = 33, SECT_DISTORTION = 34, SECT_CLOUD = 35, SECT_FLOAT64 = 36, SECT_VECTOR = 37,
-        SECT_SHAPE_TEXT = 38, SECT_LINE_WIDTH = 39, SECT_THRESHOLD = 40, SECT_CALL = 41, SECT_CALL_ANSWER = 42,
+        SECT_SHAPE_TEXT = 38, SECT_LINE_WIDTH = 39, SECT_THRESHOLD = 40, SECT_CALL = 41, SECT_CALL_ANSWER = 42, SECT_ENUM = 43, SECT_EDGES = 44,
     };
-    // Samples sent once (a size, a fixed position, camera parameters, thresholds) are sent again with the descriptions, so that a
-    // page opened later draws them too. Streams (numbers, texts, pictures, clouds) are not.
-    static bool latched_(std::uint8_t type) { return (type >= SECT_POSITION && type <= SECT_DISTORTION) || (type >= SECT_VECTOR && type <= SECT_THRESHOLD); }
+    // Samples sent once (a size, a fixed position, camera parameters, thresholds, a structure) are sent again with the descriptions, so
+    // that a page opened later draws them too. Streams (numbers, texts, pictures, clouds) are not.
+    static bool latched_(std::uint8_t type) { return (type >= SECT_POSITION && type <= SECT_DISTORTION) || (type >= SECT_VECTOR && type <= SECT_THRESHOLD) || type == SECT_ENUM || type == SECT_EDGES; }
 
     // Little-endian bytes, whatever the machine
     class Bytes_ {
@@ -909,6 +924,8 @@ private:
         std::thread::id owner;
         bool owned = false;
         std::string stackPath;
+        std::string lastEnum, lastEdges;
+        std::int64_t lastStackNs = std::numeric_limits<std::int64_t>::min(); // (see stackNow_)                      // the structure sent last (not sent again when it did not change)
         std::map<std::uint16_t, Queue_> queues; // section type (or SECT_FLOAT64 << 8 | type)
         std::map<std::uint16_t, Latched_> latched;            // samples sent once, by section key
         std::map<std::string, Latched_> latchedThresholds;    // one per threshold name
@@ -941,7 +958,10 @@ private:
             if constexpr (std::is_same_v<T, bool>) { if (n.empty()) { return "a number"; } value = n[0] != 0; }
             else if constexpr (std::is_arithmetic_v<T>) { if (n.empty()) { return "a number"; } double v = clamp(n[0]); value = std::is_integral_v<T> ? static_cast<T>(std::llround(v)) : static_cast<T>(v); }
             else if constexpr (std::is_same_v<T, std::string>) {
-                if (!choices.empty() && std::find(choices.begin(), choices.end(), text) == choices.end()) { std::string all; for (auto const& c : choices) { all += (all.empty() ? "" : ", ") + c; } return "one of " + all; }
+                if (!choices.empty() && std::none_of(choices.begin(), choices.end(), [&](std::string const& c) { return choiceText_(c) == text; })) {
+                    std::string all; for (auto const& c : choices) { all += (all.empty() ? "" : ", ") + choiceText_(c); }
+                    return "one of " + all;
+                }
                 value = text;
             }
             else if constexpr (std::is_same_v<T, Number2D>) { if (n.size() < 2) { return "2 numbers"; } value = { clamp(n[0]), clamp(n[1]) }; }
@@ -1023,6 +1043,15 @@ private:
     std::int64_t nowNs_() const { return clock_ ? clock_().ns : now().ns; }
     static std::string& threadName_() { thread_local std::string name; return name; }
     static std::string cut_(std::string_view s, std::size_t max) { return std::string(s.substr(0, std::min(s.size(), max))); }
+    // The text of a choice ("manual%2C slow#caption" -> "manual, slow"): what the page writes
+    static std::string choiceText_(std::string const& item) {
+        std::string path = item.substr(0, std::min(item.size(), item.rfind('#'))), text;
+        for (std::size_t i = 0; i < path.size(); ++i) {
+            if (path[i] == '%' && i + 2 < path.size() && std::isxdigit(static_cast<unsigned char>(path[i + 1])) && std::isxdigit(static_cast<unsigned char>(path[i + 2]))) { text += static_cast<char>(std::stoi(path.substr(i + 1, 2), nullptr, 16)); i += 2; }
+            else { text += path[i]; }
+        }
+        return text;
+    }
     template<class V> static std::string valueText_(V const& v) {
         if constexpr (std::is_same_v<V, bool>) { return v ? "true" : "false"; }
         else if constexpr (std::is_arithmetic_v<V>) { return numberText_(static_cast<double>(v)); }
@@ -1143,6 +1172,7 @@ private:
             }
             else { l = &e.latched[key]; }
             bool firstPart = type != SECT_CLOUD || (static_cast<std::uint8_t>(data[1]) == 0 && static_cast<std::uint8_t>(data[2]) == 0); // (the points of a line come in parts)
+            if (type == SECT_ENUM || type == SECT_EDGES) { firstPart = l->ns != ns || l->parts.empty(); } // (a structure: the same time is another part of it)
             if (firstPart || l->ns != ns) { l->parts.resize(1); l->parts[0].assign(data, data + size); } // (reuses what it holds: no allocation at each sample)
             else { l->parts.emplace_back(data, data + size); }
             l->key = key;
@@ -1221,6 +1251,25 @@ private:
         e.isShape = true;
         Bytes_ b; b.u8(kind).str(value.substr(0, std::min(value.size(), MAX_TEXT_)));
         push_(e, SECT_TEXTURE, ns, b.b.data(), b.b.size());
+        lock_.unlock();
+        afterSample_(index);
+    }
+    // A structure: its items separated by line feeds, in parts that fit a packet (with the same time, the page makes them one again).
+    // The same items as the one in force are not sent again (a setting declared again).
+    void structure_(std::uint32_t index, std::int64_t ns, std::uint8_t type, std::vector<std::string> const& items) {
+        std::vector<std::string> parts(1);
+        for (auto const& item : items) {
+            std::string one = cut_(item, MAX_TEXT_ - 1);
+            if (!parts.back().empty() && parts.back().size() + 1 + one.size() > MAX_TEXT_ - 1) { parts.emplace_back(); }
+            parts.back() += (parts.back().empty() ? "" : "\n") + one;
+        }
+        std::string all; for (auto const& part : parts) { all += part + '\n'; }
+        if (!lockFor_(index)) { return; }
+        Entry_& e = entries_[index];
+        std::string& last = type == SECT_ENUM ? e.lastEnum : e.lastEdges;
+        if (last == all && e.latched.count(type)) { lock_.unlock(); return; }
+        last = all;
+        for (auto const& part : parts) { Bytes_ b; b.str(part); push_(e, type, ns, b.b.data(), b.b.size(), false); }
         lock_.unlock();
         afterSample_(index);
     }
@@ -1338,34 +1387,47 @@ private:
             p += level;
             path = p;
         }
-        Samples(this, index, std::nullopt).update(path);
+        Samples(this, index, stackNow_(index)).update(path);
         return index;
     }
     void stackPop_(std::uint32_t index, std::size_t before) {
         std::string path;
         { std::lock_guard<Lock_> g(lock_); std::string& p = entries_[index].stackPath; if (p.size() > before) { p.resize(before); } path = p; }
-        Samples(this, index, std::nullopt).update(path);
+        Samples(this, index, stackNow_(index)).update(path);
     }
     void stackAt_(std::string_view name, std::string_view path, std::optional<Time> t) {
         std::uint32_t index = stackEntry_(name);
         if (index == NONE_) { return; }
         { std::lock_guard<Lock_> g(lock_); entries_[index].stackPath = std::string(path); }
-        Samples(this, index, t).update(path);
+        Samples(this, index, t ? *t : stackNow_(index)).update(path);
+    }
+    // The time of a stack sample the client dates itself: at least 1 µs after the previous one of the stack, even within the resolution
+    // of the clock.
+    // Samples of a stack with the same time are parts of one sample for the page (several paths at once, doc/graph.md): one step and the
+    // next must not look like that.
+    Time stackNow_(std::uint32_t index) {
+        std::int64_t ns = nowNs_();
+        std::lock_guard<Lock_> g(lock_);
+        std::int64_t& last = entries_[index].lastStackNs;
+        if (ns < last + 1000) { ns = last + 1000; } // (1 µs: what the page tells apart, its times being seconds in a double, at the dates of today)
+        last = ns;
+        Time t; t.ns = ns;
+        return t;
     }
 
     // ------------------------------------------------------------------ Commands
     void declareParam_(std::uint32_t index, ParamBase_ const& p) {
-        std::vector<std::byte> write, range, choices;
+        std::vector<std::byte> write, range;
+        std::vector<std::string> choices;
         {
             std::lock_guard<Lock_> g(lock_);
             write = Bytes_().u8(1).u8(p.type).u8(0).f64(p.step).u16(p.rate).u16(p.hold).u8(p.axes);
             range = Bytes_().f64(p.min).f64(p.max);
-            std::string all; for (auto const& c : p.choices) { all += (all.empty() ? "" : "\n") + c; }
-            choices = Bytes_().str(cut_(all, MAX_ATTR_TEXT_));
+            choices = p.choices;
         }
         attrBytes_(index, ATTR_WRITE, std::move(write));
         attrBytes_(index, ATTR_RANGE, std::move(range));
-        attrBytes_(index, ATTR_CHOICES, std::move(choices));
+        if (!choices.empty()) { structure_(index, nowNs_(), SECT_ENUM, choices); } // (the texts it can take: its enum structure)
     }
     void declareAction_(std::uint32_t index, ActionImpl_ const& a) { attrBytes_(index, ATTR_WRITE, Bytes_().u8(2).u8(0).u8(a.flags).f64(std::nan("")).u16(0).u16(0).u8(0)); }
     void actionArg_(std::uint32_t index, std::shared_ptr<ActionImpl_> const& a, Arg arg) {

@@ -41,12 +41,13 @@ The same as in the other languages ([clients/README.md](../../README.md#examples
 | `16_Settings` | a value the page can change |
 | `17_Buttons` | a button in the page, with an argument and a confirmation |
 | `18_Joystick` | a joystick that stops by itself |
-| `19_SettingRules` | choices, refusing a value |
+| `19_SettingRules` | choices (an enum), refusing a value |
 | `20_TimeAndRate` | the time a value was measured, fewer samples of a fast value |
 | `21_Clock` | real dates from NTP (ESP32) |
 | `22_Recording` | recording to an SD card |
 | `23_Dashboard` | choosing where values go (a dashboard) |
 | `24_Stats` | how the client is doing, in the page |
+| `25_Graphs` | a state machine and a behavior tree: their structure, where they are, the results of a tick |
 | `30_WiFiUDP` | the same over WiFi (ESP32) |
 | `31_SmallBoards` | memory on small boards (an Uno), what did not fit |
 
@@ -59,7 +60,7 @@ computers does not have:
   them, to send them again every 5 s (a page opened later still gets them). Give string literals (`"battery"`), or strings that live
   as long as the sketch: not a `String` that goes away, nor a `char` buffer you reuse. `F("...")` is not taken. Values (texts sent
   with `update()`, log lines) are written at once and can be anything.
-- **Lists are static arrays.** `choices()` takes `static const char* const MODES[] = {"auto", "manual"};`, not `{"auto", "manual"}`.
+- **Lists are static arrays.** `enumValues()` and `edges()` take `static const char* const MODES[] = {"auto", "manual"};`, not `{"auto", "manual"}`.
 - **Functions, not lambdas that capture.** A handler (`action()`), a check (`onChange()`) or a clock (`clock()`) is a plain function,
   or a lambda without capture. They use global variables.
 - **Text settings are `char` arrays** (`char mode[12]`), not `String`.

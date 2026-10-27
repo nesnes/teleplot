@@ -77,14 +77,14 @@ int main() {
         tp.clock([] { return Teleplot::ms(10000); });
         tp.param("kp", &kp).range(0, 10).step(0.5).unit("1/s");
         tp.param("motors", &motors);
-        tp.param("mode", &mode).choices(MODES);
+        tp.param("mode", &mode).enumValues(MODES);
         tp.param("counter", &counter).onChange(oddOnly);
         tp.param("cmd_vel", &cmdVel).axes(Teleplot::X | Teleplot::Yaw).rate(20).hold(200);
         tp.action("goto", goTo).title("Go to").confirm().arg(Teleplot::Arg("target", Teleplot::Arg::XY)).arg(Teleplot::Arg("speed").optional().defaultValue(0.25));
         tp.action("say", say).arg(Teleplot::Arg("words", Teleplot::Arg::Text));
         tp.poll();
         CHECK("declarations", has(Serial.written, ">ATTR|kp|write=number|min=0|max=10|step=0.5|unit=1/s\n")
-            && has(Serial.written, ">ATTR|mode|write=text|choices=auto,manual\n")
+            && has(Serial.written, ">ATTR|mode|write=text\n") && has(Serial.written, ">mode:10000.000:auto,manual|enum\n")
             && has(Serial.written, ">ATTR|cmd_vel|write=pose2d|rate=20|hold=200|axes=x,yaw\n")
             && has(Serial.written, ">ATTR|goto|action|title=Go to|confirm\n")
             && has(Serial.written, ">ATTR|goto|arg=speed|type=number|optional|default=0.25\n"));

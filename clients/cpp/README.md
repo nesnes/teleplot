@@ -45,12 +45,13 @@ One file each: `c++ -std=c++17 -pthread examples/01_first_value.cpp -o first_val
 | `16_settings` | a value the page can change |
 | `17_buttons` | a button in the page, with an argument and a confirmation |
 | `18_joystick` | a joystick that stops by itself |
-| `19_setting_rules` | choices, refusing a value, a setting bound to a variable |
+| `19_setting_rules` | choices (an enum), refusing a value, a setting bound to a variable |
 | `20_time_and_rate` | the time a value was measured, fewer samples of a fast value |
 | `21_clock` | a clock of your own |
 | `22_recording` | recording to a file the page opens |
 | `23_dashboard` | choosing where values go (a dashboard) |
 | `24_stats` | how the client is doing, in the page |
+| `25_graphs` | a state machine and a behavior tree: their structure, where they are, the results of a tick |
 | `30_threads` | a sending thread, its priority, a loop that never waits, a lane per thread |
 | `31_long_action` | an action that answers later |
 | `32_image_tools` | encode PNG and JPEG, shrink, a part of a picture, save and load |

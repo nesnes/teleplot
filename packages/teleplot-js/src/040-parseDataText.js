@@ -118,6 +118,7 @@ function _parseDataText_parseVariablesData(msg, now)
     let [name, widgetLabel] = _parseDataText_separateWidgetAndLabel(keyAndWidgetLabel);  
     
     let flags = msg.substr(endIdx+1);
+    if(/\b(enum|edges)\b/.test(flags)) return _parseDataText_parseStructure(msg, now); // The structure of the telemetry (doc/graph.md)
     let isLog = flags.includes("log"); // Text emitted as a log (a Log view by default); "t": text emitted as a state (a value by default)
     let isStack = flags.includes("stack"); // Text that is a stack: the path of what is running ("loop/plan/search"), still a state
     let isTextFormatTelem = isLog || isStack || flags.includes('t');
@@ -136,6 +137,7 @@ function _parseDataText_parseVariablesData(msg, now)
     // Extract values array
     let values = msg.substring(startIdx+1, endIdx).split(';')
     let timestampArray = [];
+    let timed = []; // Indexes of the texts whose time the device wrote (the parts of a stack sample: see below)
     let xArray = [];
     let yArray = [];
     let zArray = [];
@@ -162,7 +164,7 @@ function _parseDataText_parseVariablesData(msg, now)
         // the text, whatever it holds. (A text that starts with a number and a colon needs its time: "1627551892437:12:30".)
         if(isTextFormatTelem && dims.length > 1) {
             let time = /^\s*[0-9.eE+-]+\s*$/.test(dims[0]) ? _parseDataText_time(parseFloat(dims[0]), name, now) : NaN;
-            if(Number.isFinite(time)) { timestampArray.push(time); xArray.push(dims.slice(1).join(":")); }
+            if(Number.isFinite(time)) { timestampArray.push(time); xArray.push(dims.slice(1).join(":")); timed.push(timestampArray.length - 1); }
             else { timestampArray.push(now); xArray.push(value); }
             continue;
         }
@@ -217,6 +219,14 @@ function _parseDataText_parseVariablesData(msg, now)
         else if(isXY) {
             telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_NUMBER_2D, timestampArray, [xArray, yArray]);
         }
+        else if(isStack && timed.length) {
+            // Stack lines with the same time written by the device are parts of one sample: their paths are merged (several paths that
+            // run at once, doc/graph.md). A line without a time is dated on arrival: it is never a part of another one.
+            let pick = (indexes) => [indexes.map((i) => timestampArray[i]), [indexes.map((i) => xArray[i])]];
+            let untimed = timestampArray.map((t, i) => i).filter((i) => !timed.includes(i));
+            if(untimed.length) telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, ...pick(untimed));
+            telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, ...pick(timed), ",");
+        }
         else if(isTextFormatTelem) {
             telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, timestampArray, [xArray]);
         }
@@ -240,13 +250,13 @@ function _parseDataText_unescape(text) {
  *   write[=type]   the page may write it (type: number, bool, text, xy, xyz, pose2d; none: the type of its data); "write=" removes it
  *   action         the page may call it; "action=" removes it
  *   step, rate (writes per second of a continuous control), hold (ms the device waits before stopping), axes=x,yaw, confirm,
- *   longpress, choices=a,b,c, title (the text of the button of an action)
- *   arg=name       the line is about an argument of the action: type, optional, default, min, max, step, unit, choices, desc
- *                  ("type=" removes the argument)
+ *   longpress, title (the text of the button of an action). The texts a setting can take are a structure sample: "mode:auto,manual|enum"
+ *   arg=name       the line is about an argument of the action: type, optional, default, min, max, step, unit, enum=a,b,c (the texts
+ *                  it can take), desc ("type=" removes the argument)
  * Throws on an unknown key (the line is counted as not understood).
  */
 const _parseDataText_WRITE_KEYS = ["step", "rate", "hold", "axes", "confirm", "longpress"];
-const _parseDataText_ARG_KEYS = ["type", "optional", "default", "min", "max", "step", "unit", "choices", "desc"];
+const _parseDataText_ARG_KEYS = ["type", "optional", "default", "min", "max", "step", "unit", "enum", "desc"];
 
 function _parseDataText_parseAttributes(msg)
 {
@@ -296,7 +306,7 @@ function _parseDataText_parseAttributes(msg)
             }
             else if(key === "optional") arg.optional = flag(raw);
             else if(key === "min" || key === "max" || key === "step") arg[key] = number(key, raw);
-            else if(key === "choices") arg.choices = list(raw);
+            else if(key === "enum") arg.choices = list(raw);
             else arg[key] = text(raw); // default, unit, desc
         }
         if(arg === undefined) { if(index >= 0) args.splice(index, 1); }
@@ -308,7 +318,7 @@ function _parseDataText_parseAttributes(msg)
 
     // A line is taken as a whole: a key that is not known, and nothing of it is applied
     for(let [key] of options) {
-        if(!["min", "max", "unit", "color", "desc", "title", "choices", "write", "action", "scale", "nodata", "depth"].includes(key) && !_parseDataText_WRITE_KEYS.includes(key)) throw new Error("Unknown attribute : " + key);
+        if(!["min", "max", "unit", "color", "desc", "title", "write", "action", "scale", "nodata", "depth"].includes(key) && !_parseDataText_WRITE_KEYS.includes(key)) throw new Error("Unknown attribute : " + key);
     }
     let range = undefined, write = undefined, writeChanged = false, pixels = undefined;
     let current = telemetry.getAttribute(P.TELEM_ATTR_WRITE);
@@ -327,7 +337,6 @@ function _parseDataText_parseAttributes(msg)
         else if(key === "color") telemetry.setAttribute(P.TELEM_ATTR_COLOR, text(raw) || undefined);
         else if(key === "desc") telemetry.setAttribute(P.TELEM_ATTR_DESC, text(raw) || undefined);
         else if(key === "title") telemetry.setAttribute(P.TELEM_ATTR_TITLE, text(raw) || undefined);
-        else if(key === "choices") telemetry.setAttribute(P.TELEM_ATTR_CHOICES, list(raw));
         else if(key === "write" || key === "action") {
             writeChanged = true;
             if(raw !== undefined && raw === "") { write = null; continue; } // "write=", "action=": no more
@@ -424,6 +433,42 @@ function _parseDataText_parseThresholds(msg, now)
 //   name:1627551892437;x:y:z;x:y:z|pc      a field alone is the timestamp of the cloud (ms)
 //   x:y:z:i  x:y:z:r:g:b  x:y:z:i:r:g:b    optional intensity and / or color (0 to 255) of each point, the same for the whole line
 // The pose of the sensor is given like the one of a shape: 3D|name:P:x:y:z:R:roll:pitch:yaw (or Q:...)
+/*
+ * Structure of a telemetry (doc/graph.md), a sample per field separated by ";":
+ *   robot.mode:1000:idle,mission/goto,mission/grasp,error|enum        the texts it can take (states, nodes: paths), "#kind" at the end of one
+ *   robot.mode:1000:idle>mission/goto=start,error>idle=reset|edges    its transitions, "from>to" or "from>to=event"
+ * A first field that is a number is the time (ms); without, the line is dated on arrival. Samples with the same time are parts of
+ * one structure (merged); a newer time is a whole new structure. Items are stored as written (the names keep their %XX: "," ";" "|"
+ * "#" "/" ">" "=" "%" in a name), and read back by Telemetry.getEnum / getEdges.
+ */
+function _parseDataText_parseStructure(msg, now)
+{
+    const P = TELEPLOT.protocol;
+    let startIdx = msg.indexOf(':');
+    let endIdx = msg.lastIndexOf('|');
+    let [name, widgetLabel] = _parseDataText_separateWidgetAndLabel(msg.substr(0, startIdx));
+    if(name === "") throw new Error("Structure: name:items|enum or name:items|edges");
+    let flags = msg.substr(endIdx + 1);
+    let dataType = /\bedges\b/.test(flags) ? P.SECTION_TYPE_TELEM_DATA_EDGES : P.SECTION_TYPE_TELEM_DATA_ENUM;
+    let timestamps = [], texts = [];
+    for(let field of msg.substring(startIdx + 1, endIdx).split(";")) {
+        let timestamp = now, body = field;
+        let match = /^\s*([0-9.eE+-]+)\s*:/.exec(field);
+        if(match) {
+            let given = _parseDataText_time(parseFloat(match[1]), name, now);
+            if(Number.isFinite(given)) { timestamp = given; body = field.slice(match[0].length); }
+        }
+        let items = body.split(",").map((item) => item.trim()).filter((item) => item !== "");
+        if(dataType === P.SECTION_TYPE_TELEM_DATA_EDGES && items.some((item) => !/^[^>]+>[^>]+$/.test(item.split("=")[0]))) throw new Error("Edges: from>to or from>to=event");
+        timestamps.push(timestamp);
+        texts.push(items.join("\n"));
+    }
+    let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(name);
+    if(flags.includes("np")) telemetry.setAttribute(P.TELEM_ATTR_AUTOPLOT, false);
+    if(widgetLabel) telemetry.setAttribute(P.TELEM_ATTR_VIEW_LABEL, widgetLabel);
+    telemetry.addData(dataType, timestamps, [texts], "\n");
+}
+
 function _parseDataText_parsePointCloud(msg, now)
 {
     let startIdx = msg.indexOf(':');

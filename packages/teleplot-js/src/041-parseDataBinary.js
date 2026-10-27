@@ -133,6 +133,10 @@ function _parseDataBinary_processSections(view, offset, endOffset, clientId) {
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD:
                     offset = _parseDataBinary_parseTELEM_DATA_THRESHOLD(view, offset, clientId);
                     break;
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM: // A structure (doc/graph.md): parts with the same time are one sample
+                case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_EDGES:
+                    offset = _parseDataBinary_parseStrings(view, offset, clientId, sectionType, "\n");
+                    break;
                 case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
                     offset = _parseDataBinary_parseTELEM_DATA_FLOAT64(view, offset, clientId);
                     break;
@@ -315,12 +319,6 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_WRITE, write);
                 break;
             }
-            case TELEPLOT.protocol.TELEM_ATTR_CHOICES: { // The choices separated by line feeds
-                let [text, newOffset] = _parseDataBinary_readString(view, offset);
-                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_CHOICES, text === "" ? undefined : text.split("\n"));
-                offset = newOffset;
-                break;
-            }
             case TELEPLOT.protocol.TELEM_ATTR_ARGS: { // One argument: {INDEX[8]} {TYPE[8]} {FLAGS[8]} {MIN[64]} {MAX[64]} {STEP[64]} {NAME} {UNIT} {DEFAULT} {CHOICES} {DESC}
                 let index = view.getUint8(offset), type = view.getUint8(offset + 1), flags = view.getUint8(offset + 2);
                 let numbers = [0, 1, 2].map((i) => view.getFloat64(offset + 3 + i * 8, _parseDataBinary_LITTLE_ENDIAN));
@@ -395,7 +393,7 @@ function _parseDataBinary_parseFloats(view, offset, clientId, dataType, count) {
 }
 
 // A data section whose samples are one string: {TELEM_DATA_HEADER} then for each sample {TIMEDIFF[32]} {TEXT[null terminated string]}
-function _parseDataBinary_parseStrings(view, offset, clientId, dataType) {
+function _parseDataBinary_parseStrings(view, offset, clientId, dataType, merge=undefined) {
     let [telemId, timeRef, samples, newOffset] = _parseDataBinary_readTELEM_DATA_HEADER(view, offset, clientId);
     offset = newOffset;
     let timestamps = [], texts = [];
@@ -405,7 +403,7 @@ function _parseDataBinary_parseStrings(view, offset, clientId, dataType) {
         texts.push(text);
         offset = next;
     }
-    TELEPLOT.datastore.getOrCreateTelemetry(telemId).addData(dataType, timestamps, [texts]);
+    TELEPLOT.datastore.getOrCreateTelemetry(telemId).addData(dataType, timestamps, [texts], merge);
     return offset;
 }
 
@@ -554,7 +552,8 @@ function _parseDataBinary_parseTELEM_DATA_TEXT(view, offset, clientId) {
     }
 
     let telemetry = TELEPLOT.datastore.getOrCreateTelemetry(telemId);
-    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, timestamps, [textValues]);
+    let isStack = telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK) === true; // (texts of a stack with the same time: the paths of one sample, doc/graph.md)
+    telemetry.addData(TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT, timestamps, [textValues], isStack ? "," : undefined);
 
     return offset;
 }

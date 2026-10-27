@@ -5,7 +5,7 @@
  * dark is used when <html data-theme="dark"> is set, or when the system prefers dark and data-theme isn't "light".
  * Layouts choose how their views look (see ViewLayout): "card" (default) or "flat" appearance, top color on or off, inherited by what they contain.
  *
- *   --teleplot-text, -muted, -surface, -line, -grid, -primary, -warn, -error, -mono   colors and monospace font stack
+ *   --teleplot-text, -muted, -surface, -line, -grid, -primary, -warn, -error, -ok, -mono   colors (-ok: successes) and monospace font stack
  *   --teleplot-bg                                                                  page background that goes with the cards (never applied by the library: hosts use it, e.g. body { background: var(--teleplot-bg) })
  *   --teleplot-card-bg, -card-bw, -card-radius, -card-shadow                          set by layouts ("card" / "flat" appearance)
  *   --teleplot-accent, --teleplot-accent-w                                            top color of a view (set by the view) and its thickness (0 = off)
@@ -38,17 +38,17 @@ TELEPLOT.theme = {};
     elem.textContent = `
         :root {
             --teleplot-text: #1d2329; --teleplot-muted: #66717c; --teleplot-surface: #ffffff; --teleplot-bg: #f4f5f7; --teleplot-line: #d5dbe0;
-            --teleplot-grid: rgba(0, 0, 0, 0.08); --teleplot-primary: #2980b9; --teleplot-warn: #b87500; --teleplot-error: #d6453d;
+            --teleplot-grid: rgba(0, 0, 0, 0.08); --teleplot-primary: #2980b9; --teleplot-warn: #b87500; --teleplot-error: #d6453d; --teleplot-ok: #23964f;
             --teleplot-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
         }
         :root[data-theme="dark"] {
             --teleplot-text: #e8ebee; --teleplot-muted: #8d98a3; --teleplot-surface: #15191d; --teleplot-bg: #0f1215; --teleplot-line: #2c343b;
-            --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63;
+            --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63; --teleplot-ok: #3ccf7a;
         }
         @media (prefers-color-scheme: dark) {
             :root:not([data-theme="light"]) {
                 --teleplot-text: #e8ebee; --teleplot-muted: #8d98a3; --teleplot-surface: #15191d; --teleplot-bg: #0f1215; --teleplot-line: #2c343b;
-                --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63;
+                --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63; --teleplot-ok: #3ccf7a;
             }
         }
         @scope (.teleplot-js-style)

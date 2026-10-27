@@ -74,7 +74,7 @@ function initComponent_panel_telemetries(vue) {
 
     const vueCSS = `
         .telemetries-layout {
-            --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-shape: #d35400; --t-camera: #2c8c7a; --t-log: #7d6608; --t-35: #5b6abf; --t-other: #7f8c8d; --t-setting: #1e8449; --t-action: #b03a2e;
+            --t-20: #2980b9; --t-21: #16a085; --t-22: #8e44ad; --t-23: #d68910; --t-24: #c0392b; --t-shape: #d35400; --t-camera: #2c8c7a; --t-log: #7d6608; --t-35: #5b6abf; --t-other: #7f8c8d; --t-setting: #1e8449; --t-action: #b03a2e; --t-graph: #2471a3;
             --mark: hsl(48 100% 70%);
             color: var(--color-text);
             width: 100%;
@@ -89,7 +89,7 @@ function initComponent_panel_telemetries(vue) {
 
         .telemetries-type-20 { --tc: var(--t-20); } .telemetries-type-21 { --tc: var(--t-21); } .telemetries-type-22 { --tc: var(--t-22); }
         .telemetries-type-23 { --tc: var(--t-23); } .telemetries-type-24 { --tc: var(--t-24); } .telemetries-type-shape { --tc: var(--t-shape); } .telemetries-type-camera { --tc: var(--t-camera); } .telemetries-type-log { --tc: var(--t-log); } .telemetries-type-35 { --tc: var(--t-35); } .telemetries-type-other { --tc: var(--t-other); }
-        .telemetries-type-setting { --tc: var(--t-setting); } .telemetries-type-action { --tc: var(--t-action); }
+        .telemetries-type-setting { --tc: var(--t-setting); } .telemetries-type-action { --tc: var(--t-action); } .telemetries-type-graph { --tc: var(--t-graph); }
 
         .telemetries-toolbar {
             padding-bottom: 0.4rem;
@@ -207,6 +207,7 @@ function initComponent_panel_telemetries(vue) {
                     { code: "camera",                            badge: "CAM", label: "Camera (intrinsics, to draw 3D telemetries over its images)" },
                     { code: "setting",                           badge: "SET", label: "Setting: a value the page can change (CMD on)" }, // Commands (doc/telecmd.md): what it is for, not a data type
                     { code: "action",                            badge: "BUTTON", label: "Action: a button that calls a function of the device (CMD on)" },
+                    { code: "graph",                             badge: "GRAPH", label: "A state machine or a tree: a structure, drawn by a graph view (doc/graph.md)" }, // Not a data type: a text with an enum or edges structure
                 ],
             }
         },
@@ -235,6 +236,7 @@ function initComponent_panel_telemetries(vue) {
                         types.push("shape");
                     }
                     if (this.TP.view.ViewScene3D.isCamera(telem)) types.push("camera");
+                    if (telem.hasStructure() && telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && !this.TP.commands.declaration(telem)) types.unshift("graph"); // (a setting with choices is a setting)
                     const sep = name.startsWith("/") ? "/" : ".";
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
                     const rest = path.slice(1).join(sep);
@@ -309,7 +311,7 @@ function initComponent_panel_telemetries(vue) {
                     const call = this.TP.commands.lastCall(telem);
                     return call ? "#" + call.id + " " + ({ ok: "done", err: "failed", run: "running", sent: "sent", noanswer: "no answer" }[call.status] || call.status) : "not called yet";
                 }
-                if (types[0] == "setting") types = types.slice(1); // (its value)
+                if (types[0] == "setting" || types[0] == "graph") types = types.slice(1); // (its value)
                 if (!types.length) return "—";
                 const type = types[0];
                 if (type == "shape") { // Where it is: what changes the most often

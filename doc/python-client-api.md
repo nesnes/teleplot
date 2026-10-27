@@ -98,7 +98,7 @@ Shape types: `Cube`, `Sphere`, `Cylinder`, `Stl` (`.stl(url)`), and flat `Rect`,
 kp = tp.param("kp", 0.4).range(0, 10).step(0.01).desc("Proportional gain")   # kp.value: what is applied
 tp.param("ki", controller, "ki").range(0, 1)  # bound: controller.ki is published, and written when the page changes it
 tp.param("speed", config, "speed")            # a key of a dict works the same
-mode = tp.param("mode", "auto").choices(["auto", "manual"])
+mode = tp.param("mode", "auto").enumValues(["auto", "manual#by hand"])  # the texts it can take (#: a caption)
 drive = tp.param("cmd_vel", Teleplot.Pose2D(0, 0, 0)).axes(Teleplot.X | Teleplot.Yaw).rate(20).hold(200) \
     .onChange(lambda v: Teleplot.ok() if mode.value == "manual" else Teleplot.error("manual mode only"))
 
@@ -263,14 +263,14 @@ options are the keyword arguments of the same names (`flushInterval=`, `sendFrom
 The same calls as C++, with the same names and rules (one chain, one time; `color()` is the color of the telemetry until it is a
 shape, a color sample after; describing after a sample is allowed): `unit`, `color`, `label`, `desc`, `range`, `min`, `max`,
 `autoplot`, `timeout`, `log`, `stack`, `frame`, `pixelsOf`, `depthMap(scale[, noData])`, `pixelValues(scale[, noData])`, `maxRate`,
-`precise`, `nonBlocking`, `oneThread`, `threshold`, `removeThreshold`, `update`, `shape`, `stl`, `position`, `rotation`, `yaw`,
+`precise`, `nonBlocking`, `oneThread`, `threshold`, `removeThreshold`, `enumValues`, `edges` (its structure, [`graph.md`](graph.md)), `update`, `shape`, `stl`, `position`, `rotation`, `yaw`,
 `quaternion(w, x, y, z)`, `size`, `opacity`, `texture`, `textureFrom`, `vector`, `text`, `textSize`, `lineWidth`, `points(points)`,
 `cloud(points[, intensities][, colors])`, `image(type, bytes)` / `image(picture)`, `intrinsics`, `distortion`, `at`, `name()`,
 `teleplot()`. Sample calls and `at()` return `Samples` (the same calls, with the time of the chain, no `at`).
 
 ### `Param` (chainable; what `param()` returns)
 
-`.value`, `range`, `min`, `max`, `step`, `unit`, `desc`, `choices(list)`, `rate(hz)`, `hold(ms)`, `axes(X | Y | Yaw)`,
+`.value`, `range`, `min`, `max`, `step`, `unit`, `desc`, `enumValues(list)`, `rate(hz)`, `hold(ms)`, `axes(X | Y | Yaw)`,
 `onChange(fn(value) → Result)` (called before the value is applied; `error(why)` refuses it, nothing changes; an exception refuses it
 too). The type comes from the initial value (for a bound setting, the value it holds): `bool`, number (`int` stays `int`: the value
 is rounded), `str`, `Number2D` (xy), `Number3D` (xyz), `Pose2D` (pose2d). A number is clamped to the range and rounded to the step; a
@@ -280,7 +280,7 @@ text outside the choices is refused.
 
 - `Action`: `title`, `desc`, `color`, `confirm`, `longpress`, `arg(Arg)`; callable as a decorator when `action(name)` was given no
   handler.
-- `Arg(name[, type])`: `optional`, `defaultValue`, `range`, `min`, `max`, `step`, `unit`, `choices`, `desc`.
+- `Arg(name[, type])`: `optional`, `defaultValue`, `range`, `min`, `max`, `step`, `unit`, `enumValues`, `desc`.
 - `Args` (what a handler gets): `has(name)`, `number(name[, fallback])`, `flag(name[, fallback])`, `text(name[, fallback])`,
   `xy(name[, fallback])`, `xyz`, `pose2d`, `call()`.
 

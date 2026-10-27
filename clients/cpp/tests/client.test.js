@@ -156,6 +156,20 @@ test('a picture in parts is stored whole, byte for byte; the camera has its intr
     assert.deepEqual(samples(cam, P.SECTION_TYPE_TELEM_DATA_CAMERA_DISTORTION), [[T0, -0.25, 0.0625, f32(0.001), f32(0.002), 0]]);
 });
 
+test('graphs: a state machine and a behavior tree, a structure in several parts with one time, a newer time replaces it', () => {
+    const U = load('graphs.teleplot');
+    const P = U.protocol;
+    const mode = get(U, 'mode'), bt = get(U, 'bt');
+    assert.deepEqual(mode.getEnum().items.map((i) => i.path), ['idle', 'mission', 'mission/goto', 'mission/grasp', 'error']);
+    assert.deepEqual(mode.getEdges().edges.map((e) => e.from + '>' + e.to + '=' + e.event), ['idle>mission=start', 'mission/goto>mission/grasp=arrived', 'mission>error=fault', 'error>idle=reset']);
+    assert.equal(U.view.suggestViewType(mode.id), 'graph');
+    const structures = bt.data[P.SECTION_TYPE_TELEM_DATA_ENUM];
+    assert.deepEqual(structures.timestamps, [T0, T0 + 0.02], 'the big one in parts is one sample; the same one again is not sent; the new one');
+    assert.equal(bt.getEnum(T0 + 0.01).items.length, 121);
+    assert.deepEqual(bt.getEnum().items.map((i) => i.path), ['root', 'root/scan']);
+    assert.deepEqual(samples(bt, P.SECTION_TYPE_TELEM_DATA_TEXT).map(([, v]) => v), ['root/branch3=failure,root/branch4']);
+});
+
 test('settings and actions are declared as the page reads them', () => {
     const U = load('commands.teleplot');
     const P = U.protocol;
@@ -165,7 +179,7 @@ test('settings and actions are declared as the page reads them', () => {
     assert.equal(kp.getDescription(), 'Proportional gain');
     assert.equal(kp.getAttribute(P.TELEM_ATTR_UNIT), '1/s');
     assert.deepEqual(samples(kp, P.SECTION_TYPE_TELEM_DATA_NUMBER).map(([, v]) => v), [f32(0.4)]);
-    assert.deepEqual(get(U, 'mode').getAttribute(P.TELEM_ATTR_CHOICES), ['auto', 'manual']);
+    assert.deepEqual(get(U, 'mode').getEnum().items.map((i) => i.path + '#' + i.kind), ['auto#all on its own', 'manual#'], 'the texts it can take: an enum sample');
     assert.deepEqual(get(U, 'cmd_vel').getAttribute(P.TELEM_ATTR_WRITE), { kind: 'setting', type: 'pose2d', confirm: false, longpress: false, rate: 20, hold: 200, axes: ['x', 'yaw'] });
     const go = get(U, 'goto');
     assert.deepEqual(go.getAttribute(P.TELEM_ATTR_WRITE), { kind: 'action', type: '', confirm: true, longpress: false });

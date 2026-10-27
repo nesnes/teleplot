@@ -213,7 +213,7 @@ function initComponent_panel_edit(vue) {
                 return Math.max(0, count(this.dashboard.view) - 1); // the dashboard layout itself doesn't count
             },
             viewIcon() {
-                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-timeline": "icofont-tasks-alt", "teleplot-2d": "icofont-map", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
+                return { "teleplot-chart": "icofont-chart-line", "teleplot-current-value": "icofont-numbered", "teleplot-log": "icofont-list", "teleplot-timeline": "icofont-tasks-alt", "teleplot-graph": "icofont-chart-flow-2", "teleplot-2d": "icofont-map", "teleplot-3d": "icofont-cube", "teleplot-image": "icofont-image" }[this.selected.type] || "icofont-chart";
             },
             // Time group of the selected element: its choice, what it comes down to, and the custom groups of the dashboard
             timeGroup() {

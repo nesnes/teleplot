@@ -34,7 +34,7 @@ state:1627551892437:forward|t
 
 What a text file written by Teleplot does not hold, because the text protocol has no word for it: the color and the data window of a telemetry, clients (telemetries of the same name sent by two clients become one), colors sent as r, g, b (they come back as the text `rgb(r,g,b)`). Samples that cannot be written are **skipped and counted**, never changed: texts that hold `; | §` or a line break, telemetries whose name holds `: , |`, and thresholds whose name or color would not be read back the same (spaces around the name, a line break, a color that holds `: ; |`). Use the binary file for those.
 
-**A period** (`from`, `to`) holds the samples of that period, and one more thing: the thresholds in force when it starts (the last sample of each name before it) are written before its own, at their own time. Without them the limits of the period would be missing from its file.
+**A period** (`from`, `to`) holds the samples of that period, and one more thing: the thresholds in force when it starts (the last sample of each name before it) and the structure in force (the last `enum` and `edges` samples before it, [`graph.md`](graph.md)) are written before its own, at their own time. Without them the limits and the graphs of the period would be missing from its file.
 
 ## Binary file
 

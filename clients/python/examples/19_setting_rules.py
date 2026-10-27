@@ -1,4 +1,4 @@
-# 19. Rules of a setting: a text among choices, and a check before applying (onChange): the page shows why it was refused.
+# 19. Rules of a setting: a text among choices (its enum), and a check before applying (onChange): the page shows why it was refused.
 # The program only gets what it accepts. Here the setting is bound to an attribute of an object (the closest Python has to the
 # pointer of C++): controller.target is what the page last set.
 import time
@@ -12,7 +12,7 @@ class Controller:
 
 
 controller = Controller()
-mode = tp.param("mode", "manual").choices(["manual", "auto", "off"])
+mode = tp.param("mode", "manual").enumValues(["manual", "auto#follows the line", "off"])
 
 
 def check_target(value):

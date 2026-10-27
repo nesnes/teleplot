@@ -188,7 +188,7 @@ public:
         Arg& step(double v) { step_ = v; return *this; }
         Arg& unit(const char* v) { unit_ = v; return *this; }
         Arg& desc(const char* v) { desc_ = v; return *this; }
-        template<size_t N> Arg& choices(const char* const (&list)[N]) { choices_ = list; count_ = N; return *this; }
+        template<size_t N> Arg& enumValues(const char* const (&list)[N]) { choices_ = list; count_ = N; return *this; } // the texts it can take
     private:
         friend class Teleplot;
         const char* name_;
@@ -314,6 +314,11 @@ public:
         Samples& threshold(const char* name, ThresholdSide side, double value, const char* color = "") { tp_->threshold_(*this, name, side, value, color); return *this; }
         Samples& removeThreshold(const char* name) { tp_->threshold_(*this, name, Below, NAN, ""); return *this; }
 
+        // Its structure (doc/graph.md), from the time of the chain until a newer one: the texts it can take (states, nodes: paths with
+        // "/" between levels, "#kind" at the end of one) and its transitions ("from>to" or "from>to=event"). Static arrays.
+        template<size_t N> Samples& enumValues(const char* const (&list)[N]) { tp_->structure_(*this, list, N, false); return *this; }
+        template<size_t N> Samples& edges(const char* const (&list)[N]) { tp_->structure_(*this, list, N, true); return *this; }
+
         Samples& position(double x, double y, double z = 0) { double v[3] = { x, y, z }; tp_->shapeNumbers_(*this, "P", v, 3, POS_); return *this; }
         Samples& rotation(double roll, double pitch, double yaw) { double v[3] = { roll, pitch, yaw }; tp_->shapeNumbers_(*this, "R", v, 3, ROT_); return *this; }
         Samples& yaw(double a) { return rotation(0, 0, a); }
@@ -369,6 +374,8 @@ public:
         TELEPLOT_SAMPLE_CALL_(text) TELEPLOT_SAMPLE_CALL_(textSize) TELEPLOT_SAMPLE_CALL_(lineWidth) TELEPLOT_SAMPLE_CALL_(points)
         TELEPLOT_SAMPLE_CALL_(cloud) TELEPLOT_SAMPLE_CALL_(image) TELEPLOT_SAMPLE_CALL_(intrinsics) TELEPLOT_SAMPLE_CALL_(distortion)
 #undef TELEPLOT_SAMPLE_CALL_
+        template<size_t N> Samples enumValues(const char* const (&list)[N]) { Samples s(tp_, name_, index_, false, Time()); s.enumValues(list); return s; } // (an array: not through the templates above)
+        template<size_t N> Samples edges(const char* const (&list)[N]) { Samples s(tp_, name_, index_, false, Time()); s.edges(list); return s; }
         const char* name() const { return name_; }
     private:
         friend class Teleplot;
@@ -385,7 +392,8 @@ public:
         Param& step(double v) { if (p_) { p_->step = static_cast<float>(v); } return *this; }
         Param& unit(const char* v) { if (p_) { p_->unit = v; } return *this; }
         Param& desc(const char* v) { if (p_) { p_->desc = v; } return *this; }
-        template<size_t N> Param& choices(const char* const (&list)[N]) { if (p_) { p_->choices = list; p_->count = N; } return *this; }
+        // The texts it can take (its enum structure, doc/graph.md); "text#caption": words shown with a choice. A static array.
+        template<size_t N> Param& enumValues(const char* const (&list)[N]) { if (p_) { p_->choices = list; p_->count = N; } return *this; }
         Param& rate(double hz) { if (p_) { p_->rate = static_cast<uint16_t>(hz); } return *this; }
         Param& hold(int ms) { if (p_) { p_->hold = static_cast<uint16_t>(ms); } return *this; }
         Param& axes(uint8_t bits) { if (p_) { p_->axes = bits; } return *this; }
@@ -576,6 +584,9 @@ private:
         uint8_t sizeCount;
         const char* fill;      // a color sample of the shape
         Time posT, rotT, sizeT, fillT, kT, dcT;
+        const char* const* structure[2]; // its enum and its edges (static arrays), sent again with their time
+        uint8_t structureCount[2];
+        Time structureT[2];
 #endif
     };
     struct Threshold_ { int8_t entry; const char* name; const char* color; float value; uint8_t side; Time t; };
@@ -588,6 +599,7 @@ private:
         const char* unit;
         const char* desc;
         const char* const* choices;
+        Time choicesT;           // the time of its enum, taken when it is first declared (sent again with it)
         void (*onChange)();
         bool (*write)(Param_&, const char* value, char* why);
         void (*publish)(Teleplot&, Param_&);
@@ -613,7 +625,7 @@ private:
         Result last;
         Action_() : name(0), title(0), desc(0), color(0), handler(0), argCount(0), confirm(false), longpress(false), lastCall(-1) {}
     };
-    struct StackSlot_ { const char* name; char path[TELEPLOT_STACK_SIZE]; };
+    struct StackSlot_ { const char* name; char path[TELEPLOT_STACK_SIZE]; Time last; };
     struct Output_ {
         Print* print;
         void* udp;
@@ -796,6 +808,21 @@ private:
         Samples s(this, name, i, timed, t);
         if (i < 0) { if (!begin_(s)) { return; } head_(s); textValue_(text); flags_(0, "log"); return; }
         text_(s, text);
+    }
+
+    // name:time:item,item|enum (or |edges): a structure (doc/graph.md). The items are written as given ("," ";" "|" in them as %XX).
+    void structureLine_(const char* name, Time t, const char* const* list, uint8_t count, bool edges) {
+        lineStart_(); puts_(name); put_(':'); time_(t); put_(':');
+        for (uint8_t i = 0; i < count; ++i) { if (i) { put_(','); } escaped_(list[i], ",;|\n\r"); }
+        puts_(edges ? "|edges" : "|enum");
+        lineEnd_();
+    }
+    template<class S> void structure_(S& s, const char* const* list, uint8_t count, bool edges) {
+        if (!begin_(s)) { return; }
+        structureLine_(s.name_, s.t_(), list, count, edges);
+#if TELEPLOT_RESEND
+        if (Entry_* e = s.entry_()) { e->structure[edges] = list; e->structureCount[edges] = count; e->structureT[edges] = s.t_(); }
+#endif
     }
 
     // 3D|name:time:PROPERTY:values (a shape: each property is a sample of its own kind)
@@ -1010,6 +1037,7 @@ private:
             if (latched & K_) { again_(e, i, e.kT, "K", e.k, 6); }
             if (latched & DC_) { again_(e, i, e.dcT, "DC", e.dc, 5); }
             if (latched & FILL_) { Samples f(this, e.name, static_cast<int8_t>(i), true, e.fillT); shapeHead_(f, "C"); put_(':'); puts_(e.fill); lineEnd_(); }
+            for (uint8_t k = 0; k < 2; ++k) { if (e.structure[k]) { structureLine_(e.name, e.structureT[k], e.structure[k], e.structureCount[k], k == 1); } }
 #endif
         }
 #if TELEPLOT_RESEND
@@ -1047,12 +1075,19 @@ private:
         if (!room_(stackCount_, TELEPLOT_MAX_STACKS)) { stats_.tooBig++; return -1; }
         stacks_[stackCount_].name = name;
         stacks_[stackCount_].path[0] = 0;
+        stacks_[stackCount_].last = Time(INT64_MIN / 2);
         int8_t e = entry_(name, true);
         if (e >= 0) { entries_[e].flags = static_cast<uint8_t>((entries_[e].flags | STACK_) & ~LOG_); }
         return static_cast<int8_t>(stackCount_++);
     }
     void sendStack_(int8_t slot, bool timed, Time t) {
         const char* name = stacks_[slot].name;
+        if (!timed) { // At least 1 µs after its previous one: samples of a stack with the same time are parts of one for the page (doc/graph.md)
+            t = now_();
+            if (t.ns < stacks_[slot].last.ns + 1000) { t.ns = stacks_[slot].last.ns + 1000; }
+            timed = true;
+        }
+        stacks_[slot].last = t;
         Samples s(this, name, entry_(name, false), timed, t);
         text_(s, stacks_[slot].path);
     }
@@ -1137,8 +1172,11 @@ private:
         if (p.axes) { puts_("|axes="); bool first = true; const char* names[3] = { "x", "y", "yaw" }; for (int i = 0; i < 3; ++i) { if (p.axes & (1 << i)) { if (!first) { put_(','); } puts_(names[i]); first = false; } } }
         if (p.unit) { puts_("|unit="); escaped_(p.unit, "%|,=:\n\r"); }
         if (p.desc) { puts_("|desc="); escaped_(p.desc, "%|,=:\n\r"); }
-        if (p.count) { puts_("|choices="); for (uint8_t i = 0; i < p.count; ++i) { if (i) { put_(','); } escaped_(p.choices[i], "%|,=:\n\r"); } }
         lineEnd_();
+        if (p.count) { // The texts it can take: its enum, with the time of its first declaration (sent again, it is the same sample)
+            if (p.choicesT.ns == 0) { p.choicesT = now_(); if (p.choicesT.ns == 0) { p.choicesT.ns = 1; } }
+            structureLine_(p.name, p.choicesT, p.choices, p.count, false);
+        }
     }
     void declare_(Action_& a) {
         lineStart_();
@@ -1160,7 +1198,7 @@ private:
             if (!isnan(g.step_)) { puts_("|step="); number_(g.step_, true); }
             if (g.unit_) { puts_("|unit="); escaped_(g.unit_, "%|,=:\n\r"); }
             if (g.desc_) { puts_("|desc="); escaped_(g.desc_, "%|,=:\n\r"); }
-            if (g.count_) { puts_("|choices="); for (uint8_t c = 0; c < g.count_; ++c) { if (c) { put_(','); } escaped_(g.choices_[c], "%|,=:\n\r"); } }
+            if (g.count_) { puts_("|enum="); for (uint8_t c = 0; c < g.count_; ++c) { if (c) { put_(','); } escaped_(g.choices_[c], "%|,=:\n\r"); } }
             lineEnd_();
         }
     }
@@ -1200,6 +1238,22 @@ private:
             if (lineLength_ < sizeof(line_) - 1) { line_[lineLength_++] = static_cast<char>(c); }
             else if (!lineTooLong_) { lineTooLong_ = true; stats_.dropped++; } // (a line longer than TELEPLOT_LINE_SIZE: ignored)
         }
+    }
+    // Is a value the text of a choice ("manual%2C slow#by hand" is "manual, slow")? Its kind (after the last #) is not part of it.
+    static bool choiceIs_(const char* item, const char* value) {
+        const char* end = strrchr(item, '#');
+        if (!end) { end = item + strlen(item); }
+        while (item < end) {
+            char c = *item;
+            if (c == '%' && end - item > 2 && isxdigit(static_cast<unsigned char>(item[1])) && isxdigit(static_cast<unsigned char>(item[2]))) {
+                char hex[3] = { item[1], item[2], 0 };
+                c = static_cast<char>(strtol(hex, 0, 16));
+                item += 3;
+            }
+            else { item++; }
+            if (*value++ != c) { return false; }
+        }
+        return *value == 0;
     }
     static void unescape_(char* s) { // "%3A" -> ":"
         char* out = s;
@@ -1266,7 +1320,7 @@ template<size_t N> struct Teleplot::Trampoline_<char[N]> {
         unescape_(value);
         if (p.count) {
             bool known = false;
-            for (uint8_t i = 0; i < p.count; ++i) { if (strcmp(p.choices[i], value) == 0) { known = true; } }
+            for (uint8_t i = 0; i < p.count; ++i) { if (choiceIs_(p.choices[i], value)) { known = true; } }
             if (!known) { strcpy(why, "one of the choices"); return false; }
         }
         if (p.onChange) {

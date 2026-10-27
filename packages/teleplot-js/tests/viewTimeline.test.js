@@ -326,36 +326,58 @@ test('option "numbers": "text" writes each value as a state; a telemetry that ha
     assert.deepEqual([view.period.from, view.period.to], [10, 51.6], 'room for the state "b" only');
 });
 
-test('a stack is a lane with a row per level: bands nest under what they run in', () => {
+test('a stack is a lane by branches: one row per depth while one thing runs at a time; bands nest under what they run in', () => {
     const { T, telems, view } = setup(['task', 'mode']);
     const V = T.view.ViewTimeline;
+    const nodeShow = (row) => row.map(i => i.from + '-' + i.to + ':' + (i.mixed ? '~' + i.count : i.node + (i.status ? '=' + i.status : '')));
     T.parseDataText('task:10000:loop|stack\ntask:20000:loop/read|stack\ntask:30000:loop/plan|stack\ntask:40000:loop/plan/search|stack\ntask:45000:loop/plan/search|stack\ntask:50000:loop/plan|stack\ntask:60000:|stack\ntask:70000:loop|stack\ntask:80000:idle|stack\nmode:10000:on|t');
     telems[1].addData(NUMBER, [10, 100], [[1, 1]]); // (what makes time pass up to 100)
     view.update();
     const lane = view.lanes[0];
     assert.deepEqual([lane.kind, view.lanes[1].kind, lane.items], ['stack', 'state', []]);
-    assert.deepEqual(lane.rows.map(show), [['10-60:loop', '70-80:loop', '80-100:idle'], ['20-30:loop/read', '30-60:loop/plan'], ['40-50:loop/plan/search']]);
-    assert.deepEqual(lane.rows.map(row => row.map(i => i.label)), [['loop', 'loop', 'idle'], ['read', 'plan'], ['search']], 'a band is written with what runs at its level');
+    assert.deepEqual(lane.rows.map(nodeShow), [['10-60:loop', '70-80:loop', '80-100:idle'], ['20-30:loop/read', '30-60:loop/plan'], ['40-50:loop/plan/search']], 'what follows each other shares a row: one row per depth');
+    assert.deepEqual(lane.tree.map(r => [r.depth, r.parent, r.first]), [[0, -1, false], [1, 0, false], [2, 1, false]]);
+    assert.deepEqual(lane.rows.map(row => row.map(i => i.label)), [['loop', 'loop', 'idle'], ['read', 'plan'], ['search']], 'a band is written with the name of its node');
     assert.equal(lane.rows[0][0].color, lane.rows[0][1].color, 'the same name, the same color');
     assert.notEqual(lane.rows[1][0].color, lane.rows[1][1].color);
-    // Levels that nothing reaches in the period take no room; the period cuts bands like any state
+    // Rows that nothing reaches in the period take no room; the period cuts bands like any state
     Object.assign(T.view.groups.default, { cursorActive: true, timestampFrom: 52, timestampTo: 75 });
     view.update();
-    assert.deepEqual(view.lanes[0].rows.map(show), [['52-60:loop', '70-75:loop'], ['52-60:loop/plan']]);
-    assert.deepEqual(V.extentOf(view.lanes[0].levels[1], 55), { start: 30, end: 60 }, 'what the pointer tells: how long the level really lasted');
+    assert.deepEqual(view.lanes[0].rows.map(nodeShow), [['52-60:loop', '70-75:loop'], ['52-60:loop/plan']]);
+    assert.deepEqual(V.extentOf(view.lanes[0].entries.get('loop/plan'), 55), { start: 30, end: 60 }, 'what the pointer tells: how long the node really ran');
     T.view.groups.default.cursorActive = false;
-    // Calls too short to be drawn are a block at their level, as for states
+    // Runs too short to be drawn are a block in their row, as for states; the node above is one band
     const fast = T.datastore.getOrCreateTelemetry('fast');
     fast.setAttribute(T.protocol.TELEM_ATTR_STACK, true);
     fast.addData(TEXT, Array.from({ length: 1000 }, (v, i) => i), [Array.from({ length: 1000 }, (v, i) => i % 2 ? 'main/work' + i % 3 : 'main')]);
-    const levels = T.stackRuns(fast.data[TEXT]).levels;
-    assert.deepEqual(show(V.buildLane(levels[0], false, 0, 1000, 10)), ['0-1000:main'], 'the level above is one band, whatever happens under it');
-    assert.ok(V.buildLane(levels[1], false, 0, 1000, 10).every(b => b.mixed));
-    // The latest level gets room to be read, like the latest state
+    const branches = V.buildBranches(T.stackRuns(fast.data[TEXT]), 0, 1000, 10);
+    assert.deepEqual(nodeShow(branches.rows[0]), ['0-1000:main'], 'the node above is one band, whatever happens under it');
+    assert.ok(branches.rows.slice(1).every(row => row.every(b => b.mixed)));
+    // The latest node gets room to be read, like the latest state
     const lone = new V('l', ['solo']);
     T.parseDataText('solo:10000:a|stack\nsolo:20000:a/b|stack');
     lone.update();
-    assert.deepEqual([lone.period.to, lone.lanes[0].rows.map(show)], [20.4, [['10-20.4:a'], ['20-20.4:a/b']]]);
+    assert.deepEqual([lone.period.to, lone.lanes[0].rows.map(nodeShow)], [20.4, [['10-20.4:a'], ['20-20.4:a/b']]]);
+});
+
+test('a stack lane by branches: siblings that overlap get a row each under their parent; several roots; graph colors', () => {
+    const { T, view } = setup(['bt', 'state']);
+    const nodeShow = (row) => row.map(i => i.from + '-' + i.to + ':' + i.node + (i.status ? '=' + i.status : ''));
+    T.parseDataText('bt:10000:root/patrol/battery_ok=success,root/patrol/goto|stack\nbt:20000:root/patrol/battery_ok=failure,root/patrol=failure,root/dock|stack\nbt:30000:root/dock|stack');
+    T.parseDataText('state:10000:nav/follow,arm/idle|stack\nstate:15000:nav/avoid,arm/idle|stack\nstate:25000:nav/avoid,arm/reach|stack\nstate:30000:nav/avoid,arm/reach|stack');
+    view.update();
+    let [bt, state] = view.lanes;
+    assert.deepEqual(bt.rows.map(nodeShow), [['10-30.8:root'], ['10-20:root/patrol', '20-30:root/patrol=failure'], ['10-20:root/patrol/battery_ok=success', '20-30:root/patrol/battery_ok=failure'], ['10-20:root/patrol/goto'], ['20-30.8:root/dock']]);
+    assert.deepEqual(bt.tree.map(r => [r.depth, r.parent, r.label]), [[0, -1, 'root'], [1, 0, 'patrol'], [2, 1, 'battery_ok'], [2, 1, 'goto'], [1, 0, 'dock']], 'patrol and dock overlap: a row each, under root');
+    assert.deepEqual(state.tree.map(r => [r.depth, r.parent, r.first, r.label]), [[0, -1, false, 'nav'], [1, 0, false, ''], [0, -1, true, 'arm'], [1, 2, false, '']], 'two roots, each with the row of its children');
+    assert.deepEqual(bt.rows[1].map(i => [i.label, i.color]), [['patrol', T.view.ViewTimeline.colorOf('patrol', view.colors)], ['patrol: failure', T.view.ViewTimeline.colorOf('failure', view.colors)]], 'a stack without structure: a color per name');
+    assert.equal(bt.rows[1][1].color, 'error', 'failure is an error word');
+    // With a structure: the colors of the graph view, and its order of siblings
+    T.parseDataText('bt:1000:root#fallback,root/dock,root/patrol,root/patrol/goto,root/patrol/battery_ok|enum');
+    view.update();
+    bt = view.lanes[0];
+    assert.deepEqual(bt.tree.map(r => r.label), ['root', 'dock', 'patrol', 'goto', 'battery_ok'], 'siblings in the order of the structure');
+    assert.deepEqual(bt.rows.map(row => row.map(i => i.color)), [['primary'], ['primary'], ['primary', 'error'], ['primary'], ['ok', 'error']], 'runs: primary; a status: the color of its words');
 });
 
 test('height of a stack lane: it opens with the stack up to "stackDepth" rows, then its rows get thinner down to a minimum, then it grows again', () => {

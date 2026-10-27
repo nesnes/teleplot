@@ -93,12 +93,29 @@ static void commands(std::string const& dir) {
     static std::string mode = "auto";
     static Teleplot::Pose2D cmdVel;
     tp.param("kp", &kp).range(0, 10).step(0.01).desc("Proportional gain").unit("1/s");
-    tp.param("mode", &mode).choices({ "auto", "manual" });
+    tp.param("mode", &mode).enumValues({ "auto#all on its own", "manual" });
     tp.param("cmd_vel", &cmdVel).axes(Teleplot::X | Teleplot::Yaw).rate(20).hold(200);
     tp.action("goto", [](Teleplot::Args const&) { return Teleplot::ok(); })
         .title("Go to").confirm()
         .arg(Teleplot::Arg("target", Teleplot::Arg::XY))
         .arg(Teleplot::Arg("speed").optional().defaultValue(0.3).range(0.1, 1).unit("m/s"));
+}
+
+// Graphs (doc/graph.md): a state machine, a behavior tree whose structure does not fit one packet (parts with the same time), ticks
+static void graphs(std::string const& dir) {
+    Teleplot tp(fileOptions(dir + "/graphs.teleplot"));
+    std::int64_t now = T0;
+    tp.clock([&] { return Teleplot::ns(now); });
+    tp.telemetry("mode").stack().enumValues({ "idle", "mission/goto", "mission/grasp", "error" }).edges({ "idle>mission=start", "mission/goto>mission/grasp=arrived", "mission>error=fault", "error>idle=reset" });
+    tp.stack("mode", "mission/goto");
+    std::vector<std::string> nodes{ "root#fallback" };
+    for (int i = 0; i < 120; ++i) nodes.push_back("root/branch" + std::to_string(i) + "#sequence");
+    tp.telemetry("bt").stack().enumValues(nodes);
+    now = T0 + 10 * MS;
+    tp.telemetry("bt").enumValues(nodes); // (the same structure: not sent again)
+    tp.update("bt", "root/branch3=failure,root/branch4");
+    now = T0 + 20 * MS;
+    tp.telemetry("bt").enumValues({ "root#sequence", "root/scan" }); // A newer time: a new tree
 }
 
 // Samples sent once are sent again with the descriptions
@@ -140,6 +157,7 @@ int main(int argc, char** argv) {
     scene(dir);
     commands(dir);
     resend(dir);
+    graphs(dir);
     threads(dir);
     stats(dir);
     return 0;

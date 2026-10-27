@@ -28,10 +28,14 @@ TELEPLOT.textRuns = function(entry) {
 }
 
 /*
- * Levels of a stack: a text entry whose texts are paths ("loop/plan/search": what is running, a separator between levels).
- * stackRuns(entry) gives { levels: [{ timestamps, data: [keys] }] }: for each depth, one item per run of the same path down to
- * that depth ("loop", "loop/plan", "loop/plan/search"; "" when the stack is not that deep), in the shape of a data entry. A level
- * lasts while what is above it and itself do not change, whatever happens deeper. Cached and completed like textRuns.
+ * Nodes of a stack (doc/graph.md): a text entry whose texts are paths ("loop/plan/search": what runs, a separator between levels),
+ * several of them at once separated by "," ("nav/follow,arm/idle"), each with an optional status after "=" ("root/patrol=failure").
+ * A path without a status runs, and so do the nodes that hold it.
+ * stackRuns(entry) gives { nodes: Map path -> node, order: [paths, in the order they showed up] }. A node is { path, name (its last
+ * part), depth, parent ("" for a root), timestamps, data: [states] } in the shape of a data entry: one item per run of the same state,
+ * a state being "" (it runs), a status (a text: it ended so), or null (it is not in the stack: a hole). A node lasts while its state
+ * does not change, whatever happens deeper or beside it. Names keep their %XX (TELEPLOT.protocol.decodeName reads them).
+ * Cached and completed like textRuns.
  */
 const _stackRuns_cache = new WeakMap();
 const _stackRuns_MAX_DEPTH = 64; // (a path deeper than that is cut: a mistake, not a stack)
@@ -40,27 +44,51 @@ TELEPLOT.stackRuns = function(entry, separator = "/") {
     let stamps = entry.timestamps, texts = entry.data[0];
     let runs = _stackRuns_cache.get(entry);
     if(runs === undefined || runs.late !== entry.lateInsertions || runs.pruned !== entry.pruned || runs.source !== stamps || runs.count > stamps.length || runs.separator !== separator) {
-        runs = { late: entry.lateInsertions, pruned: entry.pruned, source: stamps, separator, count: 0, last: undefined, levels: [] };
+        runs = { late: entry.lateInsertions, pruned: entry.pruned, source: stamps, separator, count: 0, last: undefined, nodes: new Map(), order: [] };
         _stackRuns_cache.set(entry, runs);
     }
-    let levels = runs.levels;
     for(let i = runs.count; i < stamps.length; i++) {
         let text = String(texts[i]);
-        if(text === runs.last) continue; // (said again: nothing changed at any level)
+        if(text === runs.last) continue; // (said again: nothing changed)
         runs.last = text;
-        let parts = text === "" ? [] : text.split(separator);
-        if(parts.length > _stackRuns_MAX_DEPTH) parts.length = _stackRuns_MAX_DEPTH;
-        let key = "";
-        for(let depth = 0; depth < Math.max(parts.length, levels.length); depth++) {
-            key = depth < parts.length ? (depth === 0 ? parts[0] : key + separator + parts[depth]) : "";
-            let level = levels[depth];
-            if(level === undefined) level = levels[depth] = { timestamps: [], data: [[]] };
-            let keys = level.data[0];
-            if(keys.length && keys[keys.length - 1] === key) continue;
-            level.timestamps.push(stamps[i]);
-            keys.push(key);
+        let states = TELEPLOT.stackStates(text, separator);
+        for(let [path, state] of states) {
+            let node = runs.nodes.get(path);
+            if(node === undefined) {
+                let parts = path.split(separator);
+                node = { path, name: parts[parts.length - 1], depth: parts.length - 1, parent: parts.slice(0, -1).join(separator), timestamps: [], data: [[]] };
+                runs.nodes.set(path, node);
+                runs.order.push(path);
+            }
+            let kept = node.data[0];
+            if(kept.length && kept[kept.length - 1] === state) continue;
+            node.timestamps.push(stamps[i]);
+            kept.push(state);
+        }
+        for(let node of runs.nodes.values()) { // What is not in the stack any more: a hole from now on
+            if(states.has(node.path)) continue;
+            let kept = node.data[0];
+            if(kept.length && kept[kept.length - 1] !== null) { node.timestamps.push(stamps[i]); kept.push(null); }
         }
     }
     runs.count = stamps.length;
     return runs;
+}
+
+// What a stack text says of each node: Map path -> "" (runs) or its status. The nodes that hold a path run, unless they are given
+// a status of their own.
+TELEPLOT.stackStates = function(text, separator = "/") {
+    let states = new Map(), implied = [];
+    if(text === "") return states;
+    for(let item of text.split(",")) {
+        let equal = item.indexOf("=");
+        let path = equal < 0 ? item : item.slice(0, equal), status = equal < 0 ? "" : item.slice(equal + 1);
+        let parts = path.split(separator).map((part) => part.trim()).filter((part) => part !== "");
+        if(!parts.length) continue;
+        if(parts.length > _stackRuns_MAX_DEPTH) parts.length = _stackRuns_MAX_DEPTH;
+        states.set(parts.join(separator), status);
+        for(let depth = 1; depth < parts.length; depth++) implied.push(parts.slice(0, depth).join(separator));
+    }
+    for(let path of implied) if(!states.has(path)) states.set(path, "");
+    return states;
 }

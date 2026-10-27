@@ -31,13 +31,19 @@ TELEPLOT.commands = {
 
 // ---------------------------------------------------------------------------------------------------------- what can be written
 
-// The declaration of a telemetry, with its type worked out: {kind, type, step, rate, hold, axes, confirm, longpress, choices}, or undefined
+// The declaration of a telemetry, with its type worked out: {kind, type, step, rate, hold, axes, confirm, longpress, choices, captions},
+// or undefined. choices: the texts a setting can take (its latest "enum" structure), captions: text -> its kind ("#..."), when given.
 TELEPLOT.commands.declaration = function(telem) {
     const P = TELEPLOT.protocol;
     let write = telem && telem.getAttribute(P.TELEM_ATTR_WRITE);
     if(!write) return undefined;
-    let choices = telem.getAttribute(P.TELEM_ATTR_CHOICES);
-    return Object.assign({}, write, { type: write.kind === "action" ? "" : (write.type || _commands_typeOfData(telem, choices)), choices });
+    let structure = telem.getEnum(), choices = undefined, captions = undefined;
+    if(structure !== undefined && structure.items.length) {
+        choices = structure.items.map((item) => P.decodeName(item.path));
+        captions = {};
+        for(let item of structure.items) if(item.kind !== "") captions[P.decodeName(item.path)] = P.decodeName(item.kind);
+    }
+    return Object.assign({}, write, { type: write.kind === "action" ? "" : (write.type || _commands_typeOfData(telem, choices)), choices, captions });
 }
 
 // The type of what a setting holds, from its data when it was not declared

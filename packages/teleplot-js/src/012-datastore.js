@@ -3,6 +3,7 @@ let _datastore_currentSourceId = undefined;
 let _datastore_currentEndpoint = undefined; // Which device of that source sent it (the sender address the Teleplot server gives), see withSource
 let _datastore_addWatcher = undefined; // Called with (telemetry, dataType, timestamps) for what is added while it is set (see watchAdds)
 let _datastore_dry = false;            // true: nothing is stored nor cleared, the watcher still sees what would be added (see dryRun)
+const _datastore_structures = new WeakMap(); // data entry of a structure -> Map text -> what it says (see Telemetry.getEnum)
 let _datastore_serial = 0;             // Counts the telemetries created: tells one from another one that took its id (objects are not compared: an application may wrap them)
 
 class Telemetry {
@@ -21,10 +22,10 @@ class Telemetry {
         if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
         if(this.__unannounced && (code === TELEPLOT.protocol.TELEM_ATTR_SHAPE || (code === TELEPLOT.protocol.TELEM_ATTR_WRITE && data !== undefined))) _datastore_announce(this);
     }
-    // Has the telemetry something to display ? Data (thresholds are not: they are limits of other data), a shape, or something the page
-    // can write or call (an action has no data until it is called)
+    // Has the telemetry something to display ? Data (thresholds and a structure are not: they describe other data), a shape, or
+    // something the page can write or call (an action has no data until it is called)
     hasContent() {
-        for(let dataType in this.data) if(dataType != TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) return true;
+        for(let dataType in this.data) if(!TELEPLOT.protocol.isMetaDataType(dataType)) return true;
         return this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_SHAPE) !== undefined || this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_WRITE) !== undefined;
     }
     getAttribute(code) {
@@ -35,7 +36,9 @@ class Telemetry {
         let desc = this.attributes[TELEPLOT.protocol.TELEM_ATTR_DESC];
         return typeof desc === "string" ? desc : "";
     }
-    addData(dataType, timestamps, dataList) { // addData(TELEM_DATA_SHAPE_COLOR_RGB, [t1,t2], [[r1,r2], [g1,g2], [b1,b2]])
+    // merge: the separator of the items of a sample that is a set (a structure: "\n", a stack with several paths: ","). A sample with
+    // the same timestamp as one already stored is then another part of it: its items are added to that sample (doc/graph.md).
+    addData(dataType, timestamps, dataList, merge=undefined) { // addData(TELEM_DATA_SHAPE_COLOR_RGB, [t1,t2], [[r1,r2], [g1,g2], [b1,b2]])
         if(TELEPLOT.state.isPaused) return; // Do not handle incoming data while paused
         if(_datastore_dry) { if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps); return; }
         // Check inputs
@@ -68,6 +71,15 @@ class Telemetry {
             if (!(timestamp >= 0)) continue; // Do not use negative timestamps (not supported and -1 could interact with getDataPoint), nor what is not a time at all (it would break the order of the data)
             // The sample it already has, sent again (a device repeats what it sent once, for a page opened later): kept once
             if (timestamp === lastTimestamp && stored.data.every((channel, j) => channel[channel.length-1] === dataList[j][i])) continue;
+            // Another part of a sample it has (same time, a set): one sample with the items of both
+            if (merge !== undefined && timestamp <= lastTimestamp) {
+                let at = timestamp === lastTimestamp ? stored.timestamps.length - 1 : Telemetry.__indexOf(stored.timestamps, timestamp);
+                if (at >= 0) {
+                    let joined = Telemetry.mergeItems(stored.data[0][at], dataList[0][i], merge);
+                    if (joined !== stored.data[0][at]) { stored.data[0][at] = joined; stored.lateInsertions++; } // (what was read from it is outdated)
+                    continue;
+                }
+            }
             // Fast path: data coming in order is appended (the common case, much cheaper than a search and an insertion)
             if (timestamp >= lastTimestamp) {
                 stored.timestamps.push(timestamp);
@@ -91,8 +103,94 @@ class Telemetry {
         stored.lastUpdate = Date.now();
         if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
         if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps);
-        if(this.__unannounced && dataType !== TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) _datastore_announce(this);
+        if(this.__unannounced && !TELEPLOT.protocol.isMetaDataType(dataType)) _datastore_announce(this);
     };
+    // Index of a timestamp in a sorted list of timestamps, -1 when it is not there
+    static __indexOf(timestamps, timestamp) {
+        let lo = 0, hi = timestamps.length;
+        while(lo < hi) { let mid = (lo + hi) >> 1; if(timestamps[mid] < timestamp) lo = mid + 1; else hi = mid; }
+        return lo < timestamps.length && timestamps[lo] === timestamp ? lo : -1;
+    }
+    // The items of two parts of a sample: those of the first, then those of the second it does not have (items are texts separated by "separator")
+    static mergeItems(first, second, separator) {
+        first = String(first); second = String(second);
+        if(second === "" || first === second) return first;
+        if(first === "") return second;
+        let items = first.split(separator), known = new Set(items);
+        for(let item of second.split(separator)) if(!known.has(item)) { items.push(item); known.add(item); }
+        return items.join(separator);
+    }
+
+    /*
+     * Structure (doc/graph.md): the texts the telemetry can take (TELEM_DATA_ENUM: the choices of a setting, the states of a state
+     * machine, the nodes of a tree) and its transitions (TELEM_DATA_EDGES). The structure in force at a time is the latest sample at
+     * or before it (parts with the same time are already one sample). undefined when there is none (yet).
+     */
+    // { items: [{path, kind}], byPath: Map path -> item, timestamp }. An item is a path ("/" between levels) with an optional "#kind"
+    // at its end; declaring "a/b" declares "a" too (as an item of its own when it was not given: kind "").
+    getEnum(timestamp=-1) {
+        return Telemetry.__structure(this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM], timestamp, Telemetry.parseEnum);
+    }
+    // { edges: [{from, to, event}], timestamp }
+    getEdges(timestamp=-1) {
+        return Telemetry.__structure(this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_EDGES], timestamp, Telemetry.parseEdges);
+    }
+    // Does it have a structure (now or in the past): a graph view displays it
+    hasStructure() {
+        return this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM] !== undefined || this.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_EDGES] !== undefined;
+    }
+    static __structure(entry, timestamp, parse) {
+        if(entry === undefined || !entry.timestamps.length) return undefined;
+        let index = entry.timestamps.length - 1;
+        if(timestamp >= 0 && entry.timestamps[index] > timestamp) {
+            let lo = 0, hi = entry.timestamps.length;
+            while(lo < hi) { let mid = (lo + hi) >> 1; if(entry.timestamps[mid] <= timestamp) lo = mid + 1; else hi = mid; }
+            index = lo - 1;
+            if(index < 0) return undefined;
+        }
+        let text = String(entry.data[0][index]);
+        let cache = _datastore_structures.get(entry); // text -> what it says (a structure is read once, not on every update)
+        if(cache === undefined) _datastore_structures.set(entry, cache = new Map());
+        let parsed = cache.get(text);
+        if(parsed === undefined) {
+            if(cache.size > 16) cache.clear();
+            parsed = parse(text);
+            cache.set(text, parsed);
+        }
+        return Object.assign({ timestamp: entry.timestamps[index] }, parsed);
+    }
+    static parseEnum(text) {
+        let items = [], byPath = new Map();
+        let add = (path, kind) => {
+            let known = byPath.get(path);
+            if(known !== undefined) { if(kind !== undefined) known.kind = kind; return; }
+            let parts = path.split("/");
+            for(let depth = 1; depth < parts.length; depth++) add(parts.slice(0, depth).join("/"), undefined); // (its parents first)
+            let item = { path, kind: kind || "" };
+            items.push(item);
+            byPath.set(path, item);
+        };
+        for(let raw of String(text).split("\n")) {
+            if(raw === "") continue;
+            let at = raw.lastIndexOf("#");
+            let path = at < 0 ? raw : raw.slice(0, at), kind = at < 0 ? undefined : raw.slice(at + 1);
+            path = path.split("/").filter((part) => part !== "").join("/");
+            if(path !== "") add(path, kind);
+        }
+        return { items, byPath };
+    }
+    static parseEdges(text) {
+        let edges = [];
+        for(let raw of String(text).split("\n")) {
+            let arrow = raw.indexOf(">");
+            if(arrow < 1) continue;
+            let equal = raw.indexOf("=", arrow);
+            let from = raw.slice(0, arrow), to = equal < 0 ? raw.slice(arrow + 1) : raw.slice(arrow + 1, equal), event = equal < 0 ? "" : raw.slice(equal + 1);
+            if(to === "") continue;
+            edges.push({ from, to, event });
+        }
+        return { edges };
+    }
     getDataPoint(dataType, timestamp=-1) { // timestamp=-1 means "the latest value"
         let result = {timestamp:-1, data:[], index:undefined};
         if (this.data[dataType] == undefined) { return result; }
@@ -306,7 +404,7 @@ class Telemetry {
         const GROUP = 4;
         let primary = undefined, heaviest = -1;
         for (let dataType in this.data) {
-            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) continue; // Limits are not thinned: each sample is one limit, none stands for the others
+            if (TELEPLOT.protocol.isMetaDataType(dataType)) continue; // Limits and structures are not thinned: each sample is one limit or one structure, none stands for the others
             let entry = this.data[dataType];
             let count = entry.timestamps.length;
             let bytes = count * 8;
@@ -339,7 +437,7 @@ class Telemetry {
         let times = primary.timestamps;
         for (let dataType in this.data) {
             let entry = this.data[dataType];
-            if (entry === primary || !entry.timestamps.length || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) continue;
+            if (entry === primary || !entry.timestamps.length || TELEPLOT.protocol.isMetaDataType(dataType)) continue;
             let stamps = entry.timestamps, limit = 0, index = -1, keptHere = [];
             while (limit < stamps.length && stamps[limit] <= boundary) limit++; // Samples [0, limit) are concerned
             if (limit < 2) continue;
@@ -370,7 +468,7 @@ class Telemetry {
     forgetOldest(fraction=0.25) {
         let removed = 0;
         for (let dataType in this.data) {
-            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) continue; // (limits stay: see thinOldest)
+            if (TELEPLOT.protocol.isMetaDataType(dataType)) continue; // (limits and structures stay: see thinOldest)
             let entry = this.data[dataType];
             let count = Math.floor(entry.timestamps.length * fraction);
             if (count < 1) continue;
@@ -405,6 +503,7 @@ class Telemetry {
             // the window (a log does not: its lines are instants), and so does each threshold
             if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD) { this.__deleteOldThresholds(removeUpToIdx); continue; }
             if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT && this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) !== true) removeUpToIdx--;
+            if (dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM || dataType == TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_EDGES) removeUpToIdx--; // (the structure in force stays)
             // Removing from the front of a long array moves all of it: with a lot of data, wait until 1% of it is too old
             let stored = this.data[dataType].timestamps.length;
             if (removeUpToIdx < 1 || (stored >= 4096 && removeUpToIdx < stored * 0.01)) continue;

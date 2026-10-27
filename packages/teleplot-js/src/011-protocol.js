@@ -16,8 +16,8 @@ TELEPLOT.protocol = {
     TELEM_ATTR_STACK: 10,     // A text telemetry is a stack: its text is the path of what is running, a "/" between levels ("loop/plan/search": "stack" flag in text). A state like any other; a timeline draws a row per level
     // Commands (telecmd, doc/telecmd.md): what the page may write, or call
     TELEM_ATTR_WRITE: 11,     // {kind: "setting" | "action", type ("" = the type of the data, "number", "bool", "text", "xy", "xyz", "pose2d"), step, rate, hold, axes, confirm, longpress}
-    TELEM_ATTR_CHOICES: 12,   // The texts a setting can take: ["idle", "auto"...]
-    TELEM_ATTR_ARGS: 13,      // The arguments of an action, in order: [{name, type, optional, default, min, max, step, unit, choices, desc}]
+    // 12: retired (the texts a setting can take are a structure sample now: SECTION_TYPE_TELEM_DATA_ENUM)
+    TELEM_ATTR_ARGS: 13,      // The arguments of an action, in order: [{name, type, optional, default, min, max, step, unit, choices (the texts it can take: "enum=" in text), desc}]
     TELEM_ATTR_DESC: 14,      // A short description (a tooltip)
     TELEM_ATTR_TITLE: 15,     // The text of the button of an action (default: its name)
     TELEM_ATTR_PIXELS: 16,    // How the pixels of pictures of values (depth maps: 16-bit gray PNG, plain buffers) are read: {scale (value of a pixel = its number x scale, 1 by default), invalid (number of a pixel without measure, 0 by default; null: none), depth (false: not distances along the camera axis; true by default)}
@@ -60,6 +60,10 @@ TELEPLOT.protocol = {
     SECTION_TYPE_TELEM_DATA_THRESHOLD: 40,        // A limit of a number telemetry, from its timestamp on: operator, value, name, color. A limit of the same name replaces it; a value that is not a number removes it
     SECTION_TYPE_CALL: 41,         // Page to device: a call of an action, {TELEM_ID[16]} {CALL_ID[16]} {COUNT[8]} then {INDEX[8]} {VALUE} per argument
     SECTION_TYPE_CALL_ANSWER: 42,  // Device to page: {TELEM_ID[16]} {CALL_ID[16]} {STATUS[8]} {TEXT}: a call ran, runs or failed (CALL_ID_SETTING: a setting was refused)
+    // Structure of a telemetry (doc/graph.md): a sample holds from its timestamp until a sample with a newer timestamp; samples with
+    // the same timestamp are parts of one (merged). Stored as one text, the items separated by line feeds.
+    SECTION_TYPE_TELEM_DATA_ENUM: 43,  // The texts it can take: the choices of a setting, the states of a state machine, the nodes of a tree (paths, "/" between levels), each with an optional "#kind"
+    SECTION_TYPE_TELEM_DATA_EDGES: 44, // Its transitions: "from>to" or "from>to=event" (paths)
     CALL_STATUS_OK: 0,
     CALL_STATUS_ERROR: 1,
     CALL_STATUS_RUNNING: 2,
@@ -95,6 +99,17 @@ TELEPLOT.protocol.SHAPE_DATA_TYPES = [
     TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_TEXT,
     TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_SHAPE_LINE_WIDTH
 ];
+// Data types that describe the telemetry rather than being displayed: limits of its numbers, its structure. A telemetry that only
+// has these has nothing to display yet (Telemetry.hasContent), they are kept (not thinned, the one in force stays when the data
+// window moves on) and they never decide its view.
+TELEPLOT.protocol.META_DATA_TYPES = [
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM,
+    TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_EDGES
+];
+TELEPLOT.protocol.isMetaDataType = (dataType) => TELEPLOT.protocol.META_DATA_TYPES.includes(Number(dataType));
+// A name as written in a structure, a stack path or the fields of a line: "%2C" -> "," (the characters that separate fields are written %XX)
+TELEPLOT.protocol.decodeName = (text) => String(text).replace(/%([0-9A-Fa-f]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
 // Shape types that are flat: what a telemetry of these types is drawn in by default is a 2D view
 TELEPLOT.protocol.FLAT_SHAPE_TYPES = [3, 4, 5, 6, 7, 8];
 
@@ -140,6 +155,9 @@ TELEPLOT.protocol.getSectionTypeTelemDataDataCount = function(sectionType) {
             return 1;
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_THRESHOLD:
             return 4; // operator, value, name, color ("" when none)
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_ENUM:
+        case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_EDGES:
+            return 1; // The items, separated by line feeds
         case TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_FLOAT64:
             return 0; // Not a data type: a way to write the others
     }
