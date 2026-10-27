@@ -20,6 +20,7 @@ Back to the project: [README](../README.md).
 | Page | What it covers |
 | --- | --- |
 | [time-views.md](time-views.md) | States over time: timelines, stacks (what runs), marks on charts, ranges and thresholds, gauges |
+| [graph.md](graph.md) | Graphs: state machines and behavior trees, their structure over time, what runs in them (specification, not built yet) |
 | [3d.md](3d.md) | 3D shapes, points, point clouds and cameras; the 3D and image views |
 | [2d.md](2d.md) | 2D drawings, frames and pixel frames; the 2D view |
 | [depth.md](depth.md) | Depth maps: pictures of values, in colors and placed in 3D |
