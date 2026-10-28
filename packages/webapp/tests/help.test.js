@@ -399,7 +399,8 @@ test('helpVary nudges the numbers of a message, so that sending it again shows a
 test('helpLine writes the line of each way to send: the message from a terminal, the calls of the client of a language', () => {
     const text = (sender, example, shown) => helpLine(sender, example, shown).parts.map(p => p.text).join('');
     const number = HELP_EXAMPLES[0], dash = HELP_EXAMPLES.find(e => e.code.startsWith('DASH|')), clear = HELP_EXAMPLES.find(e => e.code.endsWith('|clr'));
-    assert.deepEqual(HELP_SENDERS.map(s => s.id), ['sh', 'py', 'cpp', 'ino']);
+    assert.deepEqual(HELP_SENDERS.map(s => s.id), ['raw', 'sh', 'py', 'cpp', 'ino']);
+    assert.equal(text('raw', number), 'temperature:25.3', 'Raw text: the line alone');
     assert.equal(text('sh', number), 'echo "temperature:25.3" | nc -u -w0 127.0.0.1 47269');
     assert.equal(text('py', number), 'tp.update("temperature", 25.3)');
     assert.equal(text('cpp', number), 'tp.update("temperature", 25.3);');

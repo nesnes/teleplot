@@ -14,13 +14,14 @@ Back to the project: [README](../README.md).
 | [sources.md](sources.md) | Where data comes from (server, serial port, page), times since boot, the Sources panel |
 | [server.md](server.md) | The Teleplot server: options, who can connect, messages, slow pages |
 | [files.md](files.md) | Data files (text, binary, CSV): export, import, the Export and import panel |
+| [reference.md](reference.md) | What every value does: telemetries, shapes, describing, commands, views and their options, dashboards, client calls, in every language (the Reference tab of the Help panel, generated) |
 
 ## What is displayed
 
 | Page | What it covers |
 | --- | --- |
 | [time-views.md](time-views.md) | States over time: timelines, stacks (what runs), marks on charts, ranges and thresholds, gauges |
-| [graph.md](graph.md) | Graphs: state machines and behavior trees, their structure over time, what runs in them (specification, not built yet) |
+| [graph.md](graph.md) | Graphs: state machines and behavior trees, their structure over time, what runs in them |
 | [3d.md](3d.md) | 3D shapes, points, point clouds and cameras; the 3D and image views |
 | [2d.md](2d.md) | 2D drawings, frames and pixel frames; the 2D view |
 | [depth.md](depth.md) | Depth maps: pictures of values, in colors and placed in 3D |

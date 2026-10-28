@@ -917,6 +917,7 @@ function helpSchema(kind) {
 // How the user sends data: lines of the text protocol from a terminal, or the calls of the client library of a language (the same calls in
 // C++, Python and Arduino: doc/cpp-client-api.md, doc/python-client-api.md). `setup` is what a program needs once, before the first line.
 const HELP_SENDERS = [
+    { id: "raw", name: "Raw text", sub: "the lines alone", setup: "", setupNote: "" },
     { id: "sh", name: "Terminal", sub: "UDP, one line", setup: "", setupNote: "Nothing to install: nc comes with Linux and macOS. The Teleplot server receives UDP port 47269 and passes it on to this page (see Sources)." },
     { id: "py", name: "Python", sub: "teleplot.py", setup: "from teleplot import Teleplot\ntp = Teleplot.instance()  # 127.0.0.1:47269", setupNote: "clients/python/teleplot.py: one file, Python 3.9+, nothing to install. What it is given is sent every 20 ms (and at the end of the program); call tp.poll() in your loop when the page can change something (settings, buttons)." },
     { id: "cpp", name: "C++", sub: "Teleplot.h", setup: "#include \"Teleplot.h\"\nTeleplot& tp = Teleplot::instance();  // 127.0.0.1:47269", setupNote: "clients/cpp/Teleplot.h: one header, C++17, Linux, macOS, Windows. What it is given is sent every 20 ms by itself; call tp.poll() in your loop when the page can change something (settings, buttons)." },
@@ -1282,6 +1283,7 @@ function helpLine(senderId, example, shown = helpFill(example.code), now = Date.
     const wrap = (before, parts, after) => ({ parts: [{ text: before, kind: "", msg: false }, ...parts, { text: after, kind: "", msg: false }], note: "" });
     // A message with double quotes in it (a text, a url) is put between single quotes
     const q = shown.includes("\"") ? "'" : "\"";
+    if (senderId == "raw") return { parts: message, note: "" }; // (what a device writes: on a serial port after >, in a file, in a UDP packet)
     if (senderId == "sh") return wrap("echo " + q, message, q + " | nc -u -w0 127.0.0.1 47269");
     const code = helpLib(senderId, example);
     if (code === null) {
@@ -1501,9 +1503,75 @@ function initComponent_panel_help(vue) {
             </div>
             <small>{{currentSender.setupNote}}</small>
         </details>`;
-
+
+    // The Reference tab (help-reference.js): an index of things by family, a page per thing (a drawing whose parts are named, then a
+    // row per value), and search. A row: its name in words, the call of the language (or of the line), what it does, its default;
+    // opened: the values, more, and an example to send like those of the gallery.
+    const refExampleHTML = (ex) => `${anatomyHTML(`shown(${ex})`, "[]")}${commandHTML(ex)}${resultHTML(`results[${ex}.code]`)}`;
+    const refRowHTML = (row, tagged) => `
+        <div class="ref-row" :class="{open: refOpen == ${row}.id, lit: refLit == ${row}.id}" :id="'ref-' + ${row}.id" @mouseenter="refLit = ${row}.id" @mouseleave="refLit = null">
+            <button class="ref-row-h" :aria-expanded="refOpen == ${row}.id" @click="toggleRow(${row}.id)">
+                <span class="ref-name">{{${row}.name}}<span v-if="${tagged}" class="ref-src" :class="${row}.src == 'view' ? 'view' : 'dev'" :title="${row}.src == 'view' ? 'An option of the view: Edit, or a DASH| line' : 'Sent by your device'">{{${row}.src == 'view' ? 'view' : 'device'}}</span></span>
+                <code class="ref-call" :class="{none: refCallOf(${row}).none}">{{refCallOf(${row}).none ? '—' : refCallOf(${row}).text}}</code>
+                <span class="ref-what">{{${row}.what}}</span><span class="ref-def">{{${row}.def}}</span>
+            </button>
+            <div v-if="refOpen == ${row}.id" class="ref-row-d">
+                <dl class="ref-dl">
+                    <template v-if="${row}.values"><dt>Values</dt><dd>{{${row}.values}}</dd></template>
+                    <template v-if="${row}.def"><dt>Default</dt><dd>{{${row}.def}}</dd></template>
+                    <template v-if="${row}.text && !textSender && !${row}.option"><dt>In a line</dt><dd><code>{{${row}.text}}</code><span v-if="${row}.alt"> (also {{${row}.alt}})</span></dd></template>
+                    <template v-if="${row}.alt && textSender"><dt>Long name</dt><dd><code>{{${row}.alt}}</code></dd></template>
+                    <template v-if="${row}.option"><dt>Where</dt><dd>In the page: Edit, select the view, Display. By your device: a DASH| line (below).</dd></template>
+                    <template v-if="refCallOf(${row}).none"><dt>{{currentSender.name}}</dt><dd>{{textSender ? 'Only in the clients (Python, C++, Arduino).' : 'No call for it: send the line as text.'}}</dd></template>
+                    <template v-if="${row}.note"><dt>Note</dt><dd>{{${row}.note}}</dd></template>
+                    <template v-if="refThingsOn(${row}).length"><dt>On</dt><dd><button v-for="t in refThingsOn(${row})" :key="t.id" class="ref-link" @click="openThing(t.id, ${row}.id)">{{t.title}}</button></dd></template>
+                </dl>
+                <div v-if="refExampleOf(${row})" class="help-msg ref-ex"><template v-for="ex in [refExampleOf(${row})]" :key="ex.code">${refExampleHTML("ex")}</template></div>
+            </div>
+        </div>`;
+    const referenceHTML = `
+              <template v-else>
+                <!-- Searching: the things and the values that match -->
+                <template v-if="query.trim()">
+                    <div v-if="refFound.things.length" class="ref-chips"><button v-for="t in refFound.things" :key="t.id" class="ref-chip" @click="openThing(t.id)">{{t.title}} <small>{{refFamilyById[t.family].title}}</small></button></div>
+                    <h3 v-if="refFound.rows.length" class="help-sec">{{refFound.rows.length}} {{refFound.rows.length > 1 ? 'values' : 'value'}}</h3>
+                    <div v-if="refFound.rows.length" class="ref-rows"><template v-for="row in refFound.rows.slice(0, 80)" :key="row.id">${refRowHTML("row", "false")}</template></div>
+                    <div v-if="!refFound.things.length && !refFound.rows.length" class="help-nothing"><b>Nothing about "{{query.trim()}}"</b><span>Try another word, or the Examples tab.</span></div>
+                </template>
+
+                <!-- A thing: its drawing, then what can be changed -->
+                <article v-else-if="refThing" class="help-sheet ref-page" :key="'r-' + refThing.id">
+                    <nav class="help-crumb"><button @click="refBack()" title="Back to all (Alt+←)"><i class="icofont-simple-left"></i> All</button><span class="help-crumb-place">{{refFamilyById[refThing.family].title}}</span><b v-if="scrolled" class="help-crumb-title">{{refThing.title}}</b></nav>
+                    <div class="help-head"><div><h2 class="help-title">{{refThing.title}}</h2><p class="help-sub">{{refThing.sub}}</p></div></div>
+                    <template v-if="refThing.matrix">
+                        <div class="ref-matrix-wrap"><table class="ref-matrix">
+                            <thead><tr><th></th><th v-for="s in refMatrixData.shapes" :key="s.id"><button class="ref-link" @click="openThing(s.id)">{{s.title}}</button></th></tr></thead>
+                            <tbody><tr v-for="r in refMatrixData.rows" :key="r.row.id"><th>{{r.row.name}}</th><td v-for="(c, i) in r.cells" :key="i"><button v-if="c" class="ref-dot" :title="refMatrixData.shapes[i].title + ': ' + r.row.name" @click="openThing(refMatrixData.shapes[i].id, r.row.id)">●</button></td></tr></tbody>
+                        </table></div>
+                        <p class="help-msg-note">A dot opens that value on the page of the shape.</p>
+                    </template>
+                    <template v-else>
+                        <div v-if="refThing.drawing" class="ref-drawing" v-html="refDrawingOf(refThing)" @click="onDrawing($event, true)" @mouseover="onDrawing($event, false)" @mouseleave="refLit = null"></div>
+                        <p v-if="refThing.mouse" class="help-msg-note ref-mouse">{{refThing.mouse}}</p>
+                        <div v-if="refThingExample" class="help-msg ref-ex"><template v-for="ex in [refThingExample]" :key="ex.code">${refExampleHTML("ex")}</template></div>
+                        <h3 class="help-sec">What can be changed · {{refThingRows.length}}<span v-if="refThing.view" class="ref-legend"><span class="ref-src dev">device</span> sends it <span class="ref-src view">view</span> option</span></h3>
+                        <div class="ref-rows"><template v-for="row in refThingRows" :key="row.id">${refRowHTML("row", "!!refThing.view")}</template></div>
+                    </template>
+                </article>
+
+                <!-- The index: things by family -->
+                <template v-else>
+                    <div class="ref-chips ref-filter"><button v-for="f in refFamilyChoices" :key="f.id" class="ref-chip" :class="{on: refFamily == f.id}" @click="refFamily = f.id">{{f.title}}</button></div>
+                    <template v-for="family in refFamilies" :key="family.id">
+                        <h3 class="help-fam"><b>{{family.title}}</b><span>{{family.sub}}</span></h3>
+                        <div class="ref-things"><button v-for="t in refThingsBy[family.id]" :key="t.id" class="ref-thing" @click="openThing(t.id)"><b>{{t.title}}</b><span>{{t.sub}}</span></button></div>
+                    </template>
+                    <p class="help-msg-note ref-doc">The same reference as a page: doc/reference.md.</p>
+                </template>
+              </template>`;
+
     const vueHTML = `
-        <div class="help-layout" @mouseup="onMouseUp" @keydown.alt.left.prevent="open && back()">
+        <div class="help-layout" @mouseup="onMouseUp" @keydown.alt.left.prevent="goBack()">
             <div class="help-tools">
                 <label class="help-search"><i class="icofont-search-1"></i>
                     <input type="search" v-model="query" placeholder="Find: map, button, lidar…" aria-label="Find in the help" spellcheck="false" @keydown.esc.stop="query = ''">
@@ -1513,9 +1581,15 @@ function initComponent_panel_help(vue) {
                         <button v-for="s in senders" :key="s.id" role="radio" :aria-checked="sender == s.id" :class="{on: sender == s.id}" :title="s.sub" @click="setSender(s.id)">{{s.name}}</button>
                     </div>
                 </div>
+                <!-- Examples (the gallery) or Reference (what every value does): the search and the language are for both -->
+                <div class="help-tabs" role="tablist" aria-label="Help">
+                    <button role="tab" :aria-selected="tab == 'examples'" :class="{on: tab == 'examples'}" @click="setTab('examples')">Examples<small v-if="query.trim()">{{found.tiles.length + found.concepts.length}}</small></button>
+                    <button role="tab" :aria-selected="tab == 'reference'" :class="{on: tab == 'reference'}" title="What every value does, for your language" @click="setTab('reference')">Reference<small v-if="query.trim()">{{refFound.things.length + refFound.rows.length}}</small></button>
+                </div>
             </div>
 
             <div class="help-scroll" ref="scroll" @scroll="onScroll">
+              <template v-if="tab == 'examples'">
                 <!-- Searching: the tiles and concepts that match -->
                 <template v-if="query.trim()">
                     <div v-if="found.tiles.length" class="help-gallery"><template v-for="tile in found.tiles" :key="tile.id">${tileHTML("tile")}</template></div>
@@ -1599,6 +1673,8 @@ function initComponent_panel_help(vue) {
                         </dl>
                     </details>
                 </template>
+              </template>
+              ${referenceHTML}
             </div>
 
             <!-- Try a message without a device: always at hand, at the bottom; its parts are named as it is typed -->
@@ -1647,7 +1723,7 @@ function initComponent_panel_help(vue) {
         .help-search input { flex: 1; min-width: 0; padding: 0.35rem 0; border: none; outline: none; background: none; color: var(--color-text); font: inherit; }
         .help-sender-pick { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--color-text-muted); }
         .help-seg { flex: 1; display: flex; padding: 0.15rem; border-radius: 0.55rem; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-        .help-seg button { flex: 1; padding: 0.25rem 0; border: none; border-radius: 0.45rem; background: none; color: var(--color-text-muted); font: inherit; font-weight: 600; cursor: pointer; }
+        .help-seg button { flex: 1 1 auto; padding: 0.25rem 0.25rem; white-space: nowrap; border: none; border-radius: 0.45rem; background: none; color: var(--color-text-muted); font: inherit; font-weight: 600; cursor: pointer; }
         .help-seg button.on { background: var(--color-bg-light); color: var(--color-text); box-shadow: 0 1px 3px var(--color-shadow); }
         .help-seg button:focus-visible { outline: 2px solid var(--color-primary); }
 
@@ -1799,6 +1875,63 @@ function initComponent_panel_help(vue) {
         .help-keys { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 0.8rem; align-items: center; margin: 0; }
         .help-keys dt, .help-keys dd { margin: 0; }
         .help-layout kbd { font: 0.9rem var(--help-mono); padding: 0.05rem 0.45rem; border: 1px solid var(--color-bg-dark); border-radius: 0.35rem; background: var(--color-bg-light); }
+        /* Examples | Reference */
+        .help-tabs { display: flex; gap: 0.2rem; margin: 0.1rem 0 -0.6rem; border-bottom: 1px solid var(--color-bg-dark); }
+        .help-tabs button { display: flex; align-items: baseline; gap: 0.35rem; padding: 0.3rem 0.7rem 0.35rem; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--color-text-muted); font: inherit; font-weight: 600; cursor: pointer; }
+        .help-tabs button.on { color: var(--color-text); border-bottom-color: var(--color-primary); }
+        .help-tabs button:focus-visible { outline: 2px solid var(--color-primary); }
+        .help-tabs small { display: inline; margin: 0; font-size: 0.78rem; font-weight: 400; }
+        .help-tools:has(.help-tabs) { padding-bottom: 0.9rem; }
+
+        /* The Reference: an index of things, a page per thing (drawing, rows), search */
+        .ref-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.4rem; }
+        .ref-chip { padding: 0.1rem 0.55rem; border: 1px solid var(--color-bg-dark); border-radius: 0.45rem; background: var(--color-bg-light); color: var(--color-text); font: inherit; font-size: 0.88rem; cursor: pointer; }
+        .ref-chip small { display: inline; margin: 0 0 0 0.2rem; font-size: 0.75rem; }
+        .ref-chip.on { border-color: var(--color-primary); color: var(--color-primary); font-weight: 600; }
+        .ref-chip:hover, .ref-chip:focus-visible { border-color: var(--color-primary); outline: none; }
+        .ref-things { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+        .ref-thing { display: flex; flex-direction: column; gap: 0.05rem; padding: 0.4rem 0.55rem; text-align: left; border: 1px solid var(--color-bg-dark); border-radius: 0.5rem; background: var(--color-bg-light); color: var(--color-text); font: inherit; cursor: pointer; }
+        .ref-thing span { font-size: 0.82rem; color: var(--color-text-muted); line-height: 1.3; }
+        .ref-thing:hover, .ref-thing:focus-visible { border-color: var(--color-primary); outline: none; }
+        .help-layout p.ref-doc { margin-top: 1rem; }
+        .ref-drawing { margin: 0.5rem 0 0.3rem; padding: 0.2rem; border-radius: 0.6rem; background: var(--color-bg-light); box-shadow: 0 0 3px var(--color-shadow); }
+        .ref-drawing svg { display: block; width: 100%; height: auto; }
+        .ref-part { font: 600 10px Verdana, Geneva, Tahoma, sans-serif; fill: var(--color-text); cursor: pointer; }
+        .ref-part:hover, .ref-part.on { fill: var(--color-primary); }
+        .help-layout p.ref-mouse { margin: 0.3rem 0 0.5rem; font-size: 0.85rem; color: var(--color-text-muted); }
+        .ref-ex { margin: 0.4rem 0 0.2rem; }
+        .ref-legend { display: flex; align-items: center; gap: 0.3rem; margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; }
+        .ref-rows { border: 1px solid var(--color-bg-dark); border-radius: 0.55rem; overflow: hidden; background: var(--color-bg-light); }
+        .ref-row + .ref-row { border-top: 1px solid var(--color-bg-dark); }
+        .ref-row-h { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.05rem 0.6rem; width: 100%; padding: 0.4rem 0.6rem; border: none; background: none; text-align: left; color: var(--color-text); font: inherit; cursor: pointer; }
+        .ref-row.lit .ref-row-h { box-shadow: inset 3px 0 0 var(--color-primary); }
+        .ref-row.open .ref-row-h, .ref-row.lit .ref-row-h, .ref-row-h:hover { background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
+        .ref-row-h:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+        .ref-name { display: flex; align-items: baseline; gap: 0.35rem; font-weight: 600; font-size: 0.92rem; }
+        .ref-call { font: 0.8rem/1.35 var(--help-mono); color: var(--hk-name); text-align: right; overflow-wrap: anywhere; max-width: 13rem; }
+        .ref-call.none { color: var(--color-text-muted); }
+        .ref-what { font-size: 0.84rem; color: var(--color-text-muted); line-height: 1.35; }
+        .ref-def { font-size: 0.78rem; color: var(--color-text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+        .ref-src { padding: 0 0.3rem; border-radius: 0.25rem; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+        .ref-src.dev { color: var(--hk-name); background: color-mix(in srgb, var(--hk-name) 13%, transparent); }
+        .ref-src.view { color: var(--hk-flags); background: color-mix(in srgb, var(--hk-flags) 13%, transparent); }
+        .ref-row-d { padding: 0.1rem 0.6rem 0.6rem; background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
+        .ref-dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.7rem; margin: 0 0 0.4rem; font-size: 0.86rem; line-height: 1.4; }
+        .ref-dl dt { color: var(--color-text-muted); }
+        .ref-dl dd { margin: 0; }
+        .ref-dl code { font: 0.8rem var(--help-mono); overflow-wrap: anywhere; }
+        .ref-link { padding: 0; margin-right: 0.6rem; border: none; background: none; color: var(--color-primary); font: inherit; cursor: pointer; }
+        .ref-link:hover { text-decoration: underline; }
+        .ref-row-d .help-msg { padding: 0.55rem 0.6rem 0.45rem; }
+        .ref-row-d .help-anat { font-size: 1rem; }
+        .ref-matrix-wrap { overflow-x: auto; margin-top: 0.5rem; }
+        .ref-matrix { border-collapse: collapse; font-size: 0.85rem; }
+        .ref-matrix th, .ref-matrix td { padding: 0.15rem 0.25rem; border-bottom: 1px solid var(--color-bg-dark); text-align: center; }
+        .ref-matrix tbody th { text-align: left; font-weight: 400; white-space: nowrap; }
+        .ref-matrix thead th { height: 6.5rem; vertical-align: bottom; }
+        .ref-matrix thead .ref-link { writing-mode: vertical-rl; transform: rotate(180deg); margin: 0; font-size: 0.8rem; }
+        .ref-dot { padding: 0 0.2rem; border: none; background: none; color: var(--color-success); cursor: pointer; font-size: 0.8rem; }
+        .ref-dot:hover { color: var(--color-primary); }
     `;
     // Add css to head
     {
@@ -1807,7 +1940,8 @@ function initComponent_panel_help(vue) {
         document.head.appendChild(elem);
     }
 
-    const SENDER_KEY = "teleplot.help.sender";
+    const SENDER_KEY = "teleplot.help.sender", TAB_KEY = "teleplot.help.tab";
+    const rememberedTab = () => { try { return localStorage.getItem(TAB_KEY); } catch (e) { return null; } };
     const remembered = () => { try { return localStorage.getItem(SENDER_KEY); } catch (e) { return null; } };
     const pictures = {}; // SVG of a picture, by kind (drawn once)
     const partsCache = new Map(); // Parts of a message, by message
@@ -1826,7 +1960,8 @@ function initComponent_panel_help(vue) {
             const ctx = Vue.inject("ctx");
             const editor = Vue.inject("editor");
             // Constants of the panel: not reactive
-            return { TP, ctx, editor, families: HELP_FAMILIES, concepts: HELP_CONCEPTS, senders: HELP_SENDERS, shortcuts: HELP_SHORTCUTS, tileById, familyById, tilesByFamily };
+            return { TP, ctx, editor, families: HELP_FAMILIES, concepts: HELP_CONCEPTS, senders: HELP_SENDERS, shortcuts: HELP_SHORTCUTS, tileById, familyById, tilesByFamily,
+                refFamilyById: byId(REF_FAMILIES), refThingsBy: Object.fromEntries(REF_FAMILIES.map((f) => [f.id, REF_THINGS.filter((t) => t.family == f.id)])) };
         },
         data() {
             return {
@@ -1841,6 +1976,11 @@ function initComponent_panel_help(vue) {
                 varied: {},      // The message shown for an example after it was sent: its values nudged (helpVary), so that sending again shows a change
                 copied: "",      // The text that was just copied (the button confirms for a moment)
                 now: Date.now(), // The time of the page, for the {now} of the messages (every second)
+                tab: rememberedTab() == "reference" ? "reference" : "examples", // Examples or Reference (remembered)
+                refThingId: null, // The page of the Reference shown (else its index)
+                refOpen: null,    // The row opened (its id)
+                refLit: null,     // The row pointed at, in the list or on the drawing
+                refFamily: "all", // The family the index shows
             }
         },
         computed: {
@@ -1861,6 +2001,15 @@ function initComponent_panel_help(vue) {
                 return this._viewOptions;
             },
             concept() { return this.open && this.open.concept ? conceptById[this.open.concept] : null; },
+            // The Reference
+            textSender() { return this.sender == "raw" || this.sender == "sh"; },
+            refThing() { return this.refThingId ? refThingById[this.refThingId] : null; },
+            refThingRows() { return this.refThing ? refRowsOf(this.refThing, this.refOptions()) : []; },
+            refThingExample() { return this.refThing ? refExample(this.refThing) : null; },
+            refMatrixData() { return refMatrix(); },
+            refFound() { return refSearch(this.query, this.sender, this.refOptions()); },
+            refFamilyChoices() { return [{ id: "all", title: "All" }, ...REF_FAMILIES]; },
+            refFamilies() { return REF_FAMILIES.filter((f) => this.refFamily == "all" || f.id == this.refFamily); },
             found() {
                 const terms = this.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
                 const match = (text) => terms.every((term) => text.includes(term));
@@ -1919,7 +2068,42 @@ function initComponent_panel_help(vue) {
                 const at = this.galleryScroll || 0;
                 this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = at; });
             },
-            onScroll() { const scrolled = !!this.open && this.$refs.scroll.scrollTop > 70; if (scrolled !== this.scrolled) this.scrolled = scrolled; },
+            onScroll() { const scrolled = (this.tab == "reference" ? !!this.refThing : !!this.open) && this.$refs.scroll.scrollTop > 70; if (scrolled !== this.scrolled) this.scrolled = scrolled; },
+            goBack() { if (this.tab == "reference") { if (this.refThing) this.refBack(); } else if (this.open) this.back(); },
+            setTab(tab) {
+                if (tab == this.tab) { if (tab == "reference" && this.refThing && !this.query.trim()) this.refBack(); return; }
+                this.tab = tab; this.hover = null; this.scrolled = false; this.top();
+                try { localStorage.setItem(TAB_KEY, tab); } catch (e) { /* (not remembered) */ }
+            },
+            // The Reference: a page, with a row opened (from a search, the matrix, a link)
+            refOptions() { return this._refOptions || (this._refOptions = refOptionRows(Vue.toRaw(this.TP))); },
+            openThing(id, rowId) {
+                if (!this.refThing) this.refIndexScroll = this.$refs.scroll ? this.$refs.scroll.scrollTop : 0;
+                this.tab = "reference"; this.query = ""; this.hover = null; this.refThingId = id; this.refOpen = rowId || null; this.refLit = rowId || null;
+                this.$nextTick(() => {
+                    const row = rowId && document.getElementById("ref-" + rowId);
+                    if (row && row.scrollIntoView) row.scrollIntoView({ block: "center" }); else this.top();
+                });
+            },
+            refBack() {
+                this.refThingId = null; this.refOpen = null; this.refLit = null; this.hover = null; this.scrolled = false;
+                const at = this.refIndexScroll || 0;
+                this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = at; });
+            },
+            toggleRow(id) { this.refOpen = this.refOpen == id ? null : id; this.hover = null; },
+            refCallOf(row) { return refCall(row, this.sender); },
+            refExampleOf(row) { return refExample(row); },
+            refThingsOn(row) { return refThingsOf(row.id).filter((t) => !this.refThing || t.id != this.refThing.id); },
+            refDrawingOf(thing) { return refDrawing(thing, this.refLit, Object.fromEntries(this.refThingRows.map((r) => [r.id, r.name]))); },
+            // A name on the drawing: pointed at, its row lights; clicked, it opens
+            onDrawing(event, click) {
+                const part = event.target.closest && event.target.closest("[data-ref-row]");
+                if (!part) return;
+                const id = part.getAttribute("data-ref-row");
+                if (!click) { if (this.refLit != id) this.refLit = id; return; }
+                this.refOpen = id;
+                this.$nextTick(() => { const row = document.getElementById("ref-" + id); if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" }); });
+            },
             onMouseUp(event) { if (event.button === 3 && this.open) { event.preventDefault(); this.back(); } }, // (the back button of a mouse)
             top() { this.$nextTick(() => { if (this.$refs.scroll) this.$refs.scroll.scrollTop = 0; }); },
             startSample() { startSampleData(this.TP, this.ctx); },

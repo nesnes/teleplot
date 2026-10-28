@@ -11,9 +11,18 @@ const ROOT = path.join(__dirname, '..', '..');
 // that what has no time of its own (dated when the client sends it, or when the page reads the text lines) comes after it on both sides
 const nowOf = (folder) => Number(fs.readFileSync(path.join(folder, 'now'), 'utf8'));
 
+// The tiles of the gallery, then a tile per page of the Reference (help-reference.js) with the examples written for it (those it takes
+// from the gallery are run with their tile)
 function loadHelp() {
-    const code = fs.readFileSync(path.join(ROOT, 'packages', 'webapp', 'components', 'panel-help.js'), 'utf8');
-    return new Function(code + '\nreturn { HELP_TILES, helpLib, helpFill };')();
+    const code = ['panel-help.js', 'help-reference.js'].map((f) => fs.readFileSync(path.join(ROOT, 'packages', 'webapp', 'components', f), 'utf8')).join('\n');
+    const { HELP_TILES, helpLib, helpFill, REF_THINGS, REF_ROWS } = new Function(code + '\nreturn { HELP_TILES, helpLib, helpFill, REF_THINGS, REF_ROWS };')();
+    const own = (item) => item && item.ex && !item.ex.from ? [item.ex] : [];
+    const pages = REF_THINGS.map((thing) => {
+        const examples = [], seen = new Set();
+        for (const ex of [...own(thing), ...thing.rows.flatMap((id) => own(REF_ROWS[id]))]) if (!seen.has(ex.code)) { seen.add(ex.code); examples.push(ex); }
+        return { id: 'ref_' + thing.id, examples };
+    }).filter((page) => page.examples.length);
+    return { HELP_TILES: [...HELP_TILES, ...pages], helpLib, helpFill };
 }
 
 // Per tile: the examples a device sends that this client has calls for, in order

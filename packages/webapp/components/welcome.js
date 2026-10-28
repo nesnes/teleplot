@@ -160,7 +160,7 @@ function initComponent_welcome(vue) {
         .welcome-sub > b { color: var(--color-text); }
         .welcome-error { color: var(--color-danger); }
         .welcome-seg { display: flex; padding: 0.15rem; margin-top: 0.2rem; border-radius: 0.55rem; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-        .welcome-seg button { flex: 1; padding: 0.2rem 0; border: none; border-radius: 0.45rem; background: none; color: var(--color-text-muted); font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+        .welcome-seg button { flex: 1 1 auto; padding: 0.2rem 0.3rem; white-space: nowrap; border: none; border-radius: 0.45rem; background: none; color: var(--color-text-muted); font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
         .welcome-seg button.on { background: var(--color-bg-light); color: var(--color-text); box-shadow: 0 1px 3px var(--color-shadow); }
         .welcome-cmd { display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.45rem 0.55rem; border-radius: 0.5rem; background: var(--color-bg); border: 1px solid var(--color-bg-dark); }
         .welcome-cmd code { flex: 1; min-width: 0; font: 0.88rem/1.4 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--color-text); }
