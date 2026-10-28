@@ -48,12 +48,26 @@ class ViewTelemetries extends Views {
     }
 
     // Follow a view label (TELEM_ATTR_VIEW_LABEL, "name,label" in the text protocol): from now on, new telemetries that have this label
-    // and that the view can display are added to it. The telemetries that already exist are not: add them yourself (addTelemetry).
-    followLabel(label) {
+    // and that the view can display are added to it. existing: the telemetries that already have it are added too, by the same rule
+    // (suitsTelemetry); otherwise they are not (add them yourself: addTelemetry).
+    followLabel(label, existing=false) {
         label = String(label || "");
         if(label === "" || this.options.followLabels.includes(label)) return false;
         this.options.followLabels.push(label);
+        if(existing) for(let id in TELEPLOT.datastore.telemetries) {
+            let telem = TELEPLOT.datastore.telemetries[id];
+            if(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) === label && this.suitsTelemetry(telem)) this.addTelemetry(telem.id);
+        }
         return true;
+    }
+    // The view labels the telemetries have, sorted (what a view can follow)
+    static knownLabels() {
+        let labels = new Set();
+        for(let id in TELEPLOT.datastore.telemetries) {
+            let label = TELEPLOT.datastore.telemetries[id].getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL);
+            if(typeof label === "string" && label !== "") labels.add(label);
+        }
+        return Array.from(labels).sort((a, b) => a.localeCompare(b));
     }
 
     unfollowLabel(label) {

@@ -466,3 +466,18 @@ test('the description of a telemetry (ATTR|name|desc=) is the tooltip of its nam
     // Binary: the same attribute
     assert.ok(T.protocol.TELEM_ATTR_DESC !== undefined);
 });
+
+test('following a label: existing telemetries of the label join the view on request, by the rule of those to come; the labels known', () => {
+    const T = loadTeleplot();
+    T.parseDataText({ data: 'left,motors:1\nright,motors:2\nstate,motors:on|t\nalone:3\nspeed,drive:4', timestamp: 0 });
+    T.__timers.run();
+    const name = (id) => T.datastore.getTelemetry(id).getAttribute(T.protocol.TELEM_ATTR_NAME);
+    const chart = T.view.createView('chart', []);
+    assert.equal(chart.followLabel('motors'), true);
+    assert.deepEqual(Array.from(chart.telemetryIdOrNameList), [], 'by default, only the telemetries to come');
+    const other = T.view.createView('chart', []);
+    assert.equal(other.followLabel('motors', true), true);
+    assert.deepEqual(Array.from(other.telemetryIdOrNameList).map(name).sort(), ['left', 'right', 'state'], 'existing: those the view takes (a chart: its numbers, and texts as marks), not the others');
+    assert.equal(other.followLabel('motors', true), false, 'already followed');
+    assert.deepEqual(T.view.ViewTelemetries.knownLabels(), ['drive', 'motors']);
+});

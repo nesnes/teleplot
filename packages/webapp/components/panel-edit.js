@@ -125,9 +125,18 @@ function initComponent_panel_edit(vue) {
                   <label class="edit-field">Title
                     <input type="text" class="edit-input" v-model="selected.options.title" placeholder="none" spellcheck="false">
                   </label>
+                  <div class="edit-section" title="The telemetries that have a followed label are added to this view, those received and those to come">Follows labels <span class="edit-count">{{ (selected.options.followLabels || []).length }}</span></div>
                   <div v-for="label in (selected.options.followLabels || [])" :key="label" class="edit-field" title="New telemetries that have this label are added to this view">
-                    <span><i class="icofont-tag"></i> Follows label <b>{{ label }}</b></span>
+                    <span class="edit-telem"><i class="icofont-tag"></i> {{ label }}</span>
                     <button class="edit-icon small" title="Stop following this label" aria-label="Stop following this label" @click="selected.unfollowLabel(label); tick++"><i class="icofont-close"></i></button>
+                  </div>
+                  <div class="edit-combo">
+                    <input type="search" class="edit-input edit-add" v-model="labelQuery" placeholder="＋ follow a label… (search, or type a new one)" spellcheck="false" autocomplete="off"
+                      @focus="labelOpen = true" @blur="labelOpen = false" @keydown.enter.prevent="followLabel(labelMatches.length ? labelMatches[0] : labelQuery.trim())" @keydown.esc.stop="labelOpen = false; $event.target.blur()">
+                    <div v-if="labelOpen" class="edit-combo-list">
+                      <div v-for="l in labelMatches.slice(0, 100)" :key="l" class="edit-combo-item" @mousedown.prevent="followLabel(l)"><i class="icofont-tag"></i> {{ l }}</div>
+                      <div v-if="!labelMatches.length" class="edit-hint edit-combo-empty">{{ labelQuery.trim() ? 'Enter: follow "' + labelQuery.trim() + '" (no telemetry has it yet).' : 'No other label: telemetries get one with name,label:value.' }}</div>
+                    </div>
                   </div>
                   <div class="edit-section">{{ selected.type == 'teleplot-chart' ? 'Series' : 'Telemetries' }} <span class="edit-count">{{ telemetries.length }}</span></div>
                   <div v-if="!telemetries.length" class="edit-hint">Nothing displayed yet. Add a telemetry below, or drop one from the Telemetries panel on the view.</div>
@@ -197,7 +206,7 @@ function initComponent_panel_edit(vue) {
             return { TP, ctx, editor };
         },
         data() {
-            return { tick: 0, tab: "data", addQuery: "", addOpen: false, dragFrom: -1, dropAt: -1, theme: document.documentElement.dataset["theme"] || "light" };
+            return { tick: 0, tab: "data", addQuery: "", addOpen: false, labelQuery: "", labelOpen: false, dragFrom: -1, dropAt: -1, theme: document.documentElement.dataset["theme"] || "light" };
         },
         computed: {
             dashboard() { return this.ctx.activeDashboard; },
@@ -242,6 +251,12 @@ function initComponent_panel_edit(vue) {
                 });
             },
             // Candidates containing every word of the search (case-insensitive)
+            labelMatches() { // The labels it does not follow yet, that match the search
+                const view = this.selected; this.tick;
+                if (!view || !view.options || !Array.isArray(view.options.followLabels)) return [];
+                const words = this.labelQuery.toLowerCase().split(/\s+/).filter(Boolean);
+                return this.TP.view.ViewTelemetries.knownLabels().filter((l) => !view.options.followLabels.includes(l) && words.every((w) => l.toLowerCase().includes(w)));
+            },
             matches() {
                 const words = this.addQuery.toLowerCase().split(/\s+/).filter(Boolean);
                 return this.candidates.filter((c) => { const n = c.name.toLowerCase(); return words.every((w) => n.includes(w)); });
@@ -312,6 +327,12 @@ function initComponent_panel_edit(vue) {
                 if (this.dragFrom >= 0) this.selected.moveTelemetry(this.dragFrom, index);
                 this.dragFrom = -1; this.dropAt = -1;
                 this.tick++;
+            },
+            followLabel(label) { // Followed, and the telemetries that already have it join the view (as those to come will)
+                if (!label) return;
+                this.selected.followLabel(label, true);
+                this.tick++;
+                this.labelQuery = "";
             },
             addTelemetry(id) {
                 this.selected.addTelemetry(Number(id));
