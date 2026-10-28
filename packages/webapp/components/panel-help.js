@@ -59,15 +59,12 @@ const HELP_TILES = [
           ["|t |log |stack |xy |xyz |pc |enum |edges", "Flags of other kinds of data: a text, a log line, a stack, a position, a point in space, a point cloud, the states and the transitions of a graph (their own tiles)."],
       ],
       examples: [
-        { title: "A value", code: "temperature:25.3", note: "Charted as it arrives, at the time it arrives. Send it again: a new point.", expect: { name: "temperature", type: "number" },
-          cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [");"]] },
+        { title: "A value", lib: "tp.update(\"temperature\", 25.3);", code: "temperature:25.3", note: "Charted as it arrives, at the time it arrives. Send it again: a new point.", expect: { name: "temperature", type: "number" } },
       ], more: [
-        { title: "A unit", code: "temperature:25.3§°C", note: "After §: displayed next to the value.", expect: { name: "temperature", type: "number", unit: "°C" },
-          cpp: [["Teleplot::instance().telemetry(\""], ["temperature", "name"], ["\").unit(\""], ["°C", "unit"], ["\").update("], ["25.3", "value"], [");"]] },
-        { title: "Your own time", code: "temperature:{now}:25.3", note: "Before the value, in milliseconds since 1970 (here the time of this page).", expect: { name: "temperature", type: "number", timestamp: 1627551892.437 },
-          cpp: [["Teleplot::instance().update(\""], ["temperature", "name"], ["\", "], ["25.3", "value"], [", Teleplot::ms("], ["timestamp", "time"], ["));  // ms since 1970, or any std::chrono time"]] },
-        { title: "Several values", code: "temperature:{now-200}:25.1;{now-100}:25.4;{now}:25.2", note: "Three samples in one message: nothing is lost between two sends.", expect: { name: "temperature", type: "number", samples: 3 } },
-        { title: "Start again", code: "temperature:25.3|clr", note: "Forgets what the telemetry held before this value.", expect: { name: "temperature", type: "number", samples: 1 } },
+        { title: "A unit", lib: "tp.telemetry(\"temperature\").unit(\"°C\").update(25.3);", code: "temperature:25.3§°C", note: "After §: displayed next to the value.", expect: { name: "temperature", type: "number", unit: "°C" } },
+        { title: "Your own time", lib: "tp.update(\"temperature\", 25.3, Teleplot::ms({now}));  // ms since 1970", code: "temperature:{now}:25.3", note: "Before the value, in milliseconds since 1970 (here the time of this page).", expect: { name: "temperature", type: "number", timestamp: 1627551892.437 } },
+        { title: "Several values", lib: "tp.update(\"temperature\", 25.1, Teleplot::ms({now-200}));\ntp.update(\"temperature\", 25.4, Teleplot::ms({now-100}));\ntp.update(\"temperature\", 25.2, Teleplot::ms({now}));", code: "temperature:{now-200}:25.1;{now-100}:25.4;{now}:25.2", note: "Three samples in one message: nothing is lost between two sends.", expect: { name: "temperature", type: "number", samples: 3 } },
+        { title: "Start again", lib: null, libNote: "No call for it: a client never asks the page to forget. Send this line as text, or use a new name.", code: "temperature:25.3|clr", note: "Forgets what the telemetry held before this value.", expect: { name: "temperature", type: "number", samples: 1 } },
       ],
       notes: [
           "One message is one line. Several lines can travel in one UDP packet, or one after the other on a serial port.",
@@ -82,10 +79,10 @@ const HELP_TILES = [
           ["a group", "One per telemetry. A slash is a character like the others: Robot/Motion is just a group name. To show a group in a dashboard of yours: see Choose where."],
       ],
       examples: [
-        { title: "A first one", code: "left,motors:0.4", note: "The label is motors: a chart titled motors.", expect: { name: "left", type: "number", label: "motors" } },
-        { title: "Same label", code: "right,motors:0.38", note: "This one joins the chart of the first.", expect: { name: "right", type: "number", label: "motors" } },
+        { title: "A first one", lib: "tp.telemetry(\"left\").label(\"motors\").update(0.4);", code: "left,motors:0.4", note: "The label is motors: a chart titled motors.", expect: { name: "left", type: "number", label: "motors" } },
+        { title: "Same label", lib: "tp.telemetry(\"right\").label(\"motors\").update(0.38);", code: "right,motors:0.38", note: "This one joins the chart of the first.", expect: { name: "right", type: "number", label: "motors" } },
       ], more: [
-        { title: "Kept apart", code: "debug:42|np", note: "The np flag: it stays out of the Live dashboard (it is in the Telemetries panel) until you add it to a view.", expect: { name: "debug", type: "number", autoplot: false } },
+        { title: "Kept apart", lib: "tp.telemetry(\"debug\").autoplot(false).update(42);", code: "debug:42|np", note: "The np flag: it stays out of the Live dashboard (it is in the Telemetries panel) until you add it to a view.", expect: { name: "debug", type: "number", autoplot: false } },
       ],
       notes: [
           "Every kind of message takes a label: numbers, texts, shapes, pictures.",
@@ -106,11 +103,11 @@ const HELP_TILES = [
           ["%XX", "In the values, % | , = : and line breaks are written %XX, their code in hexadecimal (%7C for |)."],
       ],
       examples: [
-        { title: "Its unit", code: "ATTR|tank|unit=L", note: "Liters: nothing shows yet, it describes the values to come.", expect: { name: "tank", attrs: { unit: "L" } } },
-        { title: "Its color", code: "ATTR|tank|color=teal", note: "Its curve and its value are teal.", expect: { name: "tank", attrs: { color: "teal" } } },
-        { title: "Its value", code: "tank:42.5", note: "The number itself: a teal curve, in liters.", expect: { name: "tank", type: "number" } },
+        { title: "Its unit", lib: "tp.telemetry(\"tank\").unit(\"L\");", code: "ATTR|tank|unit=L", note: "Liters: nothing shows yet, it describes the values to come.", expect: { name: "tank", attrs: { unit: "L" } } },
+        { title: "Its color", lib: "tp.telemetry(\"tank\").color(\"teal\");", code: "ATTR|tank|color=teal", note: "Its curve and its value are teal.", expect: { name: "tank", attrs: { color: "teal" } } },
+        { title: "Its value", lib: "tp.update(\"tank\", 42.5);", code: "tank:42.5", note: "The number itself: a teal curve, in liters.", expect: { name: "tank", type: "number" } },
       ], more: [
-        { title: "All at once", code: "ATTR|tank|unit=L|color=teal|desc=Water left in the tank", note: "Keys can come together on one line. Point at the name tank: its description.", expect: { name: "tank", attrs: { unit: "L", color: "teal", desc: "Water left in the tank" } } },
+        { title: "All at once", lib: "tp.telemetry(\"tank\").unit(\"L\").color(\"teal\").desc(\"Water left in the tank\");", code: "ATTR|tank|unit=L|color=teal|desc=Water left in the tank", note: "Keys can come together on one line. Point at the name tank: its description.", expect: { name: "tank", attrs: { unit: "L", color: "teal", desc: "Water left in the tank" } } },
       ],
       notes: [
           "A library repeats ATTR| lines every few seconds: a page opened later learns them too.",
@@ -129,13 +126,13 @@ const HELP_TILES = [
           ["%XX", "In limit names, % : ; | < > , are written %XX."],
       ],
       examples: [
-        { title: "Its range", code: "ATTR|battery|min=9|max=12.6", note: "From 9 to 12.6. Nothing shows yet: it describes the values to come.", expect: { name: "battery", range: [9, 12.6] } },
-        { title: "Its value", code: "battery:10.2§V", note: "The number itself: shown as a gauge.", expect: { name: "battery", type: "number", unit: "V" } },
-        { title: "Its limits", code: "TH|battery:low<10.5:empty<9.9,red", optional: true, note: "Past one, the value says which one, in its color.", expect: { name: "battery", thresholds: ["empty<9.9,red", "low<10.5"] } },
+        { title: "Its range", lib: "tp.telemetry(\"battery\").range(9, 12.6);", code: "ATTR|battery|min=9|max=12.6", note: "From 9 to 12.6. Nothing shows yet: it describes the values to come.", expect: { name: "battery", range: [9, 12.6] } },
+        { title: "Its value", lib: "tp.telemetry(\"battery\").unit(\"V\").update(10.2);", code: "battery:10.2§V", note: "The number itself: shown as a gauge.", expect: { name: "battery", type: "number", unit: "V" } },
+        { title: "Its limits", lib: "tp.telemetry(\"battery\").threshold(\"low\", Teleplot::Below, 10.5).threshold(\"empty\", Teleplot::Below, 9.9, \"red\");", code: "TH|battery:low<10.5:empty<9.9,red", optional: true, note: "Past one, the value says which one, in its color.", expect: { name: "battery", thresholds: ["empty<9.9,red", "low<10.5"] } },
       ], more: [
-        { title: "A limit that changes", code: "TH|battery:{now}:low<10.8", note: "From this time on; what was drawn before keeps the limit it had.", expect: { name: "battery", thresholds: ["low<10.8"] } },
-        { title: "Remove a limit", code: "TH|battery:empty<", note: "No value: empty is no longer a limit.", expect: { name: "battery", thresholds: [] } },
-        { title: "Only a maximum", code: "ATTR|load|max=100", note: "One end is enough for a chart's scale; a gauge needs both.", expect: { name: "load", range: [undefined, 100] } },
+        { title: "A limit that changes", lib: "tp.telemetry(\"battery\").at(Teleplot::ms({now})).threshold(\"low\", Teleplot::Below, 10.8);", code: "TH|battery:{now}:low<10.8", note: "From this time on; what was drawn before keeps the limit it had.", expect: { name: "battery", thresholds: ["low<10.8"] } },
+        { title: "Remove a limit", lib: "tp.telemetry(\"battery\").removeThreshold(\"empty\");", code: "TH|battery:empty<", note: "No value: empty is no longer a limit.", expect: { name: "battery", thresholds: [] } },
+        { title: "Only a maximum", lib: "tp.telemetry(\"load\").max(100);", code: "ATTR|load|max=100", note: "One end is enough for a chart's scale; a gauge needs both.", expect: { name: "load", range: [undefined, 100] } },
       ],
       notes: [
           "A number with both ends of its range, given before its first value, is a gauge on the Live dashboard; otherwise a chart.",
@@ -152,10 +149,10 @@ const HELP_TILES = [
           ["name:|t", "An empty text is a state too: nothing (a hole in a timeline)."],
       ],
       examples: [
-        { title: "A state", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "Shown as a value. Send again: the next state.", expect: { name: "mode", type: "text", text: "driving", logText: undefined, view: "values" } },
+        { title: "A state", lib: "tp.update(\"mode\", \"driving\");", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "Shown as a value. Send again: the next state.", expect: { name: "mode", type: "text", text: "driving", logText: undefined, view: "values" } },
       ], more: [
-        { title: "Your own time", code: "mode:{now}:turning|t", cycle: ["mode:{now}:parked|t", "mode:{now}:driving|t"], note: "With its own time, like a number.", expect: { name: "mode", type: "text", timestamp: 1627551892.437 } },
-        { title: "Nothing", code: "mode:|t", note: "An empty text: no state.", expect: { name: "mode", type: "text", text: "" } },
+        { title: "Your own time", lib: "tp.update(\"mode\", \"turning\", Teleplot::ms({now}));", code: "mode:{now}:turning|t", cycle: ["mode:{now}:parked|t", "mode:{now}:driving|t"], note: "With its own time, like a number.", expect: { name: "mode", type: "text", timestamp: 1627551892.437 } },
+        { title: "Nothing", lib: "tp.update(\"mode\", \"\");", code: "mode:|t", note: "An empty text: no state.", expect: { name: "mode", type: "text", text: "" } },
       ],
       notes: [
           "A state is a value on the Live dashboard, a band on a timeline, a mark on a chart.",
@@ -170,10 +167,10 @@ const HELP_TILES = [
           ["Serial port", "There, a line that does not start with > is a log line of the port; telemetry starts with >."],
       ],
       examples: [
-        { title: "A named log", code: "nav,logs:Path clear|log", cycle: ["nav,logs:Obstacle ahead|log", "nav,logs:Turning left|log"], note: "A line of the log of nav, label logs: a Log view titled logs.", expect: { name: "nav", type: "text", logText: true, view: "log", label: "logs" } },
-        { title: "The general log", code: ">:Motors armed", cycle: [">:Motors disarmed"], note: "A line starting with >: the general log.", expect: { log: true } },
+        { title: "A named log", lib: "tp.telemetry(\"nav\").label(\"logs\");\ntp.log(\"nav\", \"Path clear\");", code: "nav,logs:Path clear|log", cycle: ["nav,logs:Obstacle ahead|log", "nav,logs:Turning left|log"], note: "A line of the log of nav, label logs: a Log view titled logs.", expect: { name: "nav", type: "text", logText: true, view: "log", label: "logs" } },
+        { title: "The general log", lib: "tp.log(\"Motors armed\");  // the log named log", libSame: false, code: ">:Motors armed", cycle: [">:Motors disarmed"], note: "A line starting with >: the general log.", expect: { log: true } },
       ], more: [
-        { title: "Your own time", code: "nav:{now}:Battery low|log", cycle: ["nav:{now}:Battery charged|log"], note: "Its time first, as for a state.", expect: { name: "nav", type: "text", logText: true, timestamp: 1627551892.437 } },
+        { title: "Your own time", lib: "tp.log(\"nav\", \"Battery low\", Teleplot::ms({now}));", code: "nav:{now}:Battery low|log", cycle: ["nav:{now}:Battery charged|log"], note: "Its time first, as for a state.", expect: { name: "nav", type: "text", logText: true, timestamp: 1627551892.437 } },
       ],
       notes: [
           "Logs without a label share one Log view on the Live dashboard; with a label, several parts of a system are read together.",
@@ -190,8 +187,8 @@ const HELP_TILES = [
           ["another number", "A small line of its values; numbers=text shows them as states."],
       ],
       examples: [
-        { title: "The timeline", code: "DASH|Robot/States:timeline:mode", note: "A Timeline view States in the dashboard Robot, with a lane for mode.", expect: { dashboard: "Robot" } },
-        { title: "A state", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A band from now until the state changes. Send again: the next band.", expect: { name: "mode", type: "text", text: "driving" } },
+        { title: "The timeline", lib: "tp.dashboard(\"DASH|Robot/States:timeline:mode\");", code: "DASH|Robot/States:timeline:mode", note: "A Timeline view States in the dashboard Robot, with a lane for mode.", expect: { dashboard: "Robot" } },
+        { title: "A state", lib: "tp.update(\"mode\", \"driving\");", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A band from now until the state changes. Send again: the next band.", expect: { name: "mode", type: "text", text: "driving" } },
       ],
       notes: [
           "A timeline is asked for: in Edit mode (+), or with a DASH| line (see Your dashboard). Stacks get one by themselves.",
@@ -206,9 +203,9 @@ const HELP_TILES = [
           ["close marks", "Closer than a few pixels: folded into short ticks without text (zoom to read them)."],
       ],
       examples: [
-        { title: "The chart", code: "DASH|Robot/Drive:chart:velocity,mode", note: "A chart Drive in the dashboard Robot, for velocity and mode.", expect: { dashboard: "Robot" } },
-        { title: "The curve", code: "velocity:1.2", note: "A number: the curve.", expect: { name: "velocity", type: "number" } },
-        { title: "A state", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A mark where the state changes. Send again: a new mark.", expect: { name: "mode", type: "text", text: "driving" } },
+        { title: "The chart", lib: "tp.dashboard(\"DASH|Robot/Drive:chart:velocity,mode\");", code: "DASH|Robot/Drive:chart:velocity,mode", note: "A chart Drive in the dashboard Robot, for velocity and mode.", expect: { dashboard: "Robot" } },
+        { title: "The curve", lib: "tp.update(\"velocity\", 1.2);", code: "velocity:1.2", note: "A number: the curve.", expect: { name: "velocity", type: "number" } },
+        { title: "A state", lib: "tp.update(\"mode\", \"driving\");", code: "mode:driving|t", cycle: ["mode:turning|t", "mode:parked|t"], note: "A mark where the state changes. Send again: a new mark.", expect: { name: "mode", type: "text", text: "driving" } },
       ],
       notes: [
           "A text telemetry has no curve: in a chart it is drawn as marks. Drop one on a chart, or name it in a DASH| line.",
@@ -224,14 +221,14 @@ const HELP_TILES = [
           ["path=status", "A result: what ended so (failure, success...); a path without status runs."],
       ],
       examples: [
-        { title: "One level", code: "task:loop|stack", note: "loop is running.", expect: { name: "task", type: "text", text: "loop", stack: true, view: "timeline" } },
-        { title: "Deeper", code: "task:loop/plan|stack", note: "plan starts, in loop: loop stays one band, plan under it.", expect: { name: "task", type: "text", text: "loop/plan", stack: true } },
-        { title: "Deeper still", code: "task:loop/plan/search|stack", note: "As deep as needed. When search ends, send loop/plan again.", expect: { name: "task", type: "text", text: "loop/plan/search", stack: true } },
-        { title: "Nothing runs", code: "task:|stack", note: "An empty text.", expect: { name: "task", type: "text", text: "", stack: true } },
+        { title: "One level", lib: "tp.stack(\"task\", \"loop\");  // or Teleplot::Stack level(tp, \"task\", \"loop\"); while it lives", code: "task:loop|stack", note: "loop is running.", expect: { name: "task", type: "text", text: "loop", stack: true, view: "timeline" } },
+        { title: "Deeper", lib: "tp.stack(\"task\", \"loop/plan\");", code: "task:loop/plan|stack", note: "plan starts, in loop: loop stays one band, plan under it.", expect: { name: "task", type: "text", text: "loop/plan", stack: true } },
+        { title: "Deeper still", lib: "tp.stack(\"task\", \"loop/plan/search\");", code: "task:loop/plan/search|stack", note: "As deep as needed. When search ends, send loop/plan again.", expect: { name: "task", type: "text", text: "loop/plan/search", stack: true } },
+        { title: "Nothing runs", lib: "tp.stack(\"task\", \"\");", code: "task:|stack", note: "An empty text.", expect: { name: "task", type: "text", text: "", stack: true } },
       ], more: [
-        { title: "Your own time", code: "task:{now}.25:loop/plan|stack", note: "The time of the device, before the path.", expect: { name: "task", type: "text", timestamp: 1627551892.43725, stack: true } },
-        { title: "Two at once", code: "task:nav/follow,arm/idle|stack", note: "Two things run at the same time: a row each in the timeline, under what holds them.", expect: { name: "task", type: "text", text: "nav/follow,arm/idle", stack: true } },
-        { title: "Where you want", code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A timeline in the dashboard Robot; stackDepth: rows of full height before they get thinner.", expect: { dashboard: "Robot" } },
+        { title: "Your own time", lib: "tp.stack(\"task\", \"loop/plan\", Teleplot::ms({now}.25));", code: "task:{now}.25:loop/plan|stack", note: "The time of the device, before the path.", expect: { name: "task", type: "text", timestamp: 1627551892.43725, stack: true } },
+        { title: "Two at once", lib: "tp.stack(\"task\", \"nav/follow,arm/idle\");", code: "task:nav/follow,arm/idle|stack", note: "Two things run at the same time: a row each in the timeline, under what holds them.", expect: { name: "task", type: "text", text: "nav/follow,arm/idle", stack: true } },
+        { title: "Where you want", lib: "tp.dashboard(\"DASH|Robot/Tasks:timeline:task|stackDepth=4\");", code: "DASH|Robot/Tasks:timeline:task|stackDepth=4", note: "A timeline in the dashboard Robot; stackDepth: rows of full height before they get thinner.", expect: { dashboard: "Robot" } },
       ],
       notes: [
           "Send a message each time something starts or ends. Hover a band: what it is, what it runs in, for how long.",
@@ -247,12 +244,12 @@ const HELP_TILES = [
           ["|stack", "Where it is: the path of the current state (a |t state works too)."],
       ],
       examples: [
-        { title: "Its states", code: "mode:idle,mission/goto,mission/grasp,error|enum", note: "mission holds goto and grasp.", expect: { name: "mode", enum: ["idle", "mission", "mission/goto", "mission/grasp", "error"] } },
-        { title: "Its transitions", code: "mode:idle>mission=start,mission/goto>mission/grasp=arrived,mission>error=fault,error>idle=reset|edges", note: "Each with the event that makes it happen.", expect: { name: "mode", edges: 4 } },
-        { title: "Where it is", code: "mode:mission/goto|stack", cycle: ["mode:mission/grasp|stack", "mode:error|stack", "mode:idle|stack"], note: "The current state, in blue; the transition it came by, in bold. Send again: the next state.", expect: { name: "mode", type: "text", text: "mission/goto", stack: true } },
+        { title: "Its states", lib: "tp.telemetry(\"mode\").enumValues({\"idle\", \"mission/goto\", \"mission/grasp\", \"error\"});", ino: "static const char* const MODE_STATES[] = {\"idle\", \"mission/goto\", \"mission/grasp\", \"error\"};\ntp.telemetry(\"mode\").enumValues(MODE_STATES);", code: "mode:idle,mission/goto,mission/grasp,error|enum", note: "mission holds goto and grasp.", expect: { name: "mode", enum: ["idle", "mission", "mission/goto", "mission/grasp", "error"] } },
+        { title: "Its transitions", lib: "tp.telemetry(\"mode\").edges({\"idle>mission=start\", \"mission/goto>mission/grasp=arrived\", \"mission>error=fault\", \"error>idle=reset\"});", ino: "static const char* const MODE_EDGES[] = {\"idle>mission=start\", \"mission/goto>mission/grasp=arrived\", \"mission>error=fault\", \"error>idle=reset\"};\ntp.telemetry(\"mode\").edges(MODE_EDGES);", code: "mode:idle>mission=start,mission/goto>mission/grasp=arrived,mission>error=fault,error>idle=reset|edges", note: "Each with the event that makes it happen.", expect: { name: "mode", edges: 4 } },
+        { title: "Where it is", lib: "tp.stack(\"mode\", \"mission/goto\");", code: "mode:mission/goto|stack", cycle: ["mode:mission/grasp|stack", "mode:error|stack", "mode:idle|stack"], note: "The current state, in blue; the transition it came by, in bold. Send again: the next state.", expect: { name: "mode", type: "text", text: "mission/goto", stack: true } },
       ], more: [
-        { title: "A state with a kind", code: "mode:idle#waiting for a mission,mission/goto,mission/grasp,error|enum", note: "Words written above the state.", expect: { name: "mode", enum: ["idle", "mission", "mission/goto", "mission/grasp", "error"] } },
-        { title: "Where you want", code: "DASH|Robot/Mode:graph:mode|trail=false", note: "A graph view Mode in the dashboard Robot, without its recent path.", expect: { dashboard: "Robot" } },
+        { title: "A state with a kind", lib: "tp.telemetry(\"mode\").enumValues({\"idle#waiting for a mission\", \"mission/goto\", \"mission/grasp\", \"error\"});", ino: "static const char* const MODE_STATES[] = {\"idle#waiting for a mission\", \"mission/goto\", \"mission/grasp\", \"error\"};\ntp.telemetry(\"mode\").enumValues(MODE_STATES);", code: "mode:idle#waiting for a mission,mission/goto,mission/grasp,error|enum", note: "Words written above the state.", expect: { name: "mode", enum: ["idle", "mission", "mission/goto", "mission/grasp", "error"] } },
+        { title: "Where you want", lib: "tp.dashboard(\"DASH|Robot/Mode:graph:mode|trail=false\");", code: "DASH|Robot/Mode:graph:mode|trail=false", note: "A graph view Mode in the dashboard Robot, without its recent path.", expect: { dashboard: "Robot" } },
       ],
       notes: [
           "A graph view draws it on the Live dashboard: a state that holds others is a box; under it, the recent path (the last states, how long, the event between them).",
@@ -269,10 +266,10 @@ const HELP_TILES = [
           ["a,b", "Several paths in one tick. A tick too long for one message: several lines with the same time (yours) are one."],
       ],
       examples: [
-        { title: "Its nodes", code: "bt:root#fallback,root/patrol#sequence,root/patrol/battery_ok#condition,root/patrol/goto#action,root/dock#action|enum", note: "A fallback over a sequence and an action.", expect: { name: "bt", enum: ["root", "root/patrol", "root/patrol/battery_ok", "root/patrol/goto", "root/dock"] } },
-        { title: "A tick", code: "bt:root/patrol/battery_ok=success,root/patrol/goto|stack", cycle: ["bt:root/patrol/battery_ok=failure,root/patrol=failure,root/dock|stack"], note: "The check passed, goto runs. Send again: the check fails, the fallback docks.", expect: { name: "bt", type: "text", text: "root/patrol/battery_ok=success,root/patrol/goto", stack: true } },
+        { title: "Its nodes", lib: "tp.telemetry(\"bt\").enumValues({\"root#fallback\", \"root/patrol#sequence\", \"root/patrol/battery_ok#condition\", \"root/patrol/goto#action\", \"root/dock#action\"});", ino: "static const char* const BT_NODES[] = {\"root#fallback\", \"root/patrol#sequence\", \"root/patrol/battery_ok#condition\", \"root/patrol/goto#action\", \"root/dock#action\"};\ntp.telemetry(\"bt\").enumValues(BT_NODES);", code: "bt:root#fallback,root/patrol#sequence,root/patrol/battery_ok#condition,root/patrol/goto#action,root/dock#action|enum", note: "A fallback over a sequence and an action.", expect: { name: "bt", enum: ["root", "root/patrol", "root/patrol/battery_ok", "root/patrol/goto", "root/dock"] } },
+        { title: "A tick", lib: "tp.stack(\"bt\", \"root/patrol/battery_ok=success,root/patrol/goto\");", code: "bt:root/patrol/battery_ok=success,root/patrol/goto|stack", cycle: ["bt:root/patrol/battery_ok=failure,root/patrol=failure,root/dock|stack"], note: "The check passed, goto runs. Send again: the check fails, the fallback docks.", expect: { name: "bt", type: "text", text: "root/patrol/battery_ok=success,root/patrol/goto", stack: true } },
       ], more: [
-        { title: "A tick in two lines", code: "bt:{now}:root/patrol/battery_ok=success|stack", cycle: ["bt:{now}:root/patrol/goto|stack"], note: "With your time: two lines with the same time are one tick.", expect: { name: "bt", type: "text", stack: true } },
+        { title: "A tick in two lines", lib: "tp.stack(\"bt\", \"root/patrol/battery_ok=success\", Teleplot::ms({now}));  // the same time: one tick", code: "bt:{now}:root/patrol/battery_ok=success|stack", cycle: ["bt:{now}:root/patrol/goto|stack"], note: "With your time: two lines with the same time are one tick.", expect: { name: "bt", type: "text", stack: true } },
       ],
       notes: [
           "The active path (what runs, from the root down) is emphasized; a result off it is quieter.",
@@ -287,10 +284,10 @@ const HELP_TILES = [
           ["|xy |xyz", "The flags: a position on a map (2D view), a point in a 3D view, each with the trail of where it went."],
       ],
       examples: [
-        { title: "A position", code: "position:12.5:4.2|xy", note: "Send again: it moves, its trail follows.", expect: { name: "position", type: "2d", view: "2d" } },
+        { title: "A position", lib: "tp.update(\"position\", Teleplot::Number2D{12.5, 4.2});", py: "tp.update(\"position\", (12.5, 4.2))", code: "position:12.5:4.2|xy", note: "Send again: it moves, its trail follows.", expect: { name: "position", type: "2d", view: "2d" } },
       ], more: [
-        { title: "Your own time", code: "position:12.5:4.2:{now}|xy", note: "The time comes after the coordinates.", expect: { name: "position", type: "2d", timestamp: 1627551892.437 } },
-        { title: "In space", code: "drone:1.5:0.2:3|xyz", note: "Three numbers and xyz: a point in space.", expect: { name: "drone", type: "3d" } },
+        { title: "Your own time", lib: "tp.update(\"position\", Teleplot::Number2D{12.5, 4.2}, Teleplot::ms({now}));", py: "tp.update(\"position\", (12.5, 4.2), Teleplot.ms({now}))", code: "position:12.5:4.2:{now}|xy", note: "The time comes after the coordinates.", expect: { name: "position", type: "2d", timestamp: 1627551892.437 } },
+        { title: "In space", lib: "tp.update(\"drone\", Teleplot::Number3D{1.5, 0.2, 3});", py: "tp.update(\"drone\", (1.5, 0.2, 3))", code: "drone:1.5:0.2:3|xyz", note: "Three numbers and xyz: a point in space.", expect: { name: "drone", type: "3d" } },
       ],
       notes: [
           "The trail is the last positions received (option trailLength, 200 by default, 0 for none).",
@@ -319,14 +316,14 @@ const HELP_TILES = [
           ["|np |clr", "Flags, as for numbers."],
       ],
       examples: [
-        { title: "A rectangle", code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue", note: "Turned by 0.5 rad. The label field puts the shapes on one map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
-        { title: "A line", code: "2D|route,field:S:line:PT:0:0:1:0.5:2:2:3:2:C:green", note: "Through these points. Add LW:0.2 for a real width.", expect: { name: "route", shape: "line", label: "field", view: "2d" } },
-        { title: "Move it", code: "2D|robot:P:1.5:1:R:0.8", note: "Later: only what changes. Send again: it moves.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
+        { title: "A rectangle", lib: "tp.telemetry(\"robot\").label(\"field\").shape(Teleplot::Rect).position(1.2, 0.8).yaw(0.5).size(0.3, 0.2).color(\"blue\");", code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue", note: "Turned by 0.5 rad. The label field puts the shapes on one map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
+        { title: "A line", lib: "std::vector<Teleplot::Number2D> route = {{0, 0}, {1, 0.5}, {2, 2}, {3, 2}};\ntp.telemetry(\"route\").label(\"field\").shape(Teleplot::Line).points(route).color(\"green\");", py: "route = [(0, 0), (1, 0.5), (2, 2), (3, 2)]\ntp.telemetry(\"route\").label(\"field\").shape(Teleplot.Line).points(route).color(\"green\")", ino: "static const Teleplot::Number2D ROUTE[] = {{0, 0}, {1, 0.5}, {2, 2}, {3, 2}};\ntp.telemetry(\"route\").label(\"field\").shape(Teleplot::Line).points(ROUTE, 4).color(\"green\");", code: "2D|route,field:S:line:PT:0:0:1:0.5:2:2:3:2:C:green", note: "Through these points. Add LW:0.2 for a real width.", expect: { name: "route", shape: "line", label: "field", view: "2d" } },
+        { title: "Move it", lib: "tp.telemetry(\"robot\").position(1.5, 1).yaw(0.8);", code: "2D|robot:P:1.5:1:R:0.8", note: "Later: only what changes. Send again: it moves.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
       ], more: [
-        { title: "A surface", code: "2D|zone,field:S:polygon:PT:0:0:1:0:1:1:0:1:C:red:O:0.3", note: "A polygon is the surface inside its points.", expect: { name: "zone", shape: "polygon", label: "field", view: "2d" } },
-        { title: "A circle", code: "2D|spot,field:S:circle:P:2.5:1.5:RA:0.3:C:orange:O:0.5", note: "RA: its radius.", expect: { name: "spot", shape: "circle", position: [2.5, 1.5, 0], label: "field", view: "2d" } },
-        { title: "An arrow", code: "2D|wind,field:S:arrow:P:0.5:2:V:0.8:0.3:C:purple", note: "From its position, along V.", expect: { name: "wind", shape: "arrow", position: [0.5, 2, 0], label: "field", view: "2d" } },
-        { title: "A text", code: "2D|goal,field:S:text:P:3:2:TX:\"Goal A\"", note: "TS:0.2 would give it a height in your units.", expect: { name: "goal", shape: "text", position: [3, 2, 0], label: "field", view: "2d" } },
+        { title: "A surface", lib: "std::vector<Teleplot::Number2D> zone = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};\ntp.telemetry(\"zone\").label(\"field\").shape(Teleplot::Polygon).points(zone).color(\"red\").opacity(0.3);", py: "zone = [(0, 0), (1, 0), (1, 1), (0, 1)]\ntp.telemetry(\"zone\").label(\"field\").shape(Teleplot.Polygon).points(zone).color(\"red\").opacity(0.3)", ino: "static const Teleplot::Number2D ZONE[] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};\ntp.telemetry(\"zone\").label(\"field\").shape(Teleplot::Polygon).points(ZONE, 4).color(\"red\").opacity(0.3);", code: "2D|zone,field:S:polygon:PT:0:0:1:0:1:1:0:1:C:red:O:0.3", note: "A polygon is the surface inside its points.", expect: { name: "zone", shape: "polygon", label: "field", view: "2d" } },
+        { title: "A circle", lib: "tp.telemetry(\"spot\").label(\"field\").shape(Teleplot::Circle).position(2.5, 1.5).size(0.6).color(\"orange\").opacity(0.5);  // 0.6 across", code: "2D|spot,field:S:circle:P:2.5:1.5:RA:0.3:C:orange:O:0.5", note: "RA: its radius.", expect: { name: "spot", shape: "circle", position: [2.5, 1.5, 0], label: "field", view: "2d" } },
+        { title: "An arrow", lib: "tp.telemetry(\"wind\").label(\"field\").shape(Teleplot::Arrow).position(0.5, 2).vector(0.8, 0.3).color(\"purple\");", code: "2D|wind,field:S:arrow:P:0.5:2:V:0.8:0.3:C:purple", note: "From its position, along V.", expect: { name: "wind", shape: "arrow", position: [0.5, 2, 0], label: "field", view: "2d" } },
+        { title: "A text", lib: "tp.telemetry(\"goal\").label(\"field\").shape(Teleplot::Text).position(3, 2).text(\"Goal A\");", code: "2D|goal,field:S:text:P:3:2:TX:\"Goal A\"", note: "TS:0.2 would give it a height in your units.", expect: { name: "goal", shape: "text", position: [3, 2, 0], label: "field", view: "2d" } },
       ],
       notes: [
           "Send everything once, then only what changes.",
@@ -354,14 +351,14 @@ const HELP_TILES = [
           ["|np |clr", "Flags, as for numbers."],
       ],
       examples: [
-        { title: "A box", code: "3D|box,scene:S:cube:P:1:0:0.5:SC:1:1:1:C:orange", note: "1 along x, y and z.", expect: { name: "box", shape: "cube", position: [1, 0, 0.5], label: "scene" } },
-        { title: "A ball", code: "3D|ball,scene:S:sphere:P:0:1:0.3:RA:0.3:C:red:O:0.5", note: "RA: radius. The same label puts both shapes in one scene.", expect: { name: "ball", shape: "sphere", position: [0, 1, 0.3], label: "scene" } },
-        { title: "Move it", code: "3D|box:P:2:0:0.5:R:0:0:1.57", note: "Later: only the position and the rotation. Send again: it moves.", expect: { name: "box", shape: "cube", position: [2, 0, 0.5] } },
+        { title: "A box", lib: "tp.telemetry(\"box\").label(\"scene\").shape(Teleplot::Cube).position(1, 0, 0.5).size(1, 1, 1).color(\"orange\");", code: "3D|box,scene:S:cube:P:1:0:0.5:SC:1:1:1:C:orange", note: "1 along x, y and z.", expect: { name: "box", shape: "cube", position: [1, 0, 0.5], label: "scene" } },
+        { title: "A ball", lib: "tp.telemetry(\"ball\").label(\"scene\").shape(Teleplot::Sphere).position(0, 1, 0.3).size(0.6).color(\"red\").opacity(0.5);  // 0.6 across", code: "3D|ball,scene:S:sphere:P:0:1:0.3:RA:0.3:C:red:O:0.5", note: "RA: radius. The same label puts both shapes in one scene.", expect: { name: "ball", shape: "sphere", position: [0, 1, 0.3], label: "scene" } },
+        { title: "Move it", lib: "tp.telemetry(\"box\").position(2, 0, 0.5).rotation(0, 0, 1.57);", code: "3D|box:P:2:0:0.5:R:0:0:1.57", note: "Later: only the position and the rotation. Send again: it moves.", expect: { name: "box", shape: "cube", position: [2, 0, 0.5] } },
       ], more: [
-        { title: "A cylinder", code: "3D|can,scene:S:cylinder:P:-1:0:0.4:SC:0.4:0.4:0.8:C:green", note: "It stands along z: 0.4 across, 0.8 high.", expect: { name: "can", shape: "cylinder", position: [-1, 0, 0.4], label: "scene" } },
-        { title: "A quaternion", code: "3D|box:Q:0:0:0.38:0.92", cycle: ["3D|box:Q:0:0:0.71:0.71", "3D|box:Q:0:0:0:1"], note: "45° around z; send again: 90°, then not turned.", expect: { name: "box", quaternion: [0.92, 0, 0, 0.38] } },
-        { title: "Stretch it", code: "3D|box:SC:2:1:0.5", cycle: ["3D|box:SC:1:1:1"], note: "2 long, 1 wide, 0.5 high.", expect: { name: "box", size: [2, 1, 0.5] } },
-        { title: "Two times in a line", code: "3D|ball:{now-500}:P:0:1:0.3;{now}:P:0:1.5:0.3", note: "Where it was, then where it is.", expect: { name: "ball", position: [0, 1.5, 0.3] } },
+        { title: "A cylinder", lib: "tp.telemetry(\"can\").label(\"scene\").shape(Teleplot::Cylinder).position(-1, 0, 0.4).size(0.4, 0.4, 0.8).color(\"green\");", code: "3D|can,scene:S:cylinder:P:-1:0:0.4:SC:0.4:0.4:0.8:C:green", note: "It stands along z: 0.4 across, 0.8 high.", expect: { name: "can", shape: "cylinder", position: [-1, 0, 0.4], label: "scene" } },
+        { title: "A quaternion", lib: "tp.telemetry(\"box\").quaternion(0.92, 0, 0, 0.38);  // w first", code: "3D|box:Q:0:0:0.38:0.92", cycle: ["3D|box:Q:0:0:0.71:0.71", "3D|box:Q:0:0:0:1"], note: "45° around z; send again: 90°, then not turned.", expect: { name: "box", quaternion: [0.92, 0, 0, 0.38] } },
+        { title: "Stretch it", lib: "tp.telemetry(\"box\").size(2, 1, 0.5);", code: "3D|box:SC:2:1:0.5", cycle: ["3D|box:SC:1:1:1"], note: "2 long, 1 wide, 0.5 high.", expect: { name: "box", size: [2, 1, 0.5] } },
+        { title: "Two times in a line", lib: "tp.telemetry(\"ball\").at(Teleplot::ms({now-500})).position(0, 1, 0.3);\ntp.telemetry(\"ball\").at(Teleplot::ms({now})).position(0, 1.5, 0.3);", code: "3D|ball:{now-500}:P:0:1:0.3;{now}:P:0:1.5:0.3", note: "Where it was, then where it is.", expect: { name: "ball", position: [0, 1.5, 0.3] } },
       ],
       notes: [
           "Send everything once, then only what changes.",
@@ -377,10 +374,10 @@ const HELP_TILES = [
           ["P, R, Q, C, O, F", "Moved, turned, colored like any shape (see A 3D scene)."],
       ],
       examples: [
-        { title: "The pawn", code: "3D|pawn,scene:S:stl:U:\"media/pawn.stl\":P:0:0:0:C:orange", note: "1 high: media/pawn.stl comes with this page.", expect: { name: "pawn", shape: "stl", url: "media/pawn.stl", label: "scene" } },
-        { title: "Move it", code: "3D|pawn:P:1:0.5:0:R:0:0:0.8", note: "Later: only where it is. Send again: it moves.", expect: { name: "pawn", shape: "stl", position: [1, 0.5, 0] } },
+        { title: "The pawn", lib: "tp.telemetry(\"pawn\").label(\"scene\").stl(\"media/pawn.stl\").position(0, 0, 0).color(\"orange\");", code: "3D|pawn,scene:S:stl:U:\"media/pawn.stl\":P:0:0:0:C:orange", note: "1 high: media/pawn.stl comes with this page.", expect: { name: "pawn", shape: "stl", url: "media/pawn.stl", label: "scene" } },
+        { title: "Move it", lib: "tp.telemetry(\"pawn\").position(1, 0.5, 0).rotation(0, 0, 0.8);", code: "3D|pawn:P:1:0.5:0:R:0:0:0.8", note: "Later: only where it is. Send again: it moves.", expect: { name: "pawn", shape: "stl", position: [1, 0.5, 0] } },
       ], more: [
-        { title: "Its size", code: "3D|pawn:SC:2", cycle: ["3D|pawn:SC:1"], note: "Twice as big; send again: back to its size.", expect: { name: "pawn", size: [2, 2, 2] } },
+        { title: "Its size", lib: "tp.telemetry(\"pawn\").size(2);", code: "3D|pawn:SC:2", cycle: ["3D|pawn:SC:1"], note: "Twice as big; send again: back to its size.", expect: { name: "pawn", size: [2, 2, 2] } },
       ],
       notes: [
           "A file that cannot be loaded is not drawn, and the view says why in a note at its bottom.",
@@ -394,10 +391,10 @@ const HELP_TILES = [
           ["what can have one", "Shapes, points (2D|name:F:robot on an xy telemetry), point clouds, cameras."],
       ],
       examples: [
-        { title: "The body", code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue", note: "The body of a robot, on a map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
-        { title: "An arrow on it", code: "2D|heading,field:S:arrow:V:0.4:0:F:robot", note: "In the frame of the robot: it starts at the robot and points where it looks.", expect: { name: "heading", shape: "arrow", label: "field", frame: "robot", view: "2d" } },
-        { title: "A bumper", code: "2D|bumper,field:S:rect:P:0.2:0:SC:0.05:0.25:C:black:F:robot", note: "0.2 in front of the robot.", expect: { name: "bumper", shape: "rect", label: "field", frame: "robot", view: "2d" } },
-        { title: "Move the body", code: "2D|robot:P:1.5:1:R:0.8", note: "The arrow and the bumper follow. Send again: it moves again.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
+        { title: "The body", lib: "tp.telemetry(\"robot\").label(\"field\").shape(Teleplot::Rect).position(1.2, 0.8).yaw(0.5).size(0.3, 0.2).color(\"blue\");", code: "2D|robot,field:S:rect:P:1.2:0.8:R:0.5:SC:0.3:0.2:C:blue", note: "The body of a robot, on a map.", expect: { name: "robot", shape: "rect", position: [1.2, 0.8, 0], label: "field", view: "2d" } },
+        { title: "An arrow on it", lib: "tp.telemetry(\"heading\").label(\"field\").frame(\"robot\").shape(Teleplot::Arrow).vector(0.4, 0);", code: "2D|heading,field:S:arrow:V:0.4:0:F:robot", note: "In the frame of the robot: it starts at the robot and points where it looks.", expect: { name: "heading", shape: "arrow", label: "field", frame: "robot", view: "2d" } },
+        { title: "A bumper", lib: "tp.telemetry(\"bumper\").label(\"field\").frame(\"robot\").shape(Teleplot::Rect).position(0.2, 0).size(0.05, 0.25).color(\"black\");", code: "2D|bumper,field:S:rect:P:0.2:0:SC:0.05:0.25:C:black:F:robot", note: "0.2 in front of the robot.", expect: { name: "bumper", shape: "rect", label: "field", frame: "robot", view: "2d" } },
+        { title: "Move the body", lib: "tp.telemetry(\"robot\").position(1.5, 1).yaw(0.8);", code: "2D|robot:P:1.5:1:R:0.8", note: "The arrow and the bumper follow. Send again: it moves again.", expect: { name: "robot", shape: "rect", position: [1.5, 1, 0] } },
       ],
       notes: [
           "Describe the parts once, then move only the body.",
@@ -414,12 +411,12 @@ const HELP_TILES = [
           ["3D|name:P…:R…", "Where the sensor is, sent like the position of a shape under the same name."],
       ],
       examples: [
-        { title: "A scan", code: "lidar:1:0:0;0.7:0.7:0;0:1:0;-0.7:0.7:0;-1:0:0|pc", note: "Five points. Send again: a new scan.", expect: { name: "lidar", cloud: 5, view: "2d" } },
-        { title: "The sensor", code: "3D|lidar:P:1:2:0.2:R:0:0:1.57", note: "Where it is: the scan moves with it.", expect: { name: "lidar", position: [1, 2, 0.2] } },
+        { title: "A scan", lib: "std::vector<Teleplot::Number3D> scan = {{1, 0, 0}, {0.7, 0.7, 0}, {0, 1, 0}, {-0.7, 0.7, 0}, {-1, 0, 0}};\ntp.telemetry(\"lidar\").cloud(scan);", py: "scan = [(1, 0, 0), (0.7, 0.7, 0), (0, 1, 0), (-0.7, 0.7, 0), (-1, 0, 0)]\ntp.telemetry(\"lidar\").cloud(scan)", ino: "static const Teleplot::Number3D SCAN[] = {{1, 0, 0}, {0.7, 0.7, 0}, {0, 1, 0}, {-0.7, 0.7, 0}, {-1, 0, 0}};\ntp.telemetry(\"lidar\").cloud(SCAN, 5);", code: "lidar:1:0:0;0.7:0.7:0;0:1:0;-0.7:0.7:0;-1:0:0|pc", note: "Five points. Send again: a new scan.", expect: { name: "lidar", cloud: 5, view: "2d" } },
+        { title: "The sensor", lib: "tp.telemetry(\"lidar\").position(1, 2, 0.2).rotation(0, 0, 1.57);", code: "3D|lidar:P:1:2:0.2:R:0:0:1.57", note: "Where it is: the scan moves with it.", expect: { name: "lidar", position: [1, 2, 0.2] } },
       ], more: [
-        { title: "Intensities", code: "lidar:1:0:0:0.9;0.7:0.7:0:0.4;0:1:0:0.1|pc", note: "A fourth value per point.", expect: { name: "lidar", cloud: 3, intensity: true, view: "2d" } },
-        { title: "Colors", code: "lidar:1:0:0:255:0:0;0:1:0:0:200:0;-1:0:0:0:0:255|pc", note: "r:g:b after x:y:z, from 0 to 255: a red, a green and a blue point.", expect: { name: "lidar", cloud: 3, view: "2d" } },
-        { title: "Your own time", code: "lidar:{now};1:0:0;0:1:0|pc", note: "A field alone, first.", expect: { name: "lidar", cloud: 2, view: "2d" } },
+        { title: "Intensities", lib: "std::vector<Teleplot::Number3D> scan = {{1, 0, 0}, {0.7, 0.7, 0}, {0, 1, 0}};\nstd::vector<float> intensities = {0.9f, 0.4f, 0.1f};\ntp.telemetry(\"lidar\").cloud(scan, intensities);", py: "scan = [(1, 0, 0), (0.7, 0.7, 0), (0, 1, 0)]\ntp.telemetry(\"lidar\").cloud(scan, [0.9, 0.4, 0.1])", ino: "static const Teleplot::Number3D SCAN[] = {{1, 0, 0}, {0.7, 0.7, 0}, {0, 1, 0}};\nstatic const float INTENSITIES[] = {0.9, 0.4, 0.1};\ntp.telemetry(\"lidar\").cloud(SCAN, 3, INTENSITIES);", code: "lidar:1:0:0:0.9;0.7:0.7:0:0.4;0:1:0:0.1|pc", note: "A fourth value per point.", expect: { name: "lidar", cloud: 3, intensity: true, view: "2d" } },
+        { title: "Colors", lib: "std::vector<Teleplot::Number3D> scan = {{1, 0, 0}, {0, 1, 0}, {-1, 0, 0}};\nstd::vector<Teleplot::Rgb> colors = {{255, 0, 0}, {0, 200, 0}, {0, 0, 255}};\ntp.telemetry(\"lidar\").cloud(scan, colors);", py: "scan = [(1, 0, 0), (0, 1, 0), (-1, 0, 0)]\ntp.telemetry(\"lidar\").cloud(scan, None, [(255, 0, 0), (0, 200, 0), (0, 0, 255)])", ino: "static const Teleplot::Number3D SCAN[] = {{1, 0, 0}, {0, 1, 0}, {-1, 0, 0}};\nstatic const Teleplot::Rgb COLORS[] = {{255, 0, 0}, {0, 200, 0}, {0, 0, 255}};\ntp.telemetry(\"lidar\").cloud(SCAN, 3, COLORS);", code: "lidar:1:0:0:255:0:0;0:1:0:0:200:0;-1:0:0:0:0:255|pc", note: "r:g:b after x:y:z, from 0 to 255: a red, a green and a blue point.", expect: { name: "lidar", cloud: 3, view: "2d" } },
+        { title: "Your own time", lib: "std::vector<Teleplot::Number3D> scan = {{1, 0, 0}, {0, 1, 0}};\ntp.telemetry(\"lidar\").at(Teleplot::ms({now})).cloud(scan);", py: "scan = [(1, 0, 0), (0, 1, 0)]\ntp.telemetry(\"lidar\").at(Teleplot.ms({now})).cloud(scan)", ino: "static const Teleplot::Number3D SCAN[] = {{1, 0, 0}, {0, 1, 0}};\ntp.telemetry(\"lidar\").at(Teleplot::ms({now})).cloud(SCAN, 2);", code: "lidar:{now};1:0:0;0:1:0|pc", note: "A field alone, first.", expect: { name: "lidar", cloud: 2, view: "2d" } },
       ],
       notes: [
           "Each scan is drawn where the sensor was at its time.",
@@ -435,11 +432,11 @@ const HELP_TILES = [
           ["|np |clr", "Flags, as for numbers."],
       ],
       examples: [
-        { title: "A picture", code: HELP_PICTURE, note: "64 x 48 pixels: a cone on a floor.", expect: { name: "camera", image: true, label: "scene" } },
+        { title: "A picture", lib: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Png, png);  // png: the bytes of a .png file", ino: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Png, png, sizeof(png));  // png: the bytes of a .png file, in a const uint8_t array", code: HELP_PICTURE, note: "64 x 48 pixels: a cone on a floor.", expect: { name: "camera", image: true, label: "scene" } },
       ], more: [
-        { title: "A JPEG", code: HELP_PICTURE_JPG, note: "The same picture as a JPEG, the usual format of a camera.", expect: { name: "camera", image: "jpg", label: "scene" } },
-        { title: "In parts: 1 of 2", code: HELP_PICTURE_PARTS[0], note: "The first half of the base64: nothing shows yet.", expect: { name: "camera", part: [1, 2] } },
-        { title: "In parts: 2 of 2", code: HELP_PICTURE_PARTS[1], note: "The second half: the picture is complete and shows. The other order works too.", expect: { name: "camera", part: [2, 2] } },
+        { title: "A JPEG", lib: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Jpeg, jpg);  // jpg: the bytes of a .jpg file", ino: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Jpeg, jpg, sizeof(jpg));  // jpg: the bytes of a .jpg file, in a const uint8_t array", code: HELP_PICTURE_JPG, note: "The same picture as a JPEG, the usual format of a camera.", expect: { name: "camera", image: "jpg", label: "scene" } },
+        { title: "In parts: 1 of 2", lib: null, libNote: "The client cuts a picture in parts by itself when it is too big for one message.", code: HELP_PICTURE_PARTS[0], note: "The first half of the base64: nothing shows yet.", expect: { name: "camera", part: [1, 2] } },
+        { title: "In parts: 2 of 2", lib: null, libNote: "The client cuts a picture in parts by itself when it is too big for one message.", code: HELP_PICTURE_PARTS[1], note: "The second half: the picture is complete and shows. The other order works too.", expect: { name: "camera", part: [2, 2] } },
       ],
       notes: [
           "An image view shows the picture of the time shown: drag on a chart, the picture follows.",
@@ -459,13 +456,13 @@ const HELP_TILES = [
           ["time:, i/n:, |np |clr", "As for a picture."],
       ],
       examples: [
-        { title: "How to read it", code: "ATTR|depth|scale=0.001|unit=m", note: "Its numbers are millimetres: shown in metres.", expect: { name: "depth", scale: 0.001 } },
-        { title: "A depth map", code: HELP_DEPTH, note: "8 x 6 pixels: a box 1.5 m away in front of a wall at 4 m; the top left pixel has no measure. Point at the picture: the value of a pixel.", expect: { name: "depth", image: "raw", label: "scene" } },
-        { title: "Its camera", code: "3D|depth:K:6:6:3.5:2.5:8:6:P:0:0:1", note: "1 m above the ground, looking along x. Send again: it moves.", expect: { name: "depth" } },
-        { title: "A wall to compare", code: "3D|wall,scene:S:cube:P:4.06:0:1.5:SC:0.1:6:2.6:C:gray:O:0.3", note: "A 3D view of scene shows the camera and each pixel where it was measured: the top rows lie on the face of this wall, 4 m away.", expect: { name: "wall", shape: "cube", label: "scene" } },
+        { title: "How to read it", lib: "tp.telemetry(\"depth\").unit(\"m\").depthMap(0.001);", code: "ATTR|depth|scale=0.001|unit=m", note: "Its numbers are millimetres: shown in metres.", expect: { name: "depth", scale: 0.001 } },
+        { title: "A depth map", lib: "tp.telemetry(\"depth\").label(\"scene\").image(Teleplot::Raw, raw);  // raw: 8 bytes of header, then the numbers", ino: "tp.telemetry(\"depth\").label(\"scene\").image(Teleplot::Raw, raw, sizeof(raw));  // raw: 8 bytes of header, then the numbers, in a const uint8_t array", code: HELP_DEPTH, note: "8 x 6 pixels: a box 1.5 m away in front of a wall at 4 m; the top left pixel has no measure. Point at the picture: the value of a pixel.", expect: { name: "depth", image: "raw", label: "scene" } },
+        { title: "Its camera", lib: "tp.telemetry(\"depth\").intrinsics(8, 6, 6, 6, 3.5, 2.5).position(0, 0, 1);  // width, height, fx, fy, cx, cy", code: "3D|depth:K:6:6:3.5:2.5:8:6:P:0:0:1", note: "1 m above the ground, looking along x. Send again: it moves.", expect: { name: "depth" } },
+        { title: "A wall to compare", lib: "tp.telemetry(\"wall\").label(\"scene\").shape(Teleplot::Cube).position(4.06, 0, 1.5).size(0.1, 6, 2.6).color(\"gray\").opacity(0.3);", code: "3D|wall,scene:S:cube:P:4.06:0:1.5:SC:0.1:6:2.6:C:gray:O:0.3", note: "A 3D view of scene shows the camera and each pixel where it was measured: the top rows lie on the face of this wall, 4 m away.", expect: { name: "wall", shape: "cube", label: "scene" } },
       ], more: [
-        { title: "Every number a measure", code: "ATTR|depth|nodata=", note: "0 is a value too: the top left pixel shows.", expect: { name: "depth", scale: 1 } },
-        { title: "Not distances", code: "ATTR|thermal|scale=0.01|unit=°C|depth=0", note: "A thermal camera in hundredths of a degree: colored, never placed in 3D.", expect: { name: "thermal", scale: 0.01 } },
+        { title: "Every number a measure", lib: "tp.telemetry(\"depth\").depthMap(0.001, NAN);  // NAN: no number means \"no measure\"", py: "tp.telemetry(\"depth\").depthMap(0.001, float(\"nan\"))  # nan: no number means \"no measure\"", code: "ATTR|depth|nodata=", note: "0 is a value too: the top left pixel shows.", expect: { name: "depth", scale: 1 } },
+        { title: "Not distances", lib: "tp.telemetry(\"thermal\").unit(\"°C\").pixelValues(0.01);", code: "ATTR|thermal|scale=0.01|unit=°C|depth=0", note: "A thermal camera in hundredths of a degree: colored, never placed in 3D.", expect: { name: "thermal", scale: 0.01 } },
       ],
       notes: [
           "The page decodes the numbers itself (a browser only gives 8 bits of a picture) and keeps what was received as it is.",
@@ -480,9 +477,9 @@ const HELP_TILES = [
           ["any 2D shape", "rect, circle, line, polygon, arrow, text (see A map)."],
       ],
       examples: [
-        { title: "The picture", code: HELP_PICTURE, note: "A cone on a floor, 64 x 48 pixels.", expect: { name: "camera", image: true, label: "scene" } },
-        { title: "A box", code: "2D|found:S:rect:P:44:26:SC:22:28:C:red:O:0.25:LW:1:FPX:camera", note: "Around the cone: its center at pixel 44, 26, 22 wide and 28 high.", expect: { name: "found", shape: "rect", pixels: "camera" } },
-        { title: "A text", code: "2D|found.name:S:text:P:33:8:TX:\"cone 0.92\":C:red:FPX:camera", note: "TS:6 would make it 6 pixels high.", expect: { name: "found.name", shape: "text", pixels: "camera" } },
+        { title: "The picture", lib: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Png, png);  // png: the bytes of a .png file", ino: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Png, png, sizeof(png));  // png: the bytes of a .png file, in a const uint8_t array", code: HELP_PICTURE, note: "A cone on a floor, 64 x 48 pixels.", expect: { name: "camera", image: true, label: "scene" } },
+        { title: "A box", lib: "tp.telemetry(\"found\").pixelsOf(\"camera\").shape(Teleplot::Rect).position(44, 26).size(22, 28).color(\"red\").opacity(0.25).lineWidth(1);", code: "2D|found:S:rect:P:44:26:SC:22:28:C:red:O:0.25:LW:1:FPX:camera", note: "Around the cone: its center at pixel 44, 26, 22 wide and 28 high.", expect: { name: "found", shape: "rect", pixels: "camera" } },
+        { title: "A text", lib: "tp.telemetry(\"found.name\").pixelsOf(\"camera\").shape(Teleplot::Text).position(33, 8).text(\"cone 0.92\").color(\"red\");", code: "2D|found.name:S:text:P:33:8:TX:\"cone 0.92\":C:red:FPX:camera", note: "TS:6 would make it 6 pixels high.", expect: { name: "found.name", shape: "text", pixels: "camera" } },
       ],
       notes: [
           "What a detector finds is drawn on the picture with no knowledge of the camera; the picture itself is never changed.",
@@ -499,10 +496,10 @@ const HELP_TILES = [
           ["intrinsics, distortion", "The long names of K and DC; position, rotation, quaternion, scale too."],
       ],
       examples: [
-        { title: "The picture", code: HELP_PICTURE, note: "In the scene scene (its label).", expect: { name: "camera", image: true, label: "scene" } },
-        { title: "Something to see", code: "3D|marker,scene:S:sphere:P:3:0:0.3:RA:0.3:C:red", note: "3 in front of the camera.", expect: { name: "marker", shape: "sphere", position: [3, 0, 0.3], label: "scene" } },
-        { title: "The camera", code: "3D|camera:K:55:55:32:24:64:48:P:0:0:1", note: "1 above the ground: the sphere is drawn over the picture. Send again: it moves.", expect: { name: "camera", camera: true } },
-        { title: "Its lens", code: "3D|camera:DC:-0.26:0.07:0:0:0", note: "What is drawn follows the curves of the picture.", expect: { name: "camera", distortion: [-0.26, 0.07, 0, 0, 0] } },
+        { title: "The picture", lib: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Png, png);  // png: the bytes of a .png file", ino: "tp.telemetry(\"camera\").label(\"scene\").image(Teleplot::Png, png, sizeof(png));  // png: the bytes of a .png file, in a const uint8_t array", code: HELP_PICTURE, note: "In the scene scene (its label).", expect: { name: "camera", image: true, label: "scene" } },
+        { title: "Something to see", lib: "tp.telemetry(\"marker\").label(\"scene\").shape(Teleplot::Sphere).position(3, 0, 0.3).size(0.6).color(\"red\");", code: "3D|marker,scene:S:sphere:P:3:0:0.3:RA:0.3:C:red", note: "3 in front of the camera.", expect: { name: "marker", shape: "sphere", position: [3, 0, 0.3], label: "scene" } },
+        { title: "The camera", lib: "tp.telemetry(\"camera\").intrinsics(64, 48, 55, 55, 32, 24).position(0, 0, 1);  // width, height, fx, fy, cx, cy", code: "3D|camera:K:55:55:32:24:64:48:P:0:0:1", note: "1 above the ground: the sphere is drawn over the picture. Send again: it moves.", expect: { name: "camera", camera: true } },
+        { title: "Its lens", lib: "tp.telemetry(\"camera\").distortion(-0.26, 0.07, 0, 0, 0);", code: "3D|camera:DC:-0.26:0.07:0:0:0", note: "What is drawn follows the curves of the picture.", expect: { name: "camera", distortion: [-0.26, 0.07, 0, 0, 0] } },
       ],
       notes: [
           "The picture is never undistorted: what is drawn over it is bent like the lens bends the scene.",
@@ -518,11 +515,11 @@ const HELP_TILES = [
           ["2D|picture or 3D|picture", "A shape line under the name of an image telemetry (not a camera) gives it a place: it shows its own pictures there."],
       ],
       examples: [
-        { title: "A floor plan", code: "2D|plan,field:S:rect:P:2:1.5:SC:4:3:C:white:T:url:\"media/floor-plan.png\"", note: "4 by 3, under what the map shows. media/floor-plan.png comes with this page.", expect: { name: "plan", shape: "rect", texture: "url", label: "field", view: "2d" } },
-        { title: "A place for pictures", code: "2D|snapshot,field:S:rect:P:3.2:2.4:SC:0.8:0.6", note: "Named after the image telemetry to come. Send again: it moves.", expect: { name: "snapshot", shape: "rect", label: "field", view: "2d" } },
-        { title: "The picture", code: HELP_SNAPSHOT, note: "It shows in its rectangle; zoom on a chart: the picture of that time.", expect: { name: "snapshot", image: true, label: "field", view: "2d" } },
+        { title: "A floor plan", lib: "tp.telemetry(\"plan\").label(\"field\").shape(Teleplot::Rect).position(2, 1.5).size(4, 3).color(\"white\").texture(\"media/floor-plan.png\");", code: "2D|plan,field:S:rect:P:2:1.5:SC:4:3:C:white:T:url:\"media/floor-plan.png\"", note: "4 by 3, under what the map shows. media/floor-plan.png comes with this page.", expect: { name: "plan", shape: "rect", texture: "url", label: "field", view: "2d" } },
+        { title: "A place for pictures", lib: "tp.telemetry(\"snapshot\").label(\"field\").shape(Teleplot::Rect).position(3.2, 2.4).size(0.8, 0.6);", code: "2D|snapshot,field:S:rect:P:3.2:2.4:SC:0.8:0.6", note: "Named after the image telemetry to come. Send again: it moves.", expect: { name: "snapshot", shape: "rect", label: "field", view: "2d" } },
+        { title: "The picture", lib: "tp.telemetry(\"snapshot\").label(\"field\").image(Teleplot::Png, png);  // png: the bytes of a .png file", ino: "tp.telemetry(\"snapshot\").label(\"field\").image(Teleplot::Png, png, sizeof(png));  // png: the bytes of a .png file, in a const uint8_t array", code: HELP_SNAPSHOT, note: "It shows in its rectangle; zoom on a chart: the picture of that time.", expect: { name: "snapshot", image: true, label: "field", view: "2d" } },
       ], more: [
-        { title: "On a 3D screen", code: "3D|screen,scene:S:cube:P:0:0:0.6:SC:1.6:0.05:1.2:C:white:T:telem:snapshot", note: "A box 1.6 wide, 0.05 thin, 1.2 high, showing the pictures of snapshot.", expect: { name: "screen", shape: "cube", texture: "telem", label: "scene" } },
+        { title: "On a 3D screen", lib: "tp.telemetry(\"screen\").label(\"scene\").shape(Teleplot::Cube).position(0, 0, 0.6).size(1.6, 0.05, 1.2).color(\"white\").textureFrom(\"snapshot\");", code: "3D|screen,scene:S:cube:P:0:0:0.6:SC:1.6:0.05:1.2:C:white:T:telem:snapshot", note: "A box 1.6 wide, 0.05 thin, 1.2 high, showing the pictures of snapshot.", expect: { name: "screen", shape: "cube", texture: "telem", label: "scene" } },
       ],
       notes: [
           "Give the rectangle the proportions of the picture: it is stretched to it, never cut.",
@@ -545,15 +542,15 @@ const HELP_TILES = [
           ["%XX", "In names and values, % / : , | = and line breaks are written %XX."],
       ],
       examples: [
-        { title: "A chart", code: "DASH|Robot/Power:chart:voltage|w=4|h=3", note: "Power, in the dashboard Robot, 4 columns wide and 3 high.", expect: { dashboard: "Robot" } },
-        { title: "Its data", code: "voltage:12.1", note: "A number for it.", expect: { name: "voltage", type: "number" } },
-        { title: "A log in a layout", code: "DASH|Robot/side/Events:log:events|maxLines=50", note: "The layout side is created on the way.", expect: { dashboard: "Robot" } },
-        { title: "Its data", code: "events:Started|log", cycle: ["events:Docked|log", "events:Charging|log"], note: "A log line for it.", expect: { name: "events", type: "text", logText: true } },
+        { title: "A chart", lib: "tp.dashboard(\"DASH|Robot/Power:chart:voltage|w=4|h=3\");", code: "DASH|Robot/Power:chart:voltage|w=4|h=3", note: "Power, in the dashboard Robot, 4 columns wide and 3 high.", expect: { dashboard: "Robot" } },
+        { title: "Its data", lib: "tp.update(\"voltage\", 12.1);", code: "voltage:12.1", note: "A number for it.", expect: { name: "voltage", type: "number" } },
+        { title: "A log in a layout", lib: "tp.dashboard(\"DASH|Robot/side/Events:log:events|maxLines=50\");", code: "DASH|Robot/side/Events:log:events|maxLines=50", note: "The layout side is created on the way.", expect: { dashboard: "Robot" } },
+        { title: "Its data", lib: "tp.log(\"events\", \"Started\");", code: "events:Started|log", cycle: ["events:Docked|log", "events:Charging|log"], note: "A log line for it.", expect: { name: "events", type: "text", logText: true } },
       ], more: [
-        { title: "A layout", code: "DASH|Robot/side:column", note: "Layouts have lines too. Lines can come in any order.", expect: { dashboard: "Robot" } },
-        { title: "Follow a label", code: "DASH|Robot/Motors:chart|follow=motors", note: "The telemetries labelled motors join the chart.", expect: { dashboard: "Robot" } },
-        { title: "A time of its own", code: "DASH|Robot/Camera:image:camera|time=Live", note: "Stays on the latest picture while the others zoom.", expect: { dashboard: "Robot" } },
-        { title: "Remove a view", code: "DASH|Robot/Power:none", note: "The type none.", expect: { dashboard: "Robot" } },
+        { title: "A layout", lib: "tp.dashboard(\"DASH|Robot/side:column\");", code: "DASH|Robot/side:column", note: "Layouts have lines too. Lines can come in any order.", expect: { dashboard: "Robot" } },
+        { title: "Follow a label", lib: "tp.dashboard(\"DASH|Robot/Motors:chart|follow=motors\");", code: "DASH|Robot/Motors:chart|follow=motors", note: "The telemetries labelled motors join the chart.", expect: { dashboard: "Robot" } },
+        { title: "A time of its own", lib: "tp.dashboard(\"DASH|Robot/Camera:image:camera|time=Live\");", code: "DASH|Robot/Camera:image:camera|time=Live", note: "Stays on the latest picture while the others zoom.", expect: { dashboard: "Robot" } },
+        { title: "Remove a view", lib: "tp.dashboard(\"DASH|Robot/Power:none\");", code: "DASH|Robot/Power:none", note: "The type none.", expect: { dashboard: "Robot" } },
       ],
       notes: [
           "A device can send its dashboard again and again: a line only does something when it changed, and what you changed by hand stays.",
@@ -569,12 +566,12 @@ const HELP_TILES = [
           ["what it takes", "Everything it can display: a chart numbers and texts (as marks), a values view anything with a value, a log texts, a timeline texts and numbers, a 2D or 3D view what has a place, an image view a picture and what is drawn over it."],
       ],
       examples: [
-        { title: "A view for a group", code: "DASH|Robot/Speeds:chart|follow=motion", note: "A chart Speeds in the dashboard Robot. Its name is yours: only the group ties it to the data.", expect: { dashboard: "Robot" } },
-        { title: "A telemetry of the group", code: "speed,motion:1.2", note: "speed is in the group motion: it joins the chart (and the Live dashboard).", expect: { name: "speed", type: "number", label: "motion" } },
-        { title: "Another one", code: "accel,motion:0.3", note: "Same group: the same chart.", expect: { name: "accel", type: "number", label: "motion" } },
+        { title: "A view for a group", lib: "tp.dashboard(\"DASH|Robot/Speeds:chart|follow=motion\");", code: "DASH|Robot/Speeds:chart|follow=motion", note: "A chart Speeds in the dashboard Robot. Its name is yours: only the group ties it to the data.", expect: { dashboard: "Robot" } },
+        { title: "A telemetry of the group", lib: "tp.telemetry(\"speed\").label(\"motion\").update(1.2);", code: "speed,motion:1.2", note: "speed is in the group motion: it joins the chart (and the Live dashboard).", expect: { name: "speed", type: "number", label: "motion" } },
+        { title: "Another one", lib: "tp.telemetry(\"accel\").label(\"motion\").update(0.3);", code: "accel,motion:0.3", note: "Same group: the same chart.", expect: { name: "accel", type: "number", label: "motion" } },
       ], more: [
-        { title: "A text of the group", code: "mode,motion:driving|t", cycle: ["mode,motion:turning|t", "mode,motion:parked|t"], note: "A text of the group: the chart marks where it changes.", expect: { name: "mode", type: "text", label: "motion" } },
-        { title: "A values view", code: "DASH|Robot/State:values|follow=motion", note: "Takes speed, accel and mode, already there: a view also takes what came before it.", expect: { dashboard: "Robot" } },
+        { title: "A text of the group", lib: "tp.telemetry(\"mode\").label(\"motion\").update(\"driving\");", code: "mode,motion:driving|t", cycle: ["mode,motion:turning|t", "mode,motion:parked|t"], note: "A text of the group: the chart marks where it changes.", expect: { name: "mode", type: "text", label: "motion" } },
+        { title: "A values view", lib: "tp.dashboard(\"DASH|Robot/State:values|follow=motion\");", code: "DASH|Robot/State:values|follow=motion", note: "Takes speed, accel and mode, already there: a view also takes what came before it.", expect: { dashboard: "Robot" } },
       ],
       notes: [
           "Data or dashboard first: the result is the same.",
@@ -595,18 +592,18 @@ const HELP_TILES = [
           ["ACK|name:err:why", "Your device refuses (optional: its value already tells)."],
       ],
       examples: [
-        { title: "A slider", code: "ATTR|speed_limit|write|min=0|max=2|step=0.1", note: "A number from 0 to 2. The page sends speed_limit:1.5.", expect: { name: "speed_limit", write: "number" } },
-        { title: "Its value", code: "speed_limit:1.2", note: "Your device keeps sending it, as any value.", expect: { name: "speed_limit", type: "number" } },
+        { title: "A slider", lib: "float speedLimit = 1.2f;\ntp.param(\"speed_limit\", &speedLimit).range(0, 2).step(0.1);", py: "speed_limit = tp.param(\"speed_limit\", 1.2).range(0, 2).step(0.1)  # speed_limit.value", code: "ATTR|speed_limit|write|min=0|max=2|step=0.1", note: "A number from 0 to 2. The page sends speed_limit:1.5.", expect: { name: "speed_limit", write: "number" } },
+        { title: "Its value", lib: "tp.poll();  // in your loop: publishes the value of the setting", code: "speed_limit:1.2", note: "Your device keeps sending it, as any value.", expect: { name: "speed_limit", type: "number" } },
         { title: "You move the slider", from: "page", code: "speed_limit:1.5", note: "The page sends the line your device would send, without a time: it asks 1.5. Resent every 250 ms for 2 s until it comes back.", expect: { name: "speed_limit", input: "1.5" } },
-        { title: "Applied", code: "speed_limit:1.5", note: "Your device applies it and sends its value: the page sees it applied.", expect: { name: "speed_limit", type: "number" } },
+        { title: "Applied", lib: "tp.poll();  // applies what the page wrote, then publishes it", code: "speed_limit:1.5", note: "Your device applies it and sends its value: the page sees it applied.", expect: { name: "speed_limit", type: "number" } },
       ], more: [
-        { title: "A text", code: "ATTR|drive_mode|write=text", note: "The page may change it…", expect: { name: "drive_mode", write: "text" } },
-        { title: "Among choices", code: "drive_mode:auto#follows the line,manual,idle|enum", note: "…to one of these: a click on its value opens them.", expect: { name: "drive_mode", enum: ["auto", "manual", "idle"] } },
-        { title: "Its value", code: "drive_mode:auto|t", cycle: ["drive_mode:manual|t", "drive_mode:idle|t"], note: "The choice that is applied.", expect: { name: "drive_mode", type: "text", text: "auto" } },
+        { title: "A text", lib: "std::string driveMode = \"auto\";\ntp.param(\"drive_mode\", &driveMode);", py: "drive_mode = tp.param(\"drive_mode\", \"auto\")", ino: "char driveMode[12] = \"auto\";\ntp.param(\"drive_mode\", &driveMode);", code: "ATTR|drive_mode|write=text", note: "The page may change it…", expect: { name: "drive_mode", write: "text" } },
+        { title: "Among choices", lib: "tp.telemetry(\"drive_mode\").enumValues({\"auto#follows the line\", \"manual\", \"idle\"});", ino: "static const char* const DRIVE_MODES[] = {\"auto#follows the line\", \"manual\", \"idle\"};\ntp.telemetry(\"drive_mode\").enumValues(DRIVE_MODES);", code: "drive_mode:auto#follows the line,manual,idle|enum", note: "…to one of these: a click on its value opens them.", expect: { name: "drive_mode", enum: ["auto", "manual", "idle"] } },
+        { title: "Its value", lib: "tp.poll();  // in your loop: publishes the value of the setting", code: "drive_mode:auto|t", cycle: ["drive_mode:manual|t", "drive_mode:idle|t"], note: "The choice that is applied.", expect: { name: "drive_mode", type: "text", text: "auto" } },
         { title: "You pick one", from: "page", code: "drive_mode:manual", note: "The text alone; in it, % and line breaks are written %XX.", expect: { name: "drive_mode", input: "manual" } },
-        { title: "A switch", code: "ATTR|motors|write=bool", note: "On or off.", expect: { name: "motors", write: "bool" } },
+        { title: "A switch", lib: "bool motors = false;\ntp.param(\"motors\", &motors);", py: "motors = tp.param(\"motors\", False)", code: "ATTR|motors|write=bool", note: "On or off.", expect: { name: "motors", write: "bool" } },
         { title: "You switch it on", from: "page", code: "motors:1", note: "1 for on, 0 for off.", expect: { name: "motors", input: "1" } },
-        { title: "Refused", code: "ACK|drive_mode:err:motors off", cycle: ["ACK|drive_mode:err:not in manual"], note: "Your device says why it did not apply it.", expect: { name: "drive_mode" } },
+        { title: "Refused", lib: null, libNote: "The client answers it: what onChange() of the setting returns, Teleplot::error(\"motors off\").", code: "ACK|drive_mode:err:motors off", cycle: ["ACK|drive_mode:err:not in manual"], note: "Your device says why it did not apply it.", expect: { name: "drive_mode" } },
       ],
       notes: [
           "With commands on (CMD, in the top menu) the value is edited where it is displayed.",
@@ -627,14 +624,14 @@ const HELP_TILES = [
           ["run, ok, err", "Your answer: started, done (with a short result), failed."],
       ],
       examples: [
-        { title: "A button", code: "ATTR|reset|action|title=Reset odometry|confirm", note: "It asks first.", expect: { name: "reset", action: true } },
+        { title: "A button", lib: "tp.action(\"reset\", [](Teleplot::Args const&) { resetOdometry(); return Teleplot::ok(); }).title(\"Reset odometry\").confirm();", py: "@tp.action(\"reset\").title(\"Reset odometry\").confirm()\ndef reset(args):\n    resetOdometry()", code: "ATTR|reset|action|title=Reset odometry|confirm", note: "It asks first.", expect: { name: "reset", action: true } },
         { title: "You press it", from: "page", code: "!reset#12", note: "The page calls it: ! the name, # the number of this call.", expect: { name: "reset", call: 12, args: {} } },
-        { title: "Your answer", code: "ACK|reset#12:ok", cycle: ["ACK|reset#13:ok", "ACK|reset#14:err:not now"], note: "Done: the answer to the call #12.", expect: { name: "reset", answer: "#12 ok" } },
+        { title: "Your answer", lib: null, libNote: "The client answers it: run, then what the handler returns (ok() or error(\"why\")).", code: "ACK|reset#12:ok", cycle: ["ACK|reset#13:ok", "ACK|reset#14:err:not now"], note: "Done: the answer to the call #12.", expect: { name: "reset", answer: "#12 ok" } },
       ], more: [
-        { title: "Another action", code: "ATTR|goto|action|title=Go to", note: "A button Go to…", expect: { name: "goto", action: true } },
-        { title: "Its argument", code: "ATTR|goto|arg=target|type=xy|desc=Where to go", note: "…which opens a form.", expect: { name: "goto", args: ["target"] } },
+        { title: "Another action", lib: "auto goTo = tp.action(\"goto\", [](Teleplot::Args const& args) { driveTo(args.xy(\"target\")); return Teleplot::ok(); }).title(\"Go to\");", py: "def goTo(args):\n    driveTo(args.xy(\"target\"))\ngoto = tp.action(\"goto\", goTo).title(\"Go to\")", ino: "Teleplot::Action goTo = tp.action(\"goto\", [](Teleplot::Args const& args) { driveTo(args.xy(\"target\")); return Teleplot::ok(); }).title(\"Go to\");", code: "ATTR|goto|action|title=Go to", note: "A button Go to…", expect: { name: "goto", action: true } },
+        { title: "Its argument", lib: "goTo.arg(Teleplot::Arg(\"target\", Teleplot::Arg::XY).desc(\"Where to go\"));", py: "goto.arg(Teleplot.Arg(\"target\", Teleplot.Arg.XY).desc(\"Where to go\"))", code: "ATTR|goto|arg=target|type=xy|desc=Where to go", note: "…which opens a form.", expect: { name: "goto", args: ["target"] } },
         { title: "You fill it and press", from: "page", code: "!goto#13:target=1.5,2", note: "The arguments by name; the numbers of an xy are separated by a comma.", expect: { name: "goto", call: 13, args: { target: "1.5, 2" } } },
-        { title: "Started, then done", code: "ACK|goto#13:run", cycle: ["ACK|goto#13:ok:arrived"], note: "run when it starts, then ok: the page shows how long it ran.", expect: { name: "goto", answer: "#13 run" } },
+        { title: "Started, then done", lib: null, libNote: "The client answers it: run when the handler starts, then what it returns (Teleplot::ok(\"arrived\")).", code: "ACK|goto#13:run", cycle: ["ACK|goto#13:ok:arrived"], note: "run when it starts, then ok: the page shows how long it ran.", expect: { name: "goto", answer: "#13 run" } },
       ],
       notes: [
           "The page resends a call every 250 ms for 2 s until it is answered: remember the last ids and answer again without running one twice.",
@@ -656,19 +653,19 @@ const HELP_TILES = [
           ["ACK|name:err:why", "Answered to each value your device cannot apply now (another mode, motors off), instead of applying it: the joystick says why, in red, while it keeps coming. Zeros (released) should always be fine."],
       ],
       examples: [
-        { title: "The joystick", picture: "joy-stick", code: "ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", note: "Forward and turn, 20 times per second: one stick.", expect: { name: "cmd_vel", write: "pose2d", view: "joystick" } },
+        { title: "The joystick", lib: "Teleplot::Pose2D cmdVel;\ntp.param(\"cmd_vel\", &cmdVel).axes(Teleplot::X | Teleplot::Yaw).rate(20).hold(200);", py: "cmd_vel = tp.param(\"cmd_vel\", Teleplot.Pose2D(0, 0, 0)).axes(Teleplot.X | Teleplot.Yaw).rate(20).hold(200)", picture: "joy-stick", code: "ATTR|cmd_vel|write=pose2d|axes=x,yaw|rate=20|hold=200", note: "Forward and turn, 20 times per second: one stick.", expect: { name: "cmd_vel", write: "pose2d", view: "joystick" } },
         { title: "You hold the pad", from: "page", code: "cmd_vel:0.3:0:0.2", note: "Forward speed, sideways (0: no y axis), turn: 20 times per second while held, then 0:0:0 a few times when released.", expect: { name: "cmd_vel", input: "0.3, 0, 0.2" } },
-        { title: "What it applies", code: "cmd_vel:0.3:0:0.2|xyz", note: "Shown on the pad. Send again: it moves.", expect: { name: "cmd_vel", type: "3d" } },
-        { title: "Refused", optional: true, code: "ACK|cmd_vel:err:not in manual mode", cycle: ["ACK|cmd_vel:err:motors off"], note: "What it answers instead when it cannot apply it: shown in red under the pad (with commands on) while it keeps coming.", expect: { name: "cmd_vel" } },
+        { title: "What it applies", lib: "tp.poll();  // applies what the page wrote, then publishes it (0 after 200 ms without news)", code: "cmd_vel:0.3:0:0.2|xyz", note: "Shown on the pad. Send again: it moves.", expect: { name: "cmd_vel", type: "3d" } },
+        { title: "Refused", lib: null, libNote: "The client answers it: what onChange() of the setting returns, Teleplot::error(\"not in manual mode\").", optional: true, code: "ACK|cmd_vel:err:not in manual mode", cycle: ["ACK|cmd_vel:err:motors off"], note: "What it answers instead when it cannot apply it: shown in red under the pad (with commands on) while it keeps coming.", expect: { name: "cmd_vel" } },
       ], more: [
-        { title: "A pad and a rotation", picture: "joy-padrocker", code: "ATTR|base_vel|write=pose2d|rate=20|hold=200|min=-1|max=1", note: "A robot that can also go sideways: the pad moves it, the rocker turns it.", expect: { name: "base_vel", write: "pose2d", view: "joystick" } },
-        { title: "Its velocities", code: "base_vel:0.2:0.1:0.3|xyz", note: "Forward, sideways, turn: shown on the pad and the rocker.", expect: { name: "base_vel", type: "3d" } },
-        { title: "A pad", picture: "joy-pad", code: "ATTR|gimbal|write=xy|rate=10|hold=300|min=-1|max=1", note: "Two axes, x and y: a camera head.", expect: { name: "gimbal", write: "xy", view: "joystick" } },
-        { title: "Where it is", code: "gimbal:0.2:-0.4|xy", note: "Shown on the pad.", expect: { name: "gimbal", type: "2d" } },
-        { title: "A rocker", picture: "joy-rocker", code: "ATTR|lift|write=number|rate=10|hold=300|min=-1|max=1", note: "One axis that springs back: a lift.", expect: { name: "lift", write: "number", view: "joystick" } },
-        { title: "Its speed", code: "lift:0.5", note: "Shown on the rocker.", expect: { name: "lift", type: "number" } },
-        { title: "Upright", picture: "joy-vrocker", code: "DASH|Robot/Lift:joystick:lift|orientation=vertical", note: "The same rocker standing: up for +.", expect: { dashboard: "Robot" } },
-        { title: "With the keyboard", code: "DASH|Robot/Drive:joystick:cmd_vel|keyboard=arrows", note: "Click the view, then the arrows drive it.", expect: { dashboard: "Robot" } },
+        { title: "A pad and a rotation", lib: "Teleplot::Pose2D baseVel;\ntp.param(\"base_vel\", &baseVel).range(-1, 1).rate(20).hold(200);", py: "base_vel = tp.param(\"base_vel\", Teleplot.Pose2D(0, 0, 0)).range(-1, 1).rate(20).hold(200)", picture: "joy-padrocker", code: "ATTR|base_vel|write=pose2d|rate=20|hold=200|min=-1|max=1", note: "A robot that can also go sideways: the pad moves it, the rocker turns it.", expect: { name: "base_vel", write: "pose2d", view: "joystick" } },
+        { title: "Its velocities", lib: "tp.poll();  // applies what the page wrote, then publishes it", code: "base_vel:0.2:0.1:0.3|xyz", note: "Forward, sideways, turn: shown on the pad and the rocker.", expect: { name: "base_vel", type: "3d" } },
+        { title: "A pad", lib: "Teleplot::Number2D gimbal;\ntp.param(\"gimbal\", &gimbal).range(-1, 1).rate(10).hold(300);", py: "gimbal = tp.param(\"gimbal\", Teleplot.Number2D(0, 0)).range(-1, 1).rate(10).hold(300)", picture: "joy-pad", code: "ATTR|gimbal|write=xy|rate=10|hold=300|min=-1|max=1", note: "Two axes, x and y: a camera head.", expect: { name: "gimbal", write: "xy", view: "joystick" } },
+        { title: "Where it is", lib: "tp.poll();  // applies what the page wrote, then publishes it", code: "gimbal:0.2:-0.4|xy", note: "Shown on the pad.", expect: { name: "gimbal", type: "2d" } },
+        { title: "A rocker", lib: "float lift = 0;\ntp.param(\"lift\", &lift).range(-1, 1).rate(10).hold(300);", py: "lift = tp.param(\"lift\", 0.0).range(-1, 1).rate(10).hold(300)", picture: "joy-rocker", code: "ATTR|lift|write=number|rate=10|hold=300|min=-1|max=1", note: "One axis that springs back: a lift.", expect: { name: "lift", write: "number", view: "joystick" } },
+        { title: "Its speed", lib: "tp.poll();  // applies what the page wrote, then publishes it", code: "lift:0.5", note: "Shown on the rocker.", expect: { name: "lift", type: "number" } },
+        { title: "Upright", lib: "tp.dashboard(\"DASH|Robot/Lift:joystick:lift|orientation=vertical\");", picture: "joy-vrocker", code: "DASH|Robot/Lift:joystick:lift|orientation=vertical", note: "The same rocker standing: up for +.", expect: { dashboard: "Robot" } },
+        { title: "With the keyboard", lib: "tp.dashboard(\"DASH|Robot/Drive:joystick:cmd_vel|keyboard=arrows\");", code: "DASH|Robot/Drive:joystick:cmd_vel|keyboard=arrows", note: "Click the view, then the arrows drive it.", expect: { dashboard: "Robot" } },
       ],
       notes: [
           "Released, the pad sends the rest value (0) a few times, then nothing. Hidden page, lost focus or CMD off: it stops too.",
@@ -682,10 +679,10 @@ const HELP_TILES = [
           ["name:x:y:angle|xyz", "The pose your device has (and what the page sends: name:x:y:angle)."],
       ],
       examples: [
-        { title: "A pose to set", code: "ATTR|target|write=pose2d", note: "A map.", expect: { name: "target", write: "pose2d" } },
-        { title: "The pose it has", code: "target:1.2:0.8:0.5|xyz", note: "x, y, angle. Send again: it moves.", expect: { name: "target", type: "3d" } },
+        { title: "A pose to set", lib: "Teleplot::Pose2D target{1.2, 0.8, 0.5};\ntp.param(\"target\", &target);", py: "target = tp.param(\"target\", Teleplot.Pose2D(1.2, 0.8, 0.5))", code: "ATTR|target|write=pose2d", note: "A map.", expect: { name: "target", write: "pose2d" } },
+        { title: "The pose it has", lib: "tp.poll();  // in your loop: publishes the value of the setting", code: "target:1.2:0.8:0.5|xyz", note: "x, y, angle. Send again: it moves.", expect: { name: "target", type: "3d" } },
         { title: "You move it and Send", from: "page", code: "target:1.5:1:0.8", note: "x, y and the angle you gave it.", expect: { name: "target", input: "1.5, 1, 0.8" } },
-        { title: "Applied", code: "target:1.5:1:0.8|xyz", note: "Your device takes it and sends its pose.", expect: { name: "target", type: "3d" } },
+        { title: "Applied", lib: "tp.poll();  // applies what the page wrote, then publishes it", code: "target:1.5:1:0.8|xyz", note: "Your device takes it and sends its pose.", expect: { name: "target", type: "3d" } },
       ],
       notes: [
           "With commands on, drag its ghost to move it and its handle to turn it, then Send (or Enter); Esc cancels.",
@@ -917,13 +914,14 @@ function helpSchema(kind) {
     return helpSvg(W, H, s);
 }
 
-// How the user sends data. `setup` is what a program needs once, before the first line.
+// How the user sends data: lines of the text protocol from a terminal, or the calls of the client library of a language (the same calls in
+// C++, Python and Arduino: doc/cpp-client-api.md, doc/python-client-api.md). `setup` is what a program needs once, before the first line.
 const HELP_SENDERS = [
     { id: "sh", name: "Terminal", sub: "UDP, one line", setup: "", setupNote: "Nothing to install: nc comes with Linux and macOS. The Teleplot server receives UDP port 47269 and passes it on to this page (see Sources)." },
-    { id: "py", name: "Python", sub: "UDP socket", setup: "import socket\nsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)", setupNote: "The Teleplot server receives UDP port 47269 and passes it on to this page (see Sources). clients/python/teleplot.py does it for you, commands included." },
-    { id: "cpp", name: "C++", sub: "Teleplot.h", setup: "#include \"Teleplot.h\"", setupNote: "One header, in clients/cpp (C++17). What update() gets is sent every 20 ms by itself; poll() reads what the page writes back." },
-    { id: "ino", name: "Arduino", sub: "Serial port", setup: "Serial.begin(115200);", setupNote: "Then open the port in the Sources panel (Chrome or Edge). A line that does not start with > is shown as a log." },
-];
+    { id: "py", name: "Python", sub: "teleplot.py", setup: "from teleplot import Teleplot\ntp = Teleplot.instance()  # 127.0.0.1:47269", setupNote: "clients/python/teleplot.py: one file, Python 3.9+, nothing to install. What it is given is sent every 20 ms (and at the end of the program); call tp.poll() in your loop when the page can change something (settings, buttons)." },
+    { id: "cpp", name: "C++", sub: "Teleplot.h", setup: "#include \"Teleplot.h\"\nTeleplot& tp = Teleplot::instance();  // 127.0.0.1:47269", setupNote: "clients/cpp/Teleplot.h: one header, C++17, Linux, macOS, Windows. What it is given is sent every 20 ms by itself; call tp.poll() in your loop when the page can change something (settings, buttons)." },
+    { id: "ino", name: "Arduino", sub: "Teleplot library", setup: "#include <Teleplot.h>\nTeleplot tp(Serial);  // in setup(): Serial.begin(115200);", setupNote: "The library clients/arduino/Teleplot (copy it into the libraries folder of your sketchbook): lines on the serial port, to open in the Sources panel (Chrome or Edge). Call tp.poll() in loop() when the page can change something." },
+]
 
 const HELP_SHORTCUTS = [
     { keys: "Space", label: "Pause or resume" },
@@ -1160,12 +1158,6 @@ function helpShort(text, max = 120) {
 function helpFill(code, now = Date.now()) {
     return code.replace(/\{now([+-][0-9]+)?\}/g, (match, offset) => String(Math.round(now) + (offset ? parseInt(offset) : 0)));
 }
-// The C++ line of an example ([text, kind] parts) for its nudged message: its values, in order, become the nudged ones
-function helpVaryParts(cpp, from, to) {
-    const values = (message) => helpParts(message).filter((p) => p.kind == "value").map((p) => p.text);
-    const before = values(from), after = values(to);
-    return cpp.map(([text, kind]) => { const i = kind == "value" ? before.indexOf(text) : -1; return i >= 0 ? [after[i], kind] : [text, kind]; });
-}
 
 // What a part accepts, in one sentence (shown when it is pointed at): by label, else by kind
 const HELP_PART_TIPS = {
@@ -1242,23 +1234,74 @@ const HELP_PART_TIPS = {
     "text size": "TS: the height of a text, in your units.", "line width": "LW: the width of a line, in your units.",
 };
 
-// The line that sends a message, for a sender: {parts: [{text, kind, msg}], note}. The message (msg: true) is in the middle of what wraps
-// it; `note` says what the line needs to be told (a message the C++ client has no call for).
-function helpLine(senderId, example) {
-    const message = helpParts(example.code).map((p) => ({ text: p.text, kind: p.kind, msg: true }));
-    const wrap = (before, parts, after) => ({ parts: [{ text: before, kind: "", msg: false }, ...parts, { text: after, kind: "", msg: false }], note: "" });
-    // A message with double quotes in it (a text, a url) is put between single quotes, or its quotes are escaped in a C string
-    const q = example.code.includes("\"") ? "'" : "\"";
-    const escaped = (parts) => parts.map((p) => ({ ...p, text: p.text.replace(/"/g, "\\\"") }));
-    if (senderId == "sh") return wrap("echo " + q, message, q + " | nc -u -w0 127.0.0.1 47269");
-    if (senderId == "py") return wrap("sock.sendto(" + q, message, q + ".encode(), (\"127.0.0.1\", 47269))");
-    if (senderId == "ino") {
-        // On a serial port a line is a log unless it starts with ">": a log is the text alone, anything else gets the ">"
-        if (example.code.startsWith(">")) return wrap("Serial.println(\"", escaped([{ text: example.code.slice(example.code.indexOf(":") + 1), kind: "value", msg: true }]), "\");");
-        return wrap("Serial.println(\">", escaped(message), "\");");
+// The code of an example for a client library (`lib`: C++, `py`: Python, `ino`: Arduino; Python and Arduino default to what C++ says,
+// Python through helpPython), or null when that client has no call for it (`libNote` says what to do instead)
+function helpLib(senderId, example) {
+    if (example.lib === undefined || example.lib === null) return null;
+    if (senderId == "cpp") return example.lib;
+    if (senderId == "ino") return example.ino !== undefined ? example.ino : example.lib;
+    if (senderId == "py") return example.py !== undefined ? example.py : helpPython(example.lib);
+    return null;
+}
+// C++ calls of a client written in Python: the same names (Teleplot::X is Teleplot.X), no ";", "#" comments, True / False, a list in
+// braces a list, Type{a, b} a call
+function helpPython(code) {
+    const times = []; // ({now} of a time: kept as it is)
+    code = code.replace(/\{now[^}]*\}/g, (time) => "\u0000" + (times.push(time) - 1) + "\u0000");
+    return code.split("\n").map((line) => {
+        const at = line.indexOf("//"), comment = at >= 0 ? "  # " + line.slice(at + 2).trim() : "";
+        let statement = (at >= 0 ? line.slice(0, at) : line).trimEnd().replace(/;$/, "");
+        statement = statement.replace(/Teleplot::/g, "Teleplot.").replace(/\btrue\b/g, "True").replace(/\bfalse\b/g, "False").replace(/\bNAN\b/g, "float(\"nan\")")
+            .replace(/(\w)\{([^{}]*)\}/g, "$1($2)").replace(/\{/g, "[").replace(/\}/g, "]");
+        return statement + comment;
+    }).join("\n").replace(/\u0000(\d+)\u0000/g, (match, i) => times[i]);
+}
+// The code of a client cut in parts: strings and numbers that are parts of the message take their kind (name, label, value, time,
+// unit), a string that is the whole message (a DASH| line) its parts; comments and the rest have none. [{text, kind, msg}]
+function helpCodeParts(code, message) {
+    const parts = helpParts(message), kinds = new Map();
+    for (const p of parts) if (p.kind && !kinds.has(p.text)) kinds.set(p.text, p.kind);
+    const out = [];
+    const push = (text, kind) => out.push({ text, kind: kind || "", msg: !!kind });
+    for (const token of code.match(/"(?:[^"\\]|\\.)*"|(?:\/\/|#(?![a-z])).*|[A-Za-z_]\w*|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\s+|./g) || []) {
+        if (token.startsWith("\"")) {
+            const inner = token.slice(1, -1);
+            if (inner === message && parts.length > 1) { push("\""); for (const p of parts) push(p.text, p.kind); push("\""); }
+            else if (kinds.has(inner)) { push("\""); push(inner, kinds.get(inner)); push("\""); }
+            else push(token);
+        } else if (/^-?\d/.test(token) && kinds.has(token)) push(token, kinds.get(token));
+        else push(token);
     }
-    if (example.cpp) return { parts: example.cpp.map(([text, kind]) => ({ text, kind: kind || "", msg: !!kind })), note: "" };
-    return { parts: message, note: "No example with the C++ client for this one yet: send this line as text over UDP (port 47269)." };
+    return out;
+}
+// The line that sends a message, for a sender: {parts: [{text, kind, msg}], note}. The message (msg: true) is in the middle of what wraps
+// it, or its parts are in the calls of a client. `shown`: the message as displayed (its numbers nudged after a Send, {now} filled):
+// the numbers of the calls follow it. `note` says what the line needs to be told (a message the client has no call for).
+function helpLine(senderId, example, shown = helpFill(example.code), now = Date.now()) {
+    const message = helpParts(shown).map((p) => ({ text: p.text, kind: p.kind, msg: true }));
+    const wrap = (before, parts, after) => ({ parts: [{ text: before, kind: "", msg: false }, ...parts, { text: after, kind: "", msg: false }], note: "" });
+    // A message with double quotes in it (a text, a url) is put between single quotes
+    const q = shown.includes("\"") ? "'" : "\"";
+    if (senderId == "sh") return wrap("echo " + q, message, q + " | nc -u -w0 127.0.0.1 47269");
+    const code = helpLib(senderId, example);
+    if (code === null) {
+        const sender = HELP_SENDERS.find((s) => s.id == senderId);
+        return { parts: message, note: example.libNote || "No call of the " + (sender ? sender.name : "") + " client for this one: send this line as text (UDP port 47269, or > and the line on a serial port)." };
+    }
+    // The calls with the message as given, then its values replaced by the shown ones, in order
+    const base = helpFill(example.code, now);
+    const parts = helpCodeParts(helpFill(code, now), base);
+    if (shown !== base) {
+        const values = (m) => helpParts(m).filter((p) => p.kind == "value").map((p) => p.text);
+        const before = values(base), after = values(shown);
+        for (const p of parts) { const i = p.kind == "value" ? before.indexOf(p.text) : -1; if (i >= 0 && after[i] !== undefined) p.text = after[i]; }
+    }
+    return { parts, note: "" };
+}
+// The line an Arduino writes on its serial port without the library: a log is the text alone, anything else gets the ">"
+function helpSerialLine(code) {
+    const escaped = (text) => text.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+    return "Serial.println(\"" + (code.startsWith(">") ? escaped(code.slice(code.indexOf(":") + 1)) : ">" + escaped(code)) + "\");";
 }
 
 // The device of the Help: the messages sent from the panel come from it (a source of the page, "Help panel" in Sources), so that what
@@ -1887,8 +1930,7 @@ function initComponent_panel_help(vue) {
             },
             codeOf(example) { return example.from == "page" ? example.code : (this.varied[example.code] || example.code); }, // (with {now}; what the page sends is never nudged by a Send)
             shown(example) { return helpFill(this.codeOf(example), this.now); },
-            current(example) { const code = this.shown(example); return code === example.code ? example : { ...example, code, cpp: example.cpp && helpVaryParts(example.cpp, helpFill(example.code, this.now), code) }; },
-            line(example) { return helpLine(this.sender, this.current(example)); },
+            line(example) { return helpLine(this.sender, example, this.shown(example), this.now); },
             text(example) { return this.line(example).parts.map((p) => p.text).join(""); },
             copy(text) {
                 if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});

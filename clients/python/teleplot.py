@@ -79,6 +79,11 @@ def _unescape(text):
     return re.sub(r"%([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), text)
 
 
+def _round(v):
+    """Halves away from zero, as C++ (std::round) and the page (Math.round for positives) do: round() of Python goes to even"""
+    return math.copysign(math.floor(abs(v) + 0.5), v)
+
+
 def _number_text(v, precise=False):
     """A number for the text protocol: 9 significant digits (any float32 exactly), 17 when precise"""
     v = float(v)
@@ -1520,7 +1525,7 @@ class _Describe:
         return self._samples()._send(S_COLOR_STR, [str(c)])
 
     def opacity(self, v):
-        return self._samples()._send(S_OPACITY, [round(max(0.0, min(1.0, float(v))) * 255)])
+        return self._samples()._send(S_OPACITY, [int(_round(max(0.0, min(1.0, float(v))) * 255))])
 
     def texture(self, url):
         return self._samples()._send(S_TEXTURE, (1, str(url)))
@@ -1743,7 +1748,7 @@ class Param:
             v = min(self._max, v)
         if self._step:
             base = self._min if self._min is not None else 0.0
-            v = base + round((v - base) / self._step) * self._step
+            v = base + _round((v - base) / self._step) * self._step
         return v
 
     def _written(self, numbers_, text, telem_id):
@@ -1761,7 +1766,7 @@ class Param:
         elif self._type == 1:
             value = self._clamp(numbers_[0])
             if issubclass(self._kind_of, numbers.Integral):
-                value = int(round(value))
+                value = int(_round(value))
         else:
             count = 2 if self._type == 4 else 3
             if len(numbers_) < count:

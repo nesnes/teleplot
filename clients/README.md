@@ -45,6 +45,8 @@ buttons). From 30 on, what only that language has (threads, WiFi, NumPy...).
 | 24 | how the client is doing, in the page | yes | yes | yes | - |
 | 25 | a state machine and a behavior tree (graphs) | yes | yes | yes | yes |
 
+The lines of the Help panel of the page are written with these clients too: [`tools/help_lines.js`](tools/help_lines.js) makes a program of them per language, which each test suite runs and checks (the page must get what the text lines give).
+
 Each test suite runs every example of its language for a moment and reads what it sent with the library of the page:
 [`examples.js`](examples.js) holds the common set (what each example must give the page) and checks that a language has all of it,
 or says why not. [`tools/capture_udp.py`](tools/capture_udp.py) stands for the Teleplot server while an example runs (it takes UDP

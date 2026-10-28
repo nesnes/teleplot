@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const { loadTeleplot } = require('../../teleplot-js/tests/helpers/load');
 
 const code = fs.readFileSync(path.join(__dirname, '..', 'components', 'panel-help.js'), 'utf8');
-const { HELP_EXAMPLES, HELP_SHORTCUTS, HELP_TILES, HELP_FAMILIES, HELP_CONCEPTS, HELP_SENDERS, helpLine, helpDescribe, helpPicture, helpParts, HELP_PART_TIPS, helpVary, helpFill, helpShort, helpViewOptions, HELP_PROPERTIES, helpSend, helpDevice } = new Function(code + '\nreturn { helpSend, helpDevice, HELP_PROPERTIES, helpViewOptions, helpShort, helpVary, helpFill, HELP_EXAMPLES, HELP_SHORTCUTS, HELP_TILES, HELP_FAMILIES, HELP_CONCEPTS, HELP_SENDERS, helpLine, helpDescribe, helpPicture, helpParts, HELP_PART_TIPS };')();
+const { HELP_EXAMPLES, HELP_SHORTCUTS, HELP_TILES, HELP_FAMILIES, HELP_CONCEPTS, HELP_SENDERS, helpLine, helpDescribe, helpPicture, helpParts, HELP_PART_TIPS, helpVary, helpFill, helpShort, helpViewOptions, HELP_PROPERTIES, helpSend, helpDevice, helpLib, helpPython, helpSerialLine } = new Function(code + '\nreturn { helpLib, helpPython, helpSerialLine, helpSend, helpDevice, HELP_PROPERTIES, helpViewOptions, helpShort, helpVary, helpFill, HELP_EXAMPLES, HELP_SHORTCUTS, HELP_TILES, HELP_FAMILIES, HELP_CONCEPTS, HELP_SENDERS, helpLine, helpDescribe, helpPicture, helpParts, HELP_PART_TIPS };')();
 const tile = (id) => HELP_TILES.find(t => t.id == id);
 // {now} in a message is the time of the page: here a fixed one (the time the expectations use)
 const NOW = 1627551892437;
@@ -396,20 +396,33 @@ test('helpVary nudges the numbers of a message, so that sending it again shows a
         assert.equal(nums(fixed), fixed, 'nothing to nudge: ' + fixed);
 });
 
-test('helpLine writes the line of each way to send; what a serial port receives is understood the same', () => {
-    const text = (sender, example) => helpLine(sender, example).parts.map(p => p.text).join('');
-    const number = HELP_EXAMPLES[0], log = HELP_EXAMPLES.find(e => e.expect.log), cloud = HELP_EXAMPLES.find(e => e.expect.cloud);
+test('helpLine writes the line of each way to send: the message from a terminal, the calls of the client of a language', () => {
+    const text = (sender, example, shown) => helpLine(sender, example, shown).parts.map(p => p.text).join('');
+    const number = HELP_EXAMPLES[0], dash = HELP_EXAMPLES.find(e => e.code.startsWith('DASH|')), clear = HELP_EXAMPLES.find(e => e.code.endsWith('|clr'));
     assert.deepEqual(HELP_SENDERS.map(s => s.id), ['sh', 'py', 'cpp', 'ino']);
     assert.equal(text('sh', number), 'echo "temperature:25.3" | nc -u -w0 127.0.0.1 47269');
-    assert.equal(text('py', number), 'sock.sendto("temperature:25.3".encode(), ("127.0.0.1", 47269))');
-    assert.equal(text('cpp', number), 'Teleplot::instance().update("temperature", 25.3);');
-    assert.equal(text('ino', number), 'Serial.println(">temperature:25.3");');
-    assert.equal(text('ino', log), 'Serial.println("Motors armed");');
-    assert.deepEqual([text('cpp', cloud), /C\+\+ client/.test(helpLine('cpp', cloud).note)], [cloud.code, true], 'no C++ call for it: the text line, and a word about it');
-    assert.equal(helpLine('py', cloud).note, '');
-    // The part between the quotes of every Arduino line, received on a serial port, gives the same telemetry as the UDP line
+    assert.equal(text('py', number), 'tp.update("temperature", 25.3)');
+    assert.equal(text('cpp', number), 'tp.update("temperature", 25.3);');
+    assert.equal(text('ino', number), 'tp.update("temperature", 25.3);');
+    // The parts of the message keep their kind in the calls, and follow a nudged message
+    const kinds = Object.fromEntries(helpLine('cpp', number).parts.filter(p => p.kind).map(p => [p.text, p.kind]));
+    assert.deepEqual(kinds, { temperature: 'name', '25.3': 'value' });
+    assert.equal(text('py', number, 'temperature:26.1'), 'tp.update("temperature", 26.1)');
+    assert.equal(text('cpp', dash), 'tp.dashboard("' + dash.code + '");');
+    assert.ok(helpLine('cpp', dash).parts.filter(p => p.msg).length > 2, 'a DASH| line in a call keeps its parts');
+    // No call for it: the line of the text protocol, and why
+    assert.deepEqual([text('py', clear), helpLine('py', clear).note.length > 0], [clear.code, true]);
+    // Every message a device sends has its calls in every client, or says why not
+    for (const example of HELP_EXAMPLES) for (const sender of ['py', 'cpp', 'ino'])
+        assert.ok(helpLib(sender, example) !== null || example.libNote, sender + ': no call and no word about it for ' + example.code);
+    // Python: the calls of C++ with the names of Python
+    assert.equal(helpPython('tp.telemetry("a").enumValues({"x", "y"}).threshold("l", Teleplot::Below, 1);  // why'), 'tp.telemetry("a").enumValues(["x", "y"]).threshold("l", Teleplot.Below, 1)  # why');
+    assert.equal(helpPython('tp.telemetry("d").autoplot(false).depthMap(1, NAN);'), 'tp.telemetry("d").autoplot(False).depthMap(1, float("nan"))');
+    // An Arduino without the library: what a serial port receives is understood the same
+    assert.equal(helpSerialLine(number.code), 'Serial.println(">temperature:25.3");');
+    assert.equal(helpSerialLine('>:Motors armed'), 'Serial.println("Motors armed");');
     for (const example of HELP_EXAMPLES) {
-        const sent = /^Serial\.println\("(.*)"\);$/.exec(text('ino', example))[1].replace(/\\"/g, '"');
+        const sent = /^Serial\.println\("(.*)"\);$/.exec(helpSerialLine(example.code))[1].replace(/\\"/g, '"');
         const T = loadTeleplot();
         assert.equal(T.parseDataText({ data: sent, fromSerial: true }), 0, sent);
         if (example.expect.log) continue;
@@ -427,8 +440,7 @@ test('the line of a terminal gives the message itself, quotes included (texts, u
     for (const example of [HELP_EXAMPLES[0], ...quoted]) {
         const echo = text('sh', example).replace(/ \| nc .*$/, '');
         assert.equal(execFileSync('sh', ['-c', echo]).toString(), example.code + '\n', echo);
-        assert.equal(text('py', example).replace(/^sock\.sendto\((['"])(.*)\1\.encode\(\).*$/, '$2'), example.code, 'python: one string literal');
-        assert.doesNotMatch(text('ino', example).slice('Serial.println("'.length, -3), /(^|[^\\])"/, 'arduino: no quote left unescaped');
+        assert.doesNotMatch(helpSerialLine(example.code).slice('Serial.println("'.length, -3), /(^|[^\\])"/, 'arduino: no quote left unescaped');
     }
 });
 

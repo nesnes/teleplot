@@ -290,13 +290,12 @@ function initComponent_welcome(vue) {
             },
             // What a board sends: the Help's line for an Arduino, after its set-up
             serialSample() {
-                const line = helpLine("ino", { code: "temperature:25.3" });
-                return "Serial.begin(" + this.baudRate + ");\n" + line.parts.map((p) => p.text).join("");
+                return "Serial.begin(" + this.baudRate + ");\n" + helpSerialLine("temperature:25.3");
             },
             // The line that sends one number, for the chosen way (the same line as the Help's first tile)
             command() {
-                const line = helpLine(this.sender, { code: "temperature:25.3" });
-                const note = this.sender == "ino" ? "An Arduino sends on its serial port: open it below." : (this.sender == "cpp" ? "With clients/cpp/Teleplot.h (the Help has its set-up)." : "");
+                const line = helpLine(this.sender, HELP_TILES[0].examples[0]); // (the first line of the Help: a number)
+                const note = { py: "With clients/python/teleplot.py (the Help has its set-up).", cpp: "With clients/cpp/Teleplot.h (the Help has its set-up).", ino: "With the Arduino library, on the serial port: open it below." }[this.sender] || "";
                 return { text: line.parts.map((p) => p.text).join(""), note };
             },
             serialSupported() { return this.TP.connection.serialSupported(); },

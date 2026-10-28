@@ -825,11 +825,13 @@ private:
 #endif
     }
 
-    // 3D|name:time:PROPERTY:values (a shape: each property is a sample of its own kind)
+    // 3D|name[,label]:time:PROPERTY:values (a shape: each property is a sample of its own kind)
     template<class S> void shapeHead_(S& s, const char* property) {
+        Entry_* e = s.entry_();
         lineStart_();
         puts_("3D|");
         puts_(s.name_);
+        if (e && e->label) { put_(','); puts_(e->label); }
         put_(':');
         time_(s.t_());
         put_(':');
@@ -940,8 +942,9 @@ private:
         }
         flags_(e, "pc");
     }
-    template<class S> void image_(S& s, ImageType type, const uint8_t* bytes, size_t size) { // JPG|name:time:i/n:base64, parts of 768 bytes
+    template<class S> void image_(S& s, ImageType type, const uint8_t* bytes, size_t size) { // JPG|name[,label]:time:i/n:base64, parts of 768 bytes
         if (!begin_(s)) { return; }
+        Entry_* e = s.entry_();
         const size_t part = 768;
         size_t count = size == 0 ? 1 : (size + part - 1) / part;
         Time t = s.t_();
@@ -949,6 +952,7 @@ private:
             lineStart_();
             puts_(type == Png ? "PNG|" : type == Raw ? "RAW|" : "JPG|");
             puts_(s.name_);
+            if (e && e->label) { put_(','); puts_(e->label); }
             put_(':');
             time_(t);
             put_(':');

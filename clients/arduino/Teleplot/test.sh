@@ -22,4 +22,9 @@ for dir in examples/*/; do
     $CXX -std=c++11 $FLAGS -Itests/arduino -Isrc $extra "-DEXAMPLE=\"../examples/$name/$name.ino\"" -x c++ tests/run_example.cpp -o "build/examples/$name"
     "./build/examples/$name" "build/examples/$name"
 done
+# The lines of the Help panel written with this library: a file per tile, compared with the text lines (tests/help.test.js)
+rm -rf build/help
+node ../../tools/help_lines.js ino build/help_lines.cpp build/help
+$CXX -std=c++11 $FLAGS -Itests -Itests/arduino -Isrc build/help_lines.cpp -o build/help_lines
+./build/help_lines build/help
 TELEPLOT_MICRO_OUT="$PWD/build" node tests/run.js "$@"

@@ -25,4 +25,9 @@ for example in examples/*.cpp; do
     $CXX $FLAGS "$example" -o "build/examples/$name"
     (cd build/examples && python3 ../../../tools/capture_udp.py 1.5 "$name" "./$name")
 done
+# The lines of the Help panel written with this client: a file per tile, compared with the text lines (tests/help.test.js)
+rm -rf build/help
+node ../tools/help_lines.js cpp build/help_lines.cpp build/help
+$CXX $FLAGS build/help_lines.cpp -o build/help_lines
+./build/help_lines build/help
 TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js "$@"

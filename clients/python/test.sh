@@ -26,4 +26,8 @@ for example in examples/*.py; do
     fi
     $PYTHON tests/run_example.py "$example" "build/examples/$name" > /dev/null
 done
+# The lines of the Help panel written with this client: a file per tile, compared with the text lines (tests/help.test.js)
+rm -rf build/help
+node ../tools/help_lines.js py build/help_lines.py build/help
+$PYTHON build/help_lines.py build/help
 TELEPLOT_PYTHON_OUT="$PWD/build" TELEPLOT_CPP_IMAGES="$PWD/build/cpp-images" node tests/run.js "$@"
