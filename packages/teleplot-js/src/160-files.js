@@ -761,15 +761,16 @@ TELEPLOT.files.createImport = function(options = {}) {
             range.count++; samples++;
         }
     };
-    // What a file holds is read even while data is paused (pausing is for what flows in)
+    // What a file holds is read even while not receiving (that is for what the sources send): the flag itself is lifted, not
+    // TELEPLOT.setReceiving, which would end the period not received
     let reading = (fn) => {
-        let paused = TELEPLOT.state.isPaused;
-        TELEPLOT.state.isPaused = false;
+        let receiving = TELEPLOT.state.receiving;
+        TELEPLOT.state.receiving = true;
         let run = () => TELEPLOT.dashboards.withImport(dashboards, () => TELEPLOT.datastore.watchAdds(watcher, fn));
         // A dry run undoes what it created as soon as each piece is read: what arrives between two pieces is not its business
         let restore = storeData ? undefined : TELEPLOT.datastore.rememberIdentity();
         try { return storeData ? run() : TELEPLOT.datastore.dryRun(run); }
-        finally { TELEPLOT.state.isPaused = paused; if(restore !== undefined) restore(); }
+        finally { TELEPLOT.state.receiving = receiving; if(restore !== undefined) restore(); }
     };
 
     // ---- CSV

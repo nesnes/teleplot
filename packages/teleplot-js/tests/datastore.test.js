@@ -395,7 +395,8 @@ test('memory limit: the heaviest telemetries are thinned (default), or lose thei
     T = loadTeleplot(); fill(T);
     Object.assign(T.state, { memoryLimit: 60000, memoryPolicy: 'pause' });
     T.datastore.checkMemory(true);
-    assert.deepEqual([T.state.isPaused, T.datastore.memory.action, T.datastore.getTelemetry('big').data[NUMBER].timestamps.length], [true, 'pause', 4000]);
+    assert.deepEqual([T.state.isPaused, T.datastore.memory.action, T.datastore.getTelemetry('big').data[NUMBER].timestamps.length], [true, 'stop', 4000]);
+    assert.equal(T.state.receivingOff.by, 'memory', 'stopped by the memory limit, and it says so');
 
     T = loadTeleplot(); fill(T);
     Object.assign(T.state, { memoryLimit: 0 });

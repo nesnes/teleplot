@@ -7,10 +7,12 @@ TELEPLOT.updates.onUpdateHooks = [
         if(now - _updates_lastPrune < 250) return;
         _updates_lastPrune = now;
         TELEPLOT.datastore.__deleteTimedOutData();
+        TELEPLOT.datastore.__pruneOffPeriods();
     },
     () => TELEPLOT.datastore.checkMemory(), // (does its work once per second)
     () => TELEPLOT.commands.__update(), // Commands: resends, echoes of the devices, continuous controls (nothing to do when none)
     () => TELEPLOT.dashboards.resolveTimeGroups(), // Views follow the time group of their layout (or their own)
+    () => TELEPLOT.view.__updateTime(), // Replays move on, moves asked by the keys and the wheel are applied (doc/time.md)
     () => { // (poses of frames are shared by the views during the update: see ViewScene3D.poseOf)
         TELEPLOT.view.ViewScene3D.__poseCache = new Map();
         try { TELEPLOT.view.updateViews(); }

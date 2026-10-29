@@ -51,10 +51,12 @@ class ViewCurrentValue extends ViewTelemetries{
             },
             computed: {
                 ordered() { return this.displayOrder.map((id) => this.telemetries[id]).filter(Boolean); },
-                offRow() { let row = this.ui.off !== null ? this.telemetries[this.ui.off] : undefined; return row && row.cmd && !row.cmd.on ? row : undefined; } // (a setting touched while commands are off)
+                offRow() { let row = this.ui.off !== null ? this.telemetries[this.ui.off] : undefined; return row && row.cmd && !row.cmd.on ? row : undefined; }, // (a setting touched while commands are off)
+                notLive() { return this.ordered.some((row) => row.cmd && row.cmd.notLive); } // (its time group shows the past: its commands are off)
             },
             methods: {
                 onRowClick: (id) => { if(self.rowHandlers.click) self.rowHandlers.click(id); },
+                goLive: () => TELEPLOT.view.backToLive(self.group),
                 onRowEnter: (id) => { if(self.rowHandlers.enter) self.rowHandlers.enter(id); },
                 onRowLeave: (id) => { if(self.rowHandlers.leave) self.rowHandlers.leave(id); },
                 formatEnd: (value) => ViewCurrentValue.formatEnd(value),
@@ -196,7 +198,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 shownTelem.bar = gauge.bar;
             }
             // Commands: what can be written or called, and how the latest request went (only when it changed, too)
-            let cmd = this.commandsUI ? ViewCurrentValue.commandState(telem, gauge.bar) : undefined;
+            let cmd = this.commandsUI ? ViewCurrentValue.commandState(telem, gauge.bar, this.group) : undefined;
             let cmdKey = cmd === undefined ? "" : JSON.stringify(cmd);
             if(shownTelem.cmdKey !== cmdKey) { shownTelem.cmdKey = cmdKey; shownTelem.cmd = cmd; }
         }
@@ -222,16 +224,17 @@ class ViewCurrentValue extends ViewTelemetries{
      *   reason (tooltip), targetAt (0 to 1: where the caret goes on the bar), reportedText; an action: call {id, status, text,
      *   duration, elapsed} of its latest call. undefined for a telemetry that is neither.
      */
-    static commandState(telem, bar) {
+    static commandState(telem, bar, group) {
         const C = TELEPLOT.commands, P = TELEPLOT.protocol;
         let declaration = C.declaration(telem);
         if(!declaration) return undefined;
         let on = TELEPLOT.state.commands === true;
-        let why = on ? C.whyNot(telem) : "";
+        let why = on ? C.whyNotIn(telem, group) : "";
         let name = telem.getAttribute(P.TELEM_ATTR_NAME) || String(telem.id);
         let state = { kind: declaration.kind, type: declaration.type, on, why, editable: on && why === "", continuous: C.isContinuous(telem),
             choices: declaration.choices || [], captions: declaration.captions || {}, title: telem.getAttribute(P.TELEM_ATTR_TITLE) || name, desc: telem.getAttribute(P.TELEM_ATTR_DESC) || "",
-            confirm: declaration.confirm === true, longpress: declaration.longpress === true, color: telem.getAttribute(P.TELEM_ATTR_COLOR) || "" };
+            confirm: declaration.confirm === true, longpress: declaration.longpress === true, color: telem.getAttribute(P.TELEM_ATTR_COLOR) || "",
+            notLive: on && why === C.NOT_LIVE };
         if(declaration.kind === "setting") {
             let reported = C.reported(telem);
             state.reportedText = reported ? C.formatValue(declaration.type, reported.value) : "";
@@ -643,6 +646,10 @@ class ViewCurrentValue extends ViewTelemetries{
             <!-- A setting touched while commands are off: nothing is sent, and the view says why (at its bottom, visible however it scrolls) -->
             <div v-if="offRow" class="teleplot-js-cmd-offnote teleplot-js-cmd-offnote-sticky" role="status" v-on:click.stop v-on:pointerdown.stop>
                 <span><b>{{offRow.name}}</b>: commands are off, nothing is sent.</span><button class="teleplot-js-cmd-button" v-on:click.stop="switchCommandsOn()">Switch on</button>
+            </div>
+            <!-- Its time group is held or replaying: what is shown is not now, so nothing is sent from here until it is live -->
+            <div v-else-if="notLive" class="teleplot-js-cmd-offnote teleplot-js-cmd-offnote-sticky" role="status" v-on:click.stop v-on:pointerdown.stop>
+                <span>Not live: commands send nothing from here.</span><button class="teleplot-js-cmd-button" v-on:click.stop="goLive()">Go live</button>
             </div>
             </template>
         </div>

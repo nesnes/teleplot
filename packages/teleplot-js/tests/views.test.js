@@ -443,7 +443,8 @@ test('backToLive drops the zoom and the cursor of a group, or of all of them', (
     assert.equal(T.view.isZoomed('two'), false);
     assert.equal(T.view.backToLive('two'), false);
     assert.equal(T.view.backToLive(), true);
-    assert.deepEqual(T.view.groups.one, { cursorActive: false, cursorTimestamp: -1, timestampFrom: -1, timestampTo: -1 });
+    const one = T.view.groups.one;
+    assert.deepEqual([one.cursorActive, one.cursorTimestamp, one.timestampFrom, one.timestampTo, one.mode, one.at, one.span], [false, -1, -1, -1, 'live', -1, 0]);
     assert.equal(T.view.isZoomed(), false);
 });
 

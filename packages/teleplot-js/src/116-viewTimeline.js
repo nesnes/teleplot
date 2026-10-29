@@ -568,14 +568,15 @@ class ViewTimeline extends ViewTelemetries{
         let release = (event) => {
             if(!drag) return;
             let selection = this.selection;
+            let pressed = drag;
             drag = undefined;
             this.selection = undefined;
             try { canvas.releasePointerCapture(event.pointerId); } catch(e) {}
-            if(selection && selection.to - selection.from >= 4) { // A period was selected: the views of the group zoom on it
-                let group = TELEPLOT.view.groups[this.group];
+            if(selection && selection.to - selection.from >= 4) { // A period was selected: the views of the group are held on it
                 let from = this.__timeAt(selection.from), to = this.__timeAt(selection.to);
-                if(from < to) { group.timestampFrom = from; group.timestampTo = to; group.cursorActive = true; }
+                if(from < to) TELEPLOT.view.zoomTo(this.group, from, to);
             }
+            else if(pressed.x >= page.gutter) TELEPLOT.view.seek(this.group, Math.max(0, this.__timeAt(drag.x))); // A click: held at that moment
             this.__draw();
         };
         listen(canvas, "pointerup", release);
@@ -584,9 +585,9 @@ class ViewTimeline extends ViewTelemetries{
             if(drag) return;
             this.tip.shown = false;
             TELEPLOT.view.hoveredGroup = "";
-            if(!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1; // (while zoomed the cursor stays where it was last, as on charts)
+            TELEPLOT.view.pointerLeft(this.group); // (the views show the moment of the group again)
         });
-        listen(canvas, "dblclick", () => TELEPLOT.view.backToLive(this.group));
+        listen(canvas, "dblclick", () => TELEPLOT.view.setSpan(this.group, 0)); // The whole data window again (live or not)
         listen(host, "scroll", () => this.__draw()); // (the time axis stays at the bottom of what is visible)
         if(typeof ResizeObserver === "function") { page.observer = new ResizeObserver(() => this.__resize()); page.observer.observe(host); }
         this.__resize();

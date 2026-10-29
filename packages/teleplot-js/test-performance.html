@@ -30,7 +30,10 @@
     <button id="apply">Apply</button>
     <label><input id="decimation" type="checkbox"> Chart decimation (live)</label>
     <button id="run">Stop</button>
-    <button id="pause">Pause / Play</button>
+    <button id="pause">Stop / start receiving</button>
+    <label>Display <select id="time"><option value="live">Live</option><option value="held">Held (10 s ago)</option><option value="replay">Replay (from 10 s ago)</option></select></label>
+    <label>Speed <select id="speed"><option>0.25</option><option>0.5</option><option>1</option><option>2</option><option>5</option><option>10</option></select></label>
+    <label>Span (s, 0 = whole window) <input id="span" type="number" min="0"></label>
   </div>
   <div id="stats">Starting...</div>
   <div id="charts"></div>
@@ -48,6 +51,9 @@
       charts: +(params.get("charts") ?? 1),
       protocol: params.get("protocol") === "binary" ? "binary" : "text",
       decimation: params.get("decimation") !== "0",
+      time: ["held", "replay"].includes(params.get("time")) ? params.get("time") : "live", // What the charts show (doc/time.md): measured like live
+      speed: +(params.get("speed") ?? 1),
+      span: +(params.get("span") ?? 0),
     };
     document.getElementById("series").value = setup.series;
     document.getElementById("rate").value = setup.rate;
@@ -56,15 +62,32 @@
     document.getElementById("charts-count").value = setup.charts;
     document.getElementById("protocol").value = setup.protocol;
     document.getElementById("decimation").checked = setup.decimation;
+    document.getElementById("time").value = setup.time;
+    document.getElementById("speed").value = String(setup.speed);
+    document.getElementById("span").value = setup.span;
 
     document.getElementById("apply").onclick = () => {
       const value = (id) => document.getElementById(id).value;
       location.search = new URLSearchParams({
         series: value("series"), rate: value("rate"), timeout: value("timeout"), late: value("late"),
         charts: value("charts-count"), protocol: value("protocol"), decimation: document.getElementById("decimation").checked ? 1 : 0,
+        time: value("time"), speed: value("speed"), span: value("span"),
       });
     };
-    document.getElementById("pause").onclick = () => { Teleplot.state.isPaused = !Teleplot.state.isPaused; };
+    document.getElementById("pause").onclick = () => { Teleplot.setReceiving(!Teleplot.state.receiving); };
+    // Held or replaying: started 12 s after the page, 10 s back (a replay goes live when it catches up, so it starts again 10 s back)
+    function applyTime() {
+      const group = "default", time = Teleplot.view.timeOf(group);
+      if (!(time.at >= 0)) return;
+      if (setup.span > 0) Teleplot.view.setSpan(group, setup.span);
+      if (setup.time === "held") Teleplot.view.seek(group, time.at - 10);
+      else if (setup.time === "replay") { Teleplot.view.seek(group, time.at - 10); Teleplot.view.setSpeed(group, setup.speed); }
+    }
+    if (setup.time !== "live") {
+      setTimeout(applyTime, 12000);
+      setInterval(() => { if (setup.time === "replay" && Teleplot.view.isLive("default")) applyTime(); }, 1000);
+    }
+    else if (setup.span > 0) setTimeout(() => Teleplot.view.setSpan("default", setup.span), 1000);
 
     Teleplot.state.dataTimeout = setup.timeout;
 
@@ -167,7 +190,7 @@
 
     // ---- Measures ----
     // Time spent in each update hook (data timeout, views update), over the last report period
-    const hookLabels = ["Data timeout update", "Views update"]; // Same order as Teleplot.updates.onUpdateHooks
+    const hookLabels = ["Data timeout update", "Memory check", "Commands", "Time groups", "Time shown", "Views update"]; // Same order as Teleplot.updates.onUpdateHooks (998-update.js)
     const hookTimes = {};
     Teleplot.updates.onUpdateHooks.forEach((hook, i) => {
       const label = hookLabels[i] ?? "Hook " + i;
@@ -198,7 +221,8 @@
                + `Ingested             : ${(generator.ingestedSamples / seconds / 1000).toFixed(1)} k samples/s (${(generator.ingestMs / seconds / 10).toFixed(1)} % of time spent parsing)\n`
                + `Input size           : ${(generator.bytes / seconds / 1024).toFixed(0)} kB/s (${setup.protocol}, ${(generator.bytes / Math.max(generator.ingestedSamples, 1)).toFixed(1)} bytes per sample)\n`
                + `Stored points        : ${storedPoints.toLocaleString()}\n`
-               + `JS heap              : ${heap}\n`;
+               + `JS heap              : ${heap}\n`
+               + `Display              : ${(() => { const t = Teleplot.view.timeOf("default"); return t.mode + (t.mode == "replay" ? " " + t.speed + "x" : "") + (t.span ? ", span " + t.span + " s" : ""); })()}\n`;
       for (const [name, t] of Object.entries(hookTimes)) {
         text += `${name.padEnd(21)}: avg ${(t.sum / Math.max(t.count, 1)).toFixed(2)} ms, max ${t.max.toFixed(1)} ms per update (budget ${Teleplot.state.updateIntervalMs} ms)\n`;
         delete hookTimes[name];

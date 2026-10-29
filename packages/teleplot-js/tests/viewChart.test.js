@@ -479,34 +479,29 @@ test('decimators are never proxied by a reactive UI framework (webapp: a proxied
     assert.equal(chart.decimators.__v_skip, true); // Vue's "do not proxy" flag
 });
 
-test('a zoom stays when the pointer leaves the chart, and is reset when the chart goes back to all its data (double click)', () => {
-    const T = loadTeleplot();
-    const chart = new T.view.ViewChart('chart-zoom', []);
+test('a zoom holds the group on the period selected; the pointer previews a moment; a double click gives the whole window back', () => {
+    const { T, telems, chart } = setup();
+    telems[0].addData(NUMBER, [10, 11, 12, 13, 14], [[1, 2, 3, 4, 5]]);
     chart.createChart();
+    T.view.addView(chart);
     const group = T.view.groups[chart.group];
     const hooks = chart.chartOptions.hooks;
     const u = { data: [[10, 11, 12, 13, 14]], scales: { x: { min: 11, max: 12 } }, cursor: { left: 40 }, posToIdx: () => 1, posToVal: () => 11.2 };
-    hooks.setScale[0](u, 'x');
-    assert.deepEqual([group.cursorActive, group.timestampFrom, group.timestampTo], [true, 11, 12]);
     hooks.setCursor[0](u);
     assert.equal(group.cursorTimestamp, 11, 'the sample under the pointer');
+    hooks.setScale[0](u, 'x'); // A period selected while the pointer is at 11
+    assert.deepEqual([group.mode, group.at, group.span, group.cursorActive, group.timestampFrom, group.timestampTo], ['held', 11, 1, true, 11, 12]);
     hooks.setCursor[0](Object.assign({}, u, { posToIdx: () => 4, posToVal: () => 16.5 }));
     assert.equal(group.cursorTimestamp, 16.5, 'beyond the last number (where marks widened the chart): the time pointed at');
-    hooks.setCursor[0](u);
     u.cursor.left = -10; // The pointer leaves
     hooks.setCursor[0](u);
-    assert.equal(group.cursorActive, true, 'still zoomed');
-    assert.equal(group.cursorTimestamp, 11, 'the views of the group stay on the last moment pointed at');
+    assert.deepEqual([group.mode, group.cursorTimestamp], ['held', 11], 'the views show the moment held again');
     u.scales.x = { min: 10, max: 14 }; // Double click: back to the extent of the data
     hooks.setScale[0](u, 'x');
-    assert.deepEqual([group.cursorActive, group.cursorTimestamp], [false, -1], 'back to the latest data');
-    // Without a zoom, the cursor goes with the pointer
-    u.cursor.left = 40;
+    assert.deepEqual([group.mode, group.span, group.timestampFrom, group.timestampTo], ['held', 0, 10, 14], 'the whole window, still held');
+    T.view.backToLive(chart.group);
     hooks.setCursor[0](u);
-    assert.equal(group.cursorTimestamp, 11);
-    u.cursor.left = -10;
-    hooks.setCursor[0](u);
-    assert.equal(group.cursorTimestamp, -1);
+    assert.deepEqual([group.mode, group.cursorActive, group.cursorTimestamp], ['live', false, -1], 'live: the latest data');
 });
 
 test('current value: labels under a bar (ends of the range, names of the thresholds) are dropped when they would overlap, thresholds first', () => {

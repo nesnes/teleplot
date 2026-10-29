@@ -103,13 +103,13 @@ test('binary attributes: write, arguments, description, title; the choices are a
     assert.equal(T.commands.declaration(mode), undefined);
 });
 
-test('nothing is sent while CMD is off, while paused, nor to a telemetry of a file; why is told', () => {
+test('nothing is sent while CMD is off, while not receiving, nor to a telemetry of a file; why is told', () => {
     const { T, written, telem } = setup('ATTR|kp|write\nkp:0.4');
     assert.match(T.commands.write(telem('kp'), 0.5), /Commands are off/);
     T.commands.setEnabled(true);
-    T.state.isPaused = true;
-    assert.match(T.commands.write(telem('kp'), 0.5), /Paused/);
-    T.state.isPaused = false;
+    T.setReceiving(false);
+    assert.match(T.commands.write(telem('kp'), 0.5), /Not receiving/);
+    T.setReceiving(true);
     T.parseDataText('ATTR|fromFile|write\nfromFile:1'); // (no source: as an imported file)
     assert.match(T.commands.write(telem('fromFile'), 2), /From a file/);
     assert.equal(T.commands.whyNot(telem('kp')), '');
@@ -453,7 +453,7 @@ test('values view: what a row shows of a setting or an action (no DOM)', () => {
     const V = T.view.ViewCurrentValue;
     const bar = { min: 0, max: 10 };
     assert.deepEqual(V.commandState(telem('kp'), bar), { kind: 'setting', type: 'number', on: false, why: '', editable: false, continuous: false, choices: [], captions: {},
-        title: 'kp', desc: 'Gain', confirm: false, longpress: false, color: '', reportedText: '4', status: '' }, 'CMD off: nothing asked, nothing editable');
+        title: 'kp', desc: 'Gain', confirm: false, longpress: false, color: '', notLive: false, reportedText: '4', status: '' }, 'CMD off: nothing asked, nothing editable');
     T.commands.setEnabled(true);
     T.commands.write(telem('kp'), 5);
     let state = V.commandState(telem('kp'), bar);

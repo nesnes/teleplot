@@ -77,13 +77,19 @@ TELEPLOT.commands.connectionOf = function(telem) {
 TELEPLOT.commands.whyNot = function(telem) {
     if(!TELEPLOT.commands.declaration(telem)) return "Not writable";
     if(!TELEPLOT.state.commands) return "Commands are off (CMD)";
-    if(TELEPLOT.state.isPaused) return "Paused: the answers of the devices are not read";
+    if(!TELEPLOT.state.receiving) return "Not receiving: the answers of the devices are not read";
     let connection = TELEPLOT.commands.connectionOf(telem);
     if(connection === undefined) return telem.sourceId === undefined ? "From a file: there is no device to send it to" : "Its source is gone";
     if(typeof connection.whyNotWritable !== "function") return "This source cannot send anything back";
     return connection.whyNotWritable();
 }
 TELEPLOT.commands.canWrite = (telem) => TELEPLOT.commands.whyNot(telem) === "";
+
+// The same, for a view of a time group: a group that is not live shows the past, its commands send nothing (doc/time.md "Commands")
+TELEPLOT.commands.NOT_LIVE = "Not live: what is shown is not now";
+TELEPLOT.commands.whyNotIn = function(telem, group) {
+    return TELEPLOT.commands.whyNot(telem) || (group === undefined || TELEPLOT.view.isLive(group) ? "" : TELEPLOT.commands.NOT_LIVE);
+}
 
 // Switches commands on or off (the CMD button). Off releases every continuous control.
 TELEPLOT.commands.setEnabled = function(on) {
@@ -263,7 +269,7 @@ function _commands_send(telem, line, packet) {
 
 // The conversation, as a log telemetry of the page ("commands.sent"): what was sent, as text lines
 function _commands_log(line, time) {
-    if(TELEPLOT.state.isPaused) return;
+    if(!TELEPLOT.state.receiving) return;
     TELEPLOT.datastore.withSource("page", () => {
         let telem = TELEPLOT.datastore.getOrCreateTelemetry(_commands_LOG_NAME);
         if(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) !== true) telem.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, true);

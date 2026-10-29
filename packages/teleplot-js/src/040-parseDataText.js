@@ -1,7 +1,7 @@
 // Returns the number of lines that could not be understood (0 when everything was): lines that made the parser fail, and lines that
 // are not empty but hold no "name:value".
 TELEPLOT.parseDataText = function(msgIn){
-    if(TELEPLOT.state.isPaused) return 0; // Do not buffer incoming data while paused
+    if(!TELEPLOT.state.receiving) return 0; // Not receiving: nothing is buffered either
     let problems = 0;
     let now = new Date().getTime();
 

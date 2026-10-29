@@ -40,7 +40,7 @@
 <body>
   <header>
     <h1>Teleplot JS: every feature of the library, live</h1>
-    <button onclick="Teleplot.state.isPaused = !Teleplot.state.isPaused">Pause / Play</button>
+    <button onclick="Teleplot.setReceiving(!Teleplot.state.receiving)">Stop / start receiving</button>
     <button onclick="document.documentElement.dataset.theme = Teleplot.theme.isDark() ? 'light' : 'dark'">Light / Dark</button>
     <a href="test-performance.html">Performance test page</a>
   </header>
@@ -292,6 +292,34 @@
     });
     demo("Legend in a short view", "The list of series scrolls.", [500, 140], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewChart(id, manySeries));
+    });
+
+    // ====================================================================================================================== Time
+    section("Time", "Reception on or off (Teleplot.setReceiving), and the time shown by a time group: live, held at a moment or replaying at a speed (Teleplot.view.hold / seek / step / play / setSpeed / setSpan / backToLive, see doc/time.md). Every view shows the last sample at or before that moment. Held, charts keep their window and draw the data after the moment too, with a line at it.");
+
+    demo("Hold, step, replay, live", "The chart and the values are in their own time group (\"time-demo\"): the other demos stay live. Hold, step back, then replay at 2x: when the replay reaches the newest sample, the group is live again. Stop receiving for a few seconds: the line breaks and the period is hatched.", [760, 260], (id) => {
+      const view = document.getElementById(id), group = "time-demo";
+      view.style.display = "grid"; view.style.gridTemplateColumns = "2fr 1fr"; view.style.gridTemplateRows = "auto 1fr"; view.style.gap = "6px";
+      const bar = document.createElement("div"); bar.style.gridColumn = "1 / 3"; bar.style.display = "flex"; bar.style.gap = "6px"; bar.style.alignItems = "center";
+      const state = document.createElement("code");
+      const button = (text, action) => { const b = document.createElement("button"); b.textContent = text; b.onclick = action; bar.appendChild(b); };
+      button("Hold / resume", () => Teleplot.view.togglePlay(group));
+      button("‹ sample", () => Teleplot.view.step(group, -1));
+      button("Back 5 s", () => Teleplot.view.seek(group, Teleplot.view.timeOf(group).at - 5));
+      button("Replay 2x", () => Teleplot.view.setSpeed(group, 2));
+      button("Span 5 s / all", () => Teleplot.view.setSpan(group, Teleplot.view.timeOf(group).span ? 0 : 5));
+      button("Live", () => Teleplot.view.backToLive(group));
+      button("Reception", () => Teleplot.setReceiving(!Teleplot.state.receiving));
+      bar.appendChild(state);
+      const chart = document.createElement("div"), values = document.createElement("div");
+      chart.id = id + "-chart"; values.id = id + "-values";
+      view.append(bar, chart, values);
+      Teleplot.view.addView(new Teleplot.view.ViewChart(chart.id, ["numberTelemetry", "number.cos"], group));
+      Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(values.id, ["numberTelemetry", "number.cos"], group));
+      setInterval(() => {
+        const t = Teleplot.view.timeOf(group);
+        state.textContent = t.mode + (t.mode == "replay" ? " " + t.speed + "x" : "") + (t.mode == "live" ? "" : " at " + t.at.toFixed(2)) + (t.span ? ", span " + t.span + " s" : "") + (Teleplot.state.receiving ? "" : ", not receiving");
+      }, 100);
     });
 
     // ====================================================================================================================== Logs

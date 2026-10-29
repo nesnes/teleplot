@@ -21,6 +21,7 @@ The tests load the library sources (`src/NNN-*.js`) directly, not the built bund
 | `protocol.test.js` | protocol constants, clients, colors |
 | `viewLog.test.js` | log view: rows built from text telemetries, time window, cursor, line limit |
 | `dashboards.test.js` | dashboard helpers: stats, creation, unique names |
+| `time.test.js` | reception on and off (periods not received, files, the memory limit), the time shown per group: hold, seek, step, replay, span placed at 70 %, live window, the data window moving a held moment, commands not live, breaks of chart lines (and the real `uPlot.join`) ([time.md](../../../doc/time.md)) |
 | `commands.test.js` | commands ([telecmd.md](../../../doc/telecmd.md)): settings, actions, continuous control, the parsers and connections that carry them |
 | `bootClock.test.js` | times since boot: times of a board dated by the page, per source ([sources.md](../../../doc/sources.md)) |
 | `views.test.js` | views, layout, stack, drag and drop, dashboards, update loop |

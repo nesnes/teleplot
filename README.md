@@ -206,10 +206,12 @@ Everything about commands: [doc/telecmd.md](doc/telecmd.md).
 - **Views**: charts with marks and thresholds, values and gauges, logs, timelines ([doc/time-views.md](doc/time-views.md)), graphs of state
   machines and behavior trees ([doc/graph.md](doc/graph.md)), 2D maps
   ([doc/2d.md](doc/2d.md)), 3D scenes and cameras ([doc/3d.md](doc/3d.md)), depth maps ([doc/depth.md](doc/depth.md)), joysticks.
-  Drag on a chart to zoom: every view of the dashboard follows the same moment.
+  Drag on a chart to zoom: every view of the dashboard follows the same moment. Space holds the display (data keeps coming), the line
+  at the bottom of the top menu goes back in time and replays it.
 - **Files**: export data and dashboards as binary, text or CSV, and open them again ([doc/files.md](doc/files.md)).
 - **Sources**: Teleplot servers and serial ports, their state and their console ([doc/sources.md](doc/sources.md)).
-- **Top menu**: pause, data window and memory, panels, shortcuts ([doc/top-menu.md](doc/top-menu.md)).
+- **Top menu**: reception on or off, the time line (hold, replay at several speeds, live), data window and memory, panels, shortcuts
+  ([doc/top-menu.md](doc/top-menu.md), [doc/time.md](doc/time.md)).
 
 All the documentation: [doc/](doc/README.md).
 

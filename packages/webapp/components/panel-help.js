@@ -695,8 +695,8 @@ const HELP_TILES = [
       notes: ["Drag across a chart or a timeline: every view of the dashboard shows that range.", "The cursor shows the same moment everywhere, 3D scenes and pictures included.", "Double click (or Esc) goes back to live.", "Time groups (Edit mode) keep some views apart."] },
     { id: "files", family: "page", title: "Save and open", sub: "export, import", picture: "files", keys: ["X"], action: "export", actionLabel: "Open Export and import",
       notes: ["Export data, dashboards or both: a binary file, lines of text or CSV, all of it or a time range.", "Drop a file on the page to open it."] },
-    { id: "memory", family: "page", title: "Keep more or less", sub: "data window, memory", picture: "memory", keys: ["Space"], action: "rate", actionLabel: "Open the data menu",
-      notes: ["The rate in the top menu opens the data menu: how long data is kept (5 minutes by default), how much memory it may take, what happens when it is full.", "Space pauses: data that comes meanwhile is ignored."] },
+    { id: "memory", family: "page", title: "Keep more or less", sub: "data window, memory", picture: "memory", keys: ["Space", "R"], action: "rate", actionLabel: "Open the data menu",
+      notes: ["The rate in the top menu opens the data menu: how long data is kept (5 minutes by default), how much memory it may take, what happens when it is full.", "Space holds the display: data keeps being received and stored, the views stay on that moment. The line at the bottom of the top menu shows it; drag it to go back in time, ⋯ to replay at another speed.", "The dot next to the rate (or R) stops the reception: what the devices send meanwhile is lost."] },
     { id: "serial", family: "page", title: "A serial port", sub: "no server needed", picture: "serial", keys: ["S"], action: "sources", actionLabel: "Open Sources",
       notes: ["Sources, Add a source, Serial port (Chrome, Edge).", "Lines starting with > are telemetry, the others a log of the port.", "Its console sends text back."] },
     { id: "cmd", family: "page", title: "Commands on", sub: "the CMD button", picture: "cmd", keys: ["C"], action: "cmd", actionLabel: "Switch commands on or off",
@@ -925,14 +925,18 @@ const HELP_SENDERS = [
 ]
 
 const HELP_SHORTCUTS = [
-    { keys: "Space", label: "Pause or resume" },
+    { keys: "Space", label: "Hold or resume the display (data keeps being received)" },
+    { keys: ", .", label: "Previous / next sample" },
+    { keys: "[ ]", label: "Replay slower / faster" },
+    { keys: "← →", label: "Move the time shown, on the time line of the top menu (also the wheel)" },
+    { keys: "R", label: "Reception on or off" },
     { keys: "T", label: "Telemetries" },
     { keys: "S", label: "Sources" },
     { keys: "X", label: "Export and import" },
     { keys: "H", label: "This help" },
     { keys: "E", label: "Edit the dashboard" },
     { keys: "C", label: "Commands on or off" },
-    { keys: "Esc", label: "Close a panel, leave Edit, back to live" },
+    { keys: "Esc", label: "Close a panel, leave Edit, back to live (Shift: every time group)" },
 ];
 
 // The properties of a 3D| / 2D| line, by their short and long names: what each is called in the panel, and how many values it takes (as
@@ -2138,7 +2142,7 @@ function initComponent_panel_help(vue) {
                 this.$nextTick(() => { if (this.$refs.tryInput) { this.$refs.tryInput.focus(); this.syncTryScroll(); } });
             },
             describe(code) {
-                if (this.TP.state.isPaused) return { ok: false, text: "Data is paused: resume (Space) and send again." };
+                if (!this.TP.state.receiving) return { ok: false, text: "Not receiving: switch reception on (R) and send again." };
                 return helpDescribe(this.TP, code, helpSend(this.TP, code)); // (from the device of the Help: commands have somewhere to go)
             },
             sendTry() {

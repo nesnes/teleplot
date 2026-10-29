@@ -58,6 +58,7 @@ class ViewLog extends ViewTelemetries{
                 onDragDrop: self.onDragDrop,
                 onScroll(event) { self.followLatest = ViewLog.isAtBottom(event.target); },
                 onRowEnter(row) { self.hoverRow(row); },
+                onRowClick(row) { TELEPLOT.view.seek(self.group, row.t); }, // Held at that line
                 onLeave() { self.hoverEnd(); }
             },
             template: ViewLog.vueHTML,
@@ -80,7 +81,7 @@ class ViewLog extends ViewTelemetries{
     hoverEnd() {
         this.hovering = false;
         TELEPLOT.view.hoveredGroup = "";
-        if (!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1; // (while zoomed the cursor stays where it was last, as on charts)
+        TELEPLOT.view.pointerLeft(this.group); // (the views show the moment of the group again)
     }
 
     // First index of a sorted array whose value is >= x (or > x if strict)
@@ -244,7 +245,7 @@ class ViewLog extends ViewTelemetries{
             <div v-for="(row, index) in state.rows" v-bind:key="index" class="teleplot-js-log-row"
                 v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex, 'teleplot-js-log-row-warn': row.level == 1, 'teleplot-js-log-row-error': row.level == 2, 'teleplot-js-log-row-ok': row.level == 3}"
                 v-bind:style="state.multi && options.displayTelemetryColor ? {'border-left-color': row.color} : {}"
-                v-bind:title="row.text" @mouseenter="onRowEnter(row)">
+                v-bind:title="row.text" @mouseenter="onRowEnter(row)" @click="onRowClick(row)">
                 <span v-if="options.displayTimestamp" class="teleplot-js-log-time">{{row.time}}</span>
                 <span v-if="state.multi && options.displayTelemetryName" class="teleplot-js-log-name" v-bind:title="row.tip">{{row.name}}</span>
                 <span class="teleplot-js-log-text">{{row.text}}</span>

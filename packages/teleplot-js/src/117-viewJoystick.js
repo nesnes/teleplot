@@ -29,10 +29,11 @@ class ViewJoystick extends ViewTelemetries {
         let self = this;
         this.vue.component(this.type, {
             name: this.type,
-            data() { return { self, options: self.options, layout: self.layout, dragContext: self.dragContext, emptyState: self.emptyState, state: self.state }; },
+            data() { return { self, options: self.options, layout: self.layout, dragContext: self.dragContext, emptyState: self.emptyState, state: self.state, notLive: TELEPLOT.commands.NOT_LIVE }; },
             methods: {
                 padDown: (e) => self.__press("pad", e),
                 switchOn: () => { TELEPLOT.commands.setEnabled(true); self.state.offNotice = false; },
+                goLive: () => TELEPLOT.view.backToLive(self.group),
                 rockerDown: (e) => self.__press("rocker", e),
                 onKey: (e) => self.__key(e, true),
                 onKeyUp: (e) => self.__key(e, false),
@@ -137,7 +138,7 @@ class ViewJoystick extends ViewTelemetries {
         let mode = this.options.orientation === "vertical" && ViewJoystick.modeOf(declaration) === "rocker" ? "vrocker" : ViewJoystick.modeOf(declaration);
         let range = telem.getRange();
         let on = TELEPLOT.state.commands === true;
-        let why = on ? TELEPLOT.commands.whyNot(telem) || (TELEPLOT.commands.isContinuous(telem) ? "" : "Not continuous: declare rate and hold") : "";
+        let why = on ? TELEPLOT.commands.whyNotIn(telem, this.group) || (TELEPLOT.commands.isContinuous(telem) ? "" : "Not continuous: declare rate and hold") : "";
         let reported = TELEPLOT.commands.reported(telem);
         let base = mode === "vrocker" ? "rocker" : mode;
         let place = ViewJoystick.toPlace(base, reported ? reported.value : 0, range);
@@ -266,6 +267,7 @@ class ViewJoystick extends ViewTelemetries {
                 <div class="teleplot-js-joystick-value">{{state.text}}</div>
                 <div v-if="state.on && state.refused" class="teleplot-js-joystick-keys teleplot-js-joystick-refused" role="status" v-bind:title="'The device refuses: ' + state.refused">✕ {{state.refused}}</div>
                 <div v-else-if="state.on && state.keyboard != 'off' && state.editable" class="teleplot-js-joystick-keys">{{state.focused ? 'Keys drive · Esc' : 'Click to drive with the ' + (state.keyboard == 'wasd' ? 'WASD keys' : 'arrow keys')}}</div>
+                <div v-else-if="state.on && state.why === notLive" class="teleplot-js-cmd-offnote" role="status" v-on:click.stop v-on:pointerdown.stop><span>Not live: nothing is sent.</span><button class="teleplot-js-cmd-button" v-on:click.stop="goLive">Go live</button></div>
                 <div v-else-if="state.on && state.why" class="teleplot-js-joystick-keys">{{state.why}}</div>
                 <div v-else-if="!state.on && !state.offNotice" class="teleplot-js-joystick-keys">Commands are off</div>
                 <div v-if="!state.on && state.offNotice" class="teleplot-js-cmd-offnote" role="status" v-on:click.stop v-on:pointerdown.stop><span>Commands are off: nothing is sent.</span><button class="teleplot-js-cmd-button" v-on:click.stop="switchOn">Switch on</button></div>

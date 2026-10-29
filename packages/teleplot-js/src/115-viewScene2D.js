@@ -632,7 +632,7 @@ class ViewScene2D extends ViewScene3D {
             else if(source.state.texture.type == P.TEXTURE_TYPE_IMAGE && source.image) source.textureUrl = source.image.url;
         }
         key += `|${since},${TELEPLOT.theme.key()},${this.options.displayGrid},${this.options.displayAxes},${this.options.axisRight},${this.options.axisUp},${page.width}x${page.height}`;
-        key += `|cmd:${TELEPLOT.state.commands}`; // Commands: what is asked of the writable poses and points
+        key += `|cmd:${TELEPLOT.state.commands}:${TELEPLOT.view.isLive(this.group)}`; // Commands: what is asked of the writable poses and points
         for(let source of sources) { let request = TELEPLOT.commands.request(source.telem); if(request) key += `:${source.telem.id}=${request.status}`; }
         if(key == this.lastKey) return;
         this.lastKey = key;
@@ -658,7 +658,7 @@ class ViewScene2D extends ViewScene3D {
         for(let source of sources) {
             let telem = source.telem, declaration = TELEPLOT.commands.declaration(telem);
             if(source.hidden || !declaration || declaration.kind !== "setting" || TELEPLOT.commands.isContinuous(telem) || (declaration.type !== "pose2d" && declaration.type !== "xy")) continue;
-            if(!evenOff && !TELEPLOT.commands.canWrite(telem)) continue;
+            if(!evenOff && TELEPLOT.commands.whyNotIn(telem, this.group) !== "") continue; // (nor while its time group is not live)
             let reported = TELEPLOT.commands.reported(telem);
             if(!reported) continue;
             let v = reported.value;

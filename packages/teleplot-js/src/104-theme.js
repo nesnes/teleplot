@@ -39,21 +39,28 @@ TELEPLOT.theme = {};
         :root {
             --teleplot-text: #1d2329; --teleplot-muted: #66717c; --teleplot-surface: #ffffff; --teleplot-bg: #f4f5f7; --teleplot-line: #d5dbe0;
             --teleplot-grid: rgba(0, 0, 0, 0.08); --teleplot-primary: #2980b9; --teleplot-warn: #b87500; --teleplot-error: #d6453d; --teleplot-ok: #23964f;
+            --teleplot-replay: #7d4cc2; /* The moment of a time group that replays (held: --teleplot-primary) */
             --teleplot-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
         }
         :root[data-theme="dark"] {
             --teleplot-text: #e8ebee; --teleplot-muted: #8d98a3; --teleplot-surface: #15191d; --teleplot-bg: #0f1215; --teleplot-line: #2c343b;
-            --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63; --teleplot-ok: #3ccf7a;
+            --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63; --teleplot-ok: #3ccf7a; --teleplot-replay: #b58cf0;
         }
         @media (prefers-color-scheme: dark) {
             :root:not([data-theme="light"]) {
                 --teleplot-text: #e8ebee; --teleplot-muted: #8d98a3; --teleplot-surface: #15191d; --teleplot-bg: #0f1215; --teleplot-line: #2c343b;
-                --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63; --teleplot-ok: #3ccf7a;
+                --teleplot-grid: rgba(255, 255, 255, 0.09); --teleplot-warn: #e0a800; --teleplot-error: #ff6b63; --teleplot-ok: #3ccf7a; --teleplot-replay: #b58cf0;
             }
         }
         @scope (.teleplot-js-style)
         {
             :scope { color: var(--teleplot-text); }
+
+            /* The moment a time group is held at, or replays, on a chart (doc/time.md): a line over the plot, moved without drawing it again */
+            .teleplot-js-chart-head { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px solid var(--teleplot-primary); margin-left: -0.75px; pointer-events: none; z-index: 5; }
+            .teleplot-js-chart-head::before { content: ""; position: absolute; top: -1px; left: -4px; width: 6.5px; height: 6.5px; border-radius: 50%; background: inherit; background: var(--teleplot-primary); }
+            .teleplot-js-chart-head-replay { border-left-color: var(--teleplot-replay); }
+            .teleplot-js-chart-head-replay::before { background: var(--teleplot-replay); }
 
             /* Card: every view that shows telemetries. The top color is an inset bar, so it follows the rounded corners. */
             .teleplot-js-telemetry-card {

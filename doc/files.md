@@ -82,7 +82,7 @@ Opening a CSV: the first line names the columns. One column is the time (the one
 ## Importing
 
 - The format is recognised from the first bytes: the magic means binary, anything else is text.
-- It works while data is paused: pausing is for what flows in.
+- It works while reception is off: that is for what the sources send (see [time.md](time.md)). The period not received goes on.
 - Dashboards of the file are created as **new** dashboards ("Robot 2" when the name is taken); nothing that exists is replaced.
 - Telemetries are the ones the file names: samples are **added** to those that already exist. Importing twice the same file stores its samples twice.
 - **A dry run** (`dryRun` option) reads a file without storing nor creating anything, and returns the same description as a real import: what the file holds, how many telemetries are new, which names its dashboards would get, how long the data window should be. The webapp shows it before opening a file.

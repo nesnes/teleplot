@@ -213,10 +213,15 @@ TELEPLOT.view = {
     hoveredGroup: ""       // Group of the chart or log the pointer is over ("" when it is over none)
 };
 
-// State of a group of views (created if needed): its zoom (cursorActive, timestampFrom/To) and its cursor
+// State of a group of views (created if needed), see doc/time.md "Time shown":
+//   mode       "live" | "held" | "replay"
+//   at         the time shown when not live (seconds, never negative); speed: of a replay; span: the zoom (seconds, 0: the whole window)
+//   cursorActive, timestampFrom, timestampTo: the window in force (the period on the axis of charts and timelines). Always set while
+//              held or replaying (frozen, or placed around "at"), and while live with a span (the last "span" seconds, moved on each update)
+//   cursorTimestamp: the moment the views show (-1: the latest). "at" while not live, or the moment the pointer is on (a preview)
 TELEPLOT.view.ensureGroup = function(name){
     if(TELEPLOT.view.groups[name] === undefined) {
-        TELEPLOT.view.groups[name] = { cursorActive: false, cursorTimestamp: -1, timestampFrom: -1, timestampTo: -1 };
+        TELEPLOT.view.groups[name] = { cursorActive: false, cursorTimestamp: -1, timestampFrom: -1, timestampTo: -1, mode: "live", at: -1, speed: 1, span: 0 };
     }
     return TELEPLOT.view.groups[name];
 }
@@ -299,25 +304,324 @@ TELEPLOT.view.getView = function(viewId){
     return TELEPLOT.view.views.find((v)=> v.id === viewId);
 }
 
-// Whether a group of views (or any of them, without a name) is zoomed on a time range instead of following the latest data
+// Whether a group of views (or any of them, without a name) shows a window of its own instead of all the data (a zoom, held, replay)
 TELEPLOT.view.isZoomed = function(group){
     let groups = group === undefined ? Object.values(TELEPLOT.view.groups) : [TELEPLOT.view.groups[group]];
     return groups.some((g) => !!g && g.cursorActive);
 }
 
-// Back to the latest data: drops the zoom and the cursor of a group of views (of all of them, without a name). Returns whether there was something to drop.
+// Back to the latest data: drops the zoom and the cursor of a group of views (of all of them, without a name), live again.
+// Returns whether there was something to drop.
 TELEPLOT.view.backToLive = function(group){
     let groups = group === undefined ? Object.values(TELEPLOT.view.groups) : [TELEPLOT.view.groups[group]];
     let changed = false;
     for(let g of groups) {
         if(!g) continue;
-        if(g.cursorActive || g.cursorTimestamp >= 0) changed = true;
+        if(g.cursorActive || g.cursorTimestamp >= 0 || (g.mode !== undefined && g.mode !== "live")) changed = true;
+        _views_live(g);
+        g.span = 0;
         g.cursorActive = false;
-        g.cursorTimestamp = -1;
         g.timestampFrom = -1;
         g.timestampTo = -1;
     }
     return changed;
+}
+
+/*
+ * Time shown (doc/time.md). Every group of views is live, held at a moment or replaying, on its own. What the views show is the last
+ * sample at or before that moment: nothing is interpolated. Held, the window of the charts is frozen (data that keeps coming is
+ * stored, not drawn); with a span it is placed so that the moment sits at PLACE of its width. Moves asked by the keyboard and the
+ * wheel (move) are added up and applied once per update (__updateTime, a hook of the update loop), like the replay clock.
+ */
+TELEPLOT.view.PLACE = 0.7;      // Where the moment sits in a window of a span
+TELEPLOT.view.ROOM = 0.06;      // Empty room before the moment when it is the oldest sample (the cursor line is never on the frame)
+TELEPLOT.view.SPEEDS = [0.25, 0.5, 1, 2, 5, 10];
+
+function _views_live(g) {
+    g.mode = "live";
+    g.at = -1;
+    g.resume = undefined;
+    g.pending = undefined;
+    g.movedWithWindow = false;
+    g.cursorTimestamp = -1;
+}
+
+// Telemetries shown by the views of a group (ids or names, once each)
+TELEPLOT.view.groupTelemetries = function(name){
+    let found = new Set();
+    for(let view of TELEPLOT.view.views) {
+        if(view.group !== name || !Array.isArray(view.telemetryIdOrNameList)) continue;
+        for(let idOrName of view.telemetryIdOrNameList) found.add(idOrName);
+    }
+    return Array.from(found);
+}
+
+// The data entries of the telemetries of a group (what has samples, meta data types left out: thresholds and structures are not content)
+function _views_groupEntries(name) {
+    let entries = [];
+    for(let idOrName of TELEPLOT.view.groupTelemetries(name)) {
+        let telem = TELEPLOT.datastore.getTelemetry(idOrName);
+        if(telem === undefined) continue;
+        for(let dataType in telem.data) {
+            if(TELEPLOT.protocol.isMetaDataType(Number(dataType))) continue;
+            let entry = telem.data[dataType];
+            if(entry && entry.timestamps && entry.timestamps.length) entries.push(entry);
+        }
+    }
+    return entries;
+}
+
+// {from, to}: the oldest and the newest sample shown by a group, undefined without data
+TELEPLOT.view.groupExtent = function(name){
+    let from = Infinity, to = -Infinity;
+    for(let entry of _views_groupEntries(name)) {
+        if(entry.timestamps[0] < from) from = entry.timestamps[0];
+        let last = entry.timestamps[entry.timestamps.length - 1];
+        if(last > to) to = last;
+    }
+    return to === -Infinity ? undefined : { from, to };
+}
+
+// The window of a group that is not live, for its moment: a span placed with the moment at PLACE (within the data), or the whole
+// data up to the newest sample when it was held (or up to the moment, when a replay goes further). Room is left before a moment that
+// is the oldest sample.
+function _views_place(g, extent) {
+    let at = g.at, oldest = extent ? extent.from : at, newest = Math.max(g.frozenTo !== undefined ? g.frozenTo : at, at);
+    let from, to;
+    if(g.span > 0) {
+        from = at - TELEPLOT.view.PLACE * g.span;
+        to = from + g.span;
+        if(to > newest) { to = newest; from = to - g.span; }
+        if(from < oldest) { from = oldest; to = from + g.span; }
+    }
+    else { from = oldest; to = newest; }
+    if(!(to > from)) { from = at - 1; to = at + 1; }
+    if(at <= from) from = at - TELEPLOT.view.ROOM * (to - at) / (1 - TELEPLOT.view.ROOM);
+    g.timestampFrom = from;
+    g.timestampTo = to;
+    g.cursorActive = true;
+}
+
+// The moment a group shows, and the window of its charts: {mode, at, from, to, speed, span} (live: "at" is its newest sample, and
+// from / to the last span or, without one, the whole data)
+TELEPLOT.view.timeOf = function(name){
+    let g = TELEPLOT.view.ensureGroup(name);
+    if(g.mode !== "live") return { mode: g.mode, at: g.at, from: g.timestampFrom, to: g.timestampTo, speed: g.speed, span: g.span, movedWithWindow: !!g.movedWithWindow };
+    let extent = TELEPLOT.view.groupExtent(name);
+    let to = extent ? extent.to : -1, from = extent ? (g.span > 0 ? Math.max(extent.from, to - g.span) : extent.from) : -1;
+    return { mode: "live", at: to, from, to, speed: g.speed, span: g.span, movedWithWindow: false };
+}
+
+TELEPLOT.view.isLive = function(name){
+    let g = TELEPLOT.view.groups[name];
+    return !g || g.mode === undefined || g.mode === "live";
+}
+
+// Hold a group at a moment (default: what it shows now). Returns false when the group has no data to hold.
+TELEPLOT.view.hold = function(name, at){
+    let g = TELEPLOT.view.ensureGroup(name);
+    let extent = TELEPLOT.view.groupExtent(name);
+    if(extent === undefined) return false;
+    let wasLive = g.mode === "live";
+    if(at === undefined) at = wasLive ? (g.cursorTimestamp >= 0 ? g.cursorTimestamp : extent.to) : g.at;
+    at = Math.min(Math.max(at, extent.from), extent.to);
+    if(wasLive) {
+        g.frozenTo = extent.to;
+        g.resume = at >= extent.to ? "live" : "replay"; // (Space again: live when it was held at the latest data)
+    }
+    else if(g.mode === "replay") g.resume = "replay";
+    g.mode = "held";
+    g.at = at;
+    g.movedWithWindow = false;
+    g.cursorTimestamp = at;
+    _views_place(g, extent);
+    TELEPLOT.view.lastHeld = { name, count: (TELEPLOT.view.lastHeld ? TELEPLOT.view.lastHeld.count : 0) + 1 }; // (a GUI can follow the group last held: a click in one of its views)
+    return true;
+}
+
+// Show another moment: held there (a replay goes on from it)
+TELEPLOT.view.seek = function(name, at){
+    let g = TELEPLOT.view.ensureGroup(name);
+    let replaying = g.mode === "replay";
+    if(!TELEPLOT.view.hold(name, at)) return false;
+    if(g.resume === "live" && at !== undefined) g.resume = "replay";
+    if(replaying) { g.mode = "replay"; g.lastTick = undefined; }
+    return true;
+}
+
+// Replay from the moment shown (from the start of the window on screen when live)
+TELEPLOT.view.play = function(name, speed){
+    let g = TELEPLOT.view.ensureGroup(name);
+    if(speed !== undefined) g.speed = speed;
+    if(g.mode === "live") {
+        let time = TELEPLOT.view.timeOf(name);
+        if(!(time.from >= 0) || !TELEPLOT.view.hold(name, time.from)) return false;
+    }
+    g.mode = "replay";
+    g.lastTick = undefined;
+    g.resume = "replay";
+    return true;
+}
+
+// Space: live or replaying -> held at the moment shown; held -> live again when it was held at the latest data, else replaying
+TELEPLOT.view.togglePlay = function(name){
+    let g = TELEPLOT.view.ensureGroup(name);
+    if(g.mode === "held") {
+        if(g.resume === "live") {
+            let span = g.span;
+            TELEPLOT.view.backToLive(name);
+            g.span = span;
+            return true;
+        }
+        return TELEPLOT.view.play(name);
+    }
+    return TELEPLOT.view.hold(name);
+}
+
+TELEPLOT.view.setSpeed = function(name, speed){
+    let g = TELEPLOT.view.ensureGroup(name);
+    g.speed = speed;
+    if(g.mode === "replay") return true;
+    return TELEPLOT.view.play(name, speed);
+}
+
+// Slower / faster in SPEEDS (dir -1 / +1)
+TELEPLOT.view.changeSpeed = function(name, dir){
+    let g = TELEPLOT.view.ensureGroup(name), list = TELEPLOT.view.SPEEDS;
+    let index = list.indexOf(g.speed);
+    if(index < 0) index = list.indexOf(1);
+    return TELEPLOT.view.setSpeed(name, list[Math.min(list.length - 1, Math.max(0, index + dir))]);
+}
+
+// The zoom of a group: a duration (0: the whole window). Live: the last "span" seconds; otherwise placed again around the moment
+TELEPLOT.view.setSpan = function(name, span){
+    let g = TELEPLOT.view.ensureGroup(name);
+    g.span = span > 0 ? span : 0;
+    if(g.mode === "live") {
+        if(g.span > 0) _views_liveWindow(g, TELEPLOT.view.groupExtent(name));
+        else { g.cursorActive = false; g.timestampFrom = -1; g.timestampTo = -1; }
+    }
+    else _views_place(g, TELEPLOT.view.groupExtent(name));
+}
+
+// A period selected on a chart or a timeline: the group is held, the window is that period (and its duration the span)
+TELEPLOT.view.zoomTo = function(name, from, to){
+    let g = TELEPLOT.view.ensureGroup(name);
+    if(!(to > from)) return false;
+    let at = g.mode !== "live" ? g.at : (g.cursorTimestamp >= 0 ? g.cursorTimestamp : to);
+    at = Math.min(Math.max(at, from), to);
+    if(!TELEPLOT.view.hold(name, at)) return false;
+    g.span = to - from;
+    g.timestampFrom = from;
+    g.timestampTo = to;
+    g.cursorActive = true;
+    return true;
+}
+
+// The previous / next real sample (dir -1 / +1) of the telemetries of a group, from the moment shown (or "from"). undefined: none.
+TELEPLOT.view.sampleNear = function(name, dir, from){
+    if(from === undefined) from = TELEPLOT.view.timeOf(name).at;
+    let best = undefined;
+    for(let entry of _views_groupEntries(name)) {
+        let t = entry.timestamps, low = 0, high = t.length;
+        if(dir > 0) { // First sample > from
+            while(low < high) { let mid = (low + high) >> 1; if(t[mid] <= from) low = mid + 1; else high = mid; }
+            if(low < t.length && (best === undefined || t[low] < best)) best = t[low];
+        }
+        else { // Last sample < from
+            while(low < high) { let mid = (low + high) >> 1; if(t[mid] < from) low = mid + 1; else high = mid; }
+            if(low > 0 && (best === undefined || t[low - 1] > best)) best = t[low - 1];
+        }
+    }
+    return best;
+}
+
+TELEPLOT.view.step = function(name, dir){
+    let at = TELEPLOT.view.sampleNear(name, dir);
+    if(at === undefined) return false;
+    return TELEPLOT.view.seek(name, at);
+}
+
+// Asked by the keyboard and the wheel: {seconds} and / or {samples}, added up and applied on the next update
+TELEPLOT.view.move = function(name, by){
+    let g = TELEPLOT.view.ensureGroup(name);
+    let pending = g.pending || (g.pending = { seconds: 0, samples: 0 });
+    pending.seconds += by.seconds || 0;
+    pending.samples += by.samples || 0;
+}
+
+// Every group of a dashboard (its own and its custom ones) live again
+TELEPLOT.view.allLive = function(base){
+    let changed = false;
+    for(let name of Object.keys(TELEPLOT.view.groups)) {
+        if(name === base || name.startsWith(base + TELEPLOT.view.TIME_GROUP_SEPARATOR)) changed = TELEPLOT.view.backToLive(name) || changed;
+    }
+    return changed;
+}
+
+// The pointer left a view of the group: the views show the group's moment again (the latest one when live)
+TELEPLOT.view.pointerLeft = function(name){
+    let g = TELEPLOT.view.ensureGroup(name);
+    g.cursorTimestamp = g.mode === "live" ? -1 : g.at;
+}
+
+function _views_liveWindow(g, extent) {
+    if(!extent) return;
+    if(g.timestampTo === extent.to && g.cursorActive) return;
+    g.timestampTo = extent.to;
+    g.timestampFrom = extent.to - g.span;
+    g.cursorActive = true;
+}
+
+// Once per update: replays move on (on performance.now(), so a slow update shows a later time instead of slowing down), moves asked
+// are applied, a held moment older than the data moves with the oldest sample, and a live window of a span follows the newest one
+TELEPLOT.view.__updateTime = function(now = (typeof performance !== "undefined" ? performance.now() : Date.now())){
+    for(let name in TELEPLOT.view.groups) {
+        let g = TELEPLOT.view.groups[name];
+        if(g.mode === undefined) Object.assign(g, { mode: "live", at: -1, speed: 1, span: 0 });
+        if(g.mode === "live" && !g.pending && !(g.span > 0)) continue;
+        let extent = TELEPLOT.view.groupExtent(name);
+        if(extent === undefined) continue;
+        if(g.pending) {
+            let pending = g.pending;
+            g.pending = undefined;
+            let at = TELEPLOT.view.timeOf(name).at;
+            for(let i = 0; i < Math.abs(pending.samples); i++) {
+                let next = TELEPLOT.view.sampleNear(name, Math.sign(pending.samples), at);
+                if(next === undefined) break;
+                at = next;
+            }
+            at += pending.seconds;
+            if(g.mode === "live" && at >= extent.to) {}
+            else TELEPLOT.view.seek(name, at);
+            continue;
+        }
+        if(g.mode === "live") { _views_liveWindow(g, extent); continue; }
+        if(g.mode === "replay") {
+            let last = g.lastTick;
+            g.lastTick = now;
+            if(last === undefined) continue;
+            let at = g.at + (now - last) / 1000 * g.speed;
+            if(at >= extent.to) { // Caught up: live again (with its span)
+                let span = g.span;
+                _views_live(g);
+                g.span = span;
+                if(span > 0) { g.cursorActive = false; _views_liveWindow(g, extent); }
+                else { g.cursorActive = false; g.timestampFrom = -1; g.timestampTo = -1; }
+                continue;
+            }
+            g.at = at;
+            if(TELEPLOT.view.hoveredGroup !== name) g.cursorTimestamp = at;
+            _views_place(g, extent);
+            continue;
+        }
+        if(g.at < extent.from) { // Held: older than the data window
+            g.at = extent.from;
+            g.movedWithWindow = true;
+            if(TELEPLOT.view.hoveredGroup !== name) g.cursorTimestamp = g.at;
+            _views_place(g, extent);
+        }
+    }
 }
 
 TELEPLOT.view.updateViews = function(){

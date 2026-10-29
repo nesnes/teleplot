@@ -42,7 +42,7 @@ The parsers report what they could not read: `TELEPLOT.parseDataText()` returns 
 - **Sending**: `connection.send(text, lineEnding)`.
 - **Speed**: `connection.baudRate`, `setBaudRate()` (the port is opened again).
 - **Lost port**: when the device is unplugged, `connected` goes false and `error` says why; the connection stays in the list and `connect()` opens it again once it is back. Reloading the page closes every port: the browser remembers the permission, not the open port.
-- While the display is paused, lines still show in the console but are not stored (like any incoming data).
+- While reception is off (the record switch of the top menu, see [time.md](time.md)), lines still show in the console but are not stored (like any incoming data). Holding the display does not stop anything: data keeps being stored.
 
 The older server-side serial input ([`src/032-dataInputSerial.js`](../packages/teleplot-js/src/032-dataInputSerial.js), commands sent to the server) is still in the library, but the V2 server does not implement it (it ignores those commands) and the webapp does not use it.
 

@@ -288,15 +288,14 @@ class ViewChart extends ViewTelemetries{
             },
             legend: { show: false },
             hooks: {
-                drawClear: [ (u) => this.drawThinned(u) ], // Under the grid and the series
+                drawClear: [ (u) => { this.drawThinned(u); this.drawNotReceived(u); } ], // Under the grid and the series
                 draw: [ (u) => this.drawOverlay(u) ],      // Over them: thresholds and marks
                 setCursor: [
                     (u) => {
                         if(this.updateRunning) return;
-                        // Mouse leave: the zoom stays (it is only reset on purpose: double click, see setScale). While zoomed the
-                        // cursor stays too, where it was last: the views of the group keep showing that moment. Otherwise they go back to the latest data.
+                        // Mouse leave: the views of the group show its moment again (the latest data when live, else the moment it is held at)
                         if(u.cursor.left < 0) {
-                            if(!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+                            TELEPLOT.view.pointerLeft(this.group);
                             return;
                         }
                         // Mouse hover
@@ -313,18 +312,15 @@ class ViewChart extends ViewTelemetries{
                         if(this.updateRunning) return;
                         if(key != "x") return;
                         const s = u.scales[key];
-                        // Zoom reset (double click: uPlot goes back to all its data): the group follows the data again
+                        // Zoom reset (double click: uPlot goes back to all its data): the whole data window again, live or not (doc/time.md)
                         const times = u.data && u.data[0];
                         if(times && times.length && s.min <= times[0] && s.max >= times[times.length - 1]) {
-                            TELEPLOT.view.groups[this.group].cursorActive = false;
-                            TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+                            TELEPLOT.view.setSpan(this.group, 0);
                             this.updateForced = true; // (uPlot went back to the extent of the numbers: the marks widen it again)
                             return;
                         }
-                        // Zoom selected: kept until it is reset, also when the pointer leaves the chart
-                        TELEPLOT.view.groups[this.group].timestampFrom = s.min;
-                        TELEPLOT.view.groups[this.group].timestampTo = s.max;
-                        TELEPLOT.view.groups[this.group].cursorActive = true;
+                        // A period selected: the group is held on it (a live window would slide the selection away)
+                        TELEPLOT.view.zoomTo(this.group, s.min, s.max);
                     }
                 ]
             }
@@ -348,6 +344,23 @@ class ViewChart extends ViewTelemetries{
         if(this.chart.over && this.chart.over.addEventListener) {
             this.chart.over.addEventListener("mouseenter", () => { this.pointerInside = true; TELEPLOT.view.hoveredGroup = this.group; });
             this.chart.over.addEventListener("mouseleave", () => { this.pointerInside = false; TELEPLOT.view.hoveredGroup = ""; });
+            // A click (not a drag): the group is held at that moment
+            let down = undefined, u = this.chart;
+            this.chart.over.addEventListener("mousedown", (e) => { down = [e.clientX, e.clientY]; });
+            this.chart.over.addEventListener("click", (e) => {
+                if(!down || Math.abs(e.clientX - down[0]) > 3 || Math.abs(e.clientY - down[1]) > 3 || u.cursor.left < 0) return;
+                let at = u.posToVal(u.cursor.left, "x");
+                if(at >= 0) TELEPLOT.view.seek(this.group, at);
+            });
+        }
+        // The moment shown when the group is not live: a line over the chart, moved without drawing the chart again (doc/time.md)
+        this.headLine = undefined;
+        this.headKey = "";
+        if(this.chart.over && typeof document !== "undefined" && document.createElement) {
+            this.headLine = document.createElement("div");
+            this.headLine.className = "teleplot-js-chart-head";
+            this.headLine.hidden = true;
+            this.chart.over.appendChild(this.headLine);
         }
     }
 
@@ -362,6 +375,36 @@ class ViewChart extends ViewTelemetries{
     }
 
     // The part of the chart where stored data was thinned out gets a tint and a word: what is drawn there is less than what was received
+    // The periods not received (reception was off): hatched, under the series (which break there, see breakAt)
+    drawNotReceived(u) {
+        if(!TELEPLOT.datastore.offPeriods.length || !u.ctx || !u.bbox || !u.scales || !u.scales.x || u.scales.x.min == null) return;
+        let periods = TELEPLOT.datastore.offPeriodsIn(u.scales.x.min, u.scales.x.max);
+        if(!periods.length) return;
+        let ratio = (typeof devicePixelRatio === "number" && devicePixelRatio) || 1;
+        let color = TELEPLOT.theme.color("--teleplot-warn", document.getElementById(this.chartDivId), "orange");
+        let right = u.bbox.left + u.bbox.width;
+        u.ctx.save();
+        u.ctx.beginPath();
+        u.ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+        u.ctx.clip();
+        u.ctx.globalAlpha = 0.25;
+        u.ctx.strokeStyle = color;
+        u.ctx.lineWidth = ratio;
+        for(let p of periods) {
+            let a = Math.max(u.bbox.left, u.valToPos(p.from, "x", true)), b = Math.min(right, u.valToPos(p.to, "x", true));
+            if(!(b > a)) continue;
+            u.ctx.save();
+            u.ctx.beginPath();
+            u.ctx.rect(a, u.bbox.top, b - a, u.bbox.height);
+            u.ctx.clip();
+            u.ctx.beginPath();
+            for(let x = a - u.bbox.height; x < b; x += 6 * ratio) { u.ctx.moveTo(x, u.bbox.top + u.bbox.height); u.ctx.lineTo(x + u.bbox.height, u.bbox.top); }
+            u.ctx.stroke();
+            u.ctx.restore();
+        }
+        u.ctx.restore();
+    }
+
     drawThinned(u) {
         let until = this.getThinnedBefore();
         if(!(until > 0) || !u.ctx || !u.bbox || !u.scales || !u.scales.x || u.scales.x.min == null || until <= u.scales.x.min) return;
@@ -562,15 +605,50 @@ class ViewChart extends ViewTelemetries{
     }
 
     // Shows the cursor of the group (the timestamp hovered on any view) as a vertical line on a chart the pointer is not on,
-    // so every chart marks the instant the other views show. Hidden when there is no cursor or it is outside of this chart's range.
+    // so every chart marks the instant the other views show. Hidden when there is no cursor or it is outside of this chart's range,
+    // and when it is the moment the group is held at (the head line shows it, see syncHead).
     syncCursor() {
         let u = this.chart;
         if(this.pointerInside || !u || !u.setCursor || !u.valToPos || !u.scales || !u.scales.x || u.scales.x.min == null) return;
-        let ts = TELEPLOT.view.groups[this.group].cursorTimestamp;
+        let group = TELEPLOT.view.groups[this.group];
+        let ts = group.mode !== undefined && group.mode !== "live" && group.cursorTimestamp === group.at ? -1 : group.cursorTimestamp;
         let left = -10;
         if(ts >= 0 && ts >= u.scales.x.min && ts <= u.scales.x.max) left = u.valToPos(ts, "x");
         if(Math.abs((u.cursor.left === undefined ? -10 : u.cursor.left) - left) < 0.5) return;
         u.setCursor({ left: left, top: -10 }, false); // false: do not fire the setCursor hook, it is the pointer's business (top < 0: no horizontal line)
+    }
+
+    // The moment of a group that is not live: a line in the color of its mode (held, replay), only moved when its pixel changes
+    syncHead() {
+        let u = this.chart, line = this.headLine;
+        if(!line || !u || !u.valToPos || !u.scales || !u.scales.x || u.scales.x.min == null) return;
+        let group = TELEPLOT.view.groups[this.group];
+        let shown = group.mode === "held" || group.mode === "replay";
+        let left = shown && group.at >= u.scales.x.min && group.at <= u.scales.x.max ? Math.round(u.valToPos(group.at, "x") * 2) / 2 : -1;
+        let key = left < 0 ? "" : left + ":" + group.mode;
+        if(key === this.headKey) return;
+        this.headKey = key;
+        line.hidden = key === "";
+        if(key === "") return;
+        line.style.left = left + "px";
+        line.classList.toggle("teleplot-js-chart-head-replay", group.mode === "replay");
+    }
+
+    // A series with an explicit null at the start of each period not received that has samples on both sides: uPlot breaks its line
+    // at a null (and spans the undefined that uPlot.join puts where a series has no sample at a time of another). Fresh arrays.
+    static breakAt(series, periods) {
+        let times = series[0], values = series[1];
+        if(!times || times.length < 2) return series;
+        let outTimes = [], outValues = [], p = 0;
+        for(let i = 0; i < times.length; i++) {
+            while(p < periods.length && periods[p].to <= times[i]) {
+                let period = periods[p++];
+                if(i > 0 && times[i - 1] < period.from && period.from < times[i]) { outTimes.push(period.from); outValues.push(null); }
+            }
+            outTimes.push(times[i]);
+            outValues.push(values[i]);
+        }
+        return [outTimes, outValues];
     }
 
     resize(){
@@ -618,6 +696,7 @@ class ViewChart extends ViewTelemetries{
         }
         // For each telemetry
         let needUpdate = false;
+        let live = TELEPLOT.view.isLive(this.group);
         let serieIdx = 0;
         let shown = [];
         for(let telemIdOrName of this.telemetryIdOrNameList){
@@ -669,8 +748,9 @@ class ViewChart extends ViewTelemetries{
                 if(shownTelem.statusColor !== statusColor) shownTelem.statusColor = statusColor;
                 
                 // Check update need
-                needUpdate |= this.telemetries[telem.id].lastUpdate != telem.data[dataType].lastUpdate;
-                needUpdate |= this.telemetries[telem.id].lastTargetTimestamp != targetTimestamp;
+                // (New data while the group is not live lands after its frozen window: nothing to draw. A cursor that moves is a
+                // line over the chart: nothing to draw either, see syncCursor / syncHead)
+                if(live) needUpdate |= this.telemetries[telem.id].lastUpdate != telem.data[dataType].lastUpdate;
                 this.telemetries[telem.id].lastUpdate = telem.data[dataType].lastUpdate;
                 this.telemetries[telem.id].lastTargetTimestamp = targetTimestamp;
                 
@@ -684,6 +764,8 @@ class ViewChart extends ViewTelemetries{
         }
 
         this.syncDisplayOrder(shown);
+        if(!live && this.wasLive) needUpdate = true; // (held: the window is frozen from now on)
+        this.wasLive = live;
 
         // Legend: value slots only grow (no shaking), entries are measured again when something that changes their width did
         let slots = [];
@@ -719,6 +801,9 @@ class ViewChart extends ViewTelemetries{
                 if(dataEntry === undefined) continue;
                 dataList.push(this.getSeriesData(telem, dataEntry, displayRange));
             }
+            // Periods not received: the lines break there instead of joining the samples around a hole
+            let off = TELEPLOT.datastore.offPeriods.length ? TELEPLOT.datastore.offPeriodsIn(displayRange.from, displayRange.to) : [];
+            if(off.length) dataList = dataList.map((series) => ViewChart.breakAt(series, off));
             this.chartData.length = 0;
             this.chartData.push(...(dataList.length ? TELEPLOT.uPlot.join(dataList) : [[]])); // Nothing to display yet: uPlot.join() cannot join no series
             // Update chart
@@ -739,6 +824,7 @@ class ViewChart extends ViewTelemetries{
             }
         }
         this.syncCursor();
+        this.syncHead();
         // Used to ignore hooks triggered by updating the chart
         queueMicrotask(()=>{this.updateRunning = false;}); // Need to use queueMicrotask to make sure to run after uPlot hooks are fired
     }

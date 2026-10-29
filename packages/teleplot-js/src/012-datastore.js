@@ -39,7 +39,7 @@ class Telemetry {
     // merge: the separator of the items of a sample that is a set (a structure: "\n", a stack with several paths: ","). A sample with
     // the same timestamp as one already stored is then another part of it: its items are added to that sample (doc/graph.md).
     addData(dataType, timestamps, dataList, merge=undefined) { // addData(TELEM_DATA_SHAPE_COLOR_RGB, [t1,t2], [[r1,r2], [g1,g2], [b1,b2]])
-        if(TELEPLOT.state.isPaused) return; // Do not handle incoming data while paused
+        if(!TELEPLOT.state.receiving) return; // Not receiving: what comes is lost
         if(_datastore_dry) { if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps); return; }
         // Check inputs
         let expectedDataCount = TELEPLOT.protocol.getSectionTypeTelemDataDataCount(dataType);
@@ -603,7 +603,7 @@ TELEPLOT.datastore.clearData = function(keep) {
  * TELEPLOT.state.memoryLimit is how much the stored data may take. When it is reached, TELEPLOT.state.memoryPolicy decides:
  *   "thin"    the oldest data of the heaviest telemetries is thinned out (Telemetry.thinOldest: real samples are kept, fewer of them)
  *   "forget"  the oldest data of the heaviest telemetries is dropped
- *   "pause"   incoming data is not taken anymore (TELEPLOT.state.isPaused), until the user resumes
+ *   "stop"    reception stops (TELEPLOT.setReceiving(false, "memory")), until the user starts it again ("pause": its older name)
  */
 
 // {bytes, samples, telemetries: [{id, name, bytes, samples}]}, heaviest telemetries first
@@ -640,7 +640,7 @@ TELEPLOT.datastore.getTimeSpan = function() {
 }
 
 // The last measure, and what was last done about it. Raw (not reactive): refreshed once per second by the update loop.
-//   usage: see getMemoryUsage; span: see getTimeSpan; action: "" | "thin" | "forget" | "pause"; actedAt: when (ms); actedOn: names of the telemetries concerned
+//   usage: see getMemoryUsage; span: see getTimeSpan; action: "" | "thin" | "forget" | "stop"; actedAt: when (ms); actedOn: names of the telemetries concerned
 TELEPLOT.datastore.memory = TELEPLOT.Vue.markRaw({ usage: { bytes: 0, samples: 0, telemetries: [] }, span: undefined, checkedAt: 0, action: "", actedAt: 0, actedOn: [] });
 
 // Measures the data (at most once per second, unless forced) and applies the policy when it is over the limit. Returns the usage.
@@ -653,10 +653,10 @@ TELEPLOT.datastore.checkMemory = function(force=false) {
     let limit = TELEPLOT.state.memoryLimit;
     if(limit > 0 && usage.bytes > limit) {
         let policy = TELEPLOT.state.memoryPolicy;
-        if(policy === "pause") {
-            if(!TELEPLOT.state.isPaused) {
-                TELEPLOT.state.isPaused = true;
-                Object.assign(memory, { action: "pause", actedAt: now, actedOn: [] });
+        if(policy === "stop" || policy === "pause") {
+            if(TELEPLOT.state.receiving) {
+                TELEPLOT.setReceiving(false, "memory");
+                Object.assign(memory, { action: "stop", actedAt: now, actedOn: [] });
             }
         }
         else {
@@ -681,6 +681,47 @@ TELEPLOT.datastore.checkMemory = function(force=false) {
     memory.usage = usage;
     memory.span = TELEPLOT.datastore.getTimeSpan();
     return usage;
+}
+
+/*
+ * Reception (doc/time.md "Receiving"). Off: what the sources send is not stored. Files are not sources: an import is stored anyway.
+ * The periods during which it was off are remembered ({from, to} in seconds, on the clock of live data: the page's; "to" undefined
+ * while it still is), so that what is drawn can break there instead of joining the samples around a hole.
+ */
+TELEPLOT.datastore.offPeriods = [];
+
+TELEPLOT.setReceiving = function(on, by="user") {
+    let state = TELEPLOT.state, periods = TELEPLOT.datastore.offPeriods, now = Date.now();
+    on = !!on;
+    if(on === state.receiving) return;
+    state.receiving = on;
+    if(!on) {
+        state.receivingOff = { by, at: now };
+        periods.push({ from: now / 1000, to: undefined });
+    }
+    else {
+        state.receivingOff = null;
+        let last = periods[periods.length - 1];
+        if(last && last.to === undefined) last.to = now / 1000;
+    }
+}
+
+// The periods not received that overlap [from, to] (an open one ends now)
+TELEPLOT.datastore.offPeriodsIn = function(from, to) {
+    let now = Date.now() / 1000, found = [];
+    for(let p of TELEPLOT.datastore.offPeriods) {
+        let end = p.to === undefined ? now : p.to;
+        if(end >= from && p.from <= to) found.push({ from: p.from, to: end });
+    }
+    return found;
+}
+
+// Periods older than the data window are of no use any more (and no more than 100 are kept)
+TELEPLOT.datastore.__pruneOffPeriods = function() {
+    let periods = TELEPLOT.datastore.offPeriods, window = TELEPLOT.state.dataTimeout, now = Date.now() / 1000;
+    let drop = 0;
+    while(drop < periods.length && periods[drop].to !== undefined && ((window > 0 && periods[drop].to < now - window) || periods.length - drop > 100)) drop++;
+    if(drop) periods.splice(0, drop);
 }
 
 TELEPLOT.datastore.onNewTelemetryHooks = [

@@ -205,6 +205,13 @@ Touching a command while CMD is off (pressing a joystick, clicking the value or 
 button. `TELEPLOT.commands.blockedWhileOff(telem)` tells the views (true while off) and calls `onBlockedHooks`: the webapp
 flashes its CMD button and keeps the top menu visible meanwhile.
 
+### Not live
+
+A view whose time group is held or replaying shows the past: its commands send nothing. `TELEPLOT.commands.whyNotIn(telem, group)`
+is `whyNot` plus `NOT_LIVE` for a group that is not live; the values view (`commandState(telem, bar, group)`, field `notLive`), the
+joystick and the writable poses of the 2D view use it. The values view and the joystick say "Not live" with a **Go live** button
+(`TELEPLOT.view.backToLive` of that group). Views of other groups, live, keep their commands. See [time.md](time.md).
+
 ### Editing in place (values view, 110)
 
 CMD on, any values view: a pen after the name of what can be written, and an editor that appears when used, without moving the
@@ -309,8 +316,9 @@ Not done: commands in 3D and image views; picking an action's argument on a map.
 
 ## Open questions
 
-1. **Pause.** Pause ignores data, so a write cannot be confirmed while paused. For now: writing is disabled while paused. Or pause
-   could freeze the display only, data still stored.
+1. **Pause** (decided and built 2026-10-28, see [time.md](time.md)): pause became "reception off" (commands stay disabled then: the
+   echo of the device could not be read), and holding or replaying a time group freezes its display while data is still stored;
+   commands in its views are disabled until it is live again (see "Not live" above).
 2. **Requests of other pages**: should the server relay them, so every page sees who changed what?
 3. **Requests in exports**: `commands.sent` is exported (a log); the state of each request (applied, kept...) is not. Is that enough?
 4. **Initial values**: is the periodic publishing enough, or should the page ask for all attributes and values at once (useful for

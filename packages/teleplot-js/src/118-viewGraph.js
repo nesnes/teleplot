@@ -411,6 +411,11 @@ class ViewGraph extends ViewTelemetries {
             this.__hover(at);
         });
         let release = (event) => { if(!drag) return; drag = undefined; try { canvas.releasePointerCapture(event.pointerId); } catch(e) {} };
+        listen(canvas, "click", (event) => { // A chip of the recent path: its group is held at that run
+            let at = position(event);
+            let chip = this.options.trail && at.y > page.height - ViewGraph.TRAIL_H && page.trailBoxes ? page.trailBoxes.find((box) => at.x >= box.x && at.x <= box.x + box.w) : undefined;
+            if(chip) TELEPLOT.view.seek(this.group, chip.run.time);
+        });
         listen(canvas, "pointerup", release);
         listen(canvas, "pointercancel", release);
         listen(canvas, "pointerleave", () => {
@@ -419,7 +424,7 @@ class ViewGraph extends ViewTelemetries {
             if(this.__trailHover) { // (the cursor the recent path moved goes back, as when leaving a chart)
                 this.__trailHover = false;
                 TELEPLOT.view.hoveredGroup = "";
-                if(!TELEPLOT.view.groups[this.group].cursorActive) TELEPLOT.view.groups[this.group].cursorTimestamp = -1;
+                TELEPLOT.view.pointerLeft(this.group);
             }
         });
         listen(canvas, "wheel", (event) => {

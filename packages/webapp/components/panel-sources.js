@@ -413,12 +413,12 @@ function initComponent_panel_sources(vue) {
                 if (problems) issues.push(problems + (problems == 1 ? " line or packet not understood" : " lines or packets not understood"));
                 const dropped = this.sources.reduce((sum, s) => sum + s.dropped, 0);
                 if (dropped) issues.push(dropped + (dropped == 1 ? " packet dropped (page too slow)" : " packets dropped (page too slow)"));
-                const paused = !!this.TP.state.isPaused;
+                const paused = !this.TP.state.receiving;
                 const state = paused ? "paused" : (rate > 0 ? "ok" : (count ? "idle" : "none"));
                 return {
                     state, rateText: sourcesFormatRate(rate),
                     bytesText: Object.keys(sourcesMonitor.byteRates).length ? sourcesFormatBytes(Object.values(sourcesMonitor.byteRates).reduce((a, b) => a + b, 0)) : "",
-                    label: { paused: "Paused", ok: "Receiving", idle: "Idle", none: "No data yet" }[state],
+                    label: { paused: "Not receiving", ok: "Receiving", idle: "Idle", none: "No data yet" }[state],
                     detail: count + (count == 1 ? " telemetry" : " telemetries") + (last ? " · last data " + sourcesFormatAge(now - last) + " ago" : ""),
                     issues: issues.join(", "),
                 };

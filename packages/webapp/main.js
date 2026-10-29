@@ -19,6 +19,7 @@ var app = Vue.createApp({
                 sampleRunning: false,
                 bandVisible: false, // The band above the dashboard (room for the top menu) is scrolled into view
                 activeDashboard: null,
+                timeGroup: "",  // The time group the time line of the top menu, Space and Esc act on ("": the dashboard's own, see doc/time.md)
                 droppedFiles: null // Files dropped on the page, waiting for the Export panel to take them
             }),
             editor: null,
@@ -85,20 +86,33 @@ var app = Vue.createApp({
         }, { passive: true });
     },
     created() {
-        // Escape closes the open popup, then goes back to live (drops the zoom), then closes the Help, then the side panel, then leaves the edit mode
+        // Escape closes the open popup, then brings the chosen time group back to live (Shift: every group of the dashboard), then closes
+        // the Help, then the side panel, then leaves the edit mode
         this._onKeyDown = (e)=>{
             if (e.key != "Escape") return;
             const t = e.target;
             if (t && (t.tagName == "INPUT" || t.tagName == "TEXTAREA" || t.isContentEditable)) { if (t.blur) t.blur(); return; }
             if (t && t.blur && t.closest && t.closest(".tm")) t.blur();
+            const T = Vue.toRaw(this.TP), dashboard = this.ctx.activeDashboard;
+            const base = dashboard ? dashboard.getGroupName() : "", group = this.ctx.timeGroup || base;
+            const notLive = (name) => !T.view.isLive(name) || T.view.isZoomed(name);
+            const dashboardNotLive = base !== "" && Object.keys(T.view.groups).some((name) => (name === base || name.startsWith(base + T.view.TIME_GROUP_SEPARATOR)) && notLive(name));
             if (this.ctx.topPanel) this.ctx.topPanel = "";
-            else if (this.TP.view.isZoomed()) { this.TP.view.backToLive(); this.TP.state.isPaused = false; }
+            else if (e.shiftKey && dashboardNotLive) { T.view.allLive(base); this.ctx.timeGroup = ""; }
+            else if (group && notLive(group)) T.view.backToLive(group);
             else if (this.ctx.helpOpen) this.ctx.helpOpen = false;
             else if (this.ctx.exportOpen) this.ctx.exportOpen = false;
             else if (this.ctx.sidePanel) this.ctx.sidePanel = "";
             else if (this.editor.state.enabled) this.editor.setEnabled(false);
         };
         window.addEventListener("keydown", this._onKeyDown);
+        // A mouse click leaves the focus on no button of the page, so that Space holds the display instead of pressing that button again
+        // (the keyboard keeps its focus: event.detail is 0 for a click made with Enter or Space)
+        window.addEventListener("click", (e)=>{
+            if (!e.detail || !e.target || !e.target.closest) return;
+            const button = e.target.closest("button, summary");
+            if (button && button === document.activeElement && button.blur) button.blur();
+        });
         initTeleplot(this.TP);
         this.editor = initDashboardEditor(this.TP);
         setInterval(()=>this.editor.refresh(), 100); // Edit chrome follows the views as they appear, resize or move

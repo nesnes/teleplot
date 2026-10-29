@@ -689,11 +689,8 @@ function initComponent_panel_export(vue) {
                 const dashboard = this.ctx.activeDashboard;
                 if (!dashboard) return;
                 const margin = Math.max(0.5, (file.result.to - file.result.from) * 0.02);
-                const group = this.TP.view.ensureGroup(dashboard.getGroupName());
-                group.timestampFrom = file.result.from - margin;
-                group.timestampTo = file.result.to + margin;
-                group.cursorTimestamp = file.result.to;
-                group.cursorActive = true;
+                // (held on that period: it is not live data)
+                Vue.toRaw(this.TP).view.zoomTo(dashboard.getGroupName(), file.result.from - margin, file.result.to + margin);
             },
             remove(file) {
                 file.removed = this.TP.files.removeImported(file.result);

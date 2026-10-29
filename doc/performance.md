@@ -16,6 +16,8 @@ A chart now only gives uPlot what a screen can show ([`src/106-decimator.js`](..
 
 The decimation is a chart option (on by default): `view.setOption("decimation", false)` gives uPlot the raw data like before, which is useful to compare.
 
+Holding and replaying the display ([time.md](time.md) "Performance", measured 2026-10-28): a held chart is not drawn again (1.09 ms per update of the views against 3.05 ms live, 4 series at 5 kHz), moving the time shown only moves a line over it, and a replay costs what a live chart costs (3.04 ms at 1×, 3.67 ms at 10× with a 5 s span).
+
 ## Ingestion
 
 - **Datastore append fast path**: `Telemetry.addData` appends samples that arrive in order (the common case) directly. Only late samples pay for a binary search and an `splice` insertion (counted in `lateInsertions`). Samples sharing an identical timestamp are now kept in arrival order.

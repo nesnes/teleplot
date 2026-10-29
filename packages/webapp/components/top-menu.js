@@ -1,19 +1,27 @@
 /*
  * Top menu: a floating island at the top of the workspace.
- * [logo] [dashboard switcher] [pause/resume | data rate] [panels: Telemetries, Sources, Export] [CMD] [Edit] [Help]
+ * [logo] [dashboard switcher] [record switch | data rate] [panels: Telemetries, Sources, Export] [CMD] [Edit] [Help]
+ * and along its bottom edge the time line: the time shown by a time group of the dashboard over the stored data (doc/time.md)
  * - CMD (commands, doc/telecmd.md): only when a device declared something the page can write or call. Off at every start: nothing is
  *   sent and the views draw no control. Its tooltip counts what can be commanded, per device.
  * - The panels are one segmented control, icon only, with a hint of their content next to the icon. Telemetries and Sources share the left
  *   dock (ctx.sidePanel, one at a time); Help has its own dock on the right (ctx.helpOpen), so it can stay open next to one of them; Export and import opens on the right too (ctx.exportOpen), in place of Help.
- * - Pause/resume is the library's own TP.state.isPaused (incoming data is ignored while paused: the displays freeze).
- * - Shortcuts (not while typing): Space pause/resume, T / S / H panels, E edit, C commands. Esc is handled in main.js. None while a
- *   joystick view drives with the keyboard (TP.commands.keyboardCaptured).
+ * - Reception: the dot of the rate chip is the library's TP.state.receiving (TP.setReceiving). Off, what the sources send is lost: the
+ *   chip turns amber and a tab under the island says so.
+ * - Time line (doc/time.md "The top menu"): a line on the bottom edge of the island, the stored data from the oldest sample (left) to the
+ *   newest (right), in the color of the mode of the chosen time group (live, held, replay). The pointer on the island (or the keyboard
+ *   focus in it) opens a row above it: play/pause, the time shown, LIVE, and "⋯" (speed, step, time group). Click or drag the line: held
+ *   there. While it is open, the arrows and the wheel move the time shown. The chosen group (ctx.timeGroup, "" = the dashboard's) changes
+ *   from "⋯" or when a view of another group is clicked.
+ * - Shortcuts (not while typing): Space hold/resume the chosen time group, "," "." previous/next sample, "[" "]" slower/faster, R
+ *   reception, T / S / H panels, E edit, C commands. Esc is handled in main.js. None while a joystick view drives with the keyboard
+ *   (TP.commands.keyboardCaptured).
  * - The island floats over the dashboard and fades out when the mouse rests (IDLE_MS), to leave the whole stage to the data. It stays while a popup
  *   is open, while the band above the dashboard is scrolled into view (ctx.bandVisible), while editing, while there is no dashboard, and while the pointer
- *   or the keyboard focus is on it. Paused: a small amber chip remains.
+ *   or the keyboard focus is on it. Nothing stays while it is away: its time line hides with it.
  * - Look: an outlined, solid island while it is clear of the data (band scrolled into view, or no dashboard). Over the dashboard ("over") it turns
  *   to glass (translucent, blurs what is behind) and casts a shadow. Popups stay solid.
- * - ctx.topPanel is the open popup: "dashboard" (dashboard list) or "rate" (the data menu).
+ * - ctx.topPanel is the open popup: "dashboard" (dashboard list), "rate" (the data menu) or "time" (the "⋯" of the time line).
  * - Next to the rate, a ring shows how much of the memory allowed for the data is used (green, amber from 70 %, red from 90 %); a mark
  *   turns around it while data is flowing. The data menu (see doc/top-menu.md) sets how long data is kept, shows what takes the
  *   memory and what is done when it is full (the library does it: TP.state.memoryLimit / memoryPolicy), and clears data.
@@ -42,11 +50,8 @@ function initComponent_top_menu(vue) {
 
     const vueHTML = `
         <div class="tm" :class="{away: away, over: over}" role="toolbar" aria-label="Teleplot">
-            <button v-if="away && paused" class="tm-chip" title="Resume (Space)" @click="togglePause($event);">
-                <svg class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/></svg>
-                Paused
-            </button>
-            <div class="tm-island" @pointerenter="hovered = true" @pointerleave="hovered = false" @focusin="focused = true" @focusout="focused = false">
+            <div class="tm-island" ref="island" :class="{'tl-open': timelineOpen}" @pointerenter="hovered = true" @pointerleave="hovered = false" @focusin="focused = true" @focusout="focused = false">
+              <div class="tm-bar">
                 <img src="media/logo-color.svg" class="tm-logo" alt="Teleplot"/>
 
                 <div class="tm-anchor tm-anchor-dashboard">
@@ -105,20 +110,24 @@ function initComponent_top_menu(vue) {
 
                 <div class="tm-anchor">
                     <div class="tm-split" :class="{paused: paused}">
-                        <button class="tm-btn tm-play tm-tipped" :aria-pressed="paused" :aria-label="zoomed ? 'Back to live' : (paused ? 'Resume' : 'Pause')" @click="zoomed ? backToLive($event) : togglePause($event);">
-                            <svg v-if="paused || zoomed" class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/></svg>
-                            <svg v-else class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor"/></svg>
-                            <span class="tm-tip" role="tooltip"><span v-if="zoomed" class="tm-tip-head"><b>Back to live</b><kbd>Esc</kbd></span><span v-else class="tm-tip-head"><b>{{paused ? 'Resume' : 'Pause'}}</b><kbd>Space</kbd></span></span>
+                        <button class="tm-btn tm-rec tm-tipped" role="switch" :aria-checked="!paused" :aria-label="paused ? 'Receive again' : 'Stop receiving'" @click="toggleReceiving($event);">
+                            <i class="tm-rec-dot"></i>
+                            <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{paused ? 'Receive again' : 'Stop receiving'}}</b><kbd>R</kbd></span><span class="tm-tip-line">{{paused ? 'What the devices send now is lost' : 'What the devices send is stored'}}</span></span>
                         </button>
                         <button class="tm-rate" :class="{on: ctx.topPanel=='rate'}" aria-haspopup="dialog" :aria-expanded="ctx.topPanel=='rate'" aria-label="Data flow" @click="setTopPanel('rate', $event);">
                             <span class="tm-gauge" :class="['tm-gauge-' + memory.level, {flowing: flowing && !paused}]" :style="{'--p': memory.percent}" :title="memory.title"><i></i></span>
-                            <span class="tm-rate-text"><span>{{paused ? 'paused' : rateText}}</span><span v-if="span.isThinned" class="tm-rate-thinned" :title="span.thinnedTitle">thinned</span></span>
+                            <span class="tm-rate-text"><span>{{paused ? (receivingOffBy == 'memory' ? 'memory full' : 'not receiving') : rateText}}</span><span v-if="span.isThinned" class="tm-rate-thinned" :title="span.thinnedTitle">thinned</span></span>
                             <i class="icofont-simple-down tm-caret"></i>
                         </button>
                     </div>
                     <template v-if="ctx.topPanel=='rate'">
                         <div class="tm-popup tm-flow" role="dialog" aria-label="Data: window, memory, clearing">
                             <div v-if="memory.notice" class="tm-notice">{{memory.notice}}</div>
+
+                            <button class="tm-receive" role="switch" :aria-checked="!paused" @click="toggleReceiving()">
+                                <span><b>Receiving</b><span class="tm-sub">{{receivingText}}</span></span>
+                                <span class="tm-switch" :class="{on: !paused}"></span>
+                            </button>
 
                             <h5>Data window</h5>
                             <div class="tm-line">
@@ -216,6 +225,63 @@ function initComponent_top_menu(vue) {
                     <span>Help</span>
                     <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>Help</b><kbd>H</kbd></span><span class="tm-tip-line">How to send data, shortcuts, sample data</span></span>
                 </button>
+              </div>
+
+              <!-- The time line: always the bottom edge of the island; the row above it opens with the pointer or the keyboard focus -->
+              <div class="tm-strip" :class="{open: timelineOpen, empty: !timeline.hasData}">
+                <div class="tm-tl-row" :aria-hidden="!timelineOpen">
+                    <button class="tm-tl-btn tm-tipped" :disabled="!timeline.hasData" :aria-label="timeline.mode == 'held' ? 'Resume' : 'Hold'" @click="togglePlay($event);">
+                        <svg v-if="timeline.mode == 'held'" class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor"/></svg>
+                        <svg v-else class="tm-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor"/></svg>
+                        <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{timeline.mode == 'held' ? (timeline.resumeLive ? 'Back to live' : 'Replay from here') : 'Hold the display'}}</b><kbd>Space</kbd></span><span class="tm-tip-line">Data keeps being received</span></span>
+                    </button>
+                    <span class="tm-tl-when">{{timeline.whenText}}<small v-if="timeline.behindText"> {{timeline.behindText}}</small></span>
+                    <span v-if="timeline.groupLabel" class="tm-tl-group" :title="'Time group ' + timeline.groupLabel"><i :style="{background: timeline.groupColor}"></i>{{timeline.groupLabel}}</span>
+                    <span class="tm-grow"></span>
+                    <button class="tm-tl-live tm-tipped" :class="{is: timeline.mode == 'live'}" :disabled="!timeline.hasData" @click="goLive($event);">
+                        <i></i>LIVE
+                        <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{timeline.mode == 'live' ? 'Live' : 'Go live'}}</b><kbd>Esc</kbd></span></span>
+                    </button>
+                    <div class="tm-anchor">
+                        <button class="tm-tl-more tm-tipped" :class="{on: ctx.topPanel == 'time'}" aria-haspopup="dialog" :aria-expanded="ctx.topPanel == 'time'" aria-label="Speed, step, time group" @click="setTopPanel('time', $event);">⋯
+                            <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>Speed, step, time group</b></span></span>
+                        </button>
+                        <template v-if="ctx.topPanel == 'time'">
+                            <div class="tm-popup tm-tl-pop" role="dialog" aria-label="Replay">
+                                <h5>Speed</h5>
+                                <div class="tm-choice" role="group" aria-label="Replay speed">
+                                    <button v-for="s in speeds" :key="s" :class="{on: timeline.mode == 'replay' && timeline.speed == s}" :aria-pressed="timeline.mode == 'replay' && timeline.speed == s" @click="setSpeed(s)">{{s}}×</button>
+                                </div>
+                                <h5>Step <span class="tm-h5-value tm-sub">, and . anywhere</span></h5>
+                                <div class="tm-line">
+                                    <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(-1)">‹ Previous sample</button>
+                                    <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(1)">Next sample ›</button>
+                                </div>
+                                <button v-if="!showGroups" class="tm-tl-disclose" @click="showGroups = true"><span>Time group: <b>{{timeline.groupName}}</b></span><i class="icofont-simple-right"></i></button>
+                                <template v-else>
+                                    <h5>Time group</h5>
+                                    <button v-for="g in timeGroups" :key="g.key" class="tm-tl-gitem" :class="{on: g.key == chosenGroup}" @click="chooseGroup(g.key)" @pointerenter="TP.view.showTimeGroups = true" @pointerleave="TP.view.showTimeGroups = !!editor.state.enabled">
+                                        <i :style="{background: g.color}"></i><span>{{g.name}} <span class="tm-sub">{{g.kind}}</span></span><span class="tm-tl-gstate">{{g.state}}</span>
+                                    </button>
+                                    <button class="tm-tl-gitem tm-tl-all" @click="allLive()"><span>All groups live</span><kbd>⇧ Esc</kbd></button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="tm-tl-line" ref="line" @pointerdown="lineDown($event)" @pointermove="lineMove($event)" @pointerup="lineUp($event)" @pointercancel="lineUp($event)" @pointerleave="hoverX = -1">
+                    <canvas ref="lineCanvas" aria-hidden="true"></canvas>
+                    <span v-if="timelineOpen && timeline.knob >= 0" class="tm-tl-knob" :class="timeline.mode" :style="{left: timeline.knob + 'px'}"></span>
+                    <template v-if="timelineOpen && hoverX >= 0">
+                        <span class="tm-tl-ghost" :style="{left: hoverX + 'px'}"></span>
+                        <span class="tm-tl-tip" :class="{left: hoverX < 70}" :style="{left: hoverX + 'px'}">{{hoverText}}</span>
+                    </template>
+                </div>
+              </div>
+              <div v-if="paused" class="tm-tab" role="status">
+                <template v-if="receivingOffBy == 'memory'"><b>Memory full</b> · not receiving <button @click="setTopPanel('rate', $event)">Data menu</button></template>
+                <template v-else><b>Not receiving</b> since {{receivingSince}} · data sent now is lost <button @click="toggleReceiving($event)">Receive</button></template>
+              </div>
             </div>
         </div>
     `;
@@ -234,14 +300,13 @@ function initComponent_top_menu(vue) {
             container-type: inline-size; /* The island adapts to the room it has: the side panels and the edit panel take some */
         }
         .tm-island {
+            position: relative;
             pointer-events: auto;
             display: flex;
-            align-items: center;
-            gap: 0.3rem;
-            height: 3.8rem;
+            flex-direction: column;
+            align-self: flex-start; /* (its height is its content: the row of the time line opens under the bar) */
             margin-top: 0.6rem;
             box-sizing: border-box;
-            padding: 0.4rem;
             max-width: 100%;
             white-space: nowrap;
             font-size: 1.05rem;
@@ -267,30 +332,7 @@ function initComponent_top_menu(vue) {
             pointer-events: none;
             transition: opacity 0.22s ease-in, transform 0.22s ease-in, visibility 0s 0.22s;
         }
-        /* The paused state must not go unnoticed while the island is away */
-        .tm .tm-chip {
-            position: absolute;
-            top: 0.8rem;
-            left: 50%;
-            translate: -50% 0;
-            pointer-events: auto;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            height: 2rem;
-            padding: 0 0.9rem 0 0.7rem;
-            border: none;
-            border-radius: 1rem;
-            background: var(--color-warning);
-            color: #2b2100;
-            font: inherit;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 14px var(--color-shadow);
-            transition: opacity var(--motion-fast) ease-out;
-            @starting-style { opacity: 0; }
-        }
-        .tm .tm-chip:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
+        .tm-bar { display: flex; align-items: center; gap: 0.3rem; height: 3.8rem; box-sizing: border-box; padding: 0.4rem; min-width: 0; }
         .tm button { font: inherit; color: inherit; border: none; background: transparent; }
         .tm kbd {
             font: 0.85rem ui-monospace, Consolas, monospace;
@@ -345,10 +387,12 @@ function initComponent_top_menu(vue) {
         .tm-seg .tm-btn > .tm-status { position: absolute; top: 0.45rem; right: 0.4rem; box-shadow: 0 0 0 2px var(--color-bg-light); }
         .tm-seg .tm-btn.on > .tm-status { box-shadow: 0 0 0 2px var(--color-bg-light); }
 
-        /* Pause/resume + data rate */
+        /* Record switch + data rate */
         .tm-split { display: flex; align-items: center; height: 3rem; border-radius: 0.85rem; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
         .tm-split .tm-btn { border-radius: 0.85rem; }
-        .tm-play { width: 3rem; padding: 0; }
+        .tm-rec { width: 2.6rem; padding: 0; }
+        .tm-rec-dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 22%, transparent); }
+        .tm-split.paused .tm-rec-dot { background: transparent; box-shadow: inset 0 0 0 2.5px #2b2100; }
         .tm-rate { display: flex; align-items: center; gap: 0.4rem; height: 1.8rem; padding: 0 0.7rem 0 0.5rem; margin: 0; border-left: 1px solid var(--color-bg-dark) !important; border-radius: 0 !important; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
         .tm-rate-text { display: flex; flex-direction: column; justify-content: center; gap: 0.12rem; line-height: 1; min-width: 4.8rem; text-align: left; }
         /* Some stored data was thinned out: said under the rate, in the color of the thinned part of the timeline of the data menu */
@@ -522,6 +566,65 @@ function initComponent_top_menu(vue) {
         .tm-new-row .tm-import:hover { color: var(--color-primary) !important; }
         .tm-popup button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-primary); }
 
+        /* Reception in the data menu */
+        .tm-popup .tm-receive { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; width: 100%; margin-bottom: 0.2rem; padding: 0.4rem 0.5rem; border-radius: 0.6rem; }
+        .tm-popup .tm-receive:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+        .tm-switch { position: relative; flex: none; width: 2.3rem; height: 1.3rem; border-radius: 0.65rem; background: var(--color-bg-dark); transition: background var(--motion-fast); }
+        .tm-switch::after { content: ""; position: absolute; top: 0.15rem; left: 0.15rem; width: 1rem; height: 1rem; border-radius: 50%; background: var(--color-bg-light); box-shadow: 0 1px 2px var(--color-shadow); transition: left var(--motion-fast) var(--ease-out); }
+        .tm-switch.on { background: var(--color-success); }
+        .tm-switch.on::after { left: 1.15rem; }
+
+        /* Not receiving: said under the island (it hides with it) */
+        .tm-tab { position: absolute; top: calc(100% - 1px); left: 50%; translate: -50% 0; z-index: -1; display: flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.9rem 0.4rem; border-radius: 0 0 0.8rem 0.8rem; white-space: nowrap; font-size: 0.92rem; background: color-mix(in srgb, var(--color-warning) 22%, var(--color-bg-light)); box-shadow: 0 6px 16px var(--color-shadow); }
+        .tm-tab b { color: var(--tm-thinned-text); }
+        .tm-tab button { padding: 0 0.2rem; font-weight: 600; color: var(--color-primary); cursor: pointer; }
+
+        /* The time line: the bottom edge of the island. At rest only its line (3 px); the row above it opens with the pointer */
+        :root { --tm-replay: hsl(268, 52%, 52%); --tm-held: var(--color-primary); }
+        :root[data-theme="dark"] { --tm-replay: hsl(268, 70%, 72%); }
+        .tm-strip { position: relative; padding: 0 1rem; }
+        .tm-tl-row { display: flex; align-items: center; gap: 0.45rem; height: 0; overflow: hidden; visibility: hidden; font-size: 0.95rem; transition: height var(--motion-fast) var(--ease-out), visibility 0s var(--motion-fast); }
+        .tm-strip.open .tm-tl-row { height: 2.3rem; overflow: visible; visibility: visible; transition: height var(--motion-fast) var(--ease-out); }
+        .tm-tl-btn { display: inline-flex; align-items: center; justify-content: center; position: relative; width: 2rem; height: 1.9rem; border-radius: 0.6rem; cursor: pointer; }
+        .tm-tl-btn:hover, .tm-tl-more:hover, .tm-tl-live:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+        .tm-tl-btn:disabled, .tm-tl-live:disabled { opacity: 0.4; cursor: default; background: transparent; }
+        .tm-tl-btn .tm-svg { width: 1rem; height: 1rem; }
+        .tm-tl-when { font: 0.95rem ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .tm-tl-when small { margin-left: 0.5em; color: var(--color-text-muted); font-size: 0.9em; }
+        .tm-tl-group { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.05rem 0.45rem; border-radius: 0.4rem; font-size: 0.85rem; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+        .tm-tl-group i, .tm-tl-gitem i { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; flex: none; }
+        .tm-tl-live { position: relative; display: inline-flex; align-items: center; gap: 0.35rem; height: 1.7rem; padding: 0 0.45rem; border-radius: 0.45rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; color: var(--color-text-muted); cursor: pointer; }
+        .tm-tl-live i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+        .tm-tl-live.is { color: var(--color-danger); }
+        .tm-tl-more { position: relative; height: 1.7rem; padding: 0 0.45rem; border-radius: 0.45rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-text-muted); cursor: pointer; }
+        .tm-tl-more.on { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
+        .tm-tl-btn:focus-visible, .tm-tl-live:focus-visible, .tm-tl-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+        .tm-tl-line { position: relative; height: 3px; margin: 0 -0.2rem; padding: 4px 0 0; margin-top: -4px; cursor: pointer; touch-action: none; transition: height var(--motion-fast) var(--ease-out); } /* (4 px more above it to aim at) */
+        .tm-strip.open .tm-tl-line { height: 6px; padding-top: 4px; margin-bottom: 0.25rem; }
+        .tm-strip.empty .tm-tl-line { cursor: default; }
+        .tm-tl-line canvas { position: absolute; left: 0; bottom: 0; display: block; width: 100%; height: 3px; border-radius: 3px; } /* (out of the flow: its pixels must not widen the island) */
+        .tm-strip.open .tm-tl-line canvas { height: 6px; }
+        .tm-tl-knob { position: absolute; bottom: 3px; width: 0.8rem; height: 0.8rem; margin: 0 0 -0.4rem -0.4rem; box-sizing: border-box; border-radius: 50%; border: 2.5px solid var(--tm-held); background: var(--color-bg-light); pointer-events: none; }
+        .tm-tl-knob.replay { border-color: var(--tm-replay); }
+        .tm-tl-ghost { position: absolute; top: 0; bottom: -2px; width: 1.5px; margin-left: -0.75px; background: var(--color-text); opacity: 0.5; pointer-events: none; }
+        .tm-tl-tip { position: absolute; bottom: 0.9rem; translate: -50% 0; z-index: 31; padding: 0.2rem 0.45rem; border-radius: 0.4rem; background: var(--color-text); color: var(--color-bg-light); font: 0.85rem ui-monospace, Consolas, monospace; white-space: nowrap; pointer-events: none; }
+        .tm-tl-tip.left { translate: 0 0; }
+        .tm-tl-pop { left: auto; right: 0; width: 26rem; padding: 0.8rem 0.9rem 0.8rem; font-size: 1rem; }
+        .tm-tl-more.on .tm-tip { display: none; } /* (its popup is open) */
+        .tm-tl-pop h5 { display: flex; align-items: center; gap: 0.4rem; margin: 0.8rem 0 0.35rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
+        .tm-tl-pop h5:first-child { margin-top: 0; }
+        .tm-tl-pop .tm-h5-value { text-transform: none; letter-spacing: 0; }
+        .tm-tl-pop .tm-action { text-align: center !important; }
+        .tm-popup .tm-tl-disclose { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 0.7rem; padding: 0.4rem 0.4rem; border-radius: 0.5rem; color: var(--color-text-muted); }
+        .tm-popup .tm-tl-disclose b { color: var(--color-text); font-weight: 600; }
+        .tm-popup .tm-tl-disclose:hover, .tm-popup .tm-tl-gitem:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+        .tm-popup .tm-tl-gitem { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.35rem 0.45rem; border-radius: 0.5rem; }
+        .tm-popup .tm-tl-gitem.on { background: color-mix(in srgb, var(--color-primary) 12%, transparent); }
+        .tm-tl-gitem > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tm-tl-gitem .tm-sub { display: inline; }
+        .tm-tl-gstate { font: 0.85rem ui-monospace, Consolas, monospace; color: var(--color-text-muted); white-space: nowrap; }
+        .tm-popup .tm-tl-all { justify-content: space-between; margin-top: 0.25rem; border-top: 1px solid var(--color-bg-dark); border-radius: 0 0 0.5rem 0.5rem; color: var(--color-text-muted); }
+
         /* Tighter islands: logo and shortcut hints first, then the "Editing" prefix */
         @container (max-width: 860px) {
             .tm-logo { display: none; }
@@ -538,7 +641,69 @@ function initComponent_top_menu(vue) {
         document.head.appendChild(elem);
     }
 
-    // Rate shown beside the pause button: samples received per second, all telemetries together
+    // A moment on the time line: hh:mm:ss.d (local time)
+    function formatMoment(t) {
+        const date = new Date(t * 1000);
+        return [date.getHours(), date.getMinutes(), date.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":") + "." + Math.floor(date.getMilliseconds() / 100);
+    }
+    // How far behind: "18 s", "3 min 12 s", "2 h 05 min"
+    function formatBehind(seconds) {
+        if (seconds < 10) return (Math.round(seconds * 10) / 10) + " s";
+        seconds = Math.round(seconds);
+        if (seconds < 60) return seconds + " s";
+        if (seconds < 3600) return Math.floor(seconds / 60) + " min" + (seconds % 60 ? " " + (seconds % 60) + " s" : "");
+        const minutes = Math.round(seconds / 60);
+        return Math.floor(minutes / 60) + " h " + String(minutes % 60).padStart(2, "0") + " min";
+    }
+    /*
+     * The time line maps the stored data of a time group on its width: the periods covered by its telemetries end to end, and a long
+     * period without any data (an old file next to live data: longer than 10 s and 5 % of it all) folded to FOLD_PX. A replay jumps it.
+     * segments: [{t0, t1, px0, px1}] in time order; null without data.
+     */
+    const FOLD_PX = 6;
+    function timelineMap(intervals, width) {
+        if (!intervals.length || !(width > 0)) return null;
+        intervals.sort((a, b) => a[0] - b[0]);
+        const total = Math.max(0, intervals.reduce((m, i) => Math.max(m, i[1]), -Infinity) - intervals[0][0]);
+        const fold = Math.max(10, total * 0.05);
+        const merged = [];
+        for (const [t0, t1] of intervals) {
+            const last = merged[merged.length - 1];
+            if (last && t0 - last[1] <= fold) last[1] = Math.max(last[1], t1);
+            else merged.push([t0, t1]);
+        }
+        const duration = merged.reduce((sum, [t0, t1]) => sum + (t1 - t0), 0);
+        const usable = Math.max(1, width - FOLD_PX * (merged.length - 1));
+        const segments = [];
+        let px = 0;
+        for (const [t0, t1] of merged) {
+            const w = duration > 0 ? usable * (t1 - t0) / duration : usable / merged.length;
+            segments.push({ t0, t1, px0: px, px1: px + w });
+            px += w + FOLD_PX;
+        }
+        return { segments, from: merged[0][0], to: merged[merged.length - 1][1], width };
+    }
+    function timelinePx(map, t) {
+        const s = map.segments;
+        if (t <= s[0].t0) return s[0].px0;
+        for (let i = 0; i < s.length; i++) {
+            if (t <= s[i].t1) return s[i].t1 > s[i].t0 ? s[i].px0 + (s[i].px1 - s[i].px0) * (t - s[i].t0) / (s[i].t1 - s[i].t0) : s[i].px1;
+            if (i + 1 < s.length && t < s[i + 1].t0) return s[i].px1 + FOLD_PX / 2; // (in a folded period)
+        }
+        return s[s.length - 1].px1;
+    }
+    function timelineTime(map, px) {
+        const s = map.segments;
+        for (let i = 0; i < s.length; i++) {
+            if (px <= s[i].px1 || i == s.length - 1) {
+                if (px <= s[i].px0) return i > 0 && px > s[i].px0 - FOLD_PX / 2 ? s[i].t0 : (i > 0 ? s[i - 1].t1 : s[i].t0);
+                return s[i].px1 > s[i].px0 ? Math.min(s[i].t1, s[i].t0 + (s[i].t1 - s[i].t0) * (px - s[i].px0) / (s[i].px1 - s[i].px0)) : s[i].t1;
+            }
+        }
+        return s[s.length - 1].t1;
+    }
+
+    // Rate shown beside the record switch: samples received per second, all telemetries together
     function formatPerSecond(rate) {
         if (rate >= 1000) return (rate / 1000).toFixed(rate >= 10000 ? 0 : 1) + "k/s";
         return Math.round(rate) + "/s";
@@ -572,23 +737,55 @@ function initComponent_top_menu(vue) {
                 usage: { bytes: 0, samples: 0, telemetries: [] }, // Memory taken by the data (TP.datastore.memory, refreshed by the timer)
                 memoryEvent: { action: "", actedAt: 0, actedOn: [] }, // What the library last did about a full memory
                 timeSpan: null, // How far back the data goes (TP.datastore.memory.span: the telemetry that covers the longest time)
-                pausedAt: 0, pausedFor: 0, // When the pause started (ms), and for how long it has lasted (seconds, refreshed by the timer)
+                pausedAt: 0, pausedFor: 0, // When reception stopped (ms), and for how long it has been off (seconds, refreshed by the timer)
+                recv: { on: true, by: "", at: 0 }, // TP.state.receiving and receivingOff, copied by refreshTimeline (the library writes them unproxied)
+                // The time line: what the row and the line show of the chosen time group (refreshed on every update of the library)
+                timeline: { hasData: false, mode: "live", speed: 1, resumeLive: false, whenText: "", behindText: "", groupLabel: "", groupColor: "", groupName: "", knob: -1 },
+                speeds: [0.25, 0.5, 1, 2, 5, 10],
+                stripHover: false, // The pointer has been on the island for a moment (the row opens 120 ms after it came, closes 400 ms after it left)
+                dragging: false,   // The line is being dragged
+                hoverX: -1, hoverText: "", // The pointer on the line: where, and what time that is
+                showGroups: false, // "⋯": the list of the time groups is open
+                groupsTick: 0,     // (the list of the time groups is made again when it changes)
                 windows: [[15, "15 s"], [60, "1 min"], [300, "5 min"], [3600, "1 h"], [0, "All"]], // Seconds of data kept
                 policies: [
                     { value: "thin", label: "Thin out the oldest data", note: "Keep the lowest and highest samples of each moment: the shape of the history stays, with less detail." },
                     { value: "forget", label: "Forget the oldest data", note: "The window gets shorter for the telemetries that take the most room." },
-                    { value: "pause", label: "Pause", note: "Stop taking new data and tell me." },
+                    { value: "stop", label: "Stop receiving", note: "Stop storing what the devices send, and tell me." },
                 ],
             }
         },
         computed: {
-            paused() { return !!this.TP.state.isPaused; },
+            paused() { return !this.recv.on; }, // Not receiving
+            receivingOffBy() { return this.recv.on ? "" : this.recv.by; },
+            receivingSince() { const d = new Date(this.recv.at); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":"); },
+            receivingText() {
+                if (this.recv.on) return "What the devices send is stored. R stops it.";
+                return (this.recv.by == "memory" ? "Stopped by the memory limit at " : "Stopped at ") + this.receivingSince + ": what was sent since is lost.";
+            },
             commandsOn() { return !!this.TP.state.commands; },
             commandCount() { return this.commands.settings + this.commands.actions; },
-            // A chart is zoomed on a time range: the display no longer follows the latest data, the pause button becomes "back to live"
-            zoomed() { return Object.values(this.TP.view.groups).some(g => g.cursorActive); },
+            // The time group the time line, Space and Esc act on: chosen under "⋯" (or by a click in one of its views), else the dashboard's
+            baseGroup() { return this.ctx.activeDashboard ? this.ctx.activeDashboard.getGroupName() : ""; },
+            chosenGroup() { return this.ctx.timeGroup || this.baseGroup; },
+            timelineOpen() { return !!this.ctx.activeDashboard && (this.stripHover || this.focused || this.dragging || this.ctx.topPanel == "time"); },
+            // The time groups of the dashboard, for "⋯": its own, then its custom ones, with their state
+            timeGroups() {
+                this.groupsTick;
+                const dashboard = this.ctx.activeDashboard;
+                if (!dashboard) return [];
+                const T = Vue.toRaw(this.TP), base = dashboard.getGroupName();
+                const state = (key) => {
+                    const time = T.view.timeOf(key);
+                    if (time.mode == "live") return "live";
+                    return (time.mode == "replay" ? time.speed + "× " : "") + formatMoment(time.at);
+                };
+                const list = [{ key: base, name: dashboard.name, kind: "dashboard", color: "var(--color-primary)", state: state(base) }];
+                for (const g of T.dashboards.getTimeGroups(dashboard.name)) list.push({ key: g.key, name: g.name, kind: "custom", color: g.color, state: state(g.key) });
+                return list;
+            },
             // Reasons to stay on screen even when nothing moves
-            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused || this.commandsOn || this.cmdAttention); },
+            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused || this.dragging || this.commandsOn || this.cmdAttention); },
             away() { return !(this.awake || this.pinned); },
             // The island floats over the dashboard (not over the free band above it)
             over() { return !!this.ctx.activeDashboard && !this.ctx.bandVisible; },
@@ -616,7 +813,7 @@ function initComponent_top_menu(vue) {
                 let notice = "";
                 const event = this.memoryEvent, recent = Date.now() - event.actedAt < 15000;
                 const names = event.actedOn.slice(0, 2).join(", ") + (event.actedOn.length > 2 ? " and " + (event.actedOn.length - 2) + " more" : "");
-                if (event.action == "pause" && this.paused) notice = "Paused: the memory allowed for the data is full. Clear some data or shorten the window, then resume.";
+                if (event.action == "stop" && this.paused) notice = "Not receiving: the memory allowed for the data is full. Clear some data or shorten the window, then receive again.";
                 else if (event.action == "thin" && recent) notice = "Memory is full: the oldest data of " + names + " is being thinned out.";
                 else if (event.action == "forget" && recent) notice = "Memory is full: the oldest data of " + names + " is being forgotten.";
                 return {
@@ -644,7 +841,7 @@ function initComponent_top_menu(vue) {
                 const names = span ? span.thinned.slice(0, 3).join(", ") + (span.thinned.length > 3 ? " and " + (span.thinned.length - 3) + " more" : "") : "";
                 let text = span ? time(kept) + " kept" : "No data yet";
                 if (span && !(window > 0)) text += ", no limit";
-                if (gap >= 1) text += " · paused for " + time(gap);
+                if (gap >= 1) text += " · not received for " + time(gap);
                 else if (span && window > 0 && kept < window * 0.9 && this.memoryEvent.action == "forget" && this.TP.state.memoryPolicy == "forget" && this.usage.bytes > this.TP.state.memoryLimit * 0.6) text += " · shortened by the memory limit";
                 return {
                     isThinned: thinnedFor > 0, thinnedTitle: `Old data of ${names} was thinned out to fit in memory: real samples, fewer of them (see the data menu)`,
@@ -674,11 +871,18 @@ function initComponent_top_menu(vue) {
             },
         },
         watch: {
-            paused(paused) { this.pausedAt = paused ? Date.now() : 0; this.pausedFor = 0; },
+            paused(paused) { this.pausedAt = paused ? this.recv.at : 0; this.pausedFor = 0; },
+            // The row of the time line opens a moment after the pointer came, and closes a moment after it left (not on a mere crossing)
+            hovered(on) {
+                clearTimeout(this._stripTimer);
+                this._stripTimer = setTimeout(() => { this.stripHover = on; }, on ? 120 : 400);
+            },
+            timelineOpen(open) { if (!open) this.hoverX = -1; this.$nextTick(() => this.measureLine()); },
+            "ctx.activeDashboard"() { this.ctx.timeGroup = ""; },
             // When a reason to stay goes away, the island lingers for a moment
             pinned(value) { if (!value) this.wake(); },
             // A pending delete confirmation does not survive the list being closed
-            "ctx.topPanel"() { this.confirmDelete = ""; this.confirmForget = ""; },
+            "ctx.topPanel"(panel) { this.confirmDelete = ""; this.confirmForget = ""; if (panel != "time") this.showGroups = false; else this.groupsTick++; },
         },
         methods: {
             // Activity: show the island, and hide it again after IDLE_MS without any
@@ -715,8 +919,139 @@ function initComponent_top_menu(vue) {
                 if (!connections.length) return [{ text: "No source" }];
                 return connections.map(c => ({ text: c.type + " " + c.name + (c.connected ? "" : " (lost)"), status: c.connected ? "ok" : "bad" }));
             },
-            togglePause(event) { this.release(event); this.TP.state.isPaused = !this.TP.state.isPaused; },
-            backToLive(event) { this.release(event); this.TP.view.backToLive(); this.TP.state.isPaused = false; },
+            // Reception on and off (what the sources send is stored or lost)
+            toggleReceiving(event) { this.release(event); const T = Vue.toRaw(this.TP); T.setReceiving(!T.state.receiving); this.refreshTimeline(); },
+            // The time line acts on the chosen time group (doc/time.md "Actions and keys")
+            togglePlay(event) { this.release(event); if (this.chosenGroup) Vue.toRaw(this.TP).view.togglePlay(this.chosenGroup); this.refreshTimeline(); },
+            goLive(event) { this.release(event); if (this.chosenGroup) Vue.toRaw(this.TP).view.backToLive(this.chosenGroup); this.refreshTimeline(); },
+            setSpeed(speed) { if (this.chosenGroup) Vue.toRaw(this.TP).view.setSpeed(this.chosenGroup, speed); this.refreshTimeline(); },
+            step(dir) { if (this.chosenGroup) Vue.toRaw(this.TP).view.step(this.chosenGroup, dir); this.refreshTimeline(); },
+            chooseGroup(key) { this.ctx.timeGroup = key == this.baseGroup ? "" : key; this.refreshTimeline(); },
+            allLive() { if (this.baseGroup) Vue.toRaw(this.TP).view.allLive(this.baseGroup); this.ctx.timeGroup = ""; this.groupsTick++; this.refreshTimeline(); },
+            // On every update of the library: what the line and the row show. The line is drawn again only when what it shows changed.
+            refreshTimeline() {
+                const T = Vue.toRaw(this.TP);
+                const off = T.state.receivingOff;
+                if (this.recv.on !== T.state.receiving || this.recv.at !== (off ? off.at : 0)) this.recv = { on: T.state.receiving, by: off ? off.by : "", at: off ? off.at : 0 };
+                const base = this.baseGroup;
+                // A click in a view held its group: the time line follows it (only a group of this dashboard)
+                const held = T.view.lastHeld;
+                if (held && held.count !== this._heldCount) {
+                    this._heldCount = held.count;
+                    if (base && (held.name === base || held.name.startsWith(base + T.view.TIME_GROUP_SEPARATOR))) this.ctx.timeGroup = held.name === base ? "" : held.name;
+                }
+                const name = this.chosenGroup;
+                const intervals = [];
+                if (name) for (const idOrName of T.view.groupTelemetries(name)) {
+                    const telem = T.datastore.getTelemetry(idOrName);
+                    if (!telem) continue;
+                    for (const type in telem.data) {
+                        if (T.protocol.isMetaDataType(Number(type))) continue;
+                        const ts = telem.data[type].timestamps;
+                        if (ts && ts.length) intervals.push([ts[0], ts[ts.length - 1]]);
+                    }
+                }
+                const map = this._map = timelineMap(intervals, this._lineWidth || 0);
+                const g = name ? T.view.groups[name] : undefined;
+                const time = name && intervals.length ? T.view.timeOf(name) : undefined;
+                const mode = time ? time.mode : "live";
+                const newest = map ? map.to : 0;
+                const custom = name && name !== base ? T.dashboards.getTimeGroups(this.ctx.activeDashboard.name).find((c) => c.key === name) : undefined;
+                const next = {
+                    hasData: !!time, mode, speed: time ? time.speed : 1, resumeLive: !!(g && g.resume == "live"),
+                    whenText: !time ? "no data" : (mode == "live" ? "live" : (mode == "replay" ? time.speed + "× · " : "") + formatMoment(time.at)),
+                    behindText: time && mode != "live" ? "−" + formatBehind(Math.max(0, newest - time.at)) + (time.movedWithWindow ? " (moved with the data window)" : "") : "",
+                    groupLabel: custom ? custom.name : "", groupColor: custom ? custom.color : "", groupName: custom ? custom.name : (this.ctx.activeDashboard ? this.ctx.activeDashboard.name : ""),
+                    knob: map && time && mode != "live" ? Math.round(timelinePx(map, time.at) * 2) / 2 : -1,
+                };
+                const cur = this.timeline;
+                for (const key in next) if (cur[key] !== next[key]) { this.timeline = next; break; }
+                // The line itself
+                const canvas = this.$refs.lineCanvas;
+                if (!canvas) return;
+                const height = this._lineHeight || 3;
+                const offs = map && T.datastore.offPeriods.length ? T.datastore.offPeriodsIn(map.from, map.to).map((p) => Math.round(timelinePx(map, p.from)) + "-" + Math.round(timelinePx(map, p.to))) : [];
+                const key = [this._lineWidth, height, mode, next.knob, map ? map.segments.map((s) => Math.round(s.px0) + ":" + Math.round(s.px1)).join(",") : "none", offs.join(","), T.theme.key()].join("|");
+                if (key === this._lineKey) return;
+                this._lineKey = key;
+                this.drawLine(canvas, map, mode, next.knob, offs, height);
+            },
+            drawLine(canvas, map, mode, knob, offs, height) {
+                const width = this._lineWidth || 0, ratio = window.devicePixelRatio || 1;
+                if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
+                const c = canvas.getContext("2d");
+                c.setTransform(ratio, 0, 0, ratio, 0, 0);
+                c.clearRect(0, 0, width, height);
+                const css = getComputedStyle(canvas);
+                const color = (name) => css.getPropertyValue(name).trim();
+                c.fillStyle = color("--color-bg-dark") || "#ddd";
+                c.fillRect(0, 0, width, height);
+                if (!map) return;
+                // Covered by data, up to the moment shown (live: all of it, in grey, the latest moment in red)
+                const end = mode == "live" ? width : knob;
+                c.globalAlpha = mode == "live" ? 0.35 : 0.8;
+                c.fillStyle = mode == "live" ? (color("--color-text-muted") || "#888") : (mode == "replay" ? color("--tm-replay") : color("--tm-held"));
+                for (const s of map.segments) if (s.px0 < end) c.fillRect(s.px0, 0, Math.min(s.px1, end) - s.px0, height);
+                c.globalAlpha = 1;
+                if (mode == "live") { c.fillStyle = color("--color-danger") || "red"; c.fillRect(width - 8, 0, 8, height); }
+                // Periods not received: hatched
+                if (offs.length) {
+                    c.fillStyle = color("--color-warning") || "orange";
+                    for (const range of offs) {
+                        const [a, b] = range.split("-").map(Number);
+                        for (let x = a; x < Math.max(a + 2, b); x += 4) c.fillRect(x, 0, 2, height);
+                    }
+                }
+                // Folded periods without data: a notch
+                c.fillStyle = color("--color-bg-light") || "#fff";
+                for (let i = 1; i < map.segments.length; i++) c.fillRect(map.segments[i - 1].px1 + 1, 0, FOLD_PX - 2, height);
+            },
+            measureLine() {
+                const line = this.$refs.line;
+                if (!line) return;
+                const canvas = this.$refs.lineCanvas;
+                this._lineWidth = canvas ? canvas.clientWidth : line.clientWidth;
+                this._lineHeight = canvas ? canvas.clientHeight : 3;
+                this._lineKey = "";
+                this.refreshTimeline();
+            },
+            // The pointer on the line: the time under it; pressed or dragged: held there
+            linePosition(event) { const box = this.$refs.lineCanvas.getBoundingClientRect(); return Math.max(0, Math.min(box.width, event.clientX - box.left)); },
+            lineDown(event) {
+                if (event.button !== 0 || !this._map || !this.chosenGroup) return;
+                this.dragging = true;
+                try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
+                this.lineSeek(event);
+            },
+            lineMove(event) {
+                if (!this._map) return;
+                const x = this.linePosition(event), T = Vue.toRaw(this.TP);
+                const t = timelineTime(this._map, x), time = T.view.timeOf(this.chosenGroup);
+                this.hoverX = x;
+                const folded = this._map.segments.some((s, i) => i > 0 && x > this._map.segments[i - 1].px1 && x < s.px0);
+                this.hoverText = folded ? "no data" : (time.movedWithWindow && Math.abs(x - this.timeline.knob) < 6 ? "moved with the data window" : formatMoment(t) + " · −" + formatBehind(Math.max(0, this._map.to - t)));
+                if (this.dragging) this.lineSeek(event);
+            },
+            lineUp(event) {
+                if (!this.dragging) return;
+                this.dragging = false;
+                try { event.currentTarget.releasePointerCapture(event.pointerId); } catch (e) {}
+            },
+            lineSeek(event) { Vue.toRaw(this.TP).view.seek(this.chosenGroup, timelineTime(this._map, this.linePosition(event))); this.refreshTimeline(); },
+            // The wheel over the open time line: 1 % of its period per notch (later downwards or to the right), Alt: one sample per notch
+            onWheel(event) {
+                if (!this.timelineOpen || !this.timeline.hasData || !this._map) return;
+                event.preventDefault();
+                let delta = (event.deltaY || 0) + (event.deltaX || 0);
+                if (event.deltaMode === 1) delta *= 33; else if (event.deltaMode === 2) delta *= 300;
+                const notches = delta / 100, T = Vue.toRaw(this.TP);
+                if (event.altKey) {
+                    this._wheelSamples = (this._wheelSamples || 0) + notches;
+                    const samples = Math.trunc(this._wheelSamples);
+                    if (samples) { this._wheelSamples -= samples; T.view.move(this.chosenGroup, { samples }); }
+                }
+                else T.view.move(this.chosenGroup, { seconds: notches * 0.01 * Math.max(1e-3, this._map.to - this._map.from) });
+            },
             toggleSidePanel(name, event) {
                 this.release(event);
                 if (name == "help") this.ctx.helpOpen = !this.ctx.helpOpen;
@@ -888,8 +1223,22 @@ function initComponent_top_menu(vue) {
                 const t = event.target;
                 if (t && (t.isContentEditable || (t.closest && t.closest("input, textarea, select")))) return; // Typing
                 if (event.key == " " && t && t.closest && t.closest("button, summary, a")) return; // Space activates a focused control, as usual
-                if (event.key == " ") { event.preventDefault(); this.togglePause(); return; }
+                if (event.key == " ") { event.preventDefault(); this.togglePlay(); return; }
+                const T = Vue.toRaw(this.TP), group = this.chosenGroup;
+                // The time line, while it is open: the arrows move the time shown, Home goes to the oldest sample, End to live
+                if (this.timelineOpen && this.timeline.hasData && group && this._map && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                    event.preventDefault();
+                    const dir = event.key == "ArrowLeft" ? -1 : 1;
+                    if (event.key == "Home") T.view.seek(group, this._map.from);
+                    else if (event.key == "End") T.view.backToLive(group);
+                    else if (event.shiftKey) T.view.move(group, { seconds: dir * 0.01 * Math.max(1e-3, this._map.to - this._map.from) });
+                    else T.view.move(group, { samples: dir });
+                    return;
+                }
+                if (group && (event.key == "," || event.key == ".")) { event.preventDefault(); this.step(event.key == "," ? -1 : 1); return; }
+                if (group && (event.key == "[" || event.key == "]")) { event.preventDefault(); T.view.changeSpeed(group, event.key == "[" ? -1 : 1); return; }
                 const key = event.key.toLowerCase();
+                if (key == "r") { event.preventDefault(); this.toggleReceiving(); return; }
                 if (key == "e") { event.preventDefault(); this.toggleEdit(); return; }
                 if (key == "c" && (this.commandCount || this.commandsOn)) { event.preventDefault(); this.toggleCommands(); return; }
                 const panel = this.panels.find(p => !p.soon && (p.key.toLowerCase() == key || (p.name == "help" && key == "?")));
@@ -913,6 +1262,13 @@ function initComponent_top_menu(vue) {
                 this._attentionTimer = setTimeout(() => { this.cmdAttention = false; }, 2000);
             };
             this.TP.commands.onBlockedHooks.push(this._onCommandBlocked);
+            // The time line follows every update of the library (a replay moves 30 times per second); its width is measured when it changes
+            this._timelineHook = () => this.refreshTimeline();
+            Vue.toRaw(this.TP).updates.onUpdateHooks.push(this._timelineHook);
+            if (typeof ResizeObserver === "function" && this.$refs.line) { this._lineObserver = new ResizeObserver(() => this.measureLine()); this._lineObserver.observe(this.$refs.line); }
+            this.measureLine();
+            this._onWheel = (e) => this.onWheel(e);
+            this.$refs.island.addEventListener("wheel", this._onWheel, { passive: false }); // (taken while the time line is open: the page must not scroll meanwhile)
             this.refreshRate();
             this._rateTimer = setInterval(() => this.refreshRate(), 250);
         },
@@ -923,8 +1279,13 @@ function initComponent_top_menu(vue) {
             clearTimeout(this._idleTimer);
             clearInterval(this._rateTimer);
             clearTimeout(this._attentionTimer);
+            clearTimeout(this._stripTimer);
             const hooks = this.TP.commands.onBlockedHooks, index = hooks.indexOf(this._onCommandBlocked);
             if (index >= 0) hooks.splice(index, 1);
+            const updates = Vue.toRaw(this.TP).updates.onUpdateHooks, at = updates.indexOf(this._timelineHook);
+            if (at >= 0) updates.splice(at, 1);
+            if (this._lineObserver) this._lineObserver.disconnect();
+            if (this.$refs.island) this.$refs.island.removeEventListener("wheel", this._onWheel);
         },
         template: vueHTML,
     });
