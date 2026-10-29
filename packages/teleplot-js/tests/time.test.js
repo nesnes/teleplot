@@ -178,9 +178,30 @@ test('charts: a held group draws nothing again for data that keeps coming nor fo
     T.view.groups[name].cursorTimestamp = 50; // (a preview)
     chart.update();
     assert.equal(calls(), held, 'held: nothing drawn again');
-    // A period not received between two samples: a null there
-    assert.deepEqual(T.view.ViewChart.breakAt([[1, 2, 5, 6], [10, 20, 50, 60]], [{ from: 3, to: 4.5 }]), [[1, 2, 3, 5, 6], [10, 20, null, 50, 60]]);
-    assert.deepEqual(T.view.ViewChart.breakAt([[1, 2], [10, 20]], [{ from: 5, to: 6 }]), [[1, 2], [10, 20]], 'after the samples: nothing');
+    // A hole between two samples: a null in it
+    assert.deepEqual(T.view.ViewChart.breakAt([[1, 2, 5, 6], [10, 20, 50, 60]], [{ from: 2, to: 5 }]), [[1, 2, 3.5, 5, 6], [10, 20, null, 50, 60]]);
+    assert.deepEqual(T.view.ViewChart.breakAt([[1, 5, 6], [10, 50, 60]], [{ from: 2, to: 4 }]), [[1, 3, 5, 6], [10, null, 50, 60]], 'decimated: the samples kept around the hole');
+    assert.deepEqual(T.view.ViewChart.breakAt([[1, 2], [10, 20]], [{ from: 2, to: Infinity }]), [[1, 2], [10, 20]], 'still open: nothing after it to break');
+});
+
+test('a stop of reception leaves a hole in the time of the data, whatever the clock of the device; not for a file read meanwhile', () => {
+    const T = loadTeleplot();
+    T.parseDataText('x:5000:1\nx:5001:2\ny:5000:7'); // (times far from the page's clock: a device that dates its data itself)
+    const x = T.datastore.getTelemetry('x'), entry = x.data[NUMBER];
+    T.setReceiving(false);
+    T.files.importData('f:1:5\n');
+    assert.deepEqual(T.datastore.gapsIn(['x'], 0, Infinity), [{ from: 5.001, to: Infinity }], 'off: open from the last sample');
+    T.setReceiving(true);
+    T.parseDataText('x:5009:3\nx:5010:4');
+    assert.deepEqual(T.datastore.gapsIn(['x'], 0, Infinity), [{ from: 5.001, to: 5.009 }], 'from the last sample before to the first after');
+    assert.deepEqual(T.datastore.gapsIn(['x'], 6, 7), [], 'not in that window');
+    assert.deepEqual(T.datastore.gapsIn(['x', 'y'], 0, Infinity), [{ from: 5.001, to: 5.009 }], 'y has not received since: its hole is not known yet');
+    T.parseDataText('y:5020:8');
+    assert.deepEqual(T.datastore.gapsIn(['x', 'y'], 0, Infinity), [{ from: 5, to: 5.02 }]);
+    T.parseDataText('x:5011:5');
+    assert.equal(entry.gaps.length, 1, 'one hole per stop');
+    T.files.importData('g:1:5\n');
+    assert.deepEqual(T.datastore.gapsIn(['f', 'g'], 0, Infinity), [], 'files: no hole');
 });
 
 test('the real uPlot.join keeps the null of a break and puts undefined where a series has no sample at a time of another', () => {

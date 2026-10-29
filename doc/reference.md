@@ -22,7 +22,7 @@ A value over time.
 | group | `name,group:value` | `.label("motors")` | `.label("motors")` | none | Telemetries of a group share a view of the Live dashboard, and views can follow a group. Values: any text after a comma (a / means nothing special); one group per telemetry. |
 | not on Live | `name:value\|np` | `.autoplot(false)` | `.autoplot(False)` | shown | Not put on the Live dashboard by itself (it stays in the Telemetries panel). Values: the flag np. |
 | clear first | `name:value\|clr` | — | — |  | What the telemetry held is forgotten before this sample (a new run, a new scan). Values: the flag clr. No call in the clients: send the line as text. |
-| data window | — | `.timeout(Teleplot::ms(5000))` | `.timeout(Teleplot.ms(5000))` | the page's (300 s) | How long the page keeps the samples of this telemetry. Values: a duration; 0: kept until the memory limit. Binary protocol only: the text protocol and the Arduino library (accepted, does nothing) have none. |
+| data window | — | `.timeout(Teleplot::ms(5000))` | `.timeout(Teleplot.ms(5000))` | the page's (all, up to the memory limit) | How long the page keeps the samples of this telemetry. Values: a duration; 0: kept until the memory limit. Binary protocol only: the text protocol and the Arduino library (accepted, does nothing) have none. |
 | most per second | — | `.maxRate(50)` | `.maxRate(50)` | 0: all | The client keeps at most that many samples per second (the others are not sent). Values: samples per second. |
 | exact numbers | — | `.precise()` | `.precise()` | float32 | Numbers sent as float64: no rounding. Values: on or off. The text protocol writes numbers as given (the Arduino library: 9 significant digits, 15 with precise()). |
 
@@ -463,7 +463,7 @@ Live dashboard, data window.
 |---|---|---|---|---|---|
 | not on Live | `name:value\|np` | `.autoplot(false)` | `.autoplot(False)` | shown | Not put on the Live dashboard by itself (it stays in the Telemetries panel). Values: the flag np. |
 | clear first | `name:value\|clr` | — | — |  | What the telemetry held is forgotten before this sample (a new run, a new scan). Values: the flag clr. No call in the clients: send the line as text. |
-| data window | — | `.timeout(Teleplot::ms(5000))` | `.timeout(Teleplot.ms(5000))` | the page's (300 s) | How long the page keeps the samples of this telemetry. Values: a duration; 0: kept until the memory limit. Binary protocol only: the text protocol and the Arduino library (accepted, does nothing) have none. |
+| data window | — | `.timeout(Teleplot::ms(5000))` | `.timeout(Teleplot.ms(5000))` | the page's (all, up to the memory limit) | How long the page keeps the samples of this telemetry. Values: a duration; 0: kept until the memory limit. Binary protocol only: the text protocol and the Arduino library (accepted, does nothing) have none. |
 
 ## Commands
 

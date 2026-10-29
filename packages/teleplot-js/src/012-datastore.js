@@ -4,6 +4,7 @@ let _datastore_currentEndpoint = undefined; // Which device of that source sent 
 let _datastore_addWatcher = undefined; // Called with (telemetry, dataType, timestamps) for what is added while it is set (see watchAdds)
 let _datastore_dry = false;            // true: nothing is stored nor cleared, the watcher still sees what would be added (see dryRun)
 const _datastore_structures = new WeakMap(); // data entry of a structure -> Map text -> what it says (see Telemetry.getEnum)
+let _datastore_offCount = 0;           // Counts the times reception was stopped: an entry that saw an older count has a hole (see Telemetry.gapsOf)
 let _datastore_serial = 0;             // Counts the telemetries created: tells one from another one that took its id (objects are not compared: an application may wrap them)
 
 class Telemetry {
@@ -58,7 +59,7 @@ class Telemetry {
         // Create data type if needed
         if (this.data[dataType] == undefined) {
             // lateInsertions counts samples inserted before the end of the data, it lets caches (ex: decimation) know when they are outdated
-            this.data[dataType] = {timestamps: [], data: [], lastUpdate: 0, lateInsertions: 0};
+            this.data[dataType] = {timestamps: [], data: [], lastUpdate: 0, lateInsertions: 0, offCount: _datastore_offCount};
             for(let i=0;i<dataList.length;i++) {
                 this.data[dataType].data[i] = [];
             }
@@ -66,6 +67,13 @@ class Telemetry {
         // For each incoming data, insert ordered
         let stored = this.data[dataType];
         let lastTimestamp = stored.timestamps.length ? stored.timestamps[stored.timestamps.length-1] : -Infinity;
+        // Reception was stopped since this entry last got data: the hole is remembered between its samples, in the time of its data (a
+        // device may date them on its own clock, so the page's clock would not say where the hole is). Not for a file read meanwhile.
+        let gapFrom;
+        if (stored.offCount !== _datastore_offCount && !TELEPLOT.state.receivingOff) {
+            if (stored.timestamps.length) gapFrom = lastTimestamp;
+            stored.offCount = _datastore_offCount;
+        }
         for(let i=0;i<timestamps.length;i++) {
             let timestamp = timestamps[i];
             if (!(timestamp >= 0)) continue; // Do not use negative timestamps (not supported and -1 could interact with getDataPoint), nor what is not a time at all (it would break the order of the data)
@@ -100,11 +108,31 @@ class Telemetry {
             }
         }
 
+        if (gapFrom !== undefined) Telemetry.__addGap(stored, gapFrom);
         stored.lastUpdate = Date.now();
         if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
         if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps);
         if(this.__unannounced && !TELEPLOT.protocol.isMetaDataType(dataType)) _datastore_announce(this);
     };
+    // The hole of an entry after a stop of reception: from its last sample before it to its first one after it (none after: no hole yet)
+    static __addGap(stored, from) {
+        let times = stored.timestamps, lo = 0, hi = times.length;
+        while(lo < hi) { let mid = (lo + hi) >> 1; if(times[mid] <= from) lo = mid + 1; else hi = mid; }
+        if(lo >= times.length) return;
+        let gaps = stored.gaps || (stored.gaps = []);
+        gaps.push({ from, to: times[lo] });
+        if(gaps.length > 100) gaps.shift();
+    }
+    // The holes of a data entry left by stops of reception that overlap [from, to], in the time of its data ([{from, to}]; while
+    // reception is off, the one still open goes from its last sample to Infinity). Nothing is made up: the samples around are real.
+    static gapsOf(stored, from=-Infinity, to=Infinity) {
+        let found = [];
+        if(!stored) return found;
+        if(stored.gaps) for(let g of stored.gaps) if(g.to >= from && g.from <= to) found.push(g);
+        let n = stored.timestamps.length;
+        if(!TELEPLOT.state.receiving && n && stored.offCount !== _datastore_offCount && stored.timestamps[n-1] <= to) found.push({ from: stored.timestamps[n-1], to: Infinity });
+        return found;
+    }
     // Index of a timestamp in a sorted list of timestamps, -1 when it is not there
     static __indexOf(timestamps, timestamp) {
         let lo = 0, hi = timestamps.length;
@@ -696,6 +724,7 @@ TELEPLOT.setReceiving = function(on, by="user") {
     if(on === state.receiving) return;
     state.receiving = on;
     if(!on) {
+        _datastore_offCount++;
         state.receivingOff = { by, at: now };
         periods.push({ from: now / 1000, to: undefined });
     }
@@ -704,6 +733,25 @@ TELEPLOT.setReceiving = function(on, by="user") {
         let last = periods[periods.length - 1];
         if(last && last.to === undefined) last.to = now / 1000;
     }
+}
+
+// The holes left by stops of reception in the data of some telemetries (ids or names), merged, that overlap [from, to], in the time of
+// their data (what views draw; offPeriods is on the page's clock, which a device's data may not follow): see Telemetry.gapsOf
+TELEPLOT.datastore.gapsIn = function(telemetries, from, to) {
+    let all = [];
+    for(let idOrName of telemetries || []) {
+        let telem = TELEPLOT.datastore.getTelemetry(idOrName);
+        if(!telem) continue;
+        for(let dataType in telem.data) if(!TELEPLOT.protocol.isMetaDataType(dataType)) all.push(...Telemetry.gapsOf(telem.data[dataType], from, to));
+    }
+    all.sort((a, b) => a.from - b.from);
+    let merged = [];
+    for(let g of all) {
+        let last = merged[merged.length - 1];
+        if(last && g.from <= last.to) last.to = Math.max(last.to, g.to);
+        else merged.push({ from: g.from, to: g.to });
+    }
+    return merged;
 }
 
 // The periods not received that overlap [from, to] (an open one ends now)

@@ -6,7 +6,7 @@ TELEPLOT.state = {
     get isPaused() { return !this.receiving; }, // (the older name of "not receiving")
     set isPaused(paused) { TELEPLOT.setReceiving(!paused); },
     commands: false, // The page may send commands to the devices (the CMD button, off at every start): see 025-commands.js
-    dataTimeout: 300.0, // seconds of data kept per telemetry (0: everything)
+    dataTimeout: 0, // seconds of data kept per telemetry (0, the default: everything, up to the memory limit)
     // bytes the stored data may take (estimated, see TELEPLOT.datastore.getMemoryUsage), 0: no limit. 1 GB, half of it on a device
     // that says it has little memory (navigator.deviceMemory, Chromium only): see doc/performance.md, "Memory"
     memoryLimit: (typeof navigator !== "undefined" && navigator.deviceMemory <= 4) ? 500e6 : 1e9,

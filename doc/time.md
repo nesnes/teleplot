@@ -17,7 +17,7 @@ Neither changes the other: a held display keeps recording, and stopping the rece
 - Files are not sources: an imported file is stored whatever the switch says (today the import lifts the pause for its duration: it keeps doing so).
 - Commands need reception on: the echo of the device is the acknowledgement (unchanged, see [telecmd.md](telecmd.md)).
 - The serial console still shows the lines while reception is off (see [sources.md](sources.md)).
-- **Periods not received**: the store keeps the list of periods during which reception was off (`TELEPLOT.datastore.offPeriods`, `[{from, to}]` on the clock of the stored timestamps, pruned with the data window). Charts do not join samples across such a period: the line breaks, and the period is hatched. The time line of the top menu hatches it too. This explains a gap, it does not make up data.
+- **Periods not received**: each data entry remembers the hole a stop of reception left in it, in the time of its own data: from its last sample before the stop to its first one after (`entry.gaps`, `Telemetry.gapsOf(entry, from, to)`, `TELEPLOT.datastore.gapsIn(telemetries, from, to)` merged; while still off, the hole is open from the last sample). Not on the page's clock: a device may date its data on its own clock (an hour off, since boot...), and the server dates plain lines when it received them, a little before the page restarts reception; a period on the page's clock missed both (fixed 2026-10-30). `TELEPLOT.datastore.offPeriods` still says when, on the page's clock, reception was off. Charts do not join samples across a hole: the line breaks, and the hole is hatched. The time line of the top menu hatches it too. This explains a gap, it does not make up data. A file read while reception is off leaves no hole.
 
 ## Time shown
 
@@ -81,7 +81,7 @@ Proposal A of the mock-ups (see [top-menu.md](top-menu.md) for the rest of the m
 | ⋯ | Speed, step, and "Time group ›" behind one more click. |
 | The line | The stored data from the oldest (left) to the newest (right). 3 px at rest, 6 px on hover, with a hover zone of 10 px. Click or drag: hold there. |
 
-- **The line** is the bottom edge of the menu, at rest and on hover: it never moves, it only thickens, and a knob shows `t` when the group is not live. Live: grey with a red end. Held: blue up to the knob. Replay: purple up to the knob. Not received: hatched amber. Periods with no data at all that are longer than 10 s and 5 % of the line (an old file next to live data) are folded to a 6 px mark, and a replay jumps over them.
+- **The line** is the bottom edge of the menu, at rest and on hover: it never moves, it only thickens, and a knob shows `t` when the group is not live. It is drawn only when it has something to say, or while the row is open (decided with the user 2026-10-30): live with no period not received in view, or no data at all, it is not drawn (its place stays, to be pointed at). Open and live: the data in grey, a red dot at the newest end. Held: blue up to a round knob, the data after it in grey. Replay: the same in purple. Not received: hatched amber (shown at rest too, with the red end while live). Periods with no data at all that are longer than 10 s and 5 % of the line (an old file next to live data) are folded to a 6 px mark, and a replay jumps over them.
 - **The row** opens 120 ms after the pointer enters the menu, or when the keyboard focus enters it. It closes 400 ms after the pointer leaves, but stays open while dragging on the line or while ⋯ is open.
 - **⋯** has the speeds (0.25× to 10×), previous / next sample, and "Time group: Robot ›", which opens the list of the time groups of the dashboard with their state (hovering one frames its views) and **All groups live**. The chosen group is the dashboard's by default, and again after switching dashboard. When another group is chosen, its name shows in the row. Clicking a log line, a graph chip or a timeline band holds the group of that view and chooses it.
 - **Not receiving**: the rate chip turns amber ("not receiving", or "memory full") and a tab under the menu says "data sent now is lost · Receive" (or "Memory full (1 GB) · not receiving · Data menu").
@@ -95,12 +95,12 @@ Proposal A of the mock-ups (see [top-menu.md](top-menu.md) for the rest of the m
 | Click or drag on the line | Chosen group → Held at that time |
 | LIVE, `Esc` | Chosen group → Live (`Esc` first closes an open popup, as today) |
 | `Shift + Esc`, All groups live | Every group of the dashboard → Live |
-| Speed in ⋯, `[` `]` | Chosen group → Replay at that speed from the time shown (`[` slower, `]` faster) |
-| Previous / next in ⋯, `,` `.` | Chosen group → Held at the previous / next real sample |
+| Speed in ⋯, `-` `+` | Chosen group → Replay at that speed from the time shown (`-` slower, `+` or `=` faster) |
+| Previous / next in ⋯, `←` `→` | Chosen group → Held at the previous / next real sample |
 | `R`, record switch | Reception on ↔ off |
 | Click on a chart (not a drag), on a timeline | Its group → Held at that moment |
 | Drag on a chart or a timeline | Its group is held and its window is the selection (`span` = its duration). Resuming plays it with that span. |
-| Double click on a chart or timeline | Drops the span (whole data window). The mode does not change. |
+| Double click on a chart or timeline | Back to live, as Esc (that group only). |
 | Click a log line, graph chip, timeline band | Its group → Held at that sample, and it becomes the chosen group |
 | Touch a command in a group that is not live | Nothing sent, "Go live" for that group |
 
@@ -108,7 +108,7 @@ Change from the mock-ups: they had "drag on a chart sets the span, Live stays li
 
 **When the time line is active** (its row is open under the pointer, or the keyboard focus is in the menu):
 
-- `←` `→`: previous / next real sample. `Shift + ←` `→`: by 1 % of the period of the line. `Home`: the oldest sample. `End`: live.
+- `Home`: the oldest sample. `End`: live. (The arrows work anywhere: `←` `→` previous / next real sample, `Shift + ←` `→` by 1 % of the period of the line; and `-` `+` the replay speed. These keys are typed without Shift or AltGr on every layout, unlike `,` `.` `[` `]` on AZERTY.)
 - **Mouse wheel** over the menu: each notch moves the time shown by 1 % of the period of the line (a trackpad moves it in proportion to its delta). Down or right: later. Up or left: earlier. `Alt +` wheel: one real sample per notch. Leaving Live this way holds the group. The wheel is taken (`preventDefault`, on a non-passive listener of the menu only) so the page does not scroll meanwhile. Elsewhere the wheel keeps its uses (zoom of 2D, 3D and graph views, scrolling the page).
 - Not while typing in a field, nor while a joystick view has the focus (it keeps its keys: `TELEPLOT.commands.keyboardCaptured`).
 
@@ -133,10 +133,10 @@ What the page does on each update (30 per second) must cost no more than live di
 What the charts need from uPlot, checked against `111-viewChart.js`:
 
 - **The window**: `setScale("x", {min, max})` inside `batch` with `setData`, as the zoom does today. The `setScale` hook already ignores the chart's own updates (`updateRunning`), so a window placed by the page is never read as a zoom of the user.
-- **Drag to zoom**: uPlot's select calls the `setScale` hook, which now holds the group and sets its window and span. A double click resets uPlot's scale to its data; the hook already recognises it, and now only drops the span.
+- **Drag to zoom**: uPlot's select calls the `setScale` hook, which now holds the group and sets its window and span. A double click resets uPlot's scale to its data; the hook already recognises it and brings the group back to live, as Esc.
 - **Two lines**: uPlot has one cursor per chart, and it stays the pointer's (the hover preview, and `syncCursor` on the other charts). The line of `t` is a separate element in `u.over`, styled from the theme (`--teleplot-primary` held, a new `--teleplot-replay`), hidden when `t` is outside the scale. It is placed again on `setScale` and on resize.
 - **Data after `t`** is drawn as any other: no series split, nothing dimmed.
-- **Breaks at periods not received**: the decimated series of a chart gets an explicit `null` at the start of each such period in its window (`ViewChart.breakAt`). uPlot breaks a line at `null` and spans `undefined` (what `uPlot.join` puts where a series has no sample at a time of another), so the series still join each other's timestamps. A test loads the real uPlot to check it (the tests run on a stub). The period is hatched in the `drawClear` hook, under the series (`drawNotReceived`).
+- **Breaks at periods not received**: the decimated series of a chart gets an explicit `null` inside each hole of its entry in its window (`ViewChart.breakAt`; decimation keeps samples on both sides). uPlot breaks a line at `null` and spans `undefined` (what `uPlot.join` puts where a series has no sample at a time of another), so the series still join each other's timestamps. A test loads the real uPlot to check it (the tests run on a stub). The period is hatched in the `drawClear` hook, under the series (`drawNotReceived`).
 - **Wheel**: uPlot does nothing with the wheel (zooming with it needs a plugin, which Teleplot does not use), so the wheel of the time line does not compete with the charts.
 
 ## Where it is

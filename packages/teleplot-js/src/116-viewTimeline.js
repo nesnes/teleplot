@@ -576,7 +576,7 @@ class ViewTimeline extends ViewTelemetries{
                 let from = this.__timeAt(selection.from), to = this.__timeAt(selection.to);
                 if(from < to) TELEPLOT.view.zoomTo(this.group, from, to);
             }
-            else if(pressed.x >= page.gutter) TELEPLOT.view.seek(this.group, Math.max(0, this.__timeAt(drag.x))); // A click: held at that moment
+            else if(pressed.x >= page.gutter) TELEPLOT.view.seek(this.group, Math.max(0, this.__timeAt(pressed.x))); // A click: held at that moment
             this.__draw();
         };
         listen(canvas, "pointerup", release);
@@ -587,7 +587,7 @@ class ViewTimeline extends ViewTelemetries{
             TELEPLOT.view.hoveredGroup = "";
             TELEPLOT.view.pointerLeft(this.group); // (the views show the moment of the group again)
         });
-        listen(canvas, "dblclick", () => TELEPLOT.view.setSpan(this.group, 0)); // The whole data window again (live or not)
+        listen(canvas, "dblclick", () => TELEPLOT.view.backToLive(this.group)); // Back to live, as Esc
         listen(host, "scroll", () => this.__draw()); // (the time axis stays at the bottom of what is visible)
         if(typeof ResizeObserver === "function") { page.observer = new ResizeObserver(() => this.__resize()); page.observer.observe(host); }
         this.__resize();

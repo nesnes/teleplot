@@ -13,7 +13,8 @@
  *   focus in it) opens a row above it: play/pause, the time shown, LIVE, and "⋯" (speed, step, time group). Click or drag the line: held
  *   there. While it is open, the arrows and the wheel move the time shown. The chosen group (ctx.timeGroup, "" = the dashboard's) changes
  *   from "⋯" or when a view of another group is clicked.
- * - Shortcuts (not while typing): Space hold/resume the chosen time group, "," "." previous/next sample, "[" "]" slower/faster, R
+ * - Shortcuts (not while typing; keys every keyboard layout types without Shift or AltGr): Space hold/resume the chosen time group,
+ *   arrows previous/next sample (Shift: 1 % of the line), "-" "+" (or "=") slower/faster, R
  *   reception, T / S / H panels, E edit, C commands. Esc is handled in main.js. None while a joystick view drives with the keyboard
  *   (TP.commands.keyboardCaptured).
  * - The island floats over the dashboard and fades out when the mouse rests (IDLE_MS), to leave the whole stage to the data. It stays while a popup
@@ -30,6 +31,9 @@
  */
 const IDLE_MS = 3000; // Without mouse or keyboard activity for this long, the island fades out
 const ACTIVITY_EVENTS = ["pointermove", "pointerdown", "keydown", "touchstart"];
+// The choices of the data menu (data window, memory limit, policy) are kept by the browser: a reload does not reset them
+const DATA_SETTINGS_KEY = "teleplot.dataSettings";
+const DATA_POLICIES = ["thin", "forget", "stop"];
 
 // Dashboards as text files: one "DASH|..." line per view (the library writes and reads them, see doc/dashboard-text.md)
 function dashboardFileName(name) {
@@ -151,7 +155,7 @@ function initComponent_top_menu(vue) {
                             </div>
                             <div class="tm-sub">{{memory.samplesText}}</div>
                             <div class="tm-sub tm-policy-title">When the limit is reached</div>
-                            <button v-for="p in policies" :key="p.value" class="tm-radio" :class="{on: TP.state.memoryPolicy == p.value}" role="radio" :aria-checked="TP.state.memoryPolicy == p.value" @click="TP.state.memoryPolicy = p.value">
+                            <button v-for="p in policies" :key="p.value" class="tm-radio" :class="{on: TP.state.memoryPolicy == p.value}" role="radio" :aria-checked="TP.state.memoryPolicy == p.value" @click="setPolicy(p.value)">
                                 <span class="tm-knob"></span>
                                 <span><b>{{p.label}}</b><span class="tm-sub">{{p.note}}</span></span>
                             </button>
@@ -248,11 +252,11 @@ function initComponent_top_menu(vue) {
                         </button>
                         <template v-if="ctx.topPanel == 'time'">
                             <div class="tm-popup tm-tl-pop" role="dialog" aria-label="Replay">
-                                <h5>Speed</h5>
+                                <h5>Speed <span class="tm-h5-value tm-sub"><kbd>-</kbd> <kbd>+</kbd></span></h5>
                                 <div class="tm-choice" role="group" aria-label="Replay speed">
                                     <button v-for="s in speeds" :key="s" :class="{on: timeline.mode == 'replay' && timeline.speed == s}" :aria-pressed="timeline.mode == 'replay' && timeline.speed == s" @click="setSpeed(s)">{{s}}×</button>
                                 </div>
-                                <h5>Step <span class="tm-h5-value tm-sub">, and . anywhere</span></h5>
+                                <h5>Step <span class="tm-h5-value tm-sub"><kbd>←</kbd> <kbd>→</kbd></span></h5>
                                 <div class="tm-line">
                                     <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(-1)">‹ Previous sample</button>
                                     <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(1)">Next sample ›</button>
@@ -970,30 +974,43 @@ function initComponent_top_menu(vue) {
                 const canvas = this.$refs.lineCanvas;
                 if (!canvas) return;
                 const height = this._lineHeight || 3;
-                const offs = map && T.datastore.offPeriods.length ? T.datastore.offPeriodsIn(map.from, map.to).map((p) => Math.round(timelinePx(map, p.from)) + "-" + Math.round(timelinePx(map, p.to))) : [];
-                const key = [this._lineWidth, height, mode, next.knob, map ? map.segments.map((s) => Math.round(s.px0) + ":" + Math.round(s.px1)).join(",") : "none", offs.join(","), T.theme.key()].join("|");
+                const offs = map && name ? T.datastore.gapsIn(T.view.groupTelemetries(name), map.from, map.to).map((p) => Math.round(timelinePx(map, p.from)) + "-" + Math.round(timelinePx(map, p.to))) : [];
+                const open = this.timelineOpen;
+                const key = [this._lineWidth, height, open, mode, next.knob, map ? map.segments.map((s) => Math.round(s.px0) + ":" + Math.round(s.px1)).join(",") : "none", offs.join(","), T.theme.key()].join("|");
                 if (key === this._lineKey) return;
                 this._lineKey = key;
-                this.drawLine(canvas, map, mode, next.knob, offs, height);
+                this.drawLine(canvas, map, mode, next.knob, offs, height, open);
             },
-            drawLine(canvas, map, mode, knob, offs, height) {
+            // The line is drawn only when it has something to say (held or replaying, a period not received in view) or while the row is
+            // open; live with nothing to say, or no data: nothing (its place stays, to be pointed at)
+            drawLine(canvas, map, mode, knob, offs, height, open) {
                 const width = this._lineWidth || 0, ratio = window.devicePixelRatio || 1;
                 if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
                 const c = canvas.getContext("2d");
                 c.setTransform(ratio, 0, 0, ratio, 0, 0);
                 c.clearRect(0, 0, width, height);
+                if (!map || !(open || mode != "live" || offs.length)) return;
                 const css = getComputedStyle(canvas);
                 const color = (name) => css.getPropertyValue(name).trim();
                 c.fillStyle = color("--color-bg-dark") || "#ddd";
                 c.fillRect(0, 0, width, height);
-                if (!map) return;
-                // Covered by data, up to the moment shown (live: all of it, in grey, the latest moment in red)
-                const end = mode == "live" ? width : knob;
-                c.globalAlpha = mode == "live" ? 0.35 : 0.8;
-                c.fillStyle = mode == "live" ? (color("--color-text-muted") || "#888") : (mode == "replay" ? color("--tm-replay") : color("--tm-held"));
-                for (const s of map.segments) if (s.px0 < end) c.fillRect(s.px0, 0, Math.min(s.px1, end) - s.px0, height);
+                // Covered by data, in grey; held or replaying, in the color of the mode up to the moment shown (the data after it stays grey)
+                const muted = color("--color-text-muted") || "#888", modeColor = mode == "replay" ? color("--tm-replay") : color("--tm-held");
+                c.globalAlpha = 0.45;
+                c.fillStyle = muted;
+                for (const s of map.segments) c.fillRect(s.px0, 0, s.px1 - s.px0, height);
                 c.globalAlpha = 1;
-                if (mode == "live") { c.fillStyle = color("--color-danger") || "red"; c.fillRect(width - 8, 0, 8, height); }
+                const knobAt = (x, fill) => { // (round when the line is thick enough for it)
+                    c.fillStyle = fill;
+                    if (height >= 5) { c.beginPath(); c.arc(Math.min(width - height / 2, Math.max(height / 2, x)), height / 2, height / 2, 0, 2 * Math.PI); c.fill(); }
+                    else c.fillRect(Math.min(width - 3, Math.max(0, x - 1.5)), 0, 3, height);
+                };
+                if (mode != "live") {
+                    c.globalAlpha = 0.85;
+                    c.fillStyle = modeColor;
+                    for (const s of map.segments) if (s.px0 < knob) c.fillRect(s.px0, 0, Math.min(s.px1, knob) - s.px0, height);
+                    c.globalAlpha = 1;
+                }
                 // Periods not received: hatched
                 if (offs.length) {
                     c.fillStyle = color("--color-warning") || "orange";
@@ -1005,6 +1022,9 @@ function initComponent_top_menu(vue) {
                 // Folded periods without data: a notch
                 c.fillStyle = color("--color-bg-light") || "#fff";
                 for (let i = 1; i < map.segments.length; i++) c.fillRect(map.segments[i - 1].px1 + 1, 0, FOLD_PX - 2, height);
+                // The moment shown: a knob; live, a red dot at the newest end
+                if (mode != "live") knobAt(knob, modeColor);
+                else knobAt(width, color("--color-danger") || "red");
             },
             measureLine() {
                 const line = this.$refs.line;
@@ -1158,11 +1178,25 @@ function initComponent_top_menu(vue) {
             // Data menu: how long data is kept (seconds, 0: everything) and how much it may take (MB, 0: no limit)
             setWindow(seconds) {
                 seconds = Number(seconds);
-                if (seconds >= 0) this.TP.state.dataTimeout = seconds;
+                if (seconds >= 0) { this.TP.state.dataTimeout = seconds; this.saveDataSettings(); }
             },
             setLimit(megabytes) {
                 megabytes = Number(megabytes);
-                if (megabytes >= 0) { this.TP.state.memoryLimit = megabytes * 1e6; this.measureNow(); }
+                if (megabytes >= 0) { this.TP.state.memoryLimit = megabytes * 1e6; this.saveDataSettings(); this.measureNow(); }
+            },
+            setPolicy(policy) { this.TP.state.memoryPolicy = policy; this.saveDataSettings(); },
+            saveDataSettings() {
+                const state = this.TP.state;
+                try { localStorage.setItem(DATA_SETTINGS_KEY, JSON.stringify({ window: state.dataTimeout, limit: state.memoryLimit, policy: state.memoryPolicy })); } catch (e) { /* (private browsing...: not remembered) */ }
+            },
+            restoreDataSettings() {
+                let saved;
+                try { saved = JSON.parse(localStorage.getItem(DATA_SETTINGS_KEY) || "null"); } catch (e) { return; }
+                if (!saved || typeof saved != "object") return;
+                const state = Vue.toRaw(this.TP).state;
+                if (typeof saved.window == "number" && saved.window >= 0) state.dataTimeout = saved.window;
+                if (typeof saved.limit == "number" && saved.limit >= 0) state.memoryLimit = saved.limit;
+                if (DATA_POLICIES.includes(saved.policy)) state.memoryPolicy = saved.policy;
             },
             measureNow() { this.TP.datastore.checkMemory(true); this.refreshMemory(); },
             // Clearing data. Telemetries, dashboards and views stay (but for "Forget everything", which also forgets the telemetries);
@@ -1225,8 +1259,12 @@ function initComponent_top_menu(vue) {
                 if (event.key == " " && t && t.closest && t.closest("button, summary, a")) return; // Space activates a focused control, as usual
                 if (event.key == " ") { event.preventDefault(); this.togglePlay(); return; }
                 const T = Vue.toRaw(this.TP), group = this.chosenGroup;
-                // The time line, while it is open: the arrows move the time shown, Home goes to the oldest sample, End to live
-                if (this.timelineOpen && this.timeline.hasData && group && this._map && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                // The arrows move the time shown (one sample, Shift: 1 % of the line), unless a control that uses them has the focus;
+                // while the time line is open, Home goes to the oldest sample and End to live
+                const arrow = event.key == "ArrowLeft" || event.key == "ArrowRight";
+                const controlFocused = t && t.closest && t.closest(".tm-popup, [role=slider], [role=tablist], [role=listbox], [role=menu], [role=radiogroup]");
+                const homeEnd = this.timelineOpen && (event.key == "Home" || event.key == "End");
+                if (group && this.timeline.hasData && this._map && ((arrow && !controlFocused) || homeEnd)) {
                     event.preventDefault();
                     const dir = event.key == "ArrowLeft" ? -1 : 1;
                     if (event.key == "Home") T.view.seek(group, this._map.from);
@@ -1235,8 +1273,9 @@ function initComponent_top_menu(vue) {
                     else T.view.move(group, { samples: dir });
                     return;
                 }
-                if (group && (event.key == "," || event.key == ".")) { event.preventDefault(); this.step(event.key == "," ? -1 : 1); return; }
-                if (group && (event.key == "[" || event.key == "]")) { event.preventDefault(); T.view.changeSpeed(group, event.key == "[" ? -1 : 1); return; }
+                // Replay speed: "-" and "+" (or "=", the same key unshifted on QWERTY and AZERTY; the keypad's too)
+                const speedDir = { "-": -1, "_": -1, "+": 1, "=": 1 }[event.key];
+                if (group && speedDir) { event.preventDefault(); T.view.changeSpeed(group, speedDir); return; }
                 const key = event.key.toLowerCase();
                 if (key == "r") { event.preventDefault(); this.toggleReceiving(); return; }
                 if (key == "e") { event.preventDefault(); this.toggleEdit(); return; }
@@ -1246,6 +1285,7 @@ function initComponent_top_menu(vue) {
             },
         },
         created() {
+            this.restoreDataSettings();
             this._onKeyDown = (e) => this.onKeyDown(e);
             this._onPointerDown = (e) => this.onPointerDown(e);
             this._onActivity = (e) => this.onActivity(e);

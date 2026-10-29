@@ -696,7 +696,7 @@ const HELP_TILES = [
     { id: "files", family: "page", title: "Save and open", sub: "export, import", picture: "files", keys: ["X"], action: "export", actionLabel: "Open Export and import",
       notes: ["Export data, dashboards or both: a binary file, lines of text or CSV, all of it or a time range.", "Drop a file on the page to open it."] },
     { id: "memory", family: "page", title: "Keep more or less", sub: "data window, memory", picture: "memory", keys: ["Space", "R"], action: "rate", actionLabel: "Open the data menu",
-      notes: ["The rate in the top menu opens the data menu: how long data is kept (5 minutes by default), how much memory it may take, what happens when it is full.", "Space holds the display: data keeps being received and stored, the views stay on that moment. The line at the bottom of the top menu shows it; drag it to go back in time, ⋯ to replay at another speed.", "The dot next to the rate (or R) stops the reception: what the devices send meanwhile is lost."] },
+      notes: ["The rate in the top menu opens the data menu: how long data is kept (everything by default, up to the memory limit), how much memory it may take, what happens when it is full.", "Space holds the display: data keeps being received and stored, the views stay on that moment. The line at the bottom of the top menu shows it; drag it to go back in time, ⋯ to replay at another speed.", "The dot next to the rate (or R) stops the reception: what the devices send meanwhile is lost."] },
     { id: "serial", family: "page", title: "A serial port", sub: "no server needed", picture: "serial", keys: ["S"], action: "sources", actionLabel: "Open Sources",
       notes: ["Sources, Add a source, Serial port (Chrome, Edge).", "Lines starting with > are telemetry, the others a log of the port.", "Its console sends text back."] },
     { id: "cmd", family: "page", title: "Commands on", sub: "the CMD button", picture: "cmd", keys: ["C"], action: "cmd", actionLabel: "Switch commands on or off",
@@ -711,7 +711,7 @@ const HELP_EXAMPLES = HELP_TILES.flatMap((tile) => [...(tile.examples || []), ..
 const HELP_CONCEPTS = [
     { id: "flow", title: "From your device to this page", sub: "and back", schema: "flow", text: [
         "Your device sends lines of text (or binary packets) over UDP, to port 47269 of the computer that runs the Teleplot server. The server passes them on to this page, which can be on another computer. A device on a serial port talks to the page directly (Chrome, Edge): no server.",
-        "The page keeps what it receives for a while (the data window, 5 minutes by default) and draws it: nothing is sent anywhere else. Files are the same lines, saved.",
+        "The page keeps what it receives (all of it by default, up to its memory limit; or for the data window you choose) and draws it: nothing is sent anywhere else. Files are the same lines, saved.",
         "Commands go the other way, only when you switch them on (CMD): the server sends them back to where the packets came from." ] },
     { id: "telemetry", title: "A telemetry", sub: "a name, samples, what it is", schema: "telemetry", text: [
         "Everything that has a name is a telemetry: a temperature, a mode, a position, a shape, a picture. Each message adds a sample to it: a time and a value.",
@@ -854,7 +854,7 @@ function helpPicture(kind, W = 240, H = 100) {
         + `<rect x="${W * 0.66}" y="${H * 0.25}" width="${W * 0.3}" height="${H * 0.6}" rx="3" fill="var(--hp-grid)" stroke="var(--hp-1)" stroke-dasharray="4 2"/><path d="M${W * 0.5} 15 C ${W * 0.62} 15, ${W * 0.7} 30, ${W * 0.78} ${H * 0.5}" fill="none" stroke="var(--hp-muted)" stroke-width="1.5" marker-end="url(#hp-arrow)"/>`;
     else if (kind == "zoom") s = grid + curve((i) => Math.sin(i / 5), "var(--hp-1)") + `<rect x="${W * 0.35}" y="2" width="${W * 0.25}" height="${H - 4}" fill="var(--hp-1)" opacity="0.18"/>` + t(W * 0.475, H - 6, "drag ↔", 'text-anchor="middle" fill="var(--hp-muted)"');
     else if (kind == "files") s = [["teleplot", 0.1], ["teleplot.txt", 0.4], ["teleplot.csv", 0.7]].map(([n, x]) => `<path d="M${x * W} ${H * 0.15} h${W * 0.16} l${W * 0.05} ${H * 0.12} v${H * 0.5} h-${W * 0.21}z" fill="var(--hp-grid)" stroke="var(--hp-line)"/>` + t(x * W, H * 0.92, "." + n, 'font-size="8" fill="var(--hp-muted)"')).join("");
-    else if (kind == "memory") s = t(10, 20, "data window: 5 min", 'fill="var(--hp-muted)"') + `<rect x="10" y="32" width="${W - 20}" height="10" rx="4" fill="var(--hp-grid)"/><rect x="10" y="32" width="${(W - 20) * 0.35}" height="10" rx="4" fill="var(--hp-2)"/><rect x="${10 + (W - 20) * 0.35}" y="32" width="${(W - 20) * 0.15}" height="10" fill="var(--hp-4)"/>`
+    else if (kind == "memory") s = t(10, 20, "data kept: all, until memory is full", 'fill="var(--hp-muted)"') + `<rect x="10" y="32" width="${W - 20}" height="10" rx="4" fill="var(--hp-grid)"/><rect x="10" y="32" width="${(W - 20) * 0.35}" height="10" rx="4" fill="var(--hp-2)"/><rect x="${10 + (W - 20) * 0.35}" y="32" width="${(W - 20) * 0.15}" height="10" fill="var(--hp-4)"/>`
         + `<circle cx="${W - 28}" cy="${H - 26}" r="14" fill="none" stroke="var(--hp-grid)" stroke-width="5"/><circle cx="${W - 28}" cy="${H - 26}" r="14" fill="none" stroke="var(--hp-ok)" stroke-width="5" stroke-dasharray="30 88" transform="rotate(-90 ${W - 28} ${H - 26})"/>` + t(10, H - 22, "memory used", 'fill="var(--hp-muted)"');
     else if (kind == "serial") s = `<rect x="${W * 0.08}" y="${H * 0.3}" width="${W * 0.3}" height="${H * 0.4}" rx="4" fill="var(--hp-1)" opacity="0.7"/><path d="M${W * 0.38} ${H * 0.5} C ${W * 0.55} ${H * 0.5}, ${W * 0.5} ${H * 0.2}, ${W * 0.7} ${H * 0.25}" fill="none" stroke="var(--hp-muted)" stroke-width="3"/><rect x="${W * 0.7}" y="${H * 0.12}" width="${W * 0.22}" height="${H * 0.24}" rx="2" fill="var(--hp-grid)" stroke="var(--hp-line)"/>` + t(W * 0.08, H * 0.9, "&gt;temperature:24.5", 'font-size="9" font-family="ui-monospace, monospace"');
     else if (kind == "cmd") s = `<rect x="${W / 2 - 36}" y="${H / 2 - 24}" width="72" height="48" rx="10" fill="color-mix(in srgb, var(--hp-ok) 20%, transparent)" stroke="var(--hp-ok)" stroke-width="2"/><text x="${W / 2}" y="${H / 2 + 1}" font-size="14" font-weight="700" text-anchor="middle" fill="var(--hp-ok)">CMD</text><text x="${W / 2}" y="${H / 2 + 15}" font-size="9" font-weight="700" text-anchor="middle" fill="var(--hp-ok)">ON</text>`;
@@ -871,7 +871,7 @@ function helpSchema(kind) {
     let s = "";
     if (kind == "flow") {
         s = box(6, 50, 76, 46, "Your device", "sends lines", "var(--hp-1)") + box(136, 50, 76, 46, "Server", "Teleplot", "var(--hp-line)") + `<rect x="272" y="26" width="82" height="94" rx="8" fill="var(--hp-bg)" stroke="var(--hp-2)" stroke-width="1.5"/>` + t(313, 46, "This page", 'font-size="11" font-weight="700" text-anchor="middle"')
-            + t(313, 68, "keeps", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"') + t(313, 84, "draws", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"') + t(313, 108, "5 min window", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"')
+            + t(313, 68, "keeps", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"') + t(313, 84, "draws", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"') + t(313, 108, "up to its memory", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"')
             + arrow(82, 66, 134, 66, "UDP 47269") + arrow(212, 66, 270, 66, "WebSocket")
             + arrow(270, 84, 214, 84, "", { dash: true, color: "var(--hp-ok)" }) + arrow(134, 84, 84, 84, "", { dash: true, color: "var(--hp-ok)" }) + t(180, 112, "commands, when CMD is on", 'font-size="9" text-anchor="middle" fill="var(--hp-ok)"')
             + `<path d="M44 96 C 44 150, 313 150, 313 122" fill="none" stroke="var(--hp-muted)" stroke-width="1.5" stroke-dasharray="1 3" marker-end="url(#hp-arrow)"/>` + t(180, 150, "serial port: straight to the page (Chrome, Edge)", 'font-size="9" text-anchor="middle" fill="var(--hp-muted)"')
@@ -926,8 +926,8 @@ const HELP_SENDERS = [
 
 const HELP_SHORTCUTS = [
     { keys: "Space", label: "Hold or resume the display (data keeps being received)" },
-    { keys: ", .", label: "Previous / next sample" },
-    { keys: "[ ]", label: "Replay slower / faster" },
+    { keys: "← →", label: "Previous / next sample (Shift: a bigger step)" },
+    { keys: "- +", label: "Replay slower / faster" },
     { keys: "← →", label: "Move the time shown, on the time line of the top menu (also the wheel)" },
     { keys: "R", label: "Reception on or off" },
     { keys: "T", label: "Telemetries" },

@@ -479,7 +479,7 @@ test('decimators are never proxied by a reactive UI framework (webapp: a proxied
     assert.equal(chart.decimators.__v_skip, true); // Vue's "do not proxy" flag
 });
 
-test('a zoom holds the group on the period selected; the pointer previews a moment; a double click gives the whole window back', () => {
+test('a zoom holds the group on the period selected; the pointer previews a moment; a double click goes back to live', () => {
     const { T, telems, chart } = setup();
     telems[0].addData(NUMBER, [10, 11, 12, 13, 14], [[1, 2, 3, 4, 5]]);
     chart.createChart();
@@ -498,8 +498,7 @@ test('a zoom holds the group on the period selected; the pointer previews a mome
     assert.deepEqual([group.mode, group.cursorTimestamp], ['held', 11], 'the views show the moment held again');
     u.scales.x = { min: 10, max: 14 }; // Double click: back to the extent of the data
     hooks.setScale[0](u, 'x');
-    assert.deepEqual([group.mode, group.span, group.timestampFrom, group.timestampTo], ['held', 0, 10, 14], 'the whole window, still held');
-    T.view.backToLive(chart.group);
+    assert.deepEqual([group.mode, group.span], ['live', 0], 'back to live, as Esc');
     hooks.setCursor[0](u);
     assert.deepEqual([group.mode, group.cursorActive, group.cursorTimestamp], ['live', false, -1], 'live: the latest data');
 });

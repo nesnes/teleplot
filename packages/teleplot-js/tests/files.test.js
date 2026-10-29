@@ -194,7 +194,8 @@ test('a file can be read in pieces cut anywhere', () => {
 test('importing: works while paused, dashboards of the file are new ones, problems are counted, the data window can follow', () => {
     const T = filled();
     const bytes = joinBytes(T.files.exportBinary().parts);
-    const U = loadTeleplot();
+    const window300 = () => { const X = loadTeleplot(); X.state.dataTimeout = 300; return X; }; // (by default everything is kept: no window to extend)
+    const U = window300();
     U.parseDataText('DASH|Robot/Mine:chart:x');
     U.state.isPaused = true;
     const result = U.files.importData(bytes, { extendWindow: true });
@@ -203,8 +204,8 @@ test('importing: works while paused, dashboards of the file are new ones, proble
     assert.equal(U.dashboards.exportText('Robot'), 'DASH|Robot:grid\nDASH|Robot/Mine:chart:x');
     assert.deepEqual([result.windowExtended, result.windowNeeded, U.state.dataTimeout], [false, 0, 300], 'no telemetry of the file lasts longer than the window');
     const long = 'slow:1000000:1\nslow:1900000:2\nfast:1000000:1';
-    assert.deepEqual([loadTeleplot().files.importData(long).windowExtended, loadTeleplot().files.importData(long).windowNeeded], [false, 900]);
-    const W = loadTeleplot();
+    assert.deepEqual([window300().files.importData(long).windowExtended, window300().files.importData(long).windowNeeded], [false, 900]);
+    const W = window300();
     assert.deepEqual([W.files.importData(long, { extendWindow: true }).windowExtended, W.state.dataTimeout], [true, 900], 'the window follows the longest telemetry');
 
     const V = loadTeleplot();
@@ -309,6 +310,7 @@ test('dry run: tells what a file holds and what opening it would do, and leaves 
     const T = filled();
     const files = [joinBytes(T.files.exportBinary().parts), joinText(T.files.exportText().parts), 'time,temp,fresh\n1000,5,6\n2999,7,8\n'];
     const U = loadTeleplot();
+    U.state.dataTimeout = 300;
     U.parseDataText('temp:500:1§K\nDASH|Robot/Mine:chart:temp');
     U.parseDataBinary(new PacketBuilder(3).clientName('mine').attrs(1, [[ATTR.NAME, 'joint']]).numbers(1, 1000000000n, [[0, 1]]).build());
     U.__timers.run();

@@ -251,9 +251,9 @@ test('memory: thresholds are neither thinned nor forgotten with the data they li
     assert.deepEqual([only.thinOldest(1), only.forgetOldest(1), only.getThresholds().length], [0, 0, 8]);
 });
 
-test('5 minutes of data are kept by default; with a lot of data, pruning waits for 1% of it to be too old', () => {
+test('everything is kept by default (up to the memory limit); with a lot of data, pruning waits for 1% of it to be too old', () => {
     const { T, telem } = setup();
-    assert.equal(T.state.dataTimeout, 300);
+    assert.equal(T.state.dataTimeout, 0);
     T.state.dataTimeout = 1000;
     const count = 50000, xs = Array.from({ length: count }, (_, i) => i); // one sample per second
     telem.addData(NUMBER, xs, [xs.slice()]);
@@ -473,6 +473,7 @@ test('point clouds: their memory is counted, and thinning keeps whole clouds (th
 
 test('telemetries dated from the start of a device (small timestamps) are not pruned before the window is full', () => {
     const T = loadTeleplot();
+    T.state.dataTimeout = 300;
     const telem = T.datastore.getOrCreateTelemetry('boot');
     const N = T.protocol.SECTION_TYPE_TELEM_DATA_NUMBER;
     telem.addData(N, Array.from({ length: 50 }, (v, i) => 1 + i), [Array.from({ length: 50 }, (v, i) => i)]);

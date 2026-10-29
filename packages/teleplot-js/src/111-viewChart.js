@@ -312,10 +312,10 @@ class ViewChart extends ViewTelemetries{
                         if(this.updateRunning) return;
                         if(key != "x") return;
                         const s = u.scales[key];
-                        // Zoom reset (double click: uPlot goes back to all its data): the whole data window again, live or not (doc/time.md)
+                        // Zoom reset (double click: uPlot goes back to all its data): back to live, as Esc (doc/time.md)
                         const times = u.data && u.data[0];
                         if(times && times.length && s.min <= times[0] && s.max >= times[times.length - 1]) {
-                            TELEPLOT.view.setSpan(this.group, 0);
+                            TELEPLOT.view.backToLive(this.group);
                             this.updateForced = true; // (uPlot went back to the extent of the numbers: the marks widen it again)
                             return;
                         }
@@ -377,8 +377,8 @@ class ViewChart extends ViewTelemetries{
     // The part of the chart where stored data was thinned out gets a tint and a word: what is drawn there is less than what was received
     // The periods not received (reception was off): hatched, under the series (which break there, see breakAt)
     drawNotReceived(u) {
-        if(!TELEPLOT.datastore.offPeriods.length || !u.ctx || !u.bbox || !u.scales || !u.scales.x || u.scales.x.min == null) return;
-        let periods = TELEPLOT.datastore.offPeriodsIn(u.scales.x.min, u.scales.x.max);
+        if(!u.ctx || !u.bbox || !u.scales || !u.scales.x || u.scales.x.min == null) return;
+        let periods = TELEPLOT.datastore.gapsIn(this.telemetryIdOrNameList, u.scales.x.min, u.scales.x.max);
         if(!periods.length) return;
         let ratio = (typeof devicePixelRatio === "number" && devicePixelRatio) || 1;
         let color = TELEPLOT.theme.color("--teleplot-warn", document.getElementById(this.chartDivId), "orange");
@@ -634,16 +634,18 @@ class ViewChart extends ViewTelemetries{
         line.classList.toggle("teleplot-js-chart-head-replay", group.mode === "replay");
     }
 
-    // A series with an explicit null at the start of each period not received that has samples on both sides: uPlot breaks its line
-    // at a null (and spans the undefined that uPlot.join puts where a series has no sample at a time of another). Fresh arrays.
-    static breakAt(series, periods) {
+    // A series with an explicit null inside each hole left by a stop of reception (gaps: the last sample before, the first one after,
+    // see Telemetry.gapsOf; a decimated series keeps samples on both sides): uPlot breaks its line at a null (and spans the undefined
+    // that uPlot.join puts where a series has no sample at a time of another). Fresh arrays.
+    static breakAt(series, gaps) {
         let times = series[0], values = series[1];
         if(!times || times.length < 2) return series;
         let outTimes = [], outValues = [], p = 0;
         for(let i = 0; i < times.length; i++) {
-            while(p < periods.length && periods[p].to <= times[i]) {
-                let period = periods[p++];
-                if(i > 0 && times[i - 1] < period.from && period.from < times[i]) { outTimes.push(period.from); outValues.push(null); }
+            let broken = false;
+            while(p < gaps.length && gaps[p].to <= times[i]) {
+                let gap = gaps[p++];
+                if(!broken && i > 0 && times[i - 1] <= gap.from && times[i - 1] < times[i]) { outTimes.push((Math.max(times[i - 1], gap.from) + Math.min(times[i], gap.to)) / 2); outValues.push(null); broken = true; }
             }
             outTimes.push(times[i]);
             outValues.push(values[i]);
@@ -799,11 +801,11 @@ class ViewChart extends ViewTelemetries{
                 
                 let dataEntry = this.getSupportedDataEntry(telem);
                 if(dataEntry === undefined) continue;
-                dataList.push(this.getSeriesData(telem, dataEntry, displayRange));
+                let series = this.getSeriesData(telem, dataEntry, displayRange);
+                // Holes left by stops of reception: the line breaks there instead of joining the samples around
+                let gaps = Telemetry.gapsOf(dataEntry, displayRange.from, displayRange.to);
+                dataList.push(gaps.length ? ViewChart.breakAt(series, gaps) : series);
             }
-            // Periods not received: the lines break there instead of joining the samples around a hole
-            let off = TELEPLOT.datastore.offPeriods.length ? TELEPLOT.datastore.offPeriodsIn(displayRange.from, displayRange.to) : [];
-            if(off.length) dataList = dataList.map((series) => ViewChart.breakAt(series, off));
             this.chartData.length = 0;
             this.chartData.push(...(dataList.length ? TELEPLOT.uPlot.join(dataList) : [[]])); // Nothing to display yet: uPlot.join() cannot join no series
             // Update chart
