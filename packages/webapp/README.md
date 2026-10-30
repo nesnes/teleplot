@@ -19,6 +19,7 @@ The library is copied in [`libs/teleplot-js.js`](libs/teleplot-js.js) by its `bu
 | [`components/dashboard.js`](components/dashboard.js), `dashboard-editor.js`, `panel-edit.js` | dashboards and the edit mode | [dashboard-editing.md](../../doc/dashboard-editing.md) |
 | [`components/sample-robot.js`](components/sample-robot.js), `sample-controls.js` | the robot sample: a simulated robot, with its own dashboard | |
 | [`components/telemetry-rate.js`](components/telemetry-rate.js) | rates of the telemetries | |
+| [`components/touch-tips.js`](components/touch-tips.js) | a finger held on something shows its tooltip (there is no hover) | [touch.md](../../doc/touch.md) |
 | [`media/`](media/) | files used by the Help (a mesh, a floor plan) and the logo | |
 
 ## Run it

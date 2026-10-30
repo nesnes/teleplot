@@ -43,6 +43,10 @@ node main.js --serve /maps=/home/me/maps --serve ./assets
 
 A folder that does not exist is said and skipped. The files are served to anyone who can reach the server, without a list of the folder. Being at the same address as the webapp, they need nothing more to be used as textures (a picture of another site needs that site to allow it).
 
+## From a phone or another computer
+
+Open `http://<address of this machine>:8080` there. The page connects to the server it came from (same address, same port: the page and the WebSocket share the port); a page opened as a local file connects to `127.0.0.1:8080`. Other servers are added in the Sources panel. Such a page is not a secure context (plain http, not localhost): browsers give it no serial ports, and the webapp does without `crypto.randomUUID` and `navigator.clipboard`.
+
 ## Who can connect
 
 A browser lets any page of any site open a WebSocket to a machine of the local network. Without a check, a site visited in the same browser could read the telemetry and send commands to the device. The server looks at the origin of the page that connects:

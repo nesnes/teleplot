@@ -53,6 +53,7 @@
 /* Drag and drop */
 body.tp-dragging, body.tp-dragging * { cursor: grabbing !important; user-select: none; }
 .tp-ghost { position: fixed; z-index: 10000; pointer-events: none; background: var(--tp-edit-view); color: #fff; border-radius: 12px; padding: 2px 10px; font: 700 11px system-ui, sans-serif; box-shadow: 0 6px 18px #0006; white-space: nowrap; }
+.tp-ghost-touch { padding: 6px 14px; font-size: 13px; border-radius: 14px; } /* Lifted by a finger: drawn above it, big enough to be read */
 .tp-ins { position: fixed; z-index: 9999; pointer-events: none; background: var(--tp-edit-view); border-radius: 3px; box-shadow: 0 0 0 2px #2980b955; }
 .tp-ins::before, .tp-ins::after { content: ""; position: absolute; width: 8px; height: 8px; background: var(--tp-edit-view); border-radius: 50%; }
 .tp-ins-v::before { left: -2.5px; top: -4px; } .tp-ins-v::after { left: -2.5px; bottom: -4px; }
@@ -90,7 +91,7 @@ body.tp-dragging .tp-slots { display: none; }
 .tp-menu hr { border: 0; border-top: 1px solid var(--tp-edit-border); margin: 4px 0; }
 
 /* Edit panel (right side), see components/panel-edit.js */
-.edit-panel { width: 280px; flex: none; margin-left: 1em; display: flex; flex-direction: column; background-color: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-right: 0; border-top: 0; border-bottom-left-radius: 1em; font-size: 1rem; color: var(--color-text); overflow-y: auto; max-height: calc(100vh - 3em); box-sizing: border-box; }
+.edit-panel { width: 280px; flex: none; margin-left: 1em; display: flex; flex-direction: column; background-color: var(--color-bg-panel); border: 2px solid var(--color-bg-dark); border-right: 0; border-top: 0; border-bottom-left-radius: 1em; font-size: 1rem; color: var(--color-text); overflow-y: auto; max-height: calc(var(--panel-vh, 100vh) - 3em); box-sizing: border-box; }
 .edit-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 0.6em 0.8em; font-weight: 700; font-size: 1.1em; border-bottom: 1px solid var(--color-bg-dark); }
 .edit-title i { color: var(--color-primary); margin-right: 0.2em; }
 .edit-actions { display: flex; gap: 4px; }
@@ -146,7 +147,7 @@ body.tp-dragging .tp-slots { display: none; }
 .tp-telemetry-drag .tp-slot-a.tp-hot { border-style: solid; border-color: var(--tp-edit-view); background: color-mix(in srgb, var(--tp-edit-view) 22%, transparent); }
 
 /* Telemetry list of a view: drag a row to reorder */
-.edit-draggable { cursor: grab; border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
+.edit-draggable { -webkit-touch-callout: none; user-select: none; cursor: grab; border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
 .edit-draggable.edit-dragging { opacity: 0.4; }
 .edit-draggable.edit-drop-before { border-top-color: var(--tp-edit-view, #2980b9); }
 .edit-draggable.edit-drop-after { border-bottom-color: var(--tp-edit-view, #2980b9); }
@@ -161,3 +162,9 @@ body.tp-dragging .tp-slots { display: none; }
 .edit-tg-item .edit-muted { margin-left: auto; }
 .edit-tg-new { color: var(--color-text-muted); }
 .edit-field > .edit-select.edit-input { flex: none; width: 5.5em; max-width: none; text-align: left; padding: 2px 2px; }
+/* A finger: pills and their buttons take it over a larger area than they draw */
+@media (pointer: coarse) {
+    .teleplot-js-view .tp-pill, .teleplot-js-view .tp-szrow button, .teleplot-js-view .tp-pill .tp-del { position: relative; }
+    .teleplot-js-view .tp-pill::after { content: ""; position: absolute; inset: -10px -4px; }
+    .teleplot-js-view .tp-szrow button::after, .teleplot-js-view .tp-pill .tp-del::after { content: ""; position: absolute; inset: -10px -2px; }
+}

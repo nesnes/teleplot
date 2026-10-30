@@ -5,7 +5,7 @@ class Views{
             throw new Error("Views is an abstract class, it should only be inherited but never instanciated !");
         }
         this.name = "view";
-        this.id = "view-"+crypto.randomUUID();
+        this.id = "view-"+TELEPLOT.uid();
         this.divId = divId.length ? divId : this.id;
         this.group = group;
         this.type = "";

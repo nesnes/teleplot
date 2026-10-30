@@ -564,6 +564,12 @@ function initDashboardEditor(TP) {
                 rect = { left: Math.max(rect.left, r.left), top: Math.max(rect.top, r.top), right: Math.min(rect.right, r.right), bottom: Math.min(rect.bottom, r.bottom) };
             }
         }
+        // A panel risen as a sheet from the bottom (narrow screens, style.css) covers the bottom of the dashboard
+        for (let sheet of document.querySelectorAll(".dock.open:not(.sheet-under)")) {
+            if (getComputedStyle(sheet).position !== "fixed") continue;
+            let top = sheet.getBoundingClientRect().top;
+            if (top > rect.top) rect.bottom = Math.min(rect.bottom, top);
+        }
         return rect;
     }
 
@@ -733,6 +739,115 @@ function initDashboardEditor(TP) {
         menu = undefined;
     }
 
+    // ------------------------------------------------------------------ Press, then drag (a finger)
+    //
+    // HTML5 drag and drop does not start from a finger (or only after a long press that fights the scrolling). With a finger, a press of
+    // LIFT_MS without moving lifts what was pressed; it then follows the finger (the page does not scroll meanwhile, it scrolls by itself
+    // near the top and bottom edges) until it is let go. A finger that moves before the press is long enough scrolls, as usual.
+    // E.touchLift(pointerdownEvent, {onLift(x, y), onMove(x, y), onDrop(x, y), onEnd()}): onEnd is called whatever happened.
+
+    E.isLifting = () => !!(lift && lift.active);
+    E.LIFT_MS = 300;
+    E.LIFT_SLOP = 8; // px a finger may move during the press
+    let lift = undefined; // {pointerId, x, y, timer, active, handlers, lastY, scroll}
+
+    E.touchLift = function(event, handlers) {
+        if (event.pointerType !== "touch" || lift) return false;
+        lift = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, lastY: event.clientY, active: false, handlers };
+        lift.timer = setTimeout(() => {
+            if (!lift) return;
+            lift.active = true;
+            if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
+            let workspace = dashboardScroller(); // (main.js)
+            lift.scroll = setInterval(() => { // Near an edge, the page scrolls under the finger
+                if (!workspace) return;
+                let edge = 56, y = lift.lastY, h = window.innerHeight;
+                if (y < edge) workspace.scrollBy(0, -Math.ceil((edge - y) / 4));
+                else if (y > h - edge) workspace.scrollBy(0, Math.ceil((y - h + edge) / 4));
+            }, 16);
+            if (handlers.onLift) handlers.onLift(lift.x, lift.y);
+        }, E.LIFT_MS);
+        return true;
+    };
+    function endLift(dropAt) {
+        if (!lift) return;
+        let current = lift;
+        lift = undefined;
+        clearTimeout(current.timer);
+        clearInterval(current.scroll);
+        try { if (current.active && dropAt && current.handlers.onDrop) current.handlers.onDrop(dropAt[0], dropAt[1]); }
+        finally { if (current.handlers.onEnd) current.handlers.onEnd(); }
+    }
+    function liftMove(x, y) {
+        if (!lift) return;
+        if (!lift.active) { if (Math.hypot(x - lift.x, y - lift.y) > E.LIFT_SLOP) endLift(); return; } // (it scrolls)
+        lift.lastY = y;
+        if (lift.handlers.onMove) lift.handlers.onMove(x, y);
+    }
+
+    // A telemetry (or the telemetries of a group, of a label) pressed in the Telemetries panel: once lifted, the "+" slots show as during
+    // a drag of the mouse, the sheet the panel is in steps down, and letting go drops it where the mouse would have.
+    E.pressTelemetries = function(event, ids, label = "", title = "") {
+        let source = event.currentTarget;
+        let ghost = undefined, slot = undefined, view = undefined;
+        let transfer = { // What a drop of the mouse would carry (the views read it in onDragDrop)
+            types: ["text/x-teleplot-drag-type-telemetry", "text/x-teleplot-drag-id"].concat(ids.length > 1 ? ["text/x-teleplot-drag-ids"] : [], label ? ["text/x-teleplot-drag-label"] : []),
+            getData: (type) => ({ "text/x-teleplot-drag-id": String(ids[0]), "text/x-teleplot-drag-ids": ids.join(","), "text/x-teleplot-drag-label": label })[type] || "",
+        };
+        const under = (x, y) => { // What would take the drop at (x, y): a "+" slot, a view, or the container around
+            let el = document.elementFromPoint(x, y);
+            let root = E.getRoot(), rootEl = root && document.getElementById(root.divId);
+            if (!el || !rootEl || (el.closest && el.closest(".dock"))) return {};
+            let s = el.closest(".tp-slot");
+            if (s) return { slot: s };
+            let viewEl = el.closest(".teleplot-js-view");
+            let found = viewEl && rootEl.contains(viewEl) ? TP.view.views.find((v) => v.divId === viewEl.id) : undefined;
+            if (found && !E.isContainer(found) && found.onDragDrop) return { view: found, el: viewEl };
+            return { loose: looseDropTarget({ target: el }) };
+        };
+        const mark = (target) => {
+            if (slot && slot !== target.slot) slot.classList.remove("tp-hot");
+            slot = target.slot;
+            if (slot) slot.classList.add("tp-hot");
+            if (view && view.el !== target.el) view.el.classList.remove("tp-droptarget");
+            view = target.view ? target : undefined;
+            if (view) view.el.classList.add("tp-droptarget");
+            markLooseTarget(target.loose);
+        };
+        if (source) source.draggable = false; // (the browser would start its own drag on a long press)
+        return E.touchLift(event, {
+            onLift(x, y) {
+                ghost = document.createElement("div");
+                ghost.className = "tp-ghost tp-ghost-touch";
+                ghost.textContent = title || (ids.length > 1 ? ids.length + " telemetries" : "");
+                document.body.appendChild(ghost);
+                document.body.classList.add("tp-touch-lift");
+                setTelemetryDrag(true);
+                this.onMove(x, y);
+            },
+            onMove(x, y) {
+                ghost.style.left = (x - ghost.offsetWidth / 2) + "px";
+                ghost.style.top = (y - 44) + "px"; // (above the finger, where it can be seen)
+                markNearSlots(x, y);
+                mark(under(x, y));
+            },
+            onDrop(x, y) {
+                let target = under(x, y);
+                if (target.slot && target.slot.__slot) E.dropTelemetries(ids, target.slot.__slot.containerId, target.slot.__slot.index, label);
+                else if (target.view) target.view.onDragDrop({ dataTransfer: transfer }, target.view);
+                else if (target.loose) E.dropTelemetries(ids, target.loose.view.id, -1, label);
+            },
+            onEnd() {
+                if (source) source.draggable = true;
+                if (ghost) ghost.remove();
+                mark({});
+                document.body.classList.remove("tp-touch-lift");
+                setTelemetryDrag(false);
+                E.refresh();
+            },
+        });
+    };
+
     // ------------------------------------------------------------------ Events (one set of listeners for the whole page)
 
     function onPointerDown(event) {
@@ -844,7 +959,16 @@ function initDashboardEditor(TP) {
             setTelemetryDrag(false);
             E.refresh();
         });
-        document.addEventListener("mousemove", () => { if (E.state.telemetryDrag) setTelemetryDrag(false); }, true); // mouse events do not fire during a drag: the drag is over
+        document.addEventListener("mousemove", () => { if (E.state.telemetryDrag && !lift) setTelemetryDrag(false); }, true); // mouse events do not fire during a drag: the drag is over
+        // Press, then drag: pointer events until the press is long enough (a move first is a scroll), touch events once lifted (the
+        // page must not scroll then, and only touchmove can say so)
+        document.addEventListener("pointermove", (e) => { if (lift && !lift.active && e.pointerId === lift.pointerId) liftMove(e.clientX, e.clientY); }, true);
+        document.addEventListener("pointerup", (e) => { if (lift && !lift.active && e.pointerId === lift.pointerId) endLift(); }, true);
+        document.addEventListener("pointercancel", (e) => { if (lift && !lift.active && e.pointerId === lift.pointerId) endLift(); }, true);
+        document.addEventListener("touchmove", (e) => { if (!lift || !lift.active) return; e.preventDefault(); let t = e.touches[0]; if (t) liftMove(t.clientX, t.clientY); }, { passive: false, capture: true });
+        document.addEventListener("touchend", (e) => { if (!lift || !lift.active) return; e.preventDefault(); let t = e.changedTouches[0]; endLift(t ? [t.clientX, t.clientY] : undefined); }, { passive: false, capture: true });
+        document.addEventListener("touchcancel", () => endLift(), true);
+        document.addEventListener("contextmenu", (e) => { if (lift) e.preventDefault(); }, true); // (a long press opens the browser's menu otherwise)
         document.addEventListener("pointerdown", (e) => { if (menu && !menu.contains(e.target) && !(e.target.closest && e.target.closest(".tp-slot"))) closeMenu(); }, true);
     }
 

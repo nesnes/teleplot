@@ -187,6 +187,7 @@ function initComponent_panel_sources(vue) {
                 <button class="sources-btn" @click="toggleSample()">{{ctx.sampleRunning ? 'Stop' : 'Start'}}</button>
               </div>
               <div class="sources-sub">A simulated robot, to try Teleplot without hardware{{sampleCommands.length ? ': it also takes commands (CMD)' : ''}}</div>
+              <div v-if="ctx.sampleError" class="sources-sub sources-error" role="alert">It could not start: {{ctx.sampleError}}</div>
               <template v-for="d in sampleCommands" :key="d.name">
                 <div class="sources-cmd-head"><span>Commands</span><span class="sources-grow"></span><span v-if="d.roundTrip" title="From sending a setting to the device's echo (median of the latest)">round trip {{d.roundTrip}}</span></div>
                 <table class="sources-cmd">
@@ -235,7 +236,7 @@ function initComponent_panel_sources(vue) {
         .sources-layout {
             --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             box-sizing: border-box;
-            max-height: calc(100vh - 7rem);
+            max-height: calc(var(--panel-vh, 100vh) - 7rem);
             padding: 0.2rem 0.8rem 1rem 0.2rem;
             overflow-y: auto;
             scrollbar-width: thin;
@@ -246,6 +247,7 @@ function initComponent_panel_sources(vue) {
         .sources-line { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
         .sources-grow { flex: 1 1 0; min-width: 0; }
         .sources-sub { color: var(--color-text-muted); font-size: 0.9rem; }
+        .sources-error { color: var(--color-danger); }
         .sources-sub a { color: var(--color-primary); }
         .sources-danger { color: var(--color-danger); }
         .sources-section { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-text-muted); }
@@ -339,8 +341,8 @@ function initComponent_panel_sources(vue) {
                 consoleUi: {},     // Serial source id -> {showTelemetry, timestamps, follow, text, ending}
                 adding: false,
                 addKind: "server",
-                addAddress: "127.0.0.1",
-                addPort: 8080,
+                addAddress: defaultServer().address, // (main.js: the server the page came from)
+                addPort: defaultServer().port,
                 addBaud: 115200,
                 addError: "",
                 granted: [],       // Serial ports allowed before: [{port, name}]

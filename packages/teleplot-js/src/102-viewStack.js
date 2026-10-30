@@ -122,6 +122,8 @@ class ViewStack extends Views {
             .teleplot-js-view-stack-header {
                 display: flex;
                 flex-direction: row;
+                overflow-x: auto; /* Tabs that do not fit scroll sideways, the page does not */
+                scrollbar-width: none;
             }
             .teleplot-js-view-stack-header { gap: 0.3em; padding-left: 0.5em; }
             .teleplot-js-view-stack-header-item {
@@ -134,6 +136,8 @@ class ViewStack extends Views {
                 color: var(--teleplot-muted);
                 font-size: 0.9em;
                 cursor: pointer;
+                flex: none;
+                white-space: nowrap;
             }
             .teleplot-js-view-stack-header-item:hover { color: var(--teleplot-text); }
             .teleplot-js-view-stack-header-item-selected {

@@ -86,6 +86,7 @@ function initComponent_welcome(vue) {
                         <div class="welcome-src-main">
                             <b>The robot sample <span class="welcome-tryme">Try me</span></b>
                             <span class="welcome-sub">A simulated robot: curves, gauges, a map, 3D, a camera, buttons. Nothing to install.</span>
+                            <span v-if="ctx.sampleError" class="welcome-sub welcome-error" role="alert">It could not start: {{ctx.sampleError}}</span>
                         </div>
                         <button class="welcome-btn welcome-primary" @click="startSample()"><i class="icofont-ui-play"></i> Start</button>
                     </div>
@@ -122,8 +123,9 @@ function initComponent_welcome(vue) {
             container-type: inline-size; /* (the columns wrap on the room the page has, not on the window: a dock open next to it narrows it) */
         }
         /* The logo, as it is: its center point at the center of the page */
+        /* (its height is known before the file loads: the page starts scrolled past the band of the top menu, and a logo growing on load moved it further) */
         .welcome-head { position: relative; }
-        .welcome-logo { display: block; width: var(--logo-w); height: auto; margin-left: calc(50% - var(--logo-w) * ${LOGO.junctionX}); }
+        .welcome-logo { display: block; width: var(--logo-w); height: auto; aspect-ratio: ${LOGO.ratio}; margin-left: calc(50% - var(--logo-w) * ${LOGO.junctionX}); }
         /* Kept as it is, on a dark page it sits on a light plate (its outlines are white, its name slate) */
         :root[data-theme="dark"] .welcome-logo { background: hsl(192 15% 96%); border-radius: 0.8rem; outline: 0.6rem solid hsl(192 15% 96%); }
         .welcome-cols { position: relative; display: grid; grid-template-columns: 1fr 1fr; column-gap: 3rem; margin-top: 1.4rem; }
@@ -307,7 +309,7 @@ function initComponent_welcome(vue) {
                 try { localStorage.setItem(SENDER_KEY, id); } catch (e) { /* (private browsing...: not remembered) */ }
             },
             copy(what, text) {
-                if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+                copyText(text); // (main.js)
                 this.copied = what;
                 clearTimeout(this._copiedTimer);
                 this._copiedTimer = setTimeout(() => { this.copied = ""; }, 1500);

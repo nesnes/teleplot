@@ -53,8 +53,10 @@ function initComponent_top_menu(vue) {
     let name = "top-menu";
 
     const vueHTML = `
-        <div class="tm" :class="{away: away, over: over}" role="toolbar" aria-label="Teleplot">
-            <div class="tm-island" ref="island" :class="{'tl-open': timelineOpen}" @pointerenter="hovered = true" @pointerleave="hovered = false" @focusin="focused = true" @focusout="focused = false">
+        <div class="tm" :class="{away: away, over: over, editing: editor.state.enabled, 'not-live': showGoLive}" role="toolbar" aria-label="Teleplot">
+            <!-- Away after a finger scrolled the dashboard: a tap where the island was brings it back, and goes no further -->
+            <div v-if="away && touchMode" class="tm-catch" aria-hidden="true" @pointerdown.prevent.stop="awake = true" @click.prevent.stop></div>
+            <div class="tm-island" ref="island" :class="{'tl-open': timelineOpen}" @pointerenter="hovered = $event.pointerType != 'touch'" @pointerleave="hovered = false" @pointerdown="islandDown($event)" @focusin="focused = true" @focusout="focused = false">
               <div class="tm-bar">
                 <img src="media/logo-color.svg" class="tm-logo" alt="Teleplot"/>
 
@@ -112,7 +114,7 @@ function initComponent_top_menu(vue) {
 
                 <span class="tm-sep"></span>
 
-                <div class="tm-anchor">
+                <div class="tm-anchor tm-anchor-rate">
                     <div class="tm-split" :class="{paused: paused}">
                         <button class="tm-btn tm-rec tm-tipped" role="switch" :aria-checked="!paused" :aria-label="paused ? 'Receive again' : 'Stop receiving'" @click="toggleReceiving($event);">
                             <i class="tm-rec-dot"></i>
@@ -191,10 +193,13 @@ function initComponent_top_menu(vue) {
                     </template>
                 </div>
 
-                <span class="tm-sep"></span>
+                <span class="tm-sep tm-sep-rate"></span>
+
+                <!-- Not live, with a finger (no Esc key): the way back is on the island itself -->
+                <button v-if="showGoLive" class="tm-btn tm-golive" aria-label="Go live" @click="goLive($event);"><i></i>LIVE</button>
 
                 <div class="tm-seg" role="group" aria-label="Panels">
-                    <button v-for="p in leftPanels" :key="p.name" class="tm-btn tm-tipped" :class="{on: isPanelOpen(p)}" :disabled="p.soon" :aria-pressed="isPanelOpen(p)" :aria-label="p.label + (countOf(p) === null ? '' : ', ' + countOf(p))" @click="toggleSidePanel(p.name, $event);">
+                    <button v-for="p in leftPanels" :key="p.name" class="tm-btn tm-tipped" :class="{on: isPanelOpen(p), 'tm-fold': p.name == 'export'}" :disabled="p.soon" :aria-pressed="isPanelOpen(p)" :aria-label="p.label + (countOf(p) === null ? '' : ', ' + countOf(p))" @click="toggleSidePanel(p.name, $event);">
                         <i :class="p.icon"></i>
                         <span v-if="countOf(p) !== null" class="tm-count">{{countOf(p)}}</span>
                         <i v-if="p.name=='sources' && sourcesStatus" class="tm-status" :class="sourcesStatus"></i>
@@ -206,8 +211,8 @@ function initComponent_top_menu(vue) {
                 </div>
 
                 <template v-if="commandCount || commandsOn">
-                    <span class="tm-sep"></span>
-                    <button class="tm-btn tm-cmd tm-tipped" :class="{on: commandsOn, attention: cmdAttention}" :aria-pressed="commandsOn" :aria-label="'Commands ' + (commandsOn ? 'on' : 'off')" @click="toggleCommands($event);">
+                    <span class="tm-sep tm-fold"></span>
+                    <button class="tm-btn tm-cmd tm-tipped tm-fold" :class="{on: commandsOn, attention: cmdAttention}" :aria-pressed="commandsOn" :aria-label="'Commands ' + (commandsOn ? 'on' : 'off')" @click="toggleCommands($event);">
                         <b>CMD</b><small>{{commandsOn ? 'ON' : 'OFF'}}</small>
                         <span class="tm-tip" role="tooltip">
                             <span class="tm-tip-head"><b>Commands</b><kbd>C</kbd></span>
@@ -219,16 +224,28 @@ function initComponent_top_menu(vue) {
 
                 <span class="tm-sep"></span>
 
-                <button class="tm-btn tm-edit tm-tipped" :class="{done: editor.state.enabled}" :disabled="!ctx.activeDashboard" :aria-pressed="editor.state.enabled" @click="toggleEdit($event);">
+                <button class="tm-btn tm-edit tm-tipped" :class="{done: editor.state.enabled, 'tm-fold': !editor.state.enabled}" :disabled="!ctx.activeDashboard" :aria-pressed="editor.state.enabled" @click="toggleEdit($event);">
                     <i :class="editor.state.enabled ? 'icofont-check' : 'icofont-duotone icofont-pencil'"></i>
                     <span>{{editor.state.enabled ? 'Done' : 'Edit'}}</span>
                     <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>{{editor.state.enabled ? 'Leave edit mode' : 'Edit the dashboard'}}</b><kbd>{{editor.state.enabled ? 'Esc' : 'E'}}</kbd></span></span>
                 </button>
                 <!-- Help: a button of its own at the right end, the side where its panel opens (the panels of the group open on the left) -->
-                <button class="tm-btn tm-help tm-tipped" :class="{on: ctx.helpOpen}" :aria-pressed="!!ctx.helpOpen" @click="toggleSidePanel('help', $event);">
+                <button class="tm-btn tm-help tm-tipped tm-fold" :class="{on: ctx.helpOpen}" :aria-pressed="!!ctx.helpOpen" @click="toggleSidePanel('help', $event);">
                     <span>Help</span>
                     <span class="tm-tip" role="tooltip"><span class="tm-tip-head"><b>Help</b><kbd>H</kbd></span><span class="tm-tip-line">How to send data, shortcuts, sample data</span></span>
                 </button>
+                <!-- A narrow island folds Export, CMD, Edit and Help behind "⋯" (container queries below) -->
+                <div class="tm-anchor tm-more-anchor">
+                    <button class="tm-btn tm-more" :class="{on: ctx.topPanel=='more', attention: cmdAttention}" aria-haspopup="menu" :aria-expanded="ctx.topPanel=='more'" aria-label="More: export, commands, edit, help" @click="setTopPanel('more', $event);">⋯</button>
+                    <template v-if="ctx.topPanel=='more'">
+                        <div class="tm-popup tm-more-pop" role="menu">
+                            <button class="tm-more-item" :class="{on: ctx.exportOpen}" role="menuitem" @click="toggleSidePanel('export');"><i class="icofont-share-alt"></i><span>Export and import</span><kbd>X</kbd></button>
+                            <button v-if="commandCount || commandsOn" class="tm-more-item" :class="{'tm-more-cmd-on': commandsOn}" role="menuitem" @click="toggleCommands(); ctx.topPanel = '';"><b class="tm-more-cmd">CMD</b><span>Commands {{commandsOn ? 'on' : 'off'}}</span><kbd>C</kbd></button>
+                            <button v-if="!editor.state.enabled" class="tm-more-item" role="menuitem" :disabled="!ctx.activeDashboard" @click="toggleEdit(); ctx.topPanel = '';"><i class="icofont-duotone icofont-pencil"></i><span>Edit the dashboard</span><kbd>E</kbd></button>
+                            <button class="tm-more-item" :class="{on: ctx.helpOpen}" role="menuitem" @click="toggleSidePanel('help');"><i class="icofont-info"></i><span>Help</span><kbd>H</kbd></button>
+                        </div>
+                    </template>
+                </div>
               </div>
 
               <!-- The time line: always the bottom edge of the island; the row above it opens with the pointer or the keyboard focus -->
@@ -348,7 +365,7 @@ function initComponent_top_menu(vue) {
         }
         .tm-logo { height: 2.7rem; width: auto; margin: 0 0.5rem 0 0.5rem; flex: none; } /* (the name is part of the drawing: under 2.5rem it cannot be read) */
         .tm-anchor { position: relative; display: flex; }
-        .tm-anchor-dashboard { min-width: 0; }
+        .tm-anchor-dashboard { min-width: 4.5rem; } /* (the name is cut, never dropped) */
         .tm-anchor-dashboard .tm-btn { min-width: 0; }
         .tm-dashboard-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
         /* Closed, the button also says that there are other dashboards: how many, under the name */
@@ -398,6 +415,8 @@ function initComponent_top_menu(vue) {
         .tm-rec-dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 22%, transparent); }
         .tm-split.paused .tm-rec-dot { background: transparent; box-shadow: inset 0 0 0 2.5px #2b2100; }
         .tm-rate { display: flex; align-items: center; gap: 0.4rem; height: 1.8rem; padding: 0 0.7rem 0 0.5rem; margin: 0; border-left: 1px solid var(--color-bg-dark) !important; border-radius: 0 !important; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+        .tm-rate { position: relative; }
+        .tm-rate::after { content: ""; position: absolute; left: 0; right: 0; top: -0.6rem; bottom: -0.6rem; } /* (it takes the whole height of its chip: a tap above or below it used to open the time row instead) */
         .tm-rate-text { display: flex; flex-direction: column; justify-content: center; gap: 0.12rem; line-height: 1; min-width: 4.8rem; text-align: left; }
         /* Some stored data was thinned out: said under the rate, in the color of the thinned part of the timeline of the data menu */
         :root { --tm-thinned: var(--color-warning); --tm-thinned-text: hsl(39, 100%, 27%); }
@@ -430,10 +449,10 @@ function initComponent_top_menu(vue) {
         .tm-cmd small { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-text-muted); opacity: 0.75; }
         .tm-cmd.on { background: color-mix(in srgb, var(--color-success) 18%, transparent); box-shadow: inset 0 0 0 1.5px var(--color-success); }
         .tm-cmd.on b, .tm-cmd.on small { color: var(--color-success); opacity: 1; }
-        /* A command was touched while commands are off: the button shows where to switch them on */
-        .tm-cmd.attention { animation: tm-cmd-attention 0.5s ease-in-out 3; }
+        /* A command was touched while commands are off: the button shows where to switch them on (the "⋯" of a narrow island holds it) */
+        .tm-cmd.attention, .tm-more.attention { animation: tm-cmd-attention 0.5s ease-in-out 3; }
         @keyframes tm-cmd-attention { 50% { box-shadow: inset 0 0 0 2px var(--color-warning), 0 0 0 4px color-mix(in srgb, var(--color-warning) 35%, transparent); } }
-        @media (prefers-reduced-motion: reduce) { .tm-cmd.attention { animation: none; box-shadow: inset 0 0 0 2px var(--color-warning); } }
+        @media (prefers-reduced-motion: reduce) { .tm-cmd.attention, .tm-more.attention { animation: none; box-shadow: inset 0 0 0 2px var(--color-warning); } }
         .tm-edit { background: var(--color-text); color: var(--color-bg-light); font-weight: 600; }
         .tm-edit:hover { background: color-mix(in srgb, var(--color-text) 82%, var(--color-bg-light)); }
         .tm-edit.done { background: var(--tp-edit-container, #e67e22); color: #fff; }
@@ -469,6 +488,7 @@ function initComponent_top_menu(vue) {
         .tm-tip kbd { margin-left: auto; border-color: transparent; background: color-mix(in srgb, var(--color-bg-light) 20%, transparent); color: inherit; }
         .tm-tip-line { display: flex; align-items: center; gap: 0.4rem; opacity: 0.8; font-size: 0.9rem; }
         @media (hover: none) { .tm-tip { display: none; } }
+        .tm-tipped.tip-shown .tm-tip { display: flex; visibility: visible; opacity: 1; transition: none; } /* (a finger held on it: components/touch-tips.js) */
 
         /* Popups: dashboards, data flow */
         .tm-popup {
@@ -629,13 +649,51 @@ function initComponent_top_menu(vue) {
         .tm-tl-gstate { font: 0.85rem ui-monospace, Consolas, monospace; color: var(--color-text-muted); white-space: nowrap; }
         .tm-popup .tm-tl-all { justify-content: space-between; margin-top: 0.25rem; border-top: 1px solid var(--color-bg-dark); border-radius: 0 0 0.5rem 0.5rem; color: var(--color-text-muted); }
 
-        /* Tighter islands: logo and shortcut hints first, then the "Editing" prefix */
+        /* A finger: the band where the island was takes the tap that brings it back; LIVE on the island while the time shown is not live */
+        .tm-catch { position: absolute; top: 0; left: 0; right: 0; height: calc(var(--tm-h, 4.4rem) - 0.4rem); pointer-events: auto; }
+        .tm .tm-golive { gap: 0.35rem; padding: 0 0.7rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; color: #fff; background: var(--color-danger); }
+        .tm .tm-golive:hover { background: color-mix(in srgb, var(--color-danger) 85%, black); }
+        .tm-golive i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+        @media (pointer: coarse) { /* The time line, once its row is open, takes a finger over more than it draws (never over the buttons above it: a tap low on one held the time), the small buttons of its row too */
+            .tm-strip.open .tm-tl-line::after { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: -6px; }
+            .tm-tl-btn::after, .tm-tl-live::after, .tm-tl-more::after { content: ""; position: absolute; inset: -8px -3px; }
+        }
+
+        /* "⋯": what a narrow island folds (Export, CMD, Edit, Help), each with its key */
+        .tm-more { display: none; min-width: 2.8rem; padding: 0 0.6rem; font-weight: 700; letter-spacing: 0.08em; }
+        .tm-more-pop { left: auto; right: 0; min-width: 16rem; }
+        .tm-popup .tm-more-item { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.55rem 0.7rem; border-radius: 0.7rem; font-weight: 500; }
+        .tm-popup .tm-more-item:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+        .tm-popup .tm-more-item.on { color: var(--color-primary); }
+        .tm-popup .tm-more-item:disabled { opacity: 0.45; cursor: default; }
+        .tm-more-item i, .tm-more-cmd { width: 2.2rem; text-align: center; flex: none; }
+        .tm-more-cmd { font-size: 0.85rem; letter-spacing: 0.06em; color: var(--color-text-muted); }
+        .tm-more-cmd-on .tm-more-cmd { color: var(--color-success); }
+        .tm-more-item span { flex: 1; }
+
+        /* Tighter islands: logo and shortcut hints first, then the "Editing" prefix, then "⋯" takes Export, CMD, Edit and Help, then the
+           rate keeps its ring (its text is in the data menu); while editing, Done takes the place of the rate */
         @container (max-width: 860px) {
             .tm-logo { display: none; }
         }
         @container (max-width: 700px) {
             .tm-crumb { display: none; }
             .tm-rate-text { min-width: 3.6rem; }
+        }
+        @container (max-width: 620px) {
+            .tm-fold { display: none !important; }
+            .tm-more { display: inline-flex; }
+        }
+        @container (max-width: 460px) {
+            .tm-rate-text, .tm-dashboard-count { display: none; }
+            .tm-rate { padding: 0 0.5rem 0 0.3rem; }
+            .tm-btn { padding: 0 0.7rem; }
+            .tm-bar { gap: 0.15rem; }
+            .tm-sep { margin: 0 0.15rem; }
+            .tm.editing .tm-anchor-rate, .tm.editing .tm-sep-rate, .tm.not-live .tm-anchor-rate, .tm.not-live .tm-sep-rate { display: none; }
+            /* Popups as wide as the island, under it: from their button they would run off the screen */
+            .tm-anchor { position: static; }
+            .tm-anchor > .tm-popup { left: 0; right: 0; width: auto; min-width: 0; max-width: none; }
         }
     `;
     // Add css to head
@@ -730,7 +788,9 @@ function initComponent_top_menu(vue) {
                     { name: "export", label: "Export and import", key: "X", icon: "icofont-share-alt" },
                     { name: "help", label: "Help", key: "H", icon: "icofont-info" },
                 ],
-                awake: true,    // Recent activity of the mouse or keyboard
+                awake: true,    // Recent activity of the mouse or keyboard (with a finger: the dashboard was last scrolled up, or the island tapped)
+                touchMode: false, // The last pointer was a finger: the island hides when the dashboard is scrolled down, not after a rest
+                touchRow: false,  // The row of the time line, opened by a finger on the island (until a touch elsewhere)
                 hovered: false, // The pointer is on the island
                 focused: false, // The keyboard focus is in the island
                 totalRate: 0, // Hz, refreshed by a timer
@@ -772,7 +832,8 @@ function initComponent_top_menu(vue) {
             // The time group the time line, Space and Esc act on: chosen under "⋯" (or by a click in one of its views), else the dashboard's
             baseGroup() { return this.ctx.activeDashboard ? this.ctx.activeDashboard.getGroupName() : ""; },
             chosenGroup() { return this.ctx.timeGroup || this.baseGroup; },
-            timelineOpen() { return !!this.ctx.activeDashboard && (this.stripHover || this.focused || this.dragging || this.ctx.topPanel == "time"); },
+            timelineOpen() { return !!this.ctx.activeDashboard && (this.stripHover || this.focused || this.dragging || this.touchRow || this.ctx.topPanel == "time"); },
+            showGoLive() { return this.touchMode && this.timeline.hasData && this.timeline.mode != "live"; },
             // The time groups of the dashboard, for "⋯": its own, then its custom ones, with their state
             timeGroups() {
                 this.groupsTick;
@@ -789,7 +850,8 @@ function initComponent_top_menu(vue) {
                 return list;
             },
             // Reasons to stay on screen even when nothing moves
-            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || this.focused || this.dragging || this.commandsOn || this.cmdAttention); },
+            // (commands on do not keep it: the mouse moving or a scroll up brings it back, CMD ON with it; with a finger, neither does the focus a tap leaves on a button, or it would never go)
+            pinned() { return !!(this.ctx.topPanel || this.ctx.bandVisible || this.editor.state.enabled || !this.ctx.activeDashboard || this.hovered || (this.focused && !this.touchMode) || this.dragging || this.cmdAttention); },
             away() { return !(this.awake || this.pinned); },
             // The island floats over the dashboard (not over the free band above it)
             over() { return !!this.ctx.activeDashboard && !this.ctx.bandVisible; },
@@ -893,9 +955,26 @@ function initComponent_top_menu(vue) {
             wake() {
                 this.awake = true;
                 clearTimeout(this._idleTimer);
-                this._idleTimer = setTimeout(() => { this.awake = false; }, IDLE_MS);
+                if (!this.touchMode) this._idleTimer = setTimeout(() => { this.awake = false; }, IDLE_MS);
+            },
+            // A finger scrolls the dashboard: down, the island slips away (the data gets the room); up, it comes back
+            onScroll() {
+                const top = this._workspace.scrollTop, delta = top - (this._lastTop || 0);
+                this._lastTop = top;
+                if (!this.touchMode || Math.abs(delta) < 6) return;
+                this.awake = delta < 0;
+                if (!this.awake) this.touchRow = false;
+            },
+            // A finger on the island (not on one of its buttons) opens the row of the time line, until it touches somewhere else
+            islandDown(event) {
+                if (event.pointerType == "touch" && !(event.target.closest && event.target.closest(this.timelineOpen ? "button, .tm-popup, .tm-tl-line" : "button, .tm-popup"))) this.touchRow = !this.touchRow;
             },
             onActivity(event) {
+                if (event.pointerType) { // A finger, or a mouse again
+                    const touch = event.pointerType == "touch";
+                    if (touch != this.touchMode && (event.type == "pointerdown" || !touch)) { this.touchMode = touch; if (touch) clearTimeout(this._idleTimer); else this.wake(); }
+                }
+                if (this.touchMode && event.type != "keydown") return; // (a finger: the island follows the scroll, see onScroll)
                 if (event.type == "pointermove") { // Frequent: do not reschedule on every event
                     const now = performance.now();
                     if (this.awake && now - (this._lastMove || 0) < 100) return;
@@ -1039,6 +1118,7 @@ function initComponent_top_menu(vue) {
             linePosition(event) { const box = this.$refs.lineCanvas.getBoundingClientRect(); return Math.max(0, Math.min(box.width, event.clientX - box.left)); },
             lineDown(event) {
                 if (event.button !== 0 || !this._map || !this.chosenGroup) return;
+                if (event.pointerType == "touch" && !this.timelineOpen) return; // (a finger at the edge of the island opens the row first: islandDown)
                 this.dragging = true;
                 try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
                 this.lineSeek(event);
@@ -1247,6 +1327,7 @@ function initComponent_top_menu(vue) {
             },
             // A click anywhere else closes the open popup (the buttons of the menu toggle it themselves)
             onPointerDown(event) {
+                if (this.touchRow && !(event.target.closest && event.target.closest(".tm-island, .tm-popup"))) this.touchRow = false;
                 if (!this.ctx.topPanel) return;
                 if (event.target.closest && event.target.closest(".tm-popup, .tm-anchor > button, .tm-split")) return;
                 this.ctx.topPanel = "";
@@ -1309,6 +1390,9 @@ function initComponent_top_menu(vue) {
             this.measureLine();
             this._onWheel = (e) => this.onWheel(e);
             this.$refs.island.addEventListener("wheel", this._onWheel, { passive: false }); // (taken while the time line is open: the page must not scroll meanwhile)
+            this._workspace = dashboardScroller(); // (main.js: the page with a finger, the workspace with a mouse)
+            this._onScroll = () => this.onScroll();
+            if (this._workspace) scrollEventsOf(this._workspace).addEventListener("scroll", this._onScroll, { passive: true });
             this.refreshRate();
             this._rateTimer = setInterval(() => this.refreshRate(), 250);
         },
@@ -1326,6 +1410,7 @@ function initComponent_top_menu(vue) {
             if (at >= 0) updates.splice(at, 1);
             if (this._lineObserver) this._lineObserver.disconnect();
             if (this.$refs.island) this.$refs.island.removeEventListener("wheel", this._onWheel);
+            if (this._workspace) scrollEventsOf(this._workspace).removeEventListener("scroll", this._onScroll);
         },
         template: vueHTML,
     });

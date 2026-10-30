@@ -222,3 +222,25 @@ test('files that cannot be loaded (STL, pictures of textures) are said on the vi
     }
     assert.equal(S.isTainted(undefined), false);
 });
+
+test('touchOrbit: two fingers slide, pinch and twist the scene; three turn it up and down', () => {
+    const S = loadTeleplot().view.ViewScene3D;
+    const camera = { position: [-10, 0, 0], target: [0, 0, 0] }; // looking along +x: its right is -y, its up is +z
+    // 90° of field in 100 px: at the distance of the target (10) a pixel is 0.2
+    let m = S.touchOrbit(camera, { dx: 10, dy: 0, scale: 1, angle: 0 }, 90, 100);
+    near(m.target, [0, 2, 0]); near(m.position, [-10, 2, 0]); // the fingers go right: the scene follows them, the camera goes left (+y)
+    m = S.touchOrbit(camera, { dx: 0, dy: 10, scale: 1, angle: 0 }, 90, 100);
+    near(m.target, [0, 0, 2]); // down: the camera goes up
+    m = S.touchOrbit(camera, { dx: 0, dy: 0, scale: 2, angle: 0 }, 90, 100);
+    near(m.position, [-5, 0, 0]); near(m.target, [0, 0, 0]); // spread: twice closer
+    m = S.touchOrbit(camera, { dx: 0, dy: 0, scale: 1, angle: Math.PI / 2 }, 90, 100);
+    near(m.position, [0, 10, 0]); // turned a quarter counterclockwise: the scene with them, the camera the other way around the vertical
+    // Three fingers: up and down, never over the top
+    m = S.touchOrbit(camera, { dx: 0, dy: -12.5, scale: 1, angle: 0, fingers: 3 }, 90, 100);
+    near(m.position, [-10 * Math.SQRT1_2, 0, -10 * Math.SQRT1_2]);
+    m = S.touchOrbit(camera, { dx: 0, dy: 1000, scale: 1, angle: 0, fingers: 3 }, 90, 100);
+    assert.ok(m.position[2] > 9.99 && Math.hypot(m.position[0], m.position[1]) < 0.02, String(m.position));
+    // Looking straight down, a slide still knows its right
+    m = S.touchOrbit({ position: [0, 0, 10], target: [0, 0, 0] }, { dx: 10, dy: 0, scale: 1, angle: 0 }, 90, 100);
+    assert.ok(m.target.every(Number.isFinite) && Math.abs(Math.hypot(m.target[0], m.target[1]) - 2) < 1e-6, String(m.target));
+});

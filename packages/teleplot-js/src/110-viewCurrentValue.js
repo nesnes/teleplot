@@ -530,9 +530,10 @@ class ViewCurrentValue extends ViewTelemetries{
                             <button class="teleplot-js-cmd-button teleplot-js-cmd-danger" v-on:click.stop="confirmCall(telem)">{{telem.cmd.title}}?</button>
                         </template>
                         <button v-else class="teleplot-js-cmd-button" v-bind:disabled="!telem.cmd.editable || (telem.cmd.call && (telem.cmd.call.status == 'sent' || telem.cmd.call.status == 'run'))"
-                            v-bind:class="{'teleplot-js-cmd-colored': !!telem.cmd.color}" v-bind:style="telem.cmd.color ? {'--cmd-color': telem.cmd.color} : {}"
+                            v-bind:class="{'teleplot-js-cmd-colored': !!telem.cmd.color, 'teleplot-js-cmd-hold': telem.cmd.longpress}" v-bind:style="telem.cmd.color ? {'--cmd-color': telem.cmd.color} : {}"
                             v-bind:title="telem.cmd.why || telem.cmd.desc || telem.cmd.title"
-                            v-on:pointerdown="actionDown(telem, $event)" v-on:pointerup="actionUp(telem)" v-on:pointerleave="actionUp(telem)" v-on:click.stop>
+                            v-on:pointerdown="actionDown(telem, $event)" v-on:pointerup="actionUp(telem)" v-on:pointerleave="actionUp(telem)" v-on:pointercancel="actionUp(telem)"
+                            v-on:contextmenu="telem.cmd.longpress && $event.preventDefault()" v-on:click.stop>
                             <span v-if="ui.press && ui.press.id == telem.id" class="teleplot-js-cmd-fill" v-bind:style="{'width': (ui.press.progress * 100) + '%'}"></span>
                             <template v-if="telem.cmd.call && telem.cmd.call.status == 'sent'"><span class="teleplot-js-cmd-spin"></span>#{{telem.cmd.call.id}}</template>
                             <template v-else-if="telem.cmd.call && telem.cmd.call.status == 'run'"><span class="teleplot-js-cmd-spin teleplot-js-cmd-running"></span>{{telem.cmd.call.elapsed}}</template>
@@ -846,6 +847,8 @@ class ViewCurrentValue extends ViewTelemetries{
             .teleplot-js-cmd-caption { display: block; font-size: 0.85em; font-weight: 400; color: var(--teleplot-muted); white-space: normal; } /* the kind of a choice ("auto#follows the line") */
             .teleplot-js-cmd-choices .teleplot-js-cmd-choice-current { background: var(--teleplot-surface); color: var(--teleplot-text); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
             .teleplot-js-cmd-action { flex: 0 1 auto; display: flex; align-items: center; justify-content: flex-end; gap: 0.35em; flex-wrap: wrap; }
+            /* A button that must be held keeps the finger: no text selected, no menu of the browser, no scroll that would cancel the press */
+            .teleplot-js-cmd-hold { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
             .teleplot-js-cmd-last { display: inline-flex; align-items: center; font: 0.8em var(--teleplot-mono); color: var(--teleplot-muted); white-space: nowrap; }
             .teleplot-js-cmd-button { position: relative; overflow: hidden; display: inline-flex; align-items: center; font: 600 0.82em sans-serif; padding: 0.15em 0.65em; border-radius: 0.45em;
                 border: 1px solid var(--teleplot-line); background: var(--teleplot-bg); color: var(--teleplot-text); cursor: pointer; white-space: nowrap; }

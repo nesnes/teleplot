@@ -25,6 +25,13 @@ html {
 
     --color-primary-rgb: 41, 128, 185;
     --color-secondary-rgb: 231, 76, 60;
+
+    /* Height of the window: on phones 100vh also counts the room under the browser's toolbar, 100dvh does not */
+    --vh: 100vh;
+    --panel-vh: var(--vh); /* What a panel may take: the window, or its sheet (below) */
+}
+@supports (height: 100dvh) {
+    :root { --vh: 100dvh; }
 }
 
 :root[data-theme="dark"] {
@@ -62,7 +69,7 @@ button {
 .panel-container {
     position: relative;
     display: flex;
-    height: 100vh; /* The workspace scrolls by itself, the docks stay in place */
+    height: var(--vh); /* The workspace scrolls by itself, the docks stay in place */
 }
 
 /* Docks hold the side panels. Opening or closing slides their space, so the dashboard resizes smoothly instead of jumping. */
@@ -168,6 +175,113 @@ button {
     justify-content: center;
     align-items: flex-start;
     container-type: inline-size;
-    min-height: 100vh; /* So that the band can always be scrolled away */
+    min-height: var(--vh); /* So that the band can always be scrolled away */
     margin-top: calc(1em + var(--tm-h));
+    overflow-x: clip; /* Nothing wider than the workspace makes it scroll sideways (it would hide the left side of every view) */
+}
+
+/*
+ * With a finger, the page itself scrolls instead of the workspace (main.js, pageScrolls): the browsers of phones hide their bars only
+ * when the page scrolls. The docks stay in view by being sticky; a sheet (narrow screens, below) is fixed anyway.
+ */
+@media (pointer: coarse) {
+    html, body { overflow-x: clip; }
+    .panel-container { height: auto; min-height: var(--vh); align-items: flex-start; }
+    .workspace { min-height: var(--vh); overflow-x: clip; overflow-y: visible; }
+}
+@media (pointer: coarse) and (min-width: 641px) { .dock { position: sticky; top: 0; height: var(--vh); } } /* (narrower, a dock is a sheet: fixed at the bottom) */
+
+/*
+ * Sheets: when a panel would leave the dashboard too little room beside it (a phone, a narrow window), every dock (Telemetries, Sources,
+ * Help, Export, the edit panel) rises from the bottom instead, over the lower part of the dashboard: the same panel, the dashboard stays
+ * usable above it and can be scrolled up out of its way (the workspace gets the height of the sheet as room at its bottom).
+ * One sheet at a time (main.js closes the others; the edit panel waits under another one). The grip at its top sets its height
+ * (--sheet, a share of the window, main.js); pulled down to the bottom, it closes.
+ */
+.sheet-grip { display: none; }
+@media (max-width: 640px) {
+    .panel-container { --sheet-h: calc(var(--vh) * var(--sheet, 0.55)); }
+    .panel-container .dock,
+    .panel-container .dock.open {
+        position: fixed;
+        z-index: 9200; /* Above the "+" slots of the editor (they are clipped to what the sheet leaves), under its menus and ghosts */
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: auto;
+        height: var(--sheet-h);
+        display: block;
+        overflow: visible;
+        --side-w: 100%;
+        --panel-vh: calc(var(--sheet-h) + 1.5rem);
+        transform: translateY(calc(100% + 1rem));
+        visibility: hidden;
+        transition: transform var(--dock-time) var(--ease-out), visibility 0s var(--dock-time);
+    }
+    .panel-container .dock.open {
+        transform: none;
+        visibility: visible;
+        transition: transform var(--dock-time) var(--ease-out), visibility 0s;
+    }
+    .panel-container .dock.open.sheet-under { transform: translateY(calc(100% + 1rem)); visibility: hidden; } /* (another sheet is on top) */
+    .panel-container.sheet-resizing .dock { transition: none; }
+    /* A telemetry lifted out of a sheet (press, then drag): the sheet steps down to its grip, the dashboard is free to drop on */
+    body.tp-touch-lift .panel-container .dock.open { transform: translateY(calc(100% - 1.8rem)); }
+    .panel-container .side-panel,
+    .panel-container .side-panel.side-panel-right,
+    .panel-container .edit-panel {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        margin: 0;
+        padding-top: 1.5rem;
+        border: 2px solid var(--color-bg-dark);
+        border-bottom: 0;
+        border-radius: 1em 1em 0 0;
+        box-shadow: 0 -10px 28px var(--color-shadow);
+        overflow: hidden;
+    }
+    .panel-container .edit-panel { overflow-y: auto; }
+    .panel-container .telemetries-layout { max-height: calc(var(--panel-vh) - 7.5rem); } /* (its title takes less room here than in a dock) */
+    .side-panel .panel-close { top: 1.2rem; }
+    .sheet-grip {
+        display: block;
+        position: absolute;
+        z-index: 3;
+        top: 0;
+        left: 3rem;
+        right: 3rem;
+        height: 1.6rem;
+        cursor: ns-resize;
+        touch-action: none;
+    }
+    .sheet-grip::before { content: ""; position: absolute; left: 50%; top: 0.55rem; width: 3rem; height: 0.35rem; margin-left: -1.5rem; border-radius: 0.2rem; background: var(--color-text-muted); opacity: 0.5; }
+    .panel-container.sheet-open .main-panel { padding-bottom: var(--sheet-h); }
+    .tm { z-index: 9300; } /* The top menu and its popups stay above a sheet pulled up high */
+}
+
+/*
+ * A finger (pointer: coarse): the same drawing, larger targets. Small controls get an invisible area around them; fields are 16 px,
+ * the size under which Safari on iPhone zooms the page when one takes the focus (and leaves it zoomed).
+ */
+@media (pointer: coarse) {
+    input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), select, textarea { font-size: 16px !important; }
+    .panel-close::after { content: ""; position: absolute; inset: -8px; }
+    .telemetries-layout summary::after { content: ""; position: absolute; inset: -6px 0; }
+}
+
+/* A finger held on something that has a tooltip shows it (components/touch-tips.js): there is no hover to show it otherwise */
+.touch-tip {
+    position: fixed;
+    z-index: 10001;
+    max-width: min(22rem, calc(100vw - 2rem));
+    padding: 0.45rem 0.7rem;
+    border-radius: 0.55rem;
+    background: var(--color-text);
+    color: var(--color-bg-light);
+    font-size: 1rem;
+    line-height: 1.35;
+    white-space: pre-line;
+    pointer-events: none;
+    box-shadow: 0 6px 18px var(--color-shadow);
 }

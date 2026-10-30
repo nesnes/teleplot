@@ -14,9 +14,10 @@
 
     <!-- Content -->
 
-    <div class="panel-container" @transitionrun="motion($event, 1)" @transitionend="motion($event, -1)" @transitioncancel="motion($event, -1)">
+    <div class="panel-container" ref="panels" :class="{'sheet-open': sheets && sheetShown, 'sheet-resizing': !!grip}" :style="{'--sheet': sheet}" @transitionrun="motion($event, 1)" @transitionend="motion($event, -1)" @transitioncancel="motion($event, -1)">
       <!-- Left dock: opens and closes by sliding its space, the dashboard follows without jumping. The panel stays displayed until the dock is closed. -->
       <div class="dock dock-left" :class="{open: !!ctx.sidePanel}">
+        <div class="sheet-grip" title="Drag to resize, down to close" @pointerdown="gripDown($event, 'left')"></div>
         <transition name="dock-swap" mode="out-in">
           <div v-if="shownPanel=='telemetries'" key="telemetries" class="side-panel">
             <div class="panel-title">
@@ -52,6 +53,7 @@
 
       <!-- Help dock, on the right: it can stay open next to the Telemetries or Sources panel (try a message, watch it arrive) -->
       <div class="dock dock-right dock-help dock-help-wide" :class="{open: ctx.helpOpen}">
+        <div class="sheet-grip" title="Drag to resize, down to close" @pointerdown="gripDown($event, 'help')"></div>
         <div v-if="shownHelp" class="side-panel side-panel-right">
           <div class="panel-title">
             <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.helpOpen = false;"><i class="icofont-close"></i></button>
@@ -64,6 +66,7 @@
 
       <!-- Export and import, on the right too (in place of Help: one of the two at a time), next to the Telemetries or Sources panel -->
       <div class="dock dock-right dock-help" :class="{open: ctx.exportOpen}">
+        <div class="sheet-grip" title="Drag to resize, down to close" @pointerdown="gripDown($event, 'export')"></div>
         <div v-if="shownExport" class="side-panel side-panel-right">
           <div class="panel-title">
             <button class="panel-close" title="Close (Esc)" aria-label="Close panel" @click="ctx.exportOpen = false;"><i class="icofont-close"></i></button>
@@ -74,8 +77,9 @@
         </div>
       </div>
 
-      <!-- Right dock: the edit panel follows the selection made on the dashboard -->
-      <div class="dock dock-right" :class="{open: editor.state.enabled}">
+      <!-- Right dock: the edit panel follows the selection made on the dashboard (a sheet: under the others, the selection scrolled above it) -->
+      <div class="dock dock-right dock-edit" :class="{open: editor.state.enabled, 'sheet-under': !!(ctx.sidePanel || ctx.helpOpen || ctx.exportOpen)}">
+        <div class="sheet-grip" title="Drag to resize" @pointerdown="gripDown($event, 'edit')"></div>
         <panel-edit></panel-edit>
       </div>
     </div>
@@ -99,5 +103,6 @@
 <script src="./components/dashboard-editor.js"></script>
 <script src="./components/panel-edit.js"></script>
 <script src="./components/dashboard.js"></script>
+<script src="./components/touch-tips.js"></script>
 <script src="./main.js"></script>
 </html>

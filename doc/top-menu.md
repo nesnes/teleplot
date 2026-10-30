@@ -8,6 +8,10 @@ The top menu is a GUI feature ([`packages/webapp/components/top-menu.js`](../pac
 ====================o------------------------------------------------------------    <- the time line: the bottom edge
 ```
 
+## Narrow
+
+When the island has little room (a phone, docks open on both sides), it folds by priority: the logo, the "Editing" prefix, then Export, CMD, Edit and Help go behind **⋯** (a list of them with their keys; ⋯ flashes when a command was touched while commands are off), then the rate keeps only its ring, and while editing Done takes the place of the rate chip. The name of the dashboard is cut, never dropped. See [touch.md](touch.md).
+
 ## Controls
 
 - **Dashboard**: the name of the dashboard on display and, when there are several, how many there are in a small line under it ("2 dashboards": closed, the button would otherwise look the same with one dashboard or ten). It opens the dashboard list (the auto "Live" dashboard first, then the others, "New dashboard" and "Import" at the bottom, a pencil to edit one, an arrow to export one, a bin to delete one). Export saves the dashboard as a text file (`name.teleplot.txt`, one `DASH|` line per view, see [dashboard-text.md](dashboard-text.md)); "Import…" picks a file and hands it to the Export and import panel, the one place where files are opened: it shows what the file holds and, when it holds both dashboards and data, lets each be taken without the other. Deleting is confirmed in place: the row turns into `Delete "name"? [Cancel] [Delete]`, the list stays open, and a deleted dashboard that was displayed gives its place to the first of the list. The auto dashboard cannot be deleted. While editing, the name is prefixed with "Editing".
@@ -63,6 +67,8 @@ After `IDLE_MS` (3 s) without mouse or keyboard activity the island fades out (i
 - no dashboard is displayed yet (welcome screen).
 
 Nothing stays while the island is away, its time line included (the Paused chip of before is gone): the views show that a group is held (the line at its moment on the charts, the times they write), and any mouse move brings the island back.
+
+With a finger the island does not fade on a timer: it slips away when the dashboard is scrolled down and comes back when it is scrolled up, or on a tap in the band it left (that tap reaches nothing below). A tap on the island opens the row of the time line; while the time shown is not live, a red LIVE button sits on the island itself. See [touch.md](touch.md).
 
 ## The band (scroll up for a clear menu)
 

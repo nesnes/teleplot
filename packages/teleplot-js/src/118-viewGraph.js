@@ -399,7 +399,7 @@ class ViewGraph extends ViewTelemetries {
         let position = (event) => { let box = canvas.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top }; };
         let drag = undefined;
         listen(canvas, "pointerdown", (event) => {
-            if(event.button !== 0) return;
+            if(event.button !== 0 || event.pointerType === "touch") return; // (a finger scrolls the page: two of them move the graph, below)
             let at = position(event);
             if(at.y > page.height - ViewGraph.TRAIL_H && this.options.trail) return;
             drag = { x: at.x, y: at.y, cx: this.camera.x, cy: this.camera.y };
@@ -439,6 +439,20 @@ class ViewGraph extends ViewTelemetries {
             this.__draw();
         }, { passive: false });
         listen(canvas, "dblclick", () => { this.camera.user = false; this.__fit(); this.__draw(); });
+        // Two fingers move and zoom the graph, a double tap fits it (109-touch.js)
+        page.untouch = TELEPLOT.view.touchGestures(host, {
+            hint: "Two fingers to move the graph",
+            pinch: (step) => {
+                let zoom = Math.max(0.15, Math.min(4, this.camera.zoom * step.scale)), factor = zoom / this.camera.zoom;
+                this.camera.x = step.cx - (step.cx - step.dx - this.camera.x) * factor;
+                this.camera.y = step.cy - (step.cy - step.dy - this.camera.y) * factor;
+                this.camera.zoom = zoom;
+                this.camera.user = true;
+                this.tip.shown = false;
+                this.__draw();
+            },
+            doubleTap: () => { this.camera.user = false; this.__fit(); this.__draw(); },
+        });
         if(typeof ResizeObserver === "function") { page.observer = new ResizeObserver(() => this.__resize()); page.observer.observe(host); }
         this.__resize();
     }
@@ -447,6 +461,7 @@ class ViewGraph extends ViewTelemetries {
         let page = this.page;
         if(!page) return;
         for(let [target, type, handler] of page.listeners) target.removeEventListener(type, handler);
+        if(page.untouch) page.untouch();
         if(page.observer) page.observer.disconnect();
         page.canvas.remove();
         this.page = undefined;
@@ -763,7 +778,7 @@ class ViewGraph extends ViewTelemetries {
             }
             .teleplot-js-graph-canvas { position: absolute; inset: 0.4em 0.6em 0.2em 0.6em; overflow: hidden; }
             .teleplot-js-has-title .teleplot-js-graph-canvas { top: 2.2em; }
-            .teleplot-js-graph-canvas canvas { display: block; cursor: grab; touch-action: none; }
+            .teleplot-js-graph-canvas canvas { display: block; cursor: grab; touch-action: pan-x pan-y; }
             .teleplot-js-graph-canvas canvas:active { cursor: grabbing; }
         }
     `;

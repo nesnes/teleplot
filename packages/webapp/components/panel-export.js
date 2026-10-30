@@ -296,7 +296,7 @@ function initComponent_panel_export(vue) {
     const vueCSS = `
         .export-layout {
             --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            box-sizing: border-box; max-height: calc(100vh - 7rem); padding: 0.2rem 0.8rem 1rem 0.2rem; overflow-y: auto; scrollbar-width: thin; color: var(--color-text);
+            box-sizing: border-box; max-height: calc(var(--panel-vh, 100vh) - 7rem); padding: 0.2rem 0.8rem 1rem 0.2rem; overflow-y: auto; scrollbar-width: thin; color: var(--color-text);
         }
         .export-layout button, .export-layout select, .export-layout input { font: inherit; color: inherit; }
         .export-grow { flex: 1 1 0; min-width: 0; }

@@ -79,7 +79,7 @@ class Connection{
             throw new Error("Connection is an abstract class, it should only be inherited and never instanciated !");
         }
         this.name = "";
-        this.id = "connection-"+crypto.randomUUID();
+        this.id = "connection-"+TELEPLOT.uid();
         this.type = "";
         this.connected = false;
         this.inputs = [];

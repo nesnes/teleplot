@@ -14,3 +14,10 @@ TELEPLOT.state = {
     updateIntervalMs: 33, //ms
 }
 
+// An id unique in the page, for views, connections and their DOM elements. Not crypto.randomUUID: browsers only give it to secure pages
+// (https or localhost), and a phone opens the page of a computer at its address on the network (http://192.168.x.x).
+TELEPLOT.uid = (() => {
+    let count = 0;
+    const session = Math.floor(Math.random() * 0x100000000).toString(36);
+    return () => session + "-" + (++count).toString(36);
+})();

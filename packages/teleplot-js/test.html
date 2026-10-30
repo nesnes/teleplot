@@ -322,6 +322,19 @@
       }, 100);
     });
 
+    demo("Fingers on a chart", "On a phone or a tablet (109-touch.js, doc/touch.md): one finger scrolls the page, a tap holds the group where it is, two fingers pinch the time (spread: zoom in, move them sideways: move in time), a double tap is back to live. The 2D, 3D and graph views follow the same rule: two fingers move them, a double tap frames them again. A mouse is not concerned.", [500, 220], (id) => {
+      const view = document.getElementById(id), group = "touch-demo";
+      view.style.display = "grid"; view.style.gridTemplateRows = "auto 1fr"; view.style.gap = "6px";
+      const state = document.createElement("code"), chart = document.createElement("div");
+      chart.id = id + "-chart";
+      view.append(state, chart);
+      Teleplot.view.addView(new Teleplot.view.ViewChart(chart.id, ["numberTelemetry", "number.cos"], group));
+      setInterval(() => {
+        const t = Teleplot.view.timeOf(group), g = Teleplot.view.groups[group];
+        state.textContent = t.mode + (t.mode == "live" ? "" : " at " + t.at.toFixed(2)) + (g && g.cursorActive ? ", window " + (g.timestampTo - g.timestampFrom).toFixed(2) + " s" : "");
+      }, 100);
+    });
+
     // ====================================================================================================================== Logs
     section("Logs", "ViewLog: text telemetries as lines, oldest at the top. Same time window and cursor as the other views of the group.");
 

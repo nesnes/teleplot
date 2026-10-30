@@ -224,6 +224,42 @@ class ViewScene3D extends ViewTelemetries {
     static CLOUD_RAMP = [[0.02, 0.05, 0.6], [0, 0.55, 0.75], [0.1, 0.65, 0.15], [0.9, 0.7, 0.02], [0.85, 0.05, 0.02]]; // Low to high: blue, cyan, green, yellow, red
     static SRGB_TO_LINEAR = Float32Array.from({ length: 256 }, (_, i) => { let c = i / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
 
+    // The camera moved by fingers (109-touch.js): {position, target} ([x, y, z], z up) after a step of TELEPLOT.view.pinchStep, for a
+    // perspective camera of vertical field "fov" (degrees) in a view "height" px tall. Two fingers: moved together, the scene slides with
+    // them (what is at the distance of the target follows the fingers); spread, the camera comes closer to the target; turned, the scene
+    // turns with them around the vertical of the target. Three fingers: the scene turns around the target, sideways and up and down (as
+    // a drag of the mouse), never over the top or under the bottom.
+    static touchOrbit(camera, step, fov, height) {
+        let [px, py, pz] = camera.position, [tx, ty, tz] = camera.target;
+        let ox = px - tx, oy = py - ty, oz = pz - tz;
+        let r = Math.hypot(ox, oy, oz) || 1e-6;
+        let theta = Math.atan2(oy, ox), phi = Math.acos(Math.max(-1, Math.min(1, oz / r)));
+        let h = Math.max(1, height);
+        if((step.fingers || 2) >= 3) {
+            theta -= 2 * Math.PI * step.dx / h;
+            phi -= 2 * Math.PI * step.dy / h;
+        } else {
+            // Slide: right and up of the camera, a pixel worth what it shows at the distance of the target
+            let perPixel = 2 * r * Math.tan(fov * Math.PI / 360) / h;
+            let fx = -ox / r, fy = -oy / r, fz = -oz / r;                  // forward
+            let rx = fy, ry = -fx, rl = Math.hypot(rx, ry);                  // right = forward x up (z)
+            if(rl < 1e-9) { rx = -Math.sin(theta); ry = Math.cos(theta); rl = 1; } // (looking straight down or up)
+            rx /= rl; ry /= rl;
+            let ux = ry * fz, uy = -rx * fz, uz = rx * fy - ry * fx;          // up of the camera = right x forward
+            let mx = (-step.dx * rx + step.dy * ux) * perPixel, my = (-step.dx * ry + step.dy * uy) * perPixel, mz = step.dy * uz * perPixel;
+            tx += mx; ty += my; tz += mz;
+            if(step.scale > 0) r /= step.scale;
+            theta -= step.angle || 0;
+        }
+        const EDGE = 1e-3;
+        phi = Math.max(EDGE, Math.min(Math.PI - EDGE, phi));
+        let s = Math.sin(phi);
+        return {
+            position: [tx + r * s * Math.cos(theta), ty + r * s * Math.sin(theta), tz + r * Math.cos(phi)],
+            target: [tx, ty, tz],
+        };
+    }
+
     // What the camera frames for content between min and max ([x, y, z]): {min, max, origin}. The content, and the origin with it: the
     // grid and the axes are there, and without them a point above the ground is a dot in an empty view. The origin is left out
     // ("origin": false) when the content is tiny compared to how far away it is (positions on a map...), where framing both would
@@ -695,9 +731,34 @@ class ViewScene3D extends ViewTelemetries {
         three.controls = new THREE.OrbitControls(three.camera, three.canvas);
         three.controls.addEventListener("change", () => this.__requestRender());
         three.controls.addEventListener("start", () => { if(this.three) this.three.userMoved = true; }); // The camera is the user's from now on
+        // A finger scrolls the page. Two slide the scene, come closer when spread and turn it when twisted; three turn it up and down too
+        // (ViewScene3D.touchOrbit: the controls of three.js give two fingers only two of these). A double tap frames it again (109-touch.js)
+        three.controls.touches = { ONE: null, TWO: null };
+        three.canvas.style.touchAction = "pan-x pan-y"; // (the controls asked for "none")
+        three.untouch = TELEPLOT.view.touchGestures(host, {
+            hint: "Two fingers to move the scene, three to tilt it",
+            doubleTap: () => this.fitCamera(),
+            pinch: (step) => this.__touchCamera(step),
+        });
         three.resizeObserver = new ResizeObserver(() => this.__resize());
         three.resizeObserver.observe(host);
         this.__resize();
+    }
+
+    __touchCamera(step) {
+        let three = this.three;
+        if(!three) return;
+        let camera = three.camera, target = three.controls.target;
+        let moved = ViewScene3D.touchOrbit({ position: camera.position.toArray(), target: target.toArray() }, step, camera.fov, three.canvas.clientHeight || three.canvas.height);
+        camera.position.fromArray(moved.position);
+        target.fromArray(moved.target);
+        let distance = camera.position.distanceTo(target);
+        camera.near = distance / 1000; // (as when framed: closer, the near plane must follow)
+        camera.far = distance * 1000;
+        camera.updateProjectionMatrix();
+        three.controls.update();
+        three.userMoved = true; // The camera is the user's from now on
+        this.__requestRender();
     }
 
     // Gives back everything __createThree made (and what the view added to it)
@@ -708,6 +769,7 @@ class ViewScene3D extends ViewTelemetries {
         cancelAnimationFrame(three.frame);
         if(three.resizeObserver) three.resizeObserver.disconnect();
         if(three.controls) three.controls.dispose();
+        if(three.untouch) three.untouch();
         for(let object of three.objects.values()) this.__disposeObject(three, object);
         for(let geometry of Object.values(three.geometries)) geometry.dispose();
         for(let entry of three.stl.values()) if(entry.geometry) entry.geometry.dispose();
@@ -1529,7 +1591,7 @@ class ViewScene3D extends ViewTelemetries {
                 position: absolute;
                 inset: var(--teleplot-accent-w, 2px) 0 0 0; /* The top color of the card stays visible */
                 cursor: grab;
-                touch-action: none;
+                touch-action: pan-x pan-y; /* One finger scrolls the page, two move the scene (109-touch.js) */
             }
             .teleplot-js-scene3d-canvas:active { cursor: grabbing; }
             .teleplot-js-scene3d-canvas canvas { display: block; }

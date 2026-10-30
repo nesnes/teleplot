@@ -6,6 +6,7 @@ How the web application ([`packages/webapp`](../packages/webapp/)) is laid out a
 [left dock: one side panel] [workspace: floating top menu + dashboard] [right dock: edit panel]
 ```
 
+- **Sheets**: under 640 px of window, the docks rise from the bottom over the dashboard instead (one at a time, a grip sets their height), see [touch.md](touch.md).
 - **Docks** (`.dock`, `style.css`) hold the side panels. Opening or closing a dock slides its width (`--dock-time`, 160 ms) instead of inserting the panel at once, so the dashboard resizes smoothly and nothing jumps. The left dock has a fixed width for all panels (`--side-w`): switching between Telemetries and Sources only fades the content. The panel stays displayed until the dock has closed (`shownPanel` in `main.js`). **Help has its own dock on the right** (`ctx.helpOpen`, `.dock-help`, a little narrower), so it can stay open next to Telemetries or Sources: a message tried from the Help is seen arriving in the Telemetries panel. In edit mode the Help dock sits left of the edit panel.
 - While a dock moves, the edit chrome (pills, "+" slots) is refreshed on every frame (`motion()` in `main.js`), so it follows the views.
 - **Motion tokens**: `--motion-fast` (120 ms, fades and small moves), `--dock-time`, `--ease-out`. Everything quick on purpose: the aim is to follow what moves, not to wait for it. `prefers-reduced-motion` sets them to 0.

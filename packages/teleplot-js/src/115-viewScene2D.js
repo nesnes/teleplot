@@ -473,6 +473,13 @@ class ViewScene2D extends ViewScene3D {
         let drag = undefined;
         let local = (event) => { let rect = host.getBoundingClientRect(); return [event.clientX - rect.left, event.clientY - rect.top]; };
         listen(host, "pointerdown", (event) => {
+            let finger = event.pointerType === "touch";
+            if(finger) { // A finger moves a writable pose or point (the page does not scroll then), else it scrolls the page: two move the map (below)
+                drag = undefined;
+                this.__fingerOwned = this.__commandDown(local(event), true);
+                if(this.__fingerOwned) try { host.setPointerCapture(event.pointerId); } catch(e) {}
+                return;
+            }
             try { host.setPointerCapture(event.pointerId); } catch(e) {}
             if(this.__commandDown(local(event))) { drag = undefined; return; } // (a writable pose or point is grabbed: not a move of the map)
             drag = { x: event.clientX, y: event.clientY };
@@ -488,7 +495,24 @@ class ViewScene2D extends ViewScene3D {
             camera.userMoved = true;
             this.__requestDraw();
         });
-        let release = () => { drag = undefined; if(this.ghost && this.ghost.drag) { this.ghost.drag = undefined; this.__requestDraw(); } };
+        let release = () => { drag = undefined; this.__fingerOwned = false; if(this.ghost && this.ghost.drag) { this.ghost.drag = undefined; this.__requestDraw(); } };
+        // Two fingers move and zoom the map, a double tap frames what it shows again (109-touch.js)
+        let untouch = TELEPLOT.view.touchGestures(host, {
+            hint: "Two fingers to move the map",
+            owns: () => !!this.__fingerOwned,
+            pinch: (step) => {
+                let camera = this.camera2D;
+                let px = step.cx - page.width / 2, py = step.cy - page.height / 2;
+                let scale = Math.max(1e-9, Math.min(1e12, camera.scale * step.scale));
+                camera.u += (px - step.dx) / camera.scale - px / scale; // (what was under the fingers stays under them)
+                camera.v -= (py - step.dy) / camera.scale - py / scale;
+                camera.scale = scale;
+                camera.userMoved = true;
+                this.__requestDraw();
+            },
+            doubleTap: () => this.fitCamera(),
+        });
+        page.listeners.push(untouch);
         listen(host, "pointerup", release);
         listen(host, "pointercancel", release);
         listen(host, "pointerleave", () => { this.pointer = undefined; if(this.editables.length) this.__requestDraw(); });
@@ -684,9 +708,9 @@ class ViewScene2D extends ViewScene3D {
 
     // A press on the map: grabs the ghost (its center to move it, its handle to turn it) or a writable pose / point (a ghost starts
     // from where it is). Returns true when something was grabbed.
-    __commandDown(px) {
+    __commandDown(px, finger = false) {
         if(!this.page2D) return false;
-        let near = (a, b, r) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= r;
+        let near = (a, b, r) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= r * (finger ? 2 : 1); // (a finger aims less precisely than a mouse)
         if(!TELEPLOT.state.commands) { // A writable pose or point pressed while commands are off: nothing is sent, the view says why
             let locked = this.lockedEditables.find((e) => near(px, this.__toPage(e.at), 12));
             if(!locked || !TELEPLOT.commands.blockedWhileOff(locked.telem)) return false;

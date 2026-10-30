@@ -1703,7 +1703,7 @@ function initComponent_panel_help(vue) {
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            height: calc(100vh - 6.5rem);
+            height: calc(var(--panel-vh, 100vh) - 6.5rem);
             padding: 0.4rem 0.8rem 0.7rem 0.2rem;
             color: var(--color-text);
             --help-mono: ui-monospace, Consolas, monospace;
@@ -2121,7 +2121,7 @@ function initComponent_panel_help(vue) {
             line(example) { return helpLine(this.sender, example, this.shown(example), this.now); },
             text(example) { return this.line(example).parts.map((p) => p.text).join(""); },
             copy(text) {
-                if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+                copyText(text); // (main.js)
                 this.copied = text;
                 clearTimeout(this._copiedTimer);
                 this._copiedTimer = setTimeout(() => { this.copied = ""; }, 1200);

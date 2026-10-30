@@ -6,7 +6,7 @@ class DataInput{
         }
         this.connection = _connection;
         this.name = _name;
-        this.id = "data-input-"+crypto.randomUUID();
+        this.id = "data-input-"+TELEPLOT.uid();
         this.type = "";
         this.connected = false;
     }

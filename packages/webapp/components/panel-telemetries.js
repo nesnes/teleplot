@@ -34,7 +34,7 @@ function initComponent_panel_telemetries(vue) {
 
                     <div v-if="section.ungrouped.length" class="telemetries-tiles">
                         <div v-for="item in section.ungrouped" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
-                            draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent>
+                            draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent @pointerdown="onPress($event, [item.id], '', item.name)">
                             <span class="telemetries-name"><template v-for="seg in segments(item, 0)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template><span v-if="item.command" class="telemetries-cmd" :title="item.commandTitle">{{item.command}}</span></span>
                             <span class="telemetries-value-line">
                                 <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
@@ -46,7 +46,8 @@ function initComponent_panel_telemetries(vue) {
 
                     <details v-for="group in section.groups" :key="group.key" :class="{'telemetries-label': group.isLabel}" :open="isOpen(group)" @toggle="onToggle(group.key, $event)">
                         <summary draggable="true" :title="group.isLabel ? 'Label: drag to add its ' + group.items.length + ' telemetries (and the ones that will come with this label), click to see them' : 'Drag to add the ' + group.items.length + ' telemetries of this group'"
-                            @dragstart.stop="onDragStart($event, group.items.map(i => i.id), group.isLabel ? group.label : '')" @dragover.stop.prevent>
+                            @dragstart.stop="onDragStart($event, group.items.map(i => i.id), group.isLabel ? group.label : '')" @dragover.stop.prevent
+                            @pointerdown="onPress($event, group.items.map(i => i.id), group.isLabel ? group.label : '', group.label)">
                             <i v-if="group.isLabel" class="icofont-tag"></i>
                             <span><template v-for="seg in segmentsOf(group.label)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span>
                             <span class="telemetries-group-count">{{group.items.length}}</span>
@@ -55,7 +56,7 @@ function initComponent_panel_telemetries(vue) {
                         </summary>
                         <div class="telemetries-tiles">
                             <div v-for="item in group.items" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
-                                draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent>
+                                draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent @pointerdown="onPress($event, [item.id], '', item.name)">
                                 <span class="telemetries-name">
                                     <span class="telemetries-dim"><template v-for="seg in segments(item, 0, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span><template v-for="seg in segments(item, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template><span v-if="item.command" class="telemetries-cmd" :title="item.commandTitle">{{item.command}}</span>
                                 </span>
@@ -78,7 +79,7 @@ function initComponent_panel_telemetries(vue) {
             --mark: hsl(48 100% 70%);
             color: var(--color-text);
             width: 100%;
-            max-height: calc(100vh - 11rem);
+            max-height: calc(var(--panel-vh, 100vh) - 11rem);
             display: flex;
             flex-direction: column;
             padding: 0.4rem;
@@ -148,6 +149,7 @@ function initComponent_panel_telemetries(vue) {
         .telemetries-dots i { width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; background: var(--tc); display: block; }
 
         .telemetries-tiles { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.3rem 0.1rem 0.6rem; }
+        .telemetries-tile, .telemetries-layout summary { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } /* (a finger presses them to lift them) */
         .telemetries-tile {
             flex: 1 1 9.5rem; min-width: 0; max-width: 100%;
             display: flex; flex-direction: column; gap: 0.1rem;
@@ -185,7 +187,8 @@ function initComponent_panel_telemetries(vue) {
         setup() {
             const TP = Vue.inject("TP");
             const ctx = Vue.inject("ctx");
-            return { TP, ctx };
+            const editor = Vue.inject("editor");
+            return { TP, ctx, editor };
         },
         data() {
             const P = this.TP.protocol;
@@ -372,6 +375,8 @@ function initComponent_panel_telemetries(vue) {
             },
             segments(item, from, to) { return this.segmentsOf(item.name, from, to === undefined ? item.name.length : to); },
             // label: the ids are all the telemetries of a view label; the views they are dropped on will follow that label
+            // With a finger: press, then drag (dashboard-editor.js, E.pressTelemetries): the mouse keeps the drag and drop of the browser
+            onPress(event, ids, label, title) { this.editor.pressTelemetries(event, ids, label, title); },
             onDragStart(event, ids, label = "") {
                 event.dataTransfer.setData("text/x-teleplot-drag-type-telemetry", "");
                 if (label) event.dataTransfer.setData("text/x-teleplot-drag-label", label);

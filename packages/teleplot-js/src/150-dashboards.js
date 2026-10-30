@@ -8,7 +8,7 @@ class Dashboard {
     constructor(name="") {
         if (name=="") name = "Dashboard " + Dashboard.constructedCount++;
         this.name = name;
-        this.id = "dashboard-layout-"+crypto.randomUUID();
+        this.id = "dashboard-layout-"+TELEPLOT.uid();
         this.view = undefined;
         this.isAuto = false; // true for the dashboard filled automatically (enableAutoDashboard)
     }

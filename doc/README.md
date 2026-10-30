@@ -35,6 +35,7 @@ Back to the project: [README](../README.md).
 | --- | --- |
 | [webapp-layout.md](webapp-layout.md) | Docks, welcome screen, Help panel, motion |
 | [top-menu.md](top-menu.md) | The top menu, the data menu (data window, memory), shortcuts |
+| [touch.md](touch.md) | Phones and touch: panels as sheets, the top menu when narrow, press then drag, two fingers on the views, held = hover |
 
 ## Inside
 

@@ -144,7 +144,7 @@ function initComponent_panel_edit(vue) {
                     :class="{'edit-drop-before': dropAt === i && dragFrom > i, 'edit-drop-after': dropAt === i && dragFrom < i, 'edit-dragging': dragFrom === i}"
                     draggable="true" title="Drag to reorder"
                     @dragstart="onTelemDragStart($event, i)" @dragover="onTelemDragOver($event, i)" @dragleave="dropAt === i && (dropAt = -1)"
-                    @drop.prevent="onTelemDrop(i)" @dragend="dragFrom = -1; dropAt = -1">
+                    @drop.prevent="onTelemDrop(i)" @dragend="dragFrom = -1; dropAt = -1" :data-index="i" @pointerdown="onTelemPress($event, i)">
                     <span class="edit-telem" :title="t.tip"><i class="edit-swatch" :style="{background: t.color}"></i> {{ t.name }}</span>
                     <button class="edit-icon small" title="Remove" aria-label="Remove" @click="selected.removeTelemetry(t.key); tick++"><i class="icofont-close"></i></button>
                   </div>
@@ -322,6 +322,21 @@ function initComponent_panel_edit(vue) {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = "move";
                 this.dropAt = index;
+            },
+            // With a finger: press, then drag the row (dashboard-editor.js, E.touchLift)
+            onTelemPress(event, index) {
+                const row = event.currentTarget;
+                if (event.pointerType == "touch") row.draggable = false; // (the browser would start its own drag on a long press)
+                const lifted = this.editor.touchLift(event, {
+                    onLift: () => { this.dragFrom = index; this.dropAt = index; },
+                    onMove: (x, y) => {
+                        const el = document.elementFromPoint(x, y), over = el && el.closest && el.closest(".edit-draggable");
+                        if (over && over.dataset.index !== undefined) this.dropAt = Number(over.dataset.index);
+                    },
+                    onDrop: () => { if (this.dragFrom >= 0 && this.dropAt >= 0) this.onTelemDrop(this.dropAt); },
+                    onEnd: () => { row.draggable = true; this.dragFrom = -1; this.dropAt = -1; },
+                });
+                if (!lifted) row.draggable = true;
             },
             onTelemDrop(index) {
                 if (this.dragFrom >= 0) this.selected.moveTelemetry(this.dragFrom, index);

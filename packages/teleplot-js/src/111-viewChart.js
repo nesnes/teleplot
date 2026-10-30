@@ -23,7 +23,7 @@ class ViewChart extends ViewTelemetries{
         // Vue data
         this.telemetries = TELEPLOT.Vue.reactive({});
         this.displayOrder = TELEPLOT.Vue.reactive([]); // see syncDisplayOrder
-        this.chartDivId = "teleplot-chart-"+crypto.randomUUID();
+        this.chartDivId = "teleplot-chart-"+TELEPLOT.uid();
         this.chartData = TELEPLOT.Vue.markRaw([]); // Not reactive: uPlot reads it all the time, proxies would slow it down
         this.chart = TELEPLOT.Vue.reactive({});
         this.chartOptions = TELEPLOT.Vue.reactive({});
@@ -31,7 +31,7 @@ class ViewChart extends ViewTelemetries{
         // Legend: entries that don't fit are folded behind a "+N" chip, which opens the list of all the series (a ViewCurrentValue)
         this.hidden = TELEPLOT.Vue.reactive({});   // { telemetryId: true } series switched off by a click on their legend entry (shared with the list)
         this.legend = TELEPLOT.Vue.reactive({ visible: Infinity, folded: 0, open: false });
-        this.popoverDivId = "teleplot-chart-popover-"+crypto.randomUUID();
+        this.popoverDivId = "teleplot-chart-popover-"+TELEPLOT.uid();
         this.popoverView = undefined;
         this.legendKey = "";
         this.valueChars = {};                      // Width (characters) of the value slot of each legend entry: only grows, so entries never shake
@@ -351,6 +351,21 @@ class ViewChart extends ViewTelemetries{
                 if(!down || Math.abs(e.clientX - down[0]) > 3 || Math.abs(e.clientY - down[1]) > 3 || u.cursor.left < 0) return;
                 let at = u.posToVal(u.cursor.left, "x");
                 if(at >= 0) TELEPLOT.view.seek(this.group, at);
+            });
+            // A finger (109-touch.js): one scrolls the page (a tap holds, as a click), two pinch the time, a double tap is back to live
+            this.chart.over.style.touchAction = "pan-x pan-y";
+            let pinched = undefined; // The window being pinched (the scale of uPlot follows a frame later)
+            TELEPLOT.view.touchGestures(this.chart.over, {
+                pinch: (step) => {
+                    if(!u.scales.x || u.scales.x.min == null) return;
+                    let w = pinched || { from: u.scales.x.min, to: u.scales.x.max };
+                    let width = u.over.clientWidth || 1, span = w.to - w.from;
+                    let at = w.from + span * (step.cx - step.dx) / width;
+                    pinched = TELEPLOT.view.pinchWindow(w.from, w.to, at, step.scale, step.dx * span / width);
+                    TELEPLOT.view.zoomTo(this.group, pinched.from, pinched.to);
+                },
+                pinchEnd: () => { pinched = undefined; },
+                doubleTap: () => TELEPLOT.view.backToLive(this.group),
             });
         }
         // The moment shown when the group is not live: a line over the chart, moved without drawing the chart again (doc/time.md)
@@ -995,6 +1010,10 @@ class ViewChart extends ViewTelemetries{
             .teleplot-js-chart-legend-more {
                 flex: 0 0 auto; order: 3; font: inherit; color: var(--teleplot-muted); cursor: pointer;
                 background: color-mix(in srgb, var(--teleplot-text) 8%, transparent); border: 0; border-radius: 1em; padding: 0.05em 0.7em;
+            }
+            @media (pointer: coarse) { /* A finger: the chip takes it over a larger area than it draws */
+                .teleplot-js-chart-legend-more { position: relative; }
+                .teleplot-js-chart-legend-more::after { content: ""; position: absolute; inset: -12px -4px; }
             }
             .teleplot-js-chart-legend-more:hover, .teleplot-js-chart-legend-more-open { color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-text) 16%, transparent); }
             .teleplot-js-chart-container > .teleplot-js-chart-popover { /* the list of all series, over the chart */

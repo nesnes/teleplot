@@ -34,7 +34,8 @@ class ConnectionTeleplotServer extends Connection{
         this.__binarySenders = [];
         clearTimeout(this.retryTimer);
         if(this.socket) { this.socket.onclose = null; this.socket.close(); } // A try that is replaced must not plan another one
-        this.socket = new WebSocket("ws://"+this.address+":"+this.port, );
+        const secure = typeof location !== "undefined" && location.protocol == "https:"; // (an https page may not open ws://: a server behind an https proxy)
+        this.socket = new WebSocket((secure ? "wss://" : "ws://")+this.address+":"+this.port);
         this.socket.binaryType = "arraybuffer"; // Default is Blob, whose async decoding doesn't guarantee the packets order
         this.socket.onopen = (event) => {
             setTimeout(()=>{

@@ -191,7 +191,7 @@ the sender address for text), in the protocol that device speaks.
 
 In the top menu island, **only when a device declared something writable**. Two lines: `CMD` over a shaded `OFF`; on, tinted and
 outlined in green, `ON` in green. Off at every page load (never remembered); shortcut `C`. Its tooltip counts the settings and
-actions per device. Switching it off releases every continuous control at once; the island does not fade out while it is on.
+actions per device. Switching it off releases every continuous control at once; the island fades out as usual while it is on (it comes back with the mouse or a scroll up, CMD ON with it).
 The lib holds the state (`TELEPLOT.state.commands`) and refuses writes when it is off: the lock does not depend on the GUI.
 
 ### CMD off
