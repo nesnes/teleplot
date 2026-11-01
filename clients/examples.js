@@ -29,6 +29,7 @@ const COMMON = {
     23: ['dashboard', { speed: 'number', mode: 'text' }],
     24: ['stats', { 'teleplot.samples': 'number', 'teleplot.bytes': 'number' }],
     25: ['graphs', { mode: 'graph', bt: 'graph' }],
+    26: ['moments', { cycle: 'moment' }],
 };
 
 function holds(U, telem, kind) {
@@ -38,6 +39,7 @@ function holds(U, telem, kind) {
         case 'text': return has(P.SECTION_TYPE_TELEM_DATA_TEXT);
         case 'log': return has(P.SECTION_TYPE_TELEM_DATA_TEXT) && telem.getAttribute(P.TELEM_ATTR_LOG) === true;
         case 'stack': return has(P.SECTION_TYPE_TELEM_DATA_TEXT) && telem.getAttribute(P.TELEM_ATTR_STACK) === true;
+        case 'moment': return has(P.SECTION_TYPE_TELEM_DATA_TEXT) && telem.getAttribute(P.TELEM_ATTR_MOMENT) === true && telem.getAttribute(P.TELEM_ATTR_STACK) === true;
         case 'xy': return has(P.SECTION_TYPE_TELEM_DATA_NUMBER_2D);
         case 'xyz': return has(P.SECTION_TYPE_TELEM_DATA_NUMBER_3D);
         case 'shape': return telem.getAttribute(P.TELEM_ATTR_SHAPE) !== undefined;

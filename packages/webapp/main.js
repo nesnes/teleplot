@@ -21,6 +21,7 @@ var app = Vue.createApp({
                 bandVisible: false, // The band above the dashboard (room for the top menu) is scrolled into view
                 activeDashboard: null,
                 timeGroup: "",  // The time group the time line of the top menu, Space and Esc act on ("": the dashboard's own, see doc/time.md)
+                exportMoment: null, // A moment to export: the Export panel takes it
                 droppedFiles: null // Files dropped on the page, waiting for the Export panel to take them
             }),
             editor: null,

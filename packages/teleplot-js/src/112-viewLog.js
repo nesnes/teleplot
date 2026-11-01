@@ -19,6 +19,8 @@ class ViewLog extends ViewTelemetries{
         this.options.displayTelemetryName = true;  // Show the telemetry name of each line (only when several telemetries are displayed)
         this.options.displayTelemetryColor = true; // Color mark of each line (only when several telemetries are displayed)
         this.options.maxLines = 500;               // Maximum number of lines displayed
+        this.options.moments = "show";             // The mark of the moments beside the lines while the group is not live: "show" or "hide"
+        this.showsPeriod = true;                   // (no tag of the moment shown: its mark says it)
 
         this.layout.width = 2;
         this.layout.height = 4;
@@ -28,7 +30,9 @@ class ViewLog extends ViewTelemetries{
             rows: TELEPLOT.Vue.markRaw([]), // [{t, time, text, color, name}], replaced as a whole (not reactive in depth)
             hidden: 0,                      // Number of lines of the window not displayed (older than maxLines)
             multi: false,                   // Several telemetries: lines show which one they come from
-            cursorIndex: -1                 // Line closest to the group cursor
+            cursorIndex: -1,                // Line closest to the group cursor
+            marked: false,                  // The lines are marked with their moment (the group is not live)
+            overMoment: TELEPLOT.Vue.markRaw({ moment: undefined }) // The moment under the pointer, as a whole object: replaced to redraw
         });
         this.lastKey = "";
         this.followLatest = true; // Is the view scrolled to the bottom ?
@@ -59,7 +63,11 @@ class ViewLog extends ViewTelemetries{
                 onScroll(event) { self.followLatest = ViewLog.isAtBottom(event.target); },
                 onRowEnter(row) { self.hoverRow(row); },
                 onRowClick(row) { TELEPLOT.view.seek(self.group, row.t); }, // Held at that line
-                onLeave() { self.hoverEnd(); }
+                onLeave() { self.hoverEnd(); },
+                onMomentOver(row) { self.state.overMoment = TELEPLOT.Vue.markRaw({ moment: row ? row.moment : undefined }); },
+                onMomentClick(row) { TELEPLOT.view.showMoment(self.group, row.moment); },
+                momentPath(row) { return TELEPLOT.moments.pathText(row.moment); },
+                momentName(row) { return TELEPLOT.moments.label(row.moment) + " " + TELEPLOT.moments.mark(row.moment); },
             },
             template: ViewLog.vueHTML,
         });
@@ -124,6 +132,7 @@ class ViewLog extends ViewTelemetries{
             { key: "displayTelemetryName", label: "Telemetry names", type: "bool" },
             { key: "displayTelemetryColor", label: "Telemetry colors", type: "bool" },
             { key: "maxLines", label: "Max lines", type: "int", min: 10, max: 100000, step: 100 },
+            { key: "moments", label: "Moments", type: "choice", choices: [["show", "Shown"], ["hide", "Hidden"]] },
         ];
     }
 
@@ -144,11 +153,36 @@ class ViewLog extends ViewTelemetries{
             sources.push({ telem, entry });
             key += `|${telem.id}:${entry.lastUpdate}:${entry.timestamps.length}`;
         }
+        let moments = this.momentSource();
+        if(moments) key += `|moments:${moments.id}:${TELEPLOT.moments.of(moments).count}`;
         if (key != this.lastKey) {
             this.lastKey = key;
             this.rebuildRows(sources, range, maxLines);
+            this.markRows(moments, range);
         }
         this.updateCursor();
+    }
+
+    // The telemetry whose moments mark the lines: while the group is not live
+    momentSource() {
+        if(TELEPLOT.view.isLive(this.group) || this.getOption("moments") === "hide") return undefined;
+        return TELEPLOT.moments.primaryOf(TELEPLOT.moments.forView(this));
+    }
+
+    // Each line gets the moment it was written in, at the level the line of the moments shows for the same period. The first line of a
+    // moment gets a rule above it and its name.
+    markRows(telem, range) {
+        let rows = this.state.rows, previous = undefined;
+        this.state.marked = telem !== undefined;
+        if(telem === undefined) return;
+        let depth = TELEPLOT.moments.restLevel(telem, range ? range.from : undefined, range ? range.to : undefined);
+        for(let row of rows) {
+            let moment = TELEPLOT.moments.at(row.t, telem);
+            while(moment && moment.depth > depth) moment = moment.parent;
+            row.moment = moment;
+            row.momentFirst = moment !== undefined && moment !== previous;
+            previous = moment;
+        }
     }
 
     rebuildRows(sources, range, maxLines) {
@@ -243,9 +277,11 @@ class ViewLog extends ViewTelemetries{
           <div class="teleplot-js-log-scroll" @scroll="onScroll($event)">
             <div v-if="state.hidden > 0" class="teleplot-js-log-hidden">&hellip; {{state.hidden}} older line{{state.hidden > 1 ? 's' : ''}} not shown</div>
             <div v-for="(row, index) in state.rows" v-bind:key="index" class="teleplot-js-log-row"
-                v-bind:class="{'teleplot-js-log-row-cursor': index == state.cursorIndex, 'teleplot-js-log-row-warn': row.level == 1, 'teleplot-js-log-row-error': row.level == 2, 'teleplot-js-log-row-ok': row.level == 3}"
+                v-bind:class="{'teleplot-js-log-row-boundary': state.marked && row.momentFirst, 'teleplot-js-log-row-faded': state.overMoment.moment && row.moment !== state.overMoment.moment, 'teleplot-js-log-row-cursor': index == state.cursorIndex, 'teleplot-js-log-row-warn': row.level == 1, 'teleplot-js-log-row-error': row.level == 2, 'teleplot-js-log-row-ok': row.level == 3}"
                 v-bind:style="state.multi && options.displayTelemetryColor ? {'border-left-color': row.color} : {}"
                 v-bind:title="row.text" @mouseenter="onRowEnter(row)" @click="onRowClick(row)">
+                <button v-if="state.marked && row.momentFirst" type="button" class="teleplot-js-log-moment" v-bind:class="{'teleplot-js-log-moment-failed': row.moment.failed}"
+                    v-bind:title="momentPath(row)" @mouseenter="onMomentOver(row)" @mouseleave="onMomentOver()" @click.stop="onMomentClick(row)">{{momentName(row)}}</button>
                 <span v-if="options.displayTimestamp" class="teleplot-js-log-time">{{row.time}}</span>
                 <span v-if="state.multi && options.displayTelemetryName" class="teleplot-js-log-name" v-bind:title="row.tip">{{row.name}}</span>
                 <span class="teleplot-js-log-text">{{row.text}}</span>
@@ -288,6 +324,13 @@ class ViewLog extends ViewTelemetries{
                 padding: 0.1em 0.4em;
                 border-left: 3px solid transparent;
             }
+            .teleplot-js-log-row-boundary { position: relative; box-shadow: inset 0 1px 0 var(--teleplot-muted); }
+            .teleplot-js-log-moment {
+                position: absolute; top: 0; right: 0; z-index: 1; padding: 0 0.5em; border: 0; border-radius: 0 0 0 0.4em; cursor: pointer;
+                font: inherit; font-size: 0.9em; color: var(--teleplot-surface); background: var(--teleplot-muted);
+            }
+            .teleplot-js-log-moment-failed { background: var(--teleplot-error); }
+            .teleplot-js-log-row-faded { opacity: 0.4; }
             .teleplot-js-log-row-cursor {
                 background-color: rgba(0, 126, 255, 0.25);
             }

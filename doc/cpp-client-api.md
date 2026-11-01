@@ -79,6 +79,8 @@ tp.log("events", "docked at station 2");    // a log line (the "log" attribute i
 tp.log("battery low");                      // without a name: the telemetry "log"
 tp.stack("robot.task", "loop/plan/search"); // a stack: what runs, drawn on a timeline
 tp.stack("robot.task", "");                 // nothing runs
+tp.telemetry("cycle").moment();             // a stack of moments: periods to step through, replay and export (doc/moments.md)
+tp.stack("cycle", "run 7/pick#41=ok");      // "#41" numbers it, "=ok" ends it with its result
 
 void loop()   { Teleplot::Stack level(tp, "robot.task", "loop");   plan(); }
 void plan()   { Teleplot::Stack level(tp, "robot.task", "plan");   search(); }   // "loop/plan" when called from loop()
@@ -467,7 +469,7 @@ Outputs, as many as wanted: `udp(host, port)` (none given: `udp("127.0.0.1", 472
 
 | Group | Calls |
 | --- | --- |
-| Describe | `unit(text)`, `color(text)`, `label(text)` (a path places it: `Robot/Motion`), `desc(text)`, `range(min, max)`, `min(v)`, `max(v)`, `autoplot(bool)`, `timeout(Time)`, `log()`, `stack()`, `frame(name)`, `pixelsOf(name)`, `depthMap(scale[, noData])` / `pixelValues(scale[, noData])` (pictures of numbers: a pixel is worth number x scale; `noData` 0 by default, `NAN`: none; a depth map is placed in 3D views, other values are not) |
+| Describe | `unit(text)`, `color(text)`, `label(text)` (a path places it: `Robot/Motion`), `desc(text)`, `range(min, max)`, `min(v)`, `max(v)`, `autoplot(bool)`, `timeout(Time)`, `log()`, `stack()`, `moment()`, `frame(name)`, `pixelsOf(name)`, `depthMap(scale[, noData])` / `pixelValues(scale[, noData])` (pictures of numbers: a pixel is worth number x scale; `noData` 0 by default, `NAN`: none; a depth map is placed in 3D views, other values are not) |
 | Sending | `maxRate(hz)` (0: all), `precise()` (float64), `nonBlocking([bool])` (full; default from `Options`) |
 | Limits | `threshold(name, Below \| Above, value[, color])`, `removeThreshold(name)` (samples: from their time on) |
 | Structure | `enumValues(list)` (states, nodes: paths, `#kind`; the choices of a setting), `edges(list)` (`from>to=event`): samples from their time on, [`graph.md`](graph.md) |

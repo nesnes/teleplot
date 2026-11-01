@@ -138,6 +138,7 @@ test('each tile shows what it says by itself, on a fresh page: it never needs wh
         timeline: ['Live: current-value[](mode)', 'Robot: timeline[States](mode)'],
         marks: ['Live: chart[](velocity) current-value[](mode)', 'Robot: chart[Drive](velocity,mode)'],
         stack: ['Live: timeline[](task)'],
+        moments: ['Live: timeline[](cycle)'],
         statemachine: ['Live: graph[](mode) timeline[](mode)'],
         behaviortree: ['Live: graph[](bt) timeline[](bt)'],
         trail: ['Live: 2d[](position)'],

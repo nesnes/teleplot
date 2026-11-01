@@ -525,6 +525,35 @@
     });
 
     // ====================================================================================================================== Layouts
+    section("Moments", "Periods a device declares (doc/moments.md): a stack with the mom flag, numbered with # and ended with =result. Hold a view of the group: a line shows them at the bottom of its chart and beside the lines of its log. Point at the line to open it, click a moment to show it.");
+    data("Moments", "mo.cycle: a run of picks with their phases, one in five failing; mo.vision: jobs running at the same time; mo.value and mo.log: what happens meanwhile.", () => {
+      let pick = 0, step = 0;
+      setInterval(() => {
+        if (step == 0) pick++;
+        const path = "run 1/pick#" + pick;
+        Teleplot.parseDataText("mo.cycle:" + path + (step == 0 ? "/approach" : step == 1 ? "/grip" : pick % 5 == 0 ? "=failed" : "=ok") + "|mom");
+        if (step == 1) Teleplot.parseDataText("mo.log:gripping " + pick + "|log");
+        if (step == 2) Teleplot.parseDataText("mo.vision:detect#" + pick + (pick % 2 ? ",ocr#" + pick : "") + "|mom");
+        step = (step + 1) % 3;
+      }, 400);
+      setInterval(() => Teleplot.parseDataText("mo.value:" + Math.sin(performance.now() / 300)), 50);
+    });
+    demo("The line of a chart", "Live: nothing. Click the chart to hold it: a thin line at its very bottom. Point at it: every track opens over the plot, the curve does not move. Click a moment: the window goes to it.", [600, 200], (id) => {
+      new Teleplot.view.ViewChart(id, ["mo.value"], "moments");
+    });
+    demo("A log of the same group", "While the group is held, a mark beside the lines, cut per moment, red when it failed.", [600, 200], (id) => {
+      new Teleplot.view.ViewLog(id, ["mo.log"], "moments");
+    });
+    demo("Replay of a moment", "Holds the group on the latest moment that ended and replays it, which stops at its end.", [600, 120], (id) => {
+      const replay = () => {
+        const telem = Teleplot.moments.telemetries()[0];
+        const done = telem && Teleplot.moments.level(telem, Teleplot.moments.restLevel(telem)).filter((m) => m.to !== undefined).pop();
+        if (done) { Teleplot.view.showMoment("moments", done); Teleplot.view.play("moments"); }
+      };
+      document.getElementById(id).innerHTML = "<button>Replay the last moment</button>";
+      document.getElementById(id).querySelector("button").onclick = replay;
+    });
+
     section("Graphs: state machines and behavior trees", "A state or a stack with a structure (doc/graph.md): an enum sample gives its nodes (paths, a slash between levels, an optional #kind), an edges sample its transitions (from>to=event). Samples with the same time are parts of one structure; a newer time is a whole new one. What runs is the text of the telemetry: a stack can hold several paths at once, each with a status (path=failure). ViewGraph draws the structure in force at the time shown and what runs in it; the timeline draws the same stack by branches.");
 
     data("A state machine, a behavior tree, parallel states", "g.mode moves through idle, mission/goto, mission/grasp, sometimes dock or error, every 1.5 s or so, with its edges. g.bt ticks 4 times per second: a fallback over a sequence (a battery check, then go to the waypoint) and dock; the check fails one tick in six, so the sequence fails and the fallback docks. g.par runs two regions at once (nav and arm), without a structure.", () => {

@@ -272,7 +272,7 @@ test('options schema describes what a form can edit', () => {
     assert.ok(keys(new T.view.ViewChart('', [])).includes('decimation'));
     assert.ok(keys(new T.view.ViewLog('', [])).includes('maxLines'));
     assert.ok(keys(new T.view.ViewCurrentValue('', [])).includes('displayLayoutRow'));
-    for (const o of new T.view.ViewLog('', []).getOptionsSchema()) assert.ok(['bool', 'int'].includes(o.type));
+    for (const o of new T.view.ViewLog('', []).getOptionsSchema()) assert.ok(['bool', 'int', 'choice'].includes(o.type));
 });
 
 // ---- look: appearance, top color, empty states, time axis, theme

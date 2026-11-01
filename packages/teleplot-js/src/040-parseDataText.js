@@ -120,7 +120,8 @@ function _parseDataText_parseVariablesData(msg, now)
     let flags = msg.substr(endIdx+1);
     if(/\b(enum|edges)\b/.test(flags)) return _parseDataText_parseStructure(msg, now); // The structure of the telemetry (doc/graph.md)
     let isLog = flags.includes("log"); // Text emitted as a log (a Log view by default); "t": text emitted as a state (a value by default)
-    let isStack = flags.includes("stack"); // Text that is a stack: the path of what is running ("loop/plan/search"), still a state
+    let isMoment = flags.includes("mom"); // A stack whose nodes are moments: periods the device declares (doc/moments.md)
+    let isStack = flags.includes("stack") || isMoment; // Text that is a stack: the path of what is running ("loop/plan/search"), still a state
     let isTextFormatTelem = isLog || isStack || flags.includes('t');
     if(flags.includes("pc")) return _parseDataText_parsePointCloud(msg, now); // A point cloud: all the points are one sample
     let isXYZ = flags.includes("xyz");
@@ -210,6 +211,7 @@ function _parseDataText_parseVariablesData(msg, now)
     if(widgetLabel) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL, widgetLabel); // "name,label": shown with the telemetries of the same label
     if(isTextFormatTelem && (telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG) === true) !== isLog) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_LOG, isLog); // (the last flag used tells)
     if(isTextFormatTelem && (telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK) === true) !== isStack) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK, isStack);
+    if(isTextFormatTelem && (telemetry.getAttribute(TELEPLOT.protocol.TELEM_ATTR_MOMENT) === true) !== isMoment) telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_MOMENT, isMoment);
 
     // Add Telemetry data
     if(timestampArray.length>0){

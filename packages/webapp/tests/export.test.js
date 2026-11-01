@@ -6,7 +6,36 @@ const assert = require('node:assert/strict');
 const { loadTeleplot } = require('../../teleplot-js/tests/helpers/load');
 
 const code = fs.readFileSync(path.join(__dirname, '..', 'components', 'panel-export.js'), 'utf8');
-const E = new Function('Vue', code + '\nreturn { exportFormatBytes, exportFormatCount, exportFormatDuration, exportFormatPeriod, exportFileName, exportOnScreen, exportZoom, EXPORT_FORMATS, EXPORT_SEPARATORS, EXPORT_TIMES };')({ reactive: (x) => x });
+const E = new Function('Vue', code + '\nreturn { exportDescribe, exportPickMoment, exportMomentPartial, exportMomentKey, exportFormatBytes, exportFormatCount, exportFormatDuration, exportFormatPeriod, exportFileName, exportOnScreen, exportZoom, EXPORT_FORMATS, EXPORT_SEPARATORS, EXPORT_TIMES };')({ reactive: (x) => x });
+
+test('what is inside a ticked moment is ticked with it; unticking a part unticks what holds it', () => {
+    const T = loadTeleplot();
+    for (const line of ['c:1000:run/a#1|mom', 'c:2000:run/a#1/x|mom', 'c:3000:run/a#1/y|mom', 'c:4000:run/a#2|mom', 'c:5000:|mom']) T.parseDataText(line);
+    const all = T.moments.of(T.datastore.getTelemetry('c')).moments, by = (name) => all.find((m) => m.name === name);
+    const picked = {};
+    E.exportPickMoment(picked, by('a#1'), true);
+    assert.deepEqual(Object.values(picked).map((m) => m.name).sort(), ['a#1', 'x', 'y']);
+    assert.equal(E.exportMomentPartial(picked, by('run')), true, 'a part of the run');
+    assert.equal(E.exportMomentPartial(picked, by('a#1')), false);
+    E.exportPickMoment(picked, by('run'), true);
+    assert.equal(Object.keys(picked).length, 5);
+    E.exportPickMoment(picked, by('x'), false);
+    assert.deepEqual(Object.values(picked).map((m) => m.name).sort(), ['a#2', 'y']);
+    assert.equal(E.exportMomentPartial(picked, by('a#1')), true);
+    E.exportPickMoment(picked, by('run'), false);
+    assert.deepEqual(picked, {});
+});
+
+test('the recap says in words what an export holds', () => {
+    const T = loadTeleplot();
+    for (const line of ['a:1000:1', 'a:2000:2', 'a:9000:3', 'b:9000:4']) T.parseDataText(line);
+    const held = E.exportDescribe(T, 'text', { ranges: [{ from: 1, to: 2 }, { from: 1.5, to: 2 }], dashboards: ['Robot'] });
+    assert.equal(held.periods.length, 1, 'overlaps once');
+    assert.deepEqual(held.telemetries, [{ name: 'a', samples: 2 }], 'b has nothing in that period');
+    assert.deepEqual(held.dashboards, ['Robot']);
+    const all = E.exportDescribe(T, 'text', { dashboards: false });
+    assert.deepEqual([all.periods, all.telemetries.map((t) => t.name), all.dashboards], [[], ['a', 'b'], []]);
+});
 
 test('sizes, counts and durations are written for people', () => {
     assert.deepEqual([12, 4700, 45000, 1.24e6, 12e6, 2.5e9].map(E.exportFormatBytes), ['12 B', '4.7 kB', '45 kB', '1.2 MB', '12 MB', '2.5 GB']);

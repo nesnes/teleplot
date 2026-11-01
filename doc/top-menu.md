@@ -25,6 +25,8 @@ When the island has little room (a phone, docks open on both sides), it folds by
 
 ## Time line
 
+Moments (periods a device declares) are drawn on this line, which is then shown at rest too, and open into tracks with the row: see [moments.md](moments.md). `PageUp` and `PageDown` go to the previous and next moment.
+
 Spec and behaviour: [time.md](time.md) "The top menu". In short:
 
 - A line along the bottom edge of the island: the stored data of the chosen time group from its oldest sample (left) to its newest (right). It is drawn only when it has something to say (held, replaying, or a period not received in view) or while the row is open; live with nothing to say, or with no data, the island has no line. Open and live: grey with a red dot at the newest end. Held: blue up to a knob at the moment shown, the data after it in grey. Replay: the same in purple. Periods not received: hatched amber. A long period without any data (an old file next to live data) is folded to a notch.

@@ -72,6 +72,8 @@ refRow("stackStatus", "status", "name:path=status|stack", "tp.stack(\"name\", \"
 refRow("stackMany", "at once", "name:a/b,c/d|stack", "tp.stack(\"name\", \"a/b,c/d\")", "", "Several paths at once, separated by commas.", "", { ex: refEx("task:nav/follow,arm/idle|stack", "tp.stack(\"task\", \"nav/follow,arm/idle\");") });
 refRow("stackParts", "parts of a tick", "name:time:path|stack", "tp.stack(\"name\", \"path\", Teleplot::ms(t))", "", "Lines with the same time (yours) are parts of one sample: a tick too long for one message.", "the same time on each part",
     { ex: refEx("task:{now}.25:loop/plan|stack", "tp.stack(\"task\", \"loop/plan\", Teleplot::ms({now}.25));") });
+refRow("momentKind", "a moment", "name:path|mom", ".moment()", "a stack", "Makes a stack a set of moments: periods the page can step through, replay and export.", "number each one with #42, end it with =ok or =failed",
+    { ex: refEx("cycle:run 7/pick#41|mom", "tp.telemetry(\"cycle\").moment();\ntp.stack(\"cycle\", \"run 7/pick#41\");") });
 refRow("stackLevel", "a level while it lives", null, "Teleplot::Stack(tp, \"name\", \"level\")", "", "A level pushed when the object is made, popped when it ends (other threads: name.thread).", "", { py: "with Teleplot.Stack(tp, \"name\", \"level\"):", note: "Clients only: the text protocol sends the paths (stack row)." });
 refRow("oneThread", "one thread", null, ".oneThread()", "named per thread", "A stack used from one thread only: no thread names.", "");
 refRow("enum", "states, nodes", "name:a,b/c#kind|enum", ".enumValues({\"a\", \"b/c#kind\"})", "", "The structure of a graph: its states or nodes, a path each (b/c: c inside b). Also the texts a setting can take.", "paths separated by commas; same time = parts of one; a newer time replaces it",
@@ -244,7 +246,7 @@ const REF_THINGS = [
     { id: "point3d", family: "telemetries", title: "3D point", sub: "a point in space, its trail", rows: ["xyz", "time", "label", "pointFrame", "np", "clr"] },
     { id: "state", family: "telemetries", title: "State", sub: "a text whose latest value matters", rows: ["state", "emptyState", "time", "choices", "label"] },
     { id: "log", family: "telemetries", title: "Log", sub: "lines to read in order", rows: ["log", "logLine", "logKind", "time", "label"] },
-    { id: "stack", family: "telemetries", title: "Stack", sub: "what runs, as a path", rows: ["stack", "stackStatus", "stackMany", "stackParts", "stackKind", "stackLevel", "oneThread"] },
+    { id: "stack", family: "telemetries", title: "Stack", sub: "what runs, as a path", rows: ["stack", "stackStatus", "stackMany", "stackParts", "stackKind", "momentKind", "stackLevel", "oneThread"] },
     { id: "graph", family: "telemetries", title: "Graph structure", sub: "states, nodes, transitions", rows: ["enum", "kind", "edges", "stackStatus", "escape"] },
     { id: "picture", family: "telemetries", title: "Picture", sub: "PNG or JPEG", rows: ["png", "jpg", "parts", "time", "label", "intrinsics", "imageCall"] },
     { id: "depthmap", family: "telemetries", title: "Depth map", sub: "a picture of values", rows: ["raw", "scale", "nodata", "depth", "unit.attr", "intrinsics"] },
@@ -333,6 +335,7 @@ const REF_OPTIONS = {
     displayScale: "The ends of the range and the names of the limits under the bar.",
     displayTimestamp: "The time of each line is written.",
     maxLines: "The lines kept on screen (the data window keeps the samples).",
+    moments: "Moments while the time is not live: a thin line under a chart, a mark beside the lines of a log.",
     stackDepth: "Levels of a stack drawn as full rows; deeper ones get thinner rows (0: no limit).",
     numbers: "Auto: a number is a line (bands when it has limits); As text: its values as states.",
     trail: "The recent path is drawn: where it went before reaching the current state.",

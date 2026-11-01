@@ -46,7 +46,7 @@ _CALL_ID_SETTING = 0xFFFF
 _FILE_MAGIC = bytes([0x54, 0x50, 0x4C, 0x54, 0x0A, 0x01, 0x00, 0x00])
 
 (A_NAME, A_UNIT, A_COLOR, A_AUTOPLOT, A_TIMEOUT, A_SHAPE, A_LABEL, A_LOG, A_FRAME, A_RANGE, A_STACK, A_WRITE, _A_RETIRED, A_ARGS,
- A_DESC, A_TITLE, A_PIXELS) = range(17)  # (12: retired, the texts a setting can take are an enum structure: S_ENUM)
+ A_DESC, A_TITLE, A_PIXELS, A_MOMENT) = range(18)  # (12: retired, the texts a setting can take are an enum structure: S_ENUM)
 S_CLIENT_NAME, S_DASHBOARD, S_ATTR = 1, 2, 10
 (S_NUMBER, S_NUMBER_2D, S_NUMBER_3D, S_TEXT, S_IMAGE, S_POSITION, S_ROTATION, S_QUATERNION, S_COLOR_STR, S_COLOR_RGB, S_OPACITY,
  S_SIZE, S_TEXTURE, S_INTRINSICS, S_DISTORTION, S_CLOUD, S_FLOAT64, S_VECTOR, S_SHAPE_TEXT, S_LINE_WIDTH, S_THRESHOLD, S_CALL,
@@ -602,6 +602,8 @@ class Teleplot:
             entry.log = bool(value)
         if code == A_STACK:
             entry.stack = bool(value)
+        if code == A_MOMENT:
+            entry.moment = bool(value)
 
     def _lock_for(self, entry):
         non_blocking = entry.non_blocking if entry.non_blocking is not None else self._options["nonBlocking"]
@@ -716,7 +718,7 @@ class Teleplot:
     def _attr_bytes(self, code, value):
         if code in (A_NAME, A_UNIT, A_COLOR, A_LABEL, A_DESC, A_TITLE):
             return _cstr(str(value)[:_MAX_ATTR_TEXT])
-        if code in (A_AUTOPLOT, A_LOG, A_STACK):
+        if code in (A_AUTOPLOT, A_LOG, A_STACK, A_MOMENT):
             return bytes([1 if value else 0])
         if code == A_TIMEOUT:
             return struct.pack("<Q", max(0, int(value)))
@@ -960,7 +962,7 @@ class Teleplot:
             if len(text.encode()) > _MAX_TEXT:
                 self._stats["tooBig"] += 1
                 text = text.encode()[:_MAX_TEXT].decode(errors="ignore")
-            self._line("%s:%s:%s%s" % (self._text_head(entry), t, text, self._text_flags(entry, "log" if entry.log else "stack" if entry.stack else "t")))
+            self._line("%s:%s:%s%s" % (self._text_head(entry), t, text, self._text_flags(entry, "log" if entry.log else "mom" if entry.moment else "stack" if entry.stack else "t")))
         elif kind in (S_ENUM, S_EDGES):  # name:time:item,item|enum (or |edges), the items as given ("," ";" "|" in them as %XX)
             items = ",".join(_escape(item, ",;|\r") for item in str(values[0]).split("\n"))
             self._line("%s:%s:%s%s" % (self._text_head(entry), t, items, self._text_flags(entry, "edges" if kind == S_EDGES else "enum")))
@@ -1264,7 +1266,7 @@ _thread_names = threading.local()
 
 class _Entry:
     __slots__ = ("name", "id", "attrs", "args", "text_args", "items", "dirty", "attr_cursor", "attrs_sent_ms", "is_shape", "shape_type",
-                 "log", "stack", "precise", "max_rate", "non_blocking", "one_thread", "owner", "stack_path", "queues", "latched", "structures", "last_stack_ns",
+                 "log", "stack", "moment", "precise", "max_rate", "non_blocking", "one_thread", "owner", "stack_path", "queues", "latched", "structures", "last_stack_ns",
                  "last_kept", "range")
 
     def __init__(self, name):
@@ -1272,6 +1274,7 @@ class _Entry:
         self.attrs, self.args, self.text_args, self.items = {}, [], [], []
         self.dirty, self.attr_cursor, self.attrs_sent_ms = True, 0, -10 ** 12
         self.is_shape, self.shape_type, self.log, self.stack, self.precise = False, None, False, False, False
+        self.moment = False
         self.max_rate, self.non_blocking, self.one_thread, self.owner = 0.0, None, False, None
         self.stack_path, self.queues, self.latched, self.last_kept = "", {}, {}, {}
         self.structures, self.last_stack_ns = {}, None  # (the structure sent last, by kind; the time of the last sample of its stack)
@@ -1415,6 +1418,11 @@ class _Describe:
 
     def stack(self, v=True):
         return self._do(lambda e: self._tp._attr(e, A_STACK, bool(v)))
+
+    def moment(self, v=True):
+        """A stack whose nodes are moments: periods the page can step through, replay and export"""
+        self.stack(v)
+        return self._do(lambda e: self._tp._attr(e, A_MOMENT, bool(v)))
 
     def frame(self, name):
         return self._do(lambda e: self._tp._attr(e, A_FRAME, (0, str(name))))

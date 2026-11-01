@@ -267,7 +267,8 @@ public:
         Self& autoplot(bool v) { return flag_(NP_, !v); }
         Self& log(bool v = true) { return flag_(LOG_, v); }
         Self& stack(bool v = true) { return flag_(STACK_, v); }
-        Self& frame(const char* name) { if (Entry_* e = entry_()) { e->frame = name; e->flags &= static_cast<uint8_t>(~PIXELS_); tp_->shapeLine_(*this, "F", name); } return self_(); }
+        Self& moment(bool v = true) { return flag_(MOMENT_, v); } // A stack whose nodes are moments
+        Self& frame(const char* name) { if (Entry_* e = entry_()) { e->frame = name; e->flags &= static_cast<uint16_t>(~PIXELS_); tp_->shapeLine_(*this, "F", name); } return self_(); }
         Self& pixelsOf(const char* image) { if (Entry_* e = entry_()) { e->frame = image; e->flags |= PIXELS_; tp_->shapeLine_(*this, "FPX", image); } return self_(); }
         Self& shape(ShapeType type) { if (Entry_* e = entry_()) { e->shape = type; e->flags |= SHAPE_; e->url = 0; } tp_->shapeLine_(*this, "S", shapeName_(type)); return self_(); }
         Self& stl(const char* url) { if (Entry_* e = entry_()) { e->shape = Stl; e->flags |= SHAPE_; e->url = url; } tp_->shapeLine_(*this, "S", "stl", "U", url); return self_(); }
@@ -284,7 +285,7 @@ public:
         Self& self_() { return static_cast<Self&>(*this); }
         Entry_* entry_() { return index_ >= 0 ? &tp_->entries_[index_] : 0; }
         Self& pixels_(uint8_t kind, double scale, double noData) { if (Entry_* e = entry_()) { e->pixels = kind; e->pixelScale = static_cast<float>(scale); e->pixelNoData = static_cast<float>(noData); e->dirty = true; } return self_(); }
-        Self& flag_(uint8_t bit, bool v) { if (Entry_* e = entry_()) { if (v) { e->flags |= bit; } else { e->flags &= static_cast<uint8_t>(~bit); } } return self_(); }
+        Self& flag_(uint16_t bit, bool v) { if (Entry_* e = entry_()) { if (v) { e->flags |= bit; } else { e->flags &= static_cast<uint16_t>(~bit); } } return self_(); }
         friend class Teleplot;
         Teleplot* tp_;
         const char* name_;
@@ -561,7 +562,7 @@ public:
 
 private:
     // ------------------------------------------------------------------ State
-    enum : uint8_t { HAS_MIN_ = 1, HAS_MAX_ = 2, NP_ = 4, LOG_ = 8, STACK_ = 16, PIXELS_ = 32, PRECISE_ = 64, SHAPE_ = 128 };
+    enum : uint16_t { HAS_MIN_ = 1, HAS_MAX_ = 2, NP_ = 4, LOG_ = 8, STACK_ = 16, PIXELS_ = 32, PRECISE_ = 64, SHAPE_ = 128, MOMENT_ = 256 };
     static const uint8_t NO_SHAPE_ = 0xFF; // (a telemetry with a position is drawn, but has no shape type unless it was given one)
     enum : uint8_t { POS_ = 1, ROT_ = 2, QUAT_ = 4, SIZE_ = 8, FILL_ = 16, K_ = 32, DC_ = 64 };
     struct Entry_ {
@@ -576,7 +577,8 @@ private:
         uint8_t pixels;         // 1: a depth map, 2: values (pictures of numbers)
         float pixelScale, pixelNoData;
         uint32_t minGapUs, lastUs;
-        uint8_t flags, shape;  // shape: its type, NO_SHAPE_ when not given
+        uint16_t flags;
+        uint8_t shape;  // shape: its type, NO_SHAPE_ when not given
         bool dirty, sent;
 #if TELEPLOT_RESEND
         uint8_t latched;       // what is kept to be sent again (POS_...)
@@ -787,7 +789,7 @@ private:
         Entry_* e = s.entry_();
         head_(s);
         textValue_(v);
-        flags_(e, e && (e->flags & LOG_) ? "log" : e && (e->flags & STACK_) ? "stack" : "t");
+        flags_(e, e && (e->flags & LOG_) ? "log" : e && (e->flags & MOMENT_) ? "mom" : e && (e->flags & STACK_) ? "stack" : "t");
     }
     template<class S> void xy_(S& s, double x, double y, double z, bool three) { // x:y[:z]:time
         if (!begin_(s)) { return; }
@@ -804,7 +806,7 @@ private:
     }
     void logAt_(const char* name, const char* text, bool timed, Time t) {
         int8_t i = entry_(name, true);
-        if (i >= 0) { entries_[i].flags = static_cast<uint8_t>((entries_[i].flags | LOG_) & ~STACK_); }
+        if (i >= 0) { entries_[i].flags = static_cast<uint16_t>((entries_[i].flags | LOG_) & ~STACK_); }
         Samples s(this, name, i, timed, t);
         if (i < 0) { if (!begin_(s)) { return; } head_(s); textValue_(text); flags_(0, "log"); return; }
         text_(s, text);
@@ -1081,7 +1083,7 @@ private:
         stacks_[stackCount_].path[0] = 0;
         stacks_[stackCount_].last = Time(INT64_MIN / 2);
         int8_t e = entry_(name, true);
-        if (e >= 0) { entries_[e].flags = static_cast<uint8_t>((entries_[e].flags | STACK_) & ~LOG_); }
+        if (e >= 0) { entries_[e].flags = static_cast<uint16_t>((entries_[e].flags | STACK_) & ~LOG_); }
         return static_cast<int8_t>(stackCount_++);
     }
     void sendStack_(int8_t slot, bool timed, Time t) {

@@ -71,6 +71,7 @@ depending on the network.
 | `t` | a text that is a state |
 | `log` | a text that is a log |
 | `stack` | a text that is the path of what runs (several at once separated by `,`, each with an optional `=status`) |
+| `mom` | a stack whose levels are moments: periods to step through, replay and export (see [moments.md](moments.md)) |
 | `enum` | the states or nodes of a telemetry, or the texts a setting can take (its structure: see "Graphs") |
 | `edges` | the transitions of a state machine (see "Graphs") |
 | `np` | no plot: teleplot does not display it by itself |
@@ -149,6 +150,15 @@ Text telemetries can also be seen along the time: as bands in a **timeline** vie
 chart they are added to. Both are views you ask for (edit mode, or a `DASH|` line): see [`time-views.md`](time-views.md).
 
 ### Graphs: state machines and behavior trees
+
+A stack can be a set of **moments**, with the `mom` flag: a cycle, an operation, a phase. `#` numbers each occurrence, `=` gives the
+result and ends the moment. See [moments.md](moments.md).
+
+```
+cycle:run 7/pick#41|mom
+cycle:run 7/pick#41/grip|mom
+cycle:run 7/pick#41=ok|mom
+```
 
 A state or a stack can have a **structure**: its states or nodes (`|enum`: paths, a slash between levels, an optional `#kind` at the
 end of one) and its transitions (`|edges`: `from>to` or `from>to=event`). A graph view draws it, and what runs in it. A structure is

@@ -87,6 +87,7 @@ What runs, as a path.
 | at once | `name:a/b,c/d\|stack` | `tp.stack("name", "a/b,c/d")` | `tp.stack("name", "a/b,c/d")` |  | Several paths at once, separated by commas. |
 | parts of a tick | `name:time:path\|stack` | `tp.stack("name", "path", Teleplot::ms(t))` | `tp.stack("name", "path", Teleplot.ms(t))` |  | Lines with the same time (yours) are parts of one sample: a tick too long for one message. Values: the same time on each part. |
 | a stack | `name:path\|stack` | `.stack()` | `.stack()` | a state | Makes a text telemetry a stack without sending a path. |
+| a moment | `name:path\|mom` | `.moment()` | `.moment()` | a stack | Makes a stack a set of moments: periods the page can step through, replay and export. Values: number each one with #42, end it with =ok or =failed. |
 | a level while it lives | — | `Teleplot::Stack(tp, "name", "level")` | `with Teleplot.Stack(tp, "name", "level"):` |  | A level pushed when the object is made, popped when it ends (other threads: name.thread). Clients only: the text protocol sends the paths (stack row). |
 | one thread | — | `.oneThread()` | `.oneThread()` | named per thread | A stack used from one thread only: no thread names. |
 
@@ -555,6 +556,7 @@ Drag: zoom (the views of its time group follow) · double click: back to live ·
 | decimation | `\|decimation=` | `\|decimation=` | `\|decimation=` | true | Draws the lowest and highest sample of each pixel instead of every sample: fast with millions of samples, nothing hidden. Values: true or false. |
 | thresholds | `\|thresholds=` | `\|thresholds=` | `\|thresholds=` | fit | In view: the scale includes the limits; If in view: drawn when the scale reaches them; Hidden. Values: fit (In view), show (If in view), hide (Hidden). |
 | scale | `\|scale=` | `\|scale=` | `\|scale=` | auto | Auto: the scale fits what is drawn; Range: the range of the telemetries (ATTR min max). Values: auto (Auto), range (Range). |
+| moments | `\|moments=` | `\|moments=` | `\|moments=` | show | Moments while the time is not live: a thin line under a chart, a mark beside the lines of a log. Values: show (Shown), hide (Hidden). |
 | width | `\|w=4` | — | — | 2 (a chart), 1 (values) | Columns of a grid, a share of a row. Values: a whole number. |
 | height | `\|h=3` | — | — | what it needs | Steps of 4 em (a share of a column). Values: a whole number. |
 | title | `\|title=…` | — | — | the last name of the path | The text in the corner. Values: title= empty: none. |
@@ -601,6 +603,7 @@ Follows the time of its group: pointing at a chart shows the line of that moment
 | telemetry names | `\|displayTelemetryName=` | `\|displayTelemetryName=` | `\|displayTelemetryName=` | true | The name of each telemetry is written. Values: true or false. |
 | telemetry colors | `\|displayTelemetryColor=` | `\|displayTelemetryColor=` | `\|displayTelemetryColor=` | true | The color of each telemetry is shown. Values: true or false. |
 | max lines | `\|maxLines=` | `\|maxLines=` | `\|maxLines=` | 500 | The lines kept on screen (the data window keeps the samples). Values: from 10 to 100000. |
+| moments | `\|moments=` | `\|moments=` | `\|moments=` | show | Moments while the time is not live: a thin line under a chart, a mark beside the lines of a log. Values: show (Shown), hide (Hidden). |
 | width | `\|w=4` | — | — | 2 (a chart), 1 (values) | Columns of a grid, a share of a row. Values: a whole number. |
 | height | `\|h=3` | — | — | what it needs | Steps of 4 em (a share of a column). Values: a whole number. |
 | title | `\|title=…` | — | — | the last name of the path | The text in the corner. Values: title= empty: none. |

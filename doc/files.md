@@ -105,7 +105,7 @@ Opening a CSV: the first line names the columns. One column is the time (the one
 | `TELEPLOT.files.createImport(options)` | reads a file in pieces: `add(piece)` for each, in order (cut anywhere), then `finish()` |
 | `TELEPLOT.files.isBinary(bytes)` | whether bytes start a binary file |
 
-Export options: `telemetries` (ids or names; default: all), `from`, `to` (timestamps in seconds, limits included; default: everything), `dashboards` (`true`: all, the default; `false`; or names).
+Export options: `telemetries` (ids or names; default: all), `from`, `to` (timestamps in seconds, limits included; default: everything), `ranges` (`[{from, to}]`: several periods, moments for instance, those that overlap written once: see [moments.md](moments.md)), `dashboards` (`true`: all, the default; `false`; or names).
 
 Export options, CSV only: `layout`, `separator`, `time` (see CSV).
 

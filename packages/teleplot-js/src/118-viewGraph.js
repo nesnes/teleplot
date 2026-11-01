@@ -429,7 +429,8 @@ class ViewGraph extends ViewTelemetries {
         });
         listen(canvas, "wheel", (event) => {
             event.preventDefault();
-            let at = position(event), factor = Math.exp(-event.deltaY * 0.0015);
+            let unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 300 : 1; // (a trackpad pinch comes as small steps with Ctrl)
+            let at = position(event), factor = Math.exp(-event.deltaY * unit * (event.ctrlKey ? 0.012 : 0.004));
             let zoom = Math.max(0.15, Math.min(4, this.camera.zoom * factor));
             factor = zoom / this.camera.zoom;
             this.camera.x = at.x - (at.x - this.camera.x) * factor;

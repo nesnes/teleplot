@@ -10,6 +10,7 @@
  *   - owns(x, y): true when a finger put there belongs to the view (the page must not scroll with it).
  *   - pinch(step): two fingers (or more) moved, step = TELEPLOT.view.pinchStep(before, now) {cx, cy, dx, dy, scale, angle} and
  *     fingers (how many are down: a view may give three another meaning). Taken on the first two; a finger more or less starts again.
+ *   - swipe(dx, dy): one finger moved in a way that the page does not take (touch-action), by dx and dy px.
  *   - hint: a text shown for a moment when one finger drags over the view (the page scrolls): "Two fingers to move the map".
  * The element should have "touch-action: pan-x pan-y" (the browser scrolls with one finger, never zooms the page on the view).
  * The computations (pinchStep, isDoubleTap, pinchWindow) have no DOM and are tested.
@@ -96,6 +97,12 @@ TELEPLOT.view.touchGestures = function(element, handlers) {
         }
         if(state.owned) { if(event.cancelable) event.preventDefault(); return; }
         let tap = state.tap;
+        if(tap && handlers.swipe) {
+            let [x, y] = local(event.touches[0]);
+            if(tap.lastX !== undefined) handlers.swipe(x - tap.lastX, y - tap.lastY);
+            tap.lastX = x;
+            tap.lastY = y;
+        }
         if(tap && !tap.moved) {
             let at = local(event.touches[0]);
             if(Math.hypot(at[0] - tap.x, at[1] - tap.y) > TELEPLOT.view.TAP_SLOP) { tap.moved = true; if(!state.two) showHint(); }

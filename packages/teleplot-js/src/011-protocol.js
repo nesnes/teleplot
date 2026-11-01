@@ -21,6 +21,7 @@ TELEPLOT.protocol = {
     TELEM_ATTR_DESC: 14,      // A short description (a tooltip)
     TELEM_ATTR_TITLE: 15,     // The text of the button of an action (default: its name)
     TELEM_ATTR_PIXELS: 16,    // How the pixels of pictures of values (depth maps: 16-bit gray PNG, plain buffers) are read: {scale (value of a pixel = its number x scale, 1 by default), invalid (number of a pixel without measure, 0 by default; null: none), depth (false: not distances along the camera axis; true by default)}
+    TELEM_ATTR_MOMENT: 17,    // A stack whose nodes are moments: periods a device declares ("mom" flag in text: doc/moments.md). One byte, like TELEM_ATTR_STACK, which it goes with
     TELEM_ATTR_SHAPE_TYPE_CUBE: 0,
     TELEM_ATTR_SHAPE_TYPE_SPHERE: 1,
     TELEM_ATTR_SHAPE_TYPE_CYLINDER: 2,

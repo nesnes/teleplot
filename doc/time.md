@@ -61,6 +61,10 @@ In a view whose group is not live (held or replaying), command controls send not
 
 In `100-views.js`: `TELEPLOT.view.hold(group[, at])`, `play(group[, speed])` (from live: from the start of the window on screen), `togglePlay(group)`, `seek(group, at)`, `step(group, ±1)` (to the previous or next real sample of the telemetries of the group's views: `sampleNear`, a binary search per telemetry), `move(group, {seconds, samples})` (added up, applied on the next update), `setSpeed`, `changeSpeed(group, ±1)`, `setSpan(group, span)`, `zoomTo(group, from, to)`, `backToLive(group)` (also drops the span), `allLive(base)`, `pointerLeft(group)`, `isLive(group)`, `timeOf(group)`; `TELEPLOT.view.__updateTime()` is the hook of the update loop (`998-update.js`, before the views) that moves replays, applies moves and follows the data window. `TELEPLOT.view.lastHeld` (`{name, count}`) tells a GUI which group was last held (a click in one of its views). Constants `PLACE` (0.7), `ROOM` (0.06), `SPEEDS`.
 
+The line of the top menu and of charts is one component of the library; moments, periods a device declares, are drawn on it and can be replayed alone: see [moments.md](moments.md).
+
+The vertical axis of a chart moves its own scale, live or not: drag to move it, a trackpad pinch or Ctrl + wheel to zoom around the pointer, fingers the same. The wheel moves it too, only while not live (live, it scrolls the page). A double click on it resets that chart; Esc, a double click on the chart and back to live reset them all (`ViewChart.yZoom`, `listenToAxis`, `resetAxis`, and `TELEPLOT.view.isZoomed` counts them).
+
 ## The top menu
 
 Proposal A of the mock-ups (see [top-menu.md](top-menu.md) for the rest of the menu).

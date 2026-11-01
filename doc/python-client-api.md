@@ -64,6 +64,8 @@ tp.update("mode", "docking")                  # a text: a state
 tp.log("events", "docked at station 2")
 tp.log("battery low")                         # the telemetry "log"
 tp.stack("robot.task", "loop/plan/search")
+tp.telemetry("cycle").moment()                # a stack of moments: periods to step through, replay and export (doc/moments.md)
+tp.stack("cycle", "run 7/pick#41=ok")         # "#41" numbers it, "=ok" ends it with its result
 
 with Teleplot.Stack(tp, "robot.task", "plan"):    # "loop/plan" inside the "loop" level, "loop" again after
     search()

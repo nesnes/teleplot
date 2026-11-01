@@ -26,6 +26,29 @@ function _files_selection(options) {
     return { telemetries, dashboards, from: options.from, to: options.to };
 }
 
+// Several periods (options.ranges: [{from, to}], moments for instance), in order, those that overlap or touch as one
+TELEPLOT.files.mergeRanges = function(ranges) {
+    let merged = [];
+    for(let range of ranges.slice().sort((a, b) => a.from - b.from)) {
+        let last = merged[merged.length - 1];
+        if(last && range.from <= last.to) last.to = Math.max(last.to, range.to);
+        else merged.push({ from: range.from, to: range.to });
+    }
+    return merged;
+}
+
+// An export of several periods: one after the other in the same file (a file is what a device would have sent)
+function _files_perRange(options, exporter, binary) {
+    let total = { parts: [], samples: 0, skipped: 0 };
+    TELEPLOT.files.mergeRanges(options.ranges).forEach((range, index) => {
+        let result = exporter(Object.assign({}, options, { ranges: undefined, from: range.from, to: range.to, dashboards: index ? false : options.dashboards }));
+        total.parts.push(...(binary && index ? result.parts.slice(1) : result.parts)); // (the head of a binary file only once)
+        total.samples += result.samples;
+        total.skipped += result.skipped;
+    });
+    return total;
+}
+
 // Indexes [start, end) of the samples of a data entry between two timestamps (undefined: no limit on that side)
 function _files_range(entry, from, to) {
     let timestamps = entry.timestamps;
@@ -103,6 +126,7 @@ function _files_quoted(value) {
  * telemetries of the same name sent by two clients become one), and colors sent as r, g, b come back as "rgb(r,g,b)".
  */
 TELEPLOT.files.exportText = function(options = {}) {
+    if(options.ranges) return _files_perRange(options, TELEPLOT.files.exportText, false);
     const P = TELEPLOT.protocol;
     let selection = _files_selection(options);
     let parts = [], lines = [], size = 0, samples = 0, skipped = 0;
@@ -129,7 +153,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         let np = telem.getAttribute(P.TELEM_ATTR_AUTOPLOT) === false;
         let flags = (flag) => { let list = [flag, np ? "np" : ""].filter((f) => f !== ""); return list.length ? "|" + list.join(",") : ""; };
         let isLog = telem.getAttribute(P.TELEM_ATTR_LOG) === true;
-        let isStack = telem.getAttribute(P.TELEM_ATTR_STACK) === true;
+        let isStack = telem.getAttribute(P.TELEM_ATTR_STACK) === true, isMoment = telem.getAttribute(P.TELEM_ATTR_MOMENT) === true;
 
         // Samples of a data type, several per line: line(prefix, samples joined by ";", suffix)
         let write = (dataType, prefix, suffix, format, perLine = 200) => {
@@ -181,7 +205,7 @@ TELEPLOT.files.exportText = function(options = {}) {
         if(name === _defaultTextLogName) {
             write(P.SECTION_TYPE_TELEM_DATA_TEXT, ">", "", (d, i, ms) => /[\r\n]/.test(String(d[0][i])) ? undefined : ms + ":" + d[0][i], 1);
         }
-        else write(P.SECTION_TYPE_TELEM_DATA_TEXT, key + ":", unitText + flags(isLog ? "log" : (isStack ? "stack" : "t")), (d, i, ms) => {
+        else write(P.SECTION_TYPE_TELEM_DATA_TEXT, key + ":", unitText + flags(isLog ? "log" : (isMoment ? "mom" : (isStack ? "stack" : "t"))), (d, i, ms) => {
             let text = String(d[0][i]);
             return /[;|§\r\n]/.test(text) ? undefined : ms + ":" + text; // (colons are fine: the time written before the text tells where it starts)
         }, 1);
@@ -324,6 +348,7 @@ function _files_fromBase64(text) {
  * keep their client and their id. "skipped" counts what cannot be written: texts that hold a zero character, images that are not base64.
  */
 TELEPLOT.files.exportBinary = function(options = {}) {
+    if(options.ranges) return _files_perRange(options, TELEPLOT.files.exportBinary, true);
     const P = TELEPLOT.protocol;
     let selection = _files_selection(options);
     let encoders = _files_encoders(P);
@@ -383,7 +408,7 @@ TELEPLOT.files.exportBinary = function(options = {}) {
         if(typeof timeout === "number" && timeout >= 0) attributes.push(() => w.u8(P.TELEM_ATTR_DATA_TIMEOUT).u64(Math.round(timeout * 1e9)));
         let shape = telem.getAttribute(P.TELEM_ATTR_SHAPE);
         if(shape && _files_isUint(shape.type, 255)) attributes.push(() => { w.u8(P.TELEM_ATTR_SHAPE).u8(shape.type); if(shape.type === P.TELEM_ATTR_SHAPE_TYPE_STL) w.str(String(shape.data || "")); });
-        text(P.TELEM_ATTR_VIEW_LABEL); flag(P.TELEM_ATTR_LOG); flag(P.TELEM_ATTR_STACK);
+        text(P.TELEM_ATTR_VIEW_LABEL); flag(P.TELEM_ATTR_LOG); flag(P.TELEM_ATTR_STACK); flag(P.TELEM_ATTR_MOMENT);
         let frame = telem.getAttribute(P.TELEM_ATTR_FRAME);
         if(frame && typeof frame.name === "string" && frame.name !== "" && !_files_NUL.test(frame.name)) attributes.push(() => w.u8(P.TELEM_ATTR_FRAME).u8(frame.type === P.FRAME_TYPE_PIXELS ? P.FRAME_TYPE_PIXELS : P.FRAME_TYPE_POSE).str(frame.name));
         let range = telem.getRange();
@@ -545,6 +570,8 @@ function _files_csvSeries(options) {
 
 // Calls row(cells) for the header and for each line of the CSV, until it returns false. Returns { samples, leftOut, skipped }.
 function _files_csvRows(options, row) {
+    let ranges = options.ranges ? TELEPLOT.files.mergeRanges(options.ranges) : undefined;
+    if(ranges) options = Object.assign({}, options, { from: ranges[0].from, to: ranges[ranges.length - 1].to });
     let { series, leftOut, skipped } = _files_csvSeries(options);
     let time = { ms: _files_ms, s: (t) => String(t) }[options.time] || _files_secondsToIso;
     let lines = options.layout === "lines";
@@ -555,6 +582,11 @@ function _files_csvRows(options, row) {
         let next = Infinity;
         for(let s of live) if(s.timestamps[s.at] < next) next = s.timestamps[s.at];
         if(next === Infinity) break; // (timestamps that are not numbers)
+        if(ranges && !ranges.some((range) => next >= range.from && next <= range.to)) { // (between two periods)
+            for(let s of live) if(s.timestamps[s.at] === next) s.at++;
+            live = live.filter((s) => s.at < s.end);
+            continue;
+        }
         let stamp = time(next);
         if(lines) {
             for(let s of live) {
@@ -608,6 +640,16 @@ TELEPLOT.files.previewCSV = function(options = {}, count = 4) {
 // leftOut (telemetries the format cannot hold), skipped (samples the format cannot hold; for "text" they are only known by writing) }.
 // format: "binary", "text" or "csv"; options: as for the exports.
 TELEPLOT.files.estimate = function(format, options = {}) {
+    if(options.ranges) {
+        let total = { samples: 0, bytes: 0, telemetries: 0, leftOut: 0, skipped: 0 };
+        for(let range of TELEPLOT.files.mergeRanges(options.ranges)) {
+            let one = TELEPLOT.files.estimate(format, Object.assign({}, options, { ranges: undefined, from: range.from, to: range.to }));
+            total.samples += one.samples; total.bytes += one.bytes; total.skipped += one.skipped;
+            total.telemetries = Math.max(total.telemetries, one.telemetries);
+            total.leftOut = Math.max(total.leftOut, one.leftOut);
+        }
+        return total;
+    }
     const P = TELEPLOT.protocol;
     let selection = _files_selection(options);
     let samples = 0, bytes = 0, telemetries = 0, leftOut = 0, skipped = 0;

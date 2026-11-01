@@ -14,7 +14,7 @@ serial port, needs none: one line of the text protocol ([doc/textProtocol.md](..
 ## Examples
 
 Every language has the same examples, with the same numbers and the same telemetry names, so that one is easy to find in another
-language: 01 to 25 below. A language that cannot do one says why (Bash cannot read what the page sends back, so it has no settings or
+language: 01 to 26 below. A language that cannot do one says why (Bash cannot read what the page sends back, so it has no settings or
 buttons). From 30 on, what only that language has (threads, WiFi, NumPy...).
 
 | | What it shows | C++ | Arduino | Python | Bash |
@@ -44,6 +44,7 @@ buttons). From 30 on, what only that language has (threads, WiFi, NumPy...).
 | 23 | choosing where values go (a dashboard) | yes | yes | yes | yes |
 | 24 | how the client is doing, in the page | yes | yes | yes | - |
 | 25 | a state machine and a behavior tree (graphs) | yes | yes | yes | yes |
+| 26 | moments: cycles to step through, replay and export | yes | yes | yes | yes |
 
 The lines of the Help panel of the page are written with these clients too: [`tools/help_lines.js`](tools/help_lines.js) makes a program of them per language, which each test suite runs and checks (the page must get what the text lines give).
 

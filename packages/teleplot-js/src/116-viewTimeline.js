@@ -30,6 +30,7 @@ const _timeline_limitRuns = new WeakMap(); // number data entry -> runs of "the 
 class ViewTimeline extends ViewTelemetries{
     constructor(divId, telemetryIdOrNameList, group="default"){
         super(divId, group);
+        this.showsPeriod = true; // (no tag of the moment shown: it has a time axis)
         this.name = "timeline";
         this.type = "teleplot-timeline";
         this.telemetryIdOrNameList = telemetryIdOrNameList;
@@ -552,18 +553,42 @@ class ViewTimeline extends ViewTelemetries{
         let listen = (target, type, handler) => { target.addEventListener(type, handler); page.listeners.push([target, type, handler]); };
         let position = (event) => { let box = canvas.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top }; };
         let drag = undefined;
+        let secondsPerPixel = () => (this.period.to - this.period.from) / Math.max(1, page.width - page.gutter);
+        let tall = () => host.scrollHeight - host.clientHeight > 4;
+        // Not live, the wheel moves through time, as on a chart (with Ctrl, or a trackpad pinch: zoom). A timeline taller than its view goes
+        // in two dimensions: sideways the time, up and down its lanes.
+        listen(canvas, "wheel", (event) => {
+            if(TELEPLOT.view.isLive(this.group)) return;
+            let unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 300 : 1, sideways = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+            event.preventDefault();
+            if(event.ctrlKey) TELEPLOT.view.zoomAround(this.group, Math.exp(-event.deltaY * unit * 0.01), this.__timeAt(position(event).x));
+            else if(tall()) {
+                host.scrollTop += event.deltaY * unit;
+                if(event.deltaX) TELEPLOT.view.panBy(this.group, event.deltaX * unit * secondsPerPixel());
+            }
+            else TELEPLOT.view.panBy(this.group, (sideways ? event.deltaX : event.deltaY) * unit * secondsPerPixel());
+            this.__draw();
+        });
+        listen(canvas, "mousedown", (event) => event.preventDefault()); // (a drag selects nothing on the page)
         listen(canvas, "pointerdown", (event) => {
             if(event.button !== 0) return;
             let at = position(event);
             if(at.x < page.gutter) return;
             if(event.pointerType === "touch") { drag = { x: at.x, y: at.y, touch: true }; return; } // A finger: a tap holds, a swipe scrolls the page (two fingers zoom: below)
-            drag = { x: at.x };
+            drag = { x: at.x, y: at.y, pan: !TELEPLOT.view.isLive(this.group), last: at.x, lastY: event.clientY }; // (not live: it moves through time, as on a chart)
             try { canvas.setPointerCapture(event.pointerId); } catch(e) {}
         });
         listen(canvas, "pointermove", (event) => {
             let at = position(event);
             if(drag && drag.touch) { if(Math.hypot(at.x - drag.x, at.y - drag.y) > TELEPLOT.view.TAP_SLOP) drag.moved = true; return; }
-            if(drag) this.selection = { from: Math.min(drag.x, at.x), to: Math.max(drag.x, at.x) };
+            if(drag && drag.pan) {
+                TELEPLOT.view.panBy(this.group, (drag.last - at.x) * secondsPerPixel());
+                if(tall()) host.scrollTop += drag.lastY - event.clientY;
+                drag.last = at.x;
+                drag.lastY = event.clientY;
+                drag.moved = drag.moved || Math.abs(at.x - drag.x) > 3;
+            }
+            else if(drag) this.selection = { from: Math.min(drag.x, at.x), to: Math.max(drag.x, at.x) };
             this.__hover(at);
             this.__draw();
         });
@@ -572,7 +597,7 @@ class ViewTimeline extends ViewTelemetries{
             if(drag.touch) { // A tap: held at that moment (not a swipe, nor the scroll that cancels it)
                 let tapped = drag;
                 drag = undefined;
-                if(event.type === "pointerup" && !tapped.moved) { TELEPLOT.view.seek(this.group, Math.max(0, this.__timeAt(tapped.x))); this.__draw(); }
+                if(event.type === "pointerup" && !tapped.moved) { this.__click(tapped); this.__draw(); }
                 return;
             }
             let selection = this.selection;
@@ -580,11 +605,12 @@ class ViewTimeline extends ViewTelemetries{
             drag = undefined;
             this.selection = undefined;
             try { canvas.releasePointerCapture(event.pointerId); } catch(e) {}
+            if(pressed.pan && pressed.moved) { this.__draw(); return; }
             if(selection && selection.to - selection.from >= 4) { // A period was selected: the views of the group are held on it
                 let from = this.__timeAt(selection.from), to = this.__timeAt(selection.to);
                 if(from < to) TELEPLOT.view.zoomTo(this.group, from, to);
             }
-            else if(pressed.x >= page.gutter) TELEPLOT.view.seek(this.group, Math.max(0, this.__timeAt(pressed.x))); // A click: held at that moment
+            else if(pressed.x >= page.gutter) this.__click(pressed);
             this.__draw();
         };
         listen(canvas, "pointerup", release);
@@ -609,11 +635,52 @@ class ViewTimeline extends ViewTelemetries{
                 this.__draw();
             },
             pinchEnd: () => { pinched = undefined; },
+            swipe: (dx) => { if(!TELEPLOT.view.isLive(this.group)) { TELEPLOT.view.panBy(this.group, -dx * secondsPerPixel()); this.__draw(); } }, // (touch-action is pan-y then)
             doubleTap: () => { TELEPLOT.view.backToLive(this.group); this.__draw(); },
         });
         listen(host, "scroll", () => this.__draw()); // (the time axis stays at the bottom of what is visible)
         if(typeof ResizeObserver === "function") { page.observer = new ResizeObserver(() => this.__resize()); page.observer.observe(host); }
         this.__resize();
+    }
+
+    // A click or a tap: held at that time. Not live, on a section it shows that section, on a moment that moment (as the line of the top
+    // menu does); on what is shown already, it only moves the time.
+    __click(at) {
+        let time = Math.max(0, this.__timeAt(at.x)), g = TELEPLOT.view.groups[this.group];
+        let section = TELEPLOT.view.isLive(this.group) ? undefined : this.__sectionAt(at, time);
+        let shown = section && section.from >= g.timestampFrom - 1e-6 && section.to <= g.timestampTo + 1e-6 && (section.to - section.from) > (g.timestampTo - g.timestampFrom) * 0.8;
+        if(section === undefined || shown) TELEPLOT.view.pointAt(this.group, time);
+        else if(section.moment) TELEPLOT.view.showMoment(this.group, section.moment);
+        else TELEPLOT.view.showPeriod(this.group, section.from, section.to);
+    }
+
+    // What is under a point: {from, to (the real extent of a band), moment}; undefined on a tick, a line, a call or nothing
+    __sectionAt(at, time) {
+        let lane = this.lanes.find((candidate) => at.y >= candidate.top && at.y < candidate.top + candidate.height);
+        if(!lane || lane.kind === "line" || lane.calls) return undefined;
+        let row = lane.rows ? Math.min(lane.rows.length - 1, Math.floor((at.y - lane.top) / lane.rowHeight)) : -1;
+        let perPixel = (this.period.to - this.period.from) / Math.max(1, this.page.width - this.page.gutter);
+        let item = ViewTimeline.itemAt(lane.rows ? { items: lane.rows[row] || [] } : lane, time, perPixel * 5);
+        if(item === undefined || item.tick) return undefined;
+        if(item.mixed) return { from: item.from, to: item.to };
+        let runs = lane.rows ? lane.entries.get(item.node) : lane.runs;
+        let extent = (runs && ViewTimeline.extentOf(runs, time)) || { start: item.from, end: item.to };
+        let section = { from: extent.start, to: extent.end !== undefined ? extent.end : item.to };
+        let telem = TELEPLOT.datastore.getTelemetry(lane.id);
+        if(lane.rows && telem && TELEPLOT.moments.isMoment(telem)) {
+            for(let moment of TELEPLOT.moments.of(telem).moments) if(moment.path === item.node && moment.from <= time) section.moment = moment; // (the band of its result too)
+        }
+        return section;
+    }
+
+    // Not live, a finger going sideways and the look of the pointer are for moving through time
+    __syncGestures() {
+        let canvas = this.page && this.page.canvas;
+        if(!canvas) return;
+        let paused = !TELEPLOT.view.isLive(this.group), key = paused ? "pan-y" : "";
+        if(canvas.style.touchAction === (key || "pan-x pan-y")) return;
+        canvas.style.touchAction = key || "pan-x pan-y";
+        canvas.style.cursor = paused ? "grab" : "";
     }
 
     __detach() {
@@ -772,6 +839,7 @@ class ViewTimeline extends ViewTelemetries{
     __draw() {
         let page = this.page;
         if(!page || !page.width || !page.height) return;
+        this.__syncGestures();
         let context = page.context, ratio = page.ratio;
         let width = page.width, height = page.height, gutter = page.gutter, plot = Math.max(1, width - gutter);
         let color = (name, fallback) => TELEPLOT.theme.color(name, page.host, fallback);

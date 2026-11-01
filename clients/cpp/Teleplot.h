@@ -403,6 +403,8 @@ public:
         Self& timeout(Time t) { tp_->attrBytes_(index_, ATTR_DATA_TIMEOUT, Bytes_().u64(static_cast<std::uint64_t>(std::max<std::int64_t>(0, t.ns)))); return self_(); }
         Self& log(bool v = true) { tp_->attrBytes_(index_, ATTR_LOG, Bytes_().u8(v ? 1 : 0)); return self_(); }
         Self& stack(bool v = true) { tp_->attrBytes_(index_, ATTR_STACK, Bytes_().u8(v ? 1 : 0)); return self_(); }
+        // A stack whose nodes are moments: periods the page can step through, replay and export
+        Self& moment(bool v = true) { stack(v); tp_->attrBytes_(index_, ATTR_MOMENT, Bytes_().u8(v ? 1 : 0)); return self_(); }
         Self& frame(std::string_view name) { tp_->attrBytes_(index_, ATTR_FRAME, Bytes_().u8(0).str(name)); return self_(); }
         Self& pixelsOf(std::string_view imageTelemetry) { tp_->attrBytes_(index_, ATTR_FRAME, Bytes_().u8(1).str(imageTelemetry)); return self_(); }
         // Pictures of numbers (Gray16 / Float32, 16-bit PNG): a pixel is worth number x scale (in the unit of the telemetry), noData is the
@@ -811,7 +813,7 @@ private:
     static constexpr std::uint32_t NONE_ = 0xFFFFFFFF;
     enum : std::uint8_t {
         ATTR_NAME = 0, ATTR_UNIT = 1, ATTR_COLOR = 2, ATTR_AUTOPLOT = 3, ATTR_DATA_TIMEOUT = 4, ATTR_SHAPE = 5, ATTR_LABEL = 6, ATTR_LOG = 7,
-        ATTR_FRAME = 8, ATTR_RANGE = 9, ATTR_STACK = 10, ATTR_WRITE = 11, ATTR_ARGS = 13, ATTR_DESC = 14, ATTR_TITLE = 15, // (12: retired)
+        ATTR_FRAME = 8, ATTR_RANGE = 9, ATTR_STACK = 10, ATTR_WRITE = 11, ATTR_ARGS = 13, ATTR_DESC = 14, ATTR_TITLE = 15, ATTR_MOMENT = 17, // (12: retired)
         ATTR_PIXELS = 16,
     };
     enum : std::uint8_t {

@@ -234,6 +234,34 @@ const HELP_TILES = [
           "Send a message each time something starts or ends. Hover a band: what it is, what it runs in, for how long.",
           "Stacks without a label share one timeline on the Live dashboard.",
       ] },
+    { id: "moments", family: "text", title: "Moments", sub: "cycles to step through, replay, export", picture: "moments",
+      format: ["name:[time:]level/level#number[=result]|mom"],
+      fields: [
+          ["level/level", "What runs, outer level first: a run, a pick, a phase."],
+          ["#number", "Numbers each occurrence. The same text sent again continues a moment: without a number, two cycles in a row are one."],
+          ["=result", "Ends the moment with its result: ok, failed... The word gives its color."],
+          ["time:", "The time of the device, as for a stack."],
+          ["|mom", "The flag of a moment: a stack the page can step through, replay and export."],
+          ["name:|mom", "Empty: everything ends."],
+          ["path,path", "Several moments at once, separated by commas."],
+      ],
+      examples: [
+        { title: "It starts", lib: "tp.telemetry(\"cycle\").moment();\ntp.stack(\"cycle\", \"pick#41\");", code: "cycle:pick#41|mom", cycle: ["cycle:pick#42|mom", "cycle:pick#43|mom"], note: "Moment 41 of the kind pick starts.", expect: { name: "cycle", type: "text", text: "pick#41", stack: true } },
+        { title: "Inside it", lib: "tp.stack(\"cycle\", \"pick#41/grip\");", code: "cycle:pick#41/grip|mom", cycle: ["cycle:pick#41/place|mom"], note: "A phase of pick 41: a layer on the line.", expect: { name: "cycle", type: "text", text: "pick#41/grip", stack: true } },
+        { title: "It ends", lib: "tp.stack(\"cycle\", \"pick#41=ok\");", code: "cycle:pick#41=ok|mom", cycle: ["cycle:pick#42=ok|mom"], note: "With its result.", expect: { name: "cycle", type: "text", text: "pick#41=ok", stack: true } },
+        { title: "A failure", lib: "tp.stack(\"cycle\", \"pick#42=failed\");", code: "cycle:pick#42=failed|mom", cycle: ["cycle:pick#43=failed|mom"], note: "In red on the line, even when it is at rest.", expect: { name: "cycle", type: "text", text: "pick#42=failed", stack: true } },
+      ], more: [
+        { title: "The next one ends it", lib: "tp.stack(\"cycle\", \"pick#43\");", code: "cycle:pick#43|mom", cycle: ["cycle:pick#44|mom"], note: "A new text ends what is not in it any more, with no result.", expect: { name: "cycle", type: "text", text: "pick#43", stack: true } },
+        { title: "Two at once", lib: "tp.telemetry(\"vision\").moment();\ntp.stack(\"vision\", \"detect#9,ocr#3\");", code: "vision:detect#9,ocr#3|mom", cycle: ["vision:detect#10,ocr#3|mom"], note: "Parallel moments take extra rows only while they overlap.", expect: { name: "vision", type: "text", text: "detect#9,ocr#3", stack: true } },
+        { title: "Nothing any more", lib: "tp.stack(\"cycle\", \"\");", code: "cycle:|mom", cycle: ["cycle:pick#44|mom"], note: "An empty text ends everything.", expect: { name: "cycle", type: "text", text: "", stack: true } },
+      ],
+      notes: [
+          "The line of the top menu shows them as soon as there are some. On hover: every telemetry, every level.",
+          "Click a moment: the views zoom to it. Play stops at its end. PageUp and PageDown go to the previous and next one.",
+          "A chart shows them on a thin line at its bottom when the time is not live; point at that line to open it.",
+          "To save only some of them: Export, When, Moments.",
+          "A moment that was not ended stays open: Teleplot never guesses an end or a result.",
+      ] },
     { id: "statemachine", family: "text", title: "A state machine", sub: "its states, where it is", picture: "statemachine",
       format: ["name:[time:]state,box/state,…|enum", "name:[time:]from>to[=event],…|edges", "name:[time:]box/state|stack       (where it is)"],
       fields: [
@@ -757,6 +785,8 @@ function helpPicture(kind, W = 240, H = 100) {
     }
     else if (kind == "marks") s = grid + curve((i) => Math.sin(i / 6), "var(--hp-1)") + [[0.3, "turning"], [0.62, "forward"]].map(([x, text]) => `<line x1="${x * W}" y1="4" x2="${x * W}" y2="${H}" stroke="var(--hp-3)" stroke-dasharray="3 2"/>` + t(x * W + 3, 13, text, 'font-size="9" fill="var(--hp-3)"')).join("");
     else if (kind == "stack") s = [[0, 1, 0.08, "loop"], [0.04, 0.46, 0.36, "plan"], [0.5, 0.92, 0.36, "act"], [0.08, 0.3, 0.64, "search"]].map(([a, b, y, text], i) => `<rect x="${a * W}" y="${H * y}" width="${(b - a) * W}" height="${H * 0.24}" fill="var(--hp-${i + 1})" opacity="0.45"/>` + t(a * W + 4, H * y + 15, text, 'font-size="9"')).join("");
+    else if (kind == "moments") s = [[0, 0.3, 1, "#41"], [0.32, 0.6, 5, "#42"], [0.62, 1, 1, "#43"]].map(([a, b, c, text]) => `<rect x="${a * W}" y="${H * 0.2}" width="${(b - a) * W}" height="${H * 0.3}" fill="var(--hp-${c})" opacity="0.45"/>` + t(a * W + 4, H * 0.2 + 13, text, 'font-size="9"'))
+        + [[0.02, 0.14], [0.16, 0.28], [0.34, 0.5], [0.64, 0.8]].map(([a, b]) => `<rect x="${a * W}" y="${H * 0.56}" width="${(b - a) * W}" height="${H * 0.14}" fill="var(--hp-muted)" opacity="0.5"/>`).join("");
     else if (kind == "statemachine") { // States in boxes, the current one in blue, the transition it came by in bold
         const node = (x, y, w, text, on) => `<rect x="${x}" y="${y}" width="${w}" height="16" rx="4" fill="${on ? "var(--hp-1)" : "none"}" fill-opacity="${on ? 0.35 : 1}" stroke="${on ? "var(--hp-1)" : "var(--hp-muted)"}" stroke-width="${on ? 1.6 : 1}"/>` + t(x + w / 2, y + 11.5, text, 'font-size="9" text-anchor="middle"' + (on ? ' font-weight="700"' : ""));
         s = `<rect x="${W * 0.36}" y="${H * 0.1}" width="${W * 0.3}" height="${H * 0.8}" rx="7" fill="none" stroke="var(--hp-1)" stroke-width="1.4"/>` + t(W * 0.36 + 4, H * 0.1 + 10, "mission", 'font-size="8" fill="var(--hp-1)" font-weight="700"')
@@ -954,7 +984,7 @@ const HELP_PROPERTIES = (() => {
 const HELP_ATTRIBUTES = { min: "lowest", max: "highest", write: "writable", action: "action", title: "button text", confirm: "asks first", longpress: "hold to press",
     color: "color", arg: "argument", type: "type", optional: "optional", default: "default", step: "step", unit: "unit", enum: "choices", desc: "description",
     rate: "per second", hold: "stops after (ms)", axes: "axes", scale: "value scale", nodata: "no measure", depth: "distances" };
-const HELP_FLAGS = { t: "state", log: "log", xy: "2D point", xyz: "3D point", pc: "point cloud", np: "not charted", clr: "clear first", stack: "stack", enum: "structure", edges: "transitions flag" };
+const HELP_FLAGS = { t: "state", log: "log", xy: "2D point", xyz: "3D point", pc: "point cloud", np: "not charted", clr: "clear first", stack: "stack", mom: "moment", enum: "structure", edges: "transitions flag" };
 
 // A message cut in named parts: [{text, kind, label}]. The kind gives the color: "name", "label" (of a view), "value", "time", "unit" or
 // "flags" (and prefixes); separators have neither kind nor label. The parts join back to the message, also while it is being typed. For
@@ -1097,7 +1127,7 @@ function helpParts(message) {
         }
         else if (isText) { // [time:]text (the text may hold colons)
             const first = values.indexOf(":");
-            const label = flags.includes("stack") ? "path" : (flags.includes("log") ? "log line" : "text");
+            const label = flags.includes("stack") || flags.includes("mom") ? "path" : (flags.includes("log") ? "log line" : "text");
             if (first > 0 && isNumber(values.slice(0, first))) { add(values.slice(0, first), "time", "time"); sep(":"); add(values.slice(first + 1), "value", label); }
             else add(values, "value", label);
         }
@@ -1191,6 +1221,7 @@ const HELP_PART_TIPS = {
     "not charted": "The np flag: not put on the Live dashboard by itself.",
     "clear first": "The clr flag: what the telemetry held before is forgotten.",
     stack: "The stack flag: the text is the path of what is running.",
+    moment: "The moment flag: a stack whose levels are periods to step through, replay and export.",
     flags: "Optional, after the last |: t, log, stack, xy, xyz, pc, enum, edges, np, clr.",
     "3D shape": "3D| then the name, then properties, each a key and its values.",
     "2D shape": "2D| is 3D| written flat: x:y positions, one angle.",
@@ -1427,6 +1458,7 @@ function helpDescribe(TP, message, problems) {
         return { ok: true, text: "Received: " + count + (flags.includes("edges") ? " transitions" : " states or nodes") + " of " + name + ", in force from " + (structure ? TP.view.ViewLog.formatTime(structure.timestamp) : "now") + ". " + (telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] ? "A graph view draws them." : "Now send where it is, for example " + name + ":" + (telem.getEnum() && telem.getEnum().items.length ? telem.getEnum().items[telem.getEnum().items.length - 1].path : "a") + "|stack") };
     }
     else if (flags.includes("stack")) what = "what runs";
+    else if (flags.includes("mom")) what = "a moment";
     else if (flags.includes("pc")) { const cloud = telem.data[P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD]; what = "a point cloud of " + (cloud ? cloud.data[0][cloud.data[0].length - 1].length / 3 : 0) + " points"; }
     else if (flags.includes("xyz")) what = "a point in space";
     else if (flags.includes("xy")) what = "a position";

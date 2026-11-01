@@ -258,6 +258,18 @@ function initComponent_top_menu(vue) {
                     </button>
                     <span class="tm-tl-when">{{timeline.whenText}}<small v-if="timeline.behindText"> {{timeline.behindText}}</small></span>
                     <span v-if="timeline.groupLabel" class="tm-tl-group" :title="'Time group ' + timeline.groupLabel"><i :style="{background: timeline.groupColor}"></i>{{timeline.groupLabel}}</span>
+                    <span v-if="timeline.momentCount" class="tm-tl-moment" :class="{on: timeline.momentHeld, failed: timeline.momentFailed}">
+                        <button class="tm-tl-mstep" aria-label="Previous moment" title="Previous moment · PageUp" @click="stepMoment(-1, $event)">‹</button>
+                        <span class="tm-tl-mname" :title="timeline.momentText">
+                            <span v-if="!timeline.momentText" class="tm-tl-mpart">moments</span>
+                            <template v-else v-for="(part, i) in timeline.momentText.split(' › ')" :key="i"><i v-if="i" aria-hidden="true">›</i><button class="tm-tl-mpart" :title="'Show ' + part" @click="pickPart(i, $event)">{{part}}</button></template>
+                        </span>
+                        <button class="tm-tl-mstep" aria-label="Next moment" title="Next moment · PageDown" @click="stepMoment(1, $event)">›</button>
+                        <template v-if="timeline.momentHeld">
+                            <button class="tm-tl-mstep" :class="{on: timeline.loop}" :aria-pressed="timeline.loop" aria-label="Loop this moment" title="Loop this moment" @click="toggleLoop($event)">⟳</button>
+                            <button class="tm-tl-mstep" aria-label="Export this moment" title="Export this moment" @click="exportMoment($event)">↓</button>
+                        </template>
+                    </span>
                     <span class="tm-grow"></span>
                     <button class="tm-tl-live tm-tipped" :class="{is: timeline.mode == 'live'}" :disabled="!timeline.hasData" @click="goLive($event);">
                         <i></i>LIVE
@@ -278,6 +290,13 @@ function initComponent_top_menu(vue) {
                                     <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(-1)">‹ Previous sample</button>
                                     <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(1)">Next sample ›</button>
                                 </div>
+                                <template v-if="timeline.momentAll > 1">
+                                    <h5>Moments <span class="tm-h5-value tm-sub">on the line, and at rest</span></h5>
+                                    <div v-for="m in momentTelemetries()" :key="m.name" class="tm-tl-mrow">
+                                        <label><input type="checkbox" :checked="m.shown" @change="showMoments(m.name, $event.target.checked)"><span>{{m.name}}</span></label>
+                                        <button class="tm-tl-mrest" :class="{on: m.rest}" :aria-pressed="m.rest" title="Show this one when the line is at rest" @click="restMoments(m.name)">at rest</button>
+                                    </div>
+                                </template>
                                 <button v-if="!showGroups" class="tm-tl-disclose" @click="showGroups = true"><span>Time group: <b>{{timeline.groupName}}</b></span><i class="icofont-simple-right"></i></button>
                                 <template v-else>
                                     <h5>Time group</h5>
@@ -291,7 +310,7 @@ function initComponent_top_menu(vue) {
                     </div>
                 </div>
                 <div class="tm-tl-line" ref="line" @pointerdown="lineDown($event)" @pointermove="lineMove($event)" @pointerup="lineUp($event)" @pointercancel="lineUp($event)" @pointerleave="hoverX = -1">
-                    <canvas ref="lineCanvas" aria-hidden="true"></canvas>
+                    <div ref="lineHost" class="tm-tl-host"></div>
                     <span v-if="timelineOpen && timeline.knob >= 0" class="tm-tl-knob" :class="timeline.mode" :style="{left: timeline.knob + 'px'}"></span>
                     <template v-if="timelineOpen && hoverX >= 0">
                         <span class="tm-tl-ghost" :style="{left: hoverX + 'px'}"></span>
@@ -623,15 +642,34 @@ function initComponent_top_menu(vue) {
         .tm-tl-more { position: relative; height: 1.7rem; padding: 0 0.45rem; border-radius: 0.45rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-text-muted); cursor: pointer; }
         .tm-tl-more.on { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
         .tm-tl-btn:focus-visible, .tm-tl-live:focus-visible, .tm-tl-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
-        .tm-tl-line { position: relative; height: 3px; margin: 0 -0.2rem; padding: 4px 0 0; margin-top: -4px; cursor: pointer; touch-action: none; transition: height var(--motion-fast) var(--ease-out); } /* (4 px more above it to aim at) */
-        .tm-strip.open .tm-tl-line { height: 6px; padding-top: 4px; margin-bottom: 0.25rem; }
+        .tm-tl-line { position: relative; margin: 0 -0.2rem; padding: 4px 0 0; margin-top: -4px; cursor: pointer; touch-action: none; } /* (4 px more above it to aim at) */
+        .tm-strip.open .tm-tl-line { padding-top: 4px; margin-bottom: 0.25rem; }
+        .tm-tl-host .teleplot-js-timebar { contain: inline-size; } /* (the pixels of its canvases must not widen the island) */
         .tm-strip.empty .tm-tl-line { cursor: default; }
-        .tm-tl-line canvas { position: absolute; left: 0; bottom: 0; display: block; width: 100%; height: 3px; border-radius: 3px; } /* (out of the flow: its pixels must not widen the island) */
-        .tm-strip.open .tm-tl-line canvas { height: 6px; }
+        .tm-tl-host .teleplot-js-timebar-line { height: 3px; border-radius: 3px; transition: height var(--motion-fast) var(--ease-out); }
+        .tm-strip.open .tm-tl-host .teleplot-js-timebar-line { height: 6px; }
+        .tm-tl-host .teleplot-js-timebar-tracks { background: transparent; margin-bottom: 2px; cursor: pointer; }
+        .tm-tl-moment { display: inline-flex; align-items: center; gap: 0.1rem; min-width: 0; font-size: 0.88rem; }
+        .tm-tl-mname { display: inline-flex; justify-content: flex-end; align-items: center; gap: 0.2rem; min-width: 0; overflow: hidden; white-space: nowrap; padding: 0.05rem 0.45rem; border: 1px solid var(--color-bg-dark); border-radius: 0.45rem; font-variant-numeric: tabular-nums; } /* (too narrow: the end of the path stays, the top goes) */
+        .tm-tl-mname i { flex: none; font-style: normal; color: var(--color-text-muted); }
+        .tm-tl-mpart { flex: none; color: inherit; font: inherit; cursor: pointer; }
+        .tm-tl-mpart:hover { text-decoration: underline; }
+        .tm-tl-host .teleplot-js-timebar-tip { bottom: auto; top: 100%; margin: 0.6rem 0 0; } /* (under the line: never over the tracks it names) */
+        .tm-tl-moment.on .tm-tl-mname { border-color: var(--tm-held); color: var(--tm-held); }
+        .tm-tl-moment.failed .tm-tl-mname { color: var(--color-danger); }
+        .tm-tl-mstep { flex: none; min-width: 1.5rem; height: 1.6rem; border-radius: 0.4rem; cursor: pointer; font-size: 1rem; line-height: 1; color: var(--color-text-muted); }
+        .tm-tl-mstep:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text); }
+        .tm-tl-mstep.on { color: var(--color-primary); }
+        .tm-tl-mstep:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-primary); }
+        .tm-tl-mrow { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0.2rem; }
+        .tm-tl-mrow label { display: flex; align-items: center; gap: 0.4rem; min-width: 0; cursor: pointer; }
+        .tm-tl-mrow label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tm-tl-mrest { flex: none; font-size: 0.8rem; padding: 0.05rem 0.45rem; border-radius: 0.4rem; color: var(--color-text-muted); cursor: pointer; }
+        .tm-tl-mrest.on { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, transparent); }
         .tm-tl-knob { position: absolute; bottom: 3px; width: 0.8rem; height: 0.8rem; margin: 0 0 -0.4rem -0.4rem; box-sizing: border-box; border-radius: 50%; border: 2.5px solid var(--tm-held); background: var(--color-bg-light); pointer-events: none; }
         .tm-tl-knob.replay { border-color: var(--tm-replay); }
         .tm-tl-ghost { position: absolute; top: 0; bottom: -2px; width: 1.5px; margin-left: -0.75px; background: var(--color-text); opacity: 0.5; pointer-events: none; }
-        .tm-tl-tip { position: absolute; bottom: 0.9rem; translate: -50% 0; z-index: 31; padding: 0.2rem 0.45rem; border-radius: 0.4rem; background: var(--color-text); color: var(--color-bg-light); font: 0.85rem ui-monospace, Consolas, monospace; white-space: nowrap; pointer-events: none; }
+        .tm-tl-tip { position: absolute; top: calc(100% + 0.6rem); translate: -50% 0; z-index: 31; padding: 0.2rem 0.45rem; border-radius: 0.4rem; background: var(--color-text); color: var(--color-bg-light); font: 0.85rem ui-monospace, Consolas, monospace; white-space: nowrap; pointer-events: none; }
         .tm-tl-tip.left { translate: 0 0; }
         .tm-tl-pop { left: auto; right: 0; width: 26rem; padding: 0.8rem 0.9rem 0.8rem; font-size: 1rem; }
         .tm-tl-more.on .tm-tip { display: none; } /* (its popup is open) */
@@ -717,54 +755,6 @@ function initComponent_top_menu(vue) {
         const minutes = Math.round(seconds / 60);
         return Math.floor(minutes / 60) + " h " + String(minutes % 60).padStart(2, "0") + " min";
     }
-    /*
-     * The time line maps the stored data of a time group on its width: the periods covered by its telemetries end to end, and a long
-     * period without any data (an old file next to live data: longer than 10 s and 5 % of it all) folded to FOLD_PX. A replay jumps it.
-     * segments: [{t0, t1, px0, px1}] in time order; null without data.
-     */
-    const FOLD_PX = 6;
-    function timelineMap(intervals, width) {
-        if (!intervals.length || !(width > 0)) return null;
-        intervals.sort((a, b) => a[0] - b[0]);
-        const total = Math.max(0, intervals.reduce((m, i) => Math.max(m, i[1]), -Infinity) - intervals[0][0]);
-        const fold = Math.max(10, total * 0.05);
-        const merged = [];
-        for (const [t0, t1] of intervals) {
-            const last = merged[merged.length - 1];
-            if (last && t0 - last[1] <= fold) last[1] = Math.max(last[1], t1);
-            else merged.push([t0, t1]);
-        }
-        const duration = merged.reduce((sum, [t0, t1]) => sum + (t1 - t0), 0);
-        const usable = Math.max(1, width - FOLD_PX * (merged.length - 1));
-        const segments = [];
-        let px = 0;
-        for (const [t0, t1] of merged) {
-            const w = duration > 0 ? usable * (t1 - t0) / duration : usable / merged.length;
-            segments.push({ t0, t1, px0: px, px1: px + w });
-            px += w + FOLD_PX;
-        }
-        return { segments, from: merged[0][0], to: merged[merged.length - 1][1], width };
-    }
-    function timelinePx(map, t) {
-        const s = map.segments;
-        if (t <= s[0].t0) return s[0].px0;
-        for (let i = 0; i < s.length; i++) {
-            if (t <= s[i].t1) return s[i].t1 > s[i].t0 ? s[i].px0 + (s[i].px1 - s[i].px0) * (t - s[i].t0) / (s[i].t1 - s[i].t0) : s[i].px1;
-            if (i + 1 < s.length && t < s[i + 1].t0) return s[i].px1 + FOLD_PX / 2; // (in a folded period)
-        }
-        return s[s.length - 1].px1;
-    }
-    function timelineTime(map, px) {
-        const s = map.segments;
-        for (let i = 0; i < s.length; i++) {
-            if (px <= s[i].px1 || i == s.length - 1) {
-                if (px <= s[i].px0) return i > 0 && px > s[i].px0 - FOLD_PX / 2 ? s[i].t0 : (i > 0 ? s[i - 1].t1 : s[i].t0);
-                return s[i].px1 > s[i].px0 ? Math.min(s[i].t1, s[i].t0 + (s[i].t1 - s[i].t0) * (px - s[i].px0) / (s[i].px1 - s[i].px0)) : s[i].t1;
-            }
-        }
-        return s[s.length - 1].t1;
-    }
-
     // Rate shown beside the record switch: samples received per second, all telemetries together
     function formatPerSecond(rate) {
         if (rate >= 1000) return (rate / 1000).toFixed(rate >= 10000 ? 0 : 1) + "k/s";
@@ -1034,90 +1024,49 @@ function initComponent_top_menu(vue) {
                         if (ts && ts.length) intervals.push([ts[0], ts[ts.length - 1]]);
                     }
                 }
-                const map = this._map = timelineMap(intervals, this._lineWidth || 0);
+                T.view.chosenGroup = name || undefined; // (a view of another group says which moment it is on)
+                const allMoments = T.moments.telemetries(), moments = allMoments.filter((telem) => !T.moments.hidden.has(telem.getName()));
+                if (name) for (const telem of allMoments) { // (the time of a group includes the moments, even when no view shows them)
+                    const ts = telem.data[T.protocol.SECTION_TYPE_TELEM_DATA_TEXT].timestamps;
+                    intervals.push([ts[0], ts[ts.length - 1]]);
+                }
+                const map = this._map = T.timeLine.map(intervals, this._lineWidth || 0);
                 const g = name ? T.view.groups[name] : undefined;
                 const time = name && intervals.length ? T.view.timeOf(name) : undefined;
                 const mode = time ? time.mode : "live";
                 const newest = map ? map.to : 0;
+                const primary = T.moments.primaryOf(moments), selected = g ? g.moment : undefined;
+                const moment = this._moment = selected || (time && primary ? T.moments.at(time.at, primary) : undefined);
                 const custom = name && name !== base ? T.dashboards.getTimeGroups(this.ctx.activeDashboard.name).find((c) => c.key === name) : undefined;
                 const next = {
                     hasData: !!time, mode, speed: time ? time.speed : 1, resumeLive: !!(g && g.resume == "live"),
                     whenText: !time ? "no data" : (mode == "live" ? "live" : (mode == "replay" ? time.speed + "× · " : "") + formatMoment(time.at)),
                     behindText: time && mode != "live" ? "−" + formatBehind(Math.max(0, newest - time.at)) + (time.movedWithWindow ? " (moved with the data window)" : "") : "",
                     groupLabel: custom ? custom.name : "", groupColor: custom ? custom.color : "", groupName: custom ? custom.name : (this.ctx.activeDashboard ? this.ctx.activeDashboard.name : ""),
-                    knob: map && time && mode != "live" ? Math.round(timelinePx(map, time.at) * 2) / 2 : -1,
+                    knob: map && time && mode != "live" ? Math.round(T.timeLine.px(map, time.at) * 2) / 2 : -1,
+                    momentCount: moments.length, momentAll: allMoments.length, momentText: moment ? T.moments.pathText(moment) : "", momentFailed: !!(moment && moment.failed), momentHeld: !!selected, loop: !!(g && g.loop),
                 };
                 const cur = this.timeline;
                 for (const key in next) if (cur[key] !== next[key]) { this.timeline = next; break; }
-                // The line itself
-                const canvas = this.$refs.lineCanvas;
-                if (!canvas) return;
-                const height = this._lineHeight || 3;
-                const offs = map && name ? T.datastore.gapsIn(T.view.groupTelemetries(name), map.from, map.to).map((p) => Math.round(timelinePx(map, p.from)) + "-" + Math.round(timelinePx(map, p.to))) : [];
+                // The line itself: drawn when it has something to say (not live, a hole in view, moments) or while the row is open; live with
+                // nothing to say, or no data: nothing (its place stays, to be pointed at). It draws again only when what it shows changed.
+                if (!this._tl) return;
+                const gaps = map && name ? T.datastore.gapsIn(T.view.groupTelemetries(name), map.from, map.to) : [];
                 const open = this.timelineOpen;
-                const key = [this._lineWidth, height, open, mode, next.knob, map ? map.segments.map((s) => Math.round(s.px0) + ":" + Math.round(s.px1)).join(",") : "none", offs.join(","), T.theme.key()].join("|");
-                if (key === this._lineKey) return;
-                this._lineKey = key;
-                this.drawLine(canvas, map, mode, next.knob, offs, height, open);
-            },
-            // The line is drawn only when it has something to say (held or replaying, a period not received in view) or while the row is
-            // open; live with nothing to say, or no data: nothing (its place stays, to be pointed at)
-            drawLine(canvas, map, mode, knob, offs, height, open) {
-                const width = this._lineWidth || 0, ratio = window.devicePixelRatio || 1;
-                if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
-                const c = canvas.getContext("2d");
-                c.setTransform(ratio, 0, 0, ratio, 0, 0);
-                c.clearRect(0, 0, width, height);
-                if (!map || !(open || mode != "live" || offs.length)) return;
-                const css = getComputedStyle(canvas);
-                const color = (name) => css.getPropertyValue(name).trim();
-                c.fillStyle = color("--color-bg-dark") || "#ddd";
-                c.fillRect(0, 0, width, height);
-                // Covered by data, in grey; held or replaying, in the color of the mode up to the moment shown (the data after it stays grey)
-                const muted = color("--color-text-muted") || "#888", modeColor = mode == "replay" ? color("--tm-replay") : color("--tm-held");
-                c.globalAlpha = 0.45;
-                c.fillStyle = muted;
-                for (const s of map.segments) c.fillRect(s.px0, 0, s.px1 - s.px0, height);
-                c.globalAlpha = 1;
-                const knobAt = (x, fill) => { // (round when the line is thick enough for it)
-                    c.fillStyle = fill;
-                    if (height >= 5) { c.beginPath(); c.arc(Math.min(width - height / 2, Math.max(height / 2, x)), height / 2, height / 2, 0, 2 * Math.PI); c.fill(); }
-                    else c.fillRect(Math.min(width - 3, Math.max(0, x - 1.5)), 0, 3, height);
-                };
-                if (mode != "live") {
-                    c.globalAlpha = 0.85;
-                    c.fillStyle = modeColor;
-                    for (const s of map.segments) if (s.px0 < knob) c.fillRect(s.px0, 0, Math.min(s.px1, knob) - s.px0, height);
-                    c.globalAlpha = 1;
-                }
-                // Periods not received: hatched
-                if (offs.length) {
-                    c.fillStyle = color("--color-warning") || "orange";
-                    for (const range of offs) {
-                        const [a, b] = range.split("-").map(Number);
-                        for (let x = a; x < Math.max(a + 2, b); x += 4) c.fillRect(x, 0, 2, height);
-                    }
-                }
-                // Folded periods without data: a notch
-                c.fillStyle = color("--color-bg-light") || "#fff";
-                for (let i = 1; i < map.segments.length; i++) c.fillRect(map.segments[i - 1].px1 + 1, 0, FOLD_PX - 2, height);
-                // The moment shown: a knob; live, a red dot at the newest end
-                if (mode != "live") knobAt(knob, modeColor);
-                else knobAt(width, color("--color-danger") || "red");
+                this._tl.draw({ map, width: this._lineWidth || 0, height: this._lineHeight || 3, mode, knob: next.knob, gaps, data: true, show: open || mode != "live" || gaps.length > 0 || moments.length > 0, moments, open, selected });
             },
             measureLine() {
                 const line = this.$refs.line;
                 if (!line) return;
-                const canvas = this.$refs.lineCanvas;
+                const canvas = this._tl ? this._tl.line : undefined;
                 this._lineWidth = canvas ? canvas.clientWidth : line.clientWidth;
-                this._lineHeight = canvas ? canvas.clientHeight : 3;
-                this._lineKey = "";
+                this._lineHeight = this.timelineOpen ? 6 : 3; // (its size at the end of the transition)
                 this.refreshTimeline();
             },
             // The pointer on the line: the time under it; pressed or dragged: held there
-            linePosition(event) { const box = this.$refs.lineCanvas.getBoundingClientRect(); return Math.max(0, Math.min(box.width, event.clientX - box.left)); },
+            linePosition(event) { const box = this._tl.line.getBoundingClientRect(); return Math.max(0, Math.min(box.width, event.clientX - box.left)); },
             lineDown(event) {
-                if (event.button !== 0 || !this._map || !this.chosenGroup) return;
+                if (event.button !== 0 || !this._map || !this.chosenGroup || event.target === this._tl.tracks) return; // (a track picks a moment)
                 if (event.pointerType == "touch" && !this.timelineOpen) return; // (a finger at the edge of the island opens the row first: islandDown)
                 this.dragging = true;
                 try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
@@ -1125,8 +1074,9 @@ function initComponent_top_menu(vue) {
             },
             lineMove(event) {
                 if (!this._map) return;
+                if (event.target === this._tl.tracks) { this.hoverX = -1; return; }
                 const x = this.linePosition(event), T = Vue.toRaw(this.TP);
-                const t = timelineTime(this._map, x), time = T.view.timeOf(this.chosenGroup);
+                const t = T.timeLine.time(this._map, x), time = T.view.timeOf(this.chosenGroup);
                 this.hoverX = x;
                 const folded = this._map.segments.some((s, i) => i > 0 && x > this._map.segments[i - 1].px1 && x < s.px0);
                 this.hoverText = folded ? "no data" : (time.movedWithWindow && Math.abs(x - this.timeline.knob) < 6 ? "moved with the data window" : formatMoment(t) + " · −" + formatBehind(Math.max(0, this._map.to - t)));
@@ -1137,7 +1087,24 @@ function initComponent_top_menu(vue) {
                 this.dragging = false;
                 try { event.currentTarget.releasePointerCapture(event.pointerId); } catch (e) {}
             },
-            lineSeek(event) { Vue.toRaw(this.TP).view.seek(this.chosenGroup, timelineTime(this._map, this.linePosition(event))); this.refreshTimeline(); },
+            lineSeek(event) { const T = Vue.toRaw(this.TP); T.view.seek(this.chosenGroup, T.timeLine.time(this._map, this.linePosition(event))); this.refreshTimeline(); },
+            // Moments (doc/moments.md): shown from the tracks of the line, stepped through from the row or the keys
+            pickMoment(moment) { if (this.chosenGroup) Vue.toRaw(this.TP).view.showMoment(this.chosenGroup, moment); this.refreshTimeline(); },
+            // A part of the path in the row: that level
+            pickPart(index, event) { this.release(event); const path = Vue.toRaw(this.TP).moments.pathOf(this._moment); if (path[index]) this.pickMoment(path[index]); },
+            stepMoment(dir, event) { this.release(event); if (this.chosenGroup) Vue.toRaw(this.TP).view.stepMoment(this.chosenGroup, dir); this.refreshTimeline(); },
+            toggleLoop(event) { this.release(event); const T = Vue.toRaw(this.TP); T.view.setLoop(this.chosenGroup, !this.timeline.loop); this.refreshTimeline(); },
+            exportMoment(event) {
+                this.release(event);
+                const T = Vue.toRaw(this.TP), g = T.view.groups[this.chosenGroup];
+                if (g && g.moment) { this.ctx.exportMoment = g.moment; this.ctx.exportOpen = true; this.ctx.helpOpen = false; }
+            },
+            momentTelemetries() {
+                const T = Vue.toRaw(this.TP), visible = T.moments.visible(), rest = T.moments.primaryOf(visible);
+                return T.moments.telemetries().map((telem) => ({ name: telem.getName(), shown: !T.moments.hidden.has(telem.getName()), rest: telem === rest }));
+            },
+            showMoments(name, shown) { const hidden = Vue.toRaw(this.TP).moments.hidden; if (shown) hidden.delete(name); else hidden.add(name); this.refreshTimeline(); },
+            restMoments(name) { Vue.toRaw(this.TP).moments.primary = name; this.showMoments(name, true); },
             // The wheel over the open time line: 1 % of its period per notch (later downwards or to the right), Alt: one sample per notch
             onWheel(event) {
                 if (!this.timelineOpen || !this.timeline.hasData || !this._map) return;
@@ -1354,6 +1321,8 @@ function initComponent_top_menu(vue) {
                     else T.view.move(group, { samples: dir });
                     return;
                 }
+                // Moments: PageUp and PageDown, on the same telemetry and level
+                if (group && !controlFocused && (event.key == "PageUp" || event.key == "PageDown") && this.timeline.momentCount) { event.preventDefault(); this.stepMoment(event.key == "PageUp" ? -1 : 1); return; }
                 // Replay speed: "-" and "+" (or "=", the same key unshifted on QWERTY and AZERTY; the keypad's too)
                 const speedDir = { "-": -1, "_": -1, "+": 1, "=": 1 }[event.key];
                 if (group && speedDir) { event.preventDefault(); T.view.changeSpeed(group, speedDir); return; }
@@ -1384,6 +1353,8 @@ function initComponent_top_menu(vue) {
             };
             this.TP.commands.onBlockedHooks.push(this._onCommandBlocked);
             // The time line follows every update of the library (a replay moves 30 times per second); its width is measured when it changes
+            this._tl = new (Vue.toRaw(this.TP).TimeLine)({ onPick: (moment) => this.pickMoment(moment) });
+            this.$refs.lineHost.appendChild(this._tl.element);
             this._timelineHook = () => this.refreshTimeline();
             Vue.toRaw(this.TP).updates.onUpdateHooks.push(this._timelineHook);
             if (typeof ResizeObserver === "function" && this.$refs.line) { this._lineObserver = new ResizeObserver(() => this.measureLine()); this._lineObserver.observe(this.$refs.line); }

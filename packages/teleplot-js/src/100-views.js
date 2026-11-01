@@ -87,6 +87,28 @@ class Views{
         }
         element.classList.toggle("teleplot-js-has-title", title !== "");
         this.__syncTimeGroup(element);
+        this.__syncMomentTag(element);
+    }
+
+    // A view of an instant that is not on the moment the menu names (another time group, not live) says which moment it is on
+    // (doc/moments.md "Tag"). Views with a time axis show their moments otherwise (showsPeriod).
+    __syncMomentTag(element) {
+        let text = "", path = "", group = TELEPLOT.view.groups[this.group], chosen = TELEPLOT.view.chosenGroup;
+        if(Array.isArray(this.telemetryIdOrNameList) && !this.showsPeriod && chosen !== undefined && this.group !== chosen && !TELEPLOT.view.isLive(this.group)) {
+            for(let telem of TELEPLOT.moments.visible()) {
+                let moment = TELEPLOT.moments.at(group.at, telem);
+                if(moment) { text = TELEPLOT.moments.describe(moment); path = TELEPLOT.moments.pathText(moment); break; }
+            }
+        }
+        let tag = Array.from(element.children).find((c) => c.classList.contains("teleplot-js-moment-tag"));
+        if(text === "") { if(tag) tag.remove(); return; }
+        if(!tag) {
+            tag = document.createElement("div");
+            tag.className = "teleplot-js-moment-tag";
+            element.appendChild(tag);
+        }
+        if(tag.textContent !== text) tag.textContent = text;
+        tag.title = path + " \u00b7 time group " + String(this.group).split(TELEPLOT.view.TIME_GROUP_SEPARATOR).pop();
     }
 
     // Where a time group starts (a view or a layout that does not follow its parent), a tag says so: its name and color, the period
@@ -172,6 +194,10 @@ class Views{
                 position: relative;
             }
             /* Time group that starts on this view: a tag in its top right corner (inside: a view at the top of the page has no room above it); a layout gets a frame with the tag inside, at the top */
+            .teleplot-js-moment-tag {
+                position: absolute; top: 0.3em; right: 0.4em; z-index: 4; font-size: 0.75rem; padding: 0.05em 0.5em; border-radius: 0.4em;
+                background: var(--teleplot-surface); border: 1px solid var(--teleplot-line); color: var(--teleplot-text); white-space: nowrap;
+            }
             .teleplot-js-time-group {
                 position: absolute; top: 0.35em; right: 0.5em; z-index: 4;
                 display: inline-flex; align-items: center; gap: 0.35em; max-width: calc(100% - 1em);
@@ -307,7 +333,8 @@ TELEPLOT.view.getView = function(viewId){
 // Whether a group of views (or any of them, without a name) shows a window of its own instead of all the data (a zoom, held, replay)
 TELEPLOT.view.isZoomed = function(group){
     let groups = group === undefined ? Object.values(TELEPLOT.view.groups) : [TELEPLOT.view.groups[group]];
-    return groups.some((g) => !!g && g.cursorActive);
+    if(groups.some((g) => !!g && g.cursorActive)) return true;
+    return TELEPLOT.view.views.some((view) => view.yZoom && (group === undefined || view.group === group)); // (a vertical scale moved by hand)
 }
 
 // Back to the latest data: drops the zoom and the cursor of a group of views (of all of them, without a name), live again.
@@ -324,6 +351,9 @@ TELEPLOT.view.backToLive = function(group){
         g.timestampFrom = -1;
         g.timestampTo = -1;
     }
+    for(let view of TELEPLOT.view.views) { // (the scales moved by hand come back too)
+        if(view.resetAxis && (group === undefined || view.group === group) && view.resetAxis()) changed = true;
+    }
     return changed;
 }
 
@@ -336,6 +366,7 @@ TELEPLOT.view.backToLive = function(group){
 TELEPLOT.view.PLACE = 0.7;      // Where the moment sits in a window of a span
 TELEPLOT.view.ROOM = 0.06;      // Empty room before the moment when it is the oldest sample (the cursor line is never on the frame)
 TELEPLOT.view.SPEEDS = [0.25, 0.5, 1, 2, 5, 10];
+TELEPLOT.view.ANIMATION_MS = 220; // How long the window takes to reach a moment or a section that was clicked
 
 function _views_live(g) {
     g.mode = "live";
@@ -344,6 +375,9 @@ function _views_live(g) {
     g.pending = undefined;
     g.movedWithWindow = false;
     g.cursorTimestamp = -1;
+    g.moment = undefined;
+    g.browsing = false;
+    g.animation = undefined;
 }
 
 // Telemetries shown by the views of a group (ids or names, once each)
@@ -367,6 +401,10 @@ function _views_groupEntries(name) {
             let entry = telem.data[dataType];
             if(entry && entry.timestamps && entry.timestamps.length) entries.push(entry);
         }
+    }
+    for(let telem of TELEPLOT.moments.telemetries()) { // (the time of a group includes the moments, even when no view shows them)
+        let entry = telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
+        if(!entries.includes(entry)) entries.push(entry);
     }
     return entries;
 }
@@ -418,13 +456,14 @@ TELEPLOT.view.isLive = function(name){
 }
 
 // Hold a group at a moment (default: what it shows now). Returns false when the group has no data to hold.
-TELEPLOT.view.hold = function(name, at){
+TELEPLOT.view.hold = function(name, at, keepWindow){
     let g = TELEPLOT.view.ensureGroup(name);
     let extent = TELEPLOT.view.groupExtent(name);
     if(extent === undefined) return false;
     let wasLive = g.mode === "live";
     if(at === undefined) at = wasLive ? (g.cursorTimestamp >= 0 ? g.cursorTimestamp : extent.to) : g.at;
     at = Math.min(Math.max(at, extent.from), extent.to);
+    if(g.moment && (at < g.moment.from || at > TELEPLOT.moments.end(g.moment))) g.moment = undefined; // (out of the moment shown)
     if(wasLive) {
         g.frozenTo = extent.to;
         g.resume = at >= extent.to ? "live" : "replay"; // (Space again: live when it was held at the latest data)
@@ -434,16 +473,17 @@ TELEPLOT.view.hold = function(name, at){
     g.at = at;
     g.movedWithWindow = false;
     g.cursorTimestamp = at;
-    _views_place(g, extent);
+    if(wasLive || !(keepWindow || g.moment) || at < g.timestampFrom || at > g.timestampTo) _views_place(g, extent); // (a click, or inside a moment: the window is where it was brought)
+    g.browsing = true; // Not live: charts and timelines then move through time (see panBy, zoomAround)
     TELEPLOT.view.lastHeld = { name, count: (TELEPLOT.view.lastHeld ? TELEPLOT.view.lastHeld.count : 0) + 1 }; // (a GUI can follow the group last held: a click in one of its views)
     return true;
 }
 
 // Show another moment: held there (a replay goes on from it)
-TELEPLOT.view.seek = function(name, at){
+TELEPLOT.view.seek = function(name, at, keepWindow){
     let g = TELEPLOT.view.ensureGroup(name);
     let replaying = g.mode === "replay";
-    if(!TELEPLOT.view.hold(name, at)) return false;
+    if(!TELEPLOT.view.hold(name, at, keepWindow)) return false;
     if(g.resume === "live" && at !== undefined) g.resume = "replay";
     if(replaying) { g.mode = "replay"; g.lastTick = undefined; }
     return true;
@@ -457,9 +497,111 @@ TELEPLOT.view.play = function(name, speed){
         let time = TELEPLOT.view.timeOf(name);
         if(!(time.from >= 0) || !TELEPLOT.view.hold(name, time.from)) return false;
     }
+    if(g.moment && g.at >= TELEPLOT.moments.end(g.moment)) g.at = g.moment.from; // (again, from its start)
     g.mode = "replay";
     g.lastTick = undefined;
     g.resume = "replay";
+    return true;
+}
+
+// Show a moment (doc/moments.md): held at its start, the window on it. A replay then stays in it: it stops at its end, or starts again
+// with setLoop. Moving the time out of it ends that.
+TELEPLOT.view.showMoment = function(name, moment){
+    return _views_show(name, moment.from, TELEPLOT.moments.end(moment), moment);
+}
+
+// A period, as a moment is shown: held at its start, the window on it, with a little room
+TELEPLOT.view.showPeriod = function(name, from, to){ return _views_show(name, from, to, undefined); }
+
+function _views_show(name, start, end, moment) {
+    let g = TELEPLOT.view.ensureGroup(name), extent = TELEPLOT.view.groupExtent(name);
+    let before = g.cursorActive && g.timestampFrom < g.timestampTo ? [g.timestampFrom, g.timestampTo] : (extent ? [extent.from, extent.to] : undefined);
+    let from = start, to = end;
+    if(!(to > from)) { from -= 0.5; to += 0.5; }
+    let room = (to - from) * 0.02;
+    g.moment = undefined;
+    if(!TELEPLOT.view.hold(name, start)) return false;
+    g.moment = moment;
+    g.span = to - from + 2 * room;
+    g.timestampFrom = from - room;
+    g.timestampTo = to + room;
+    g.cursorActive = true;
+    g.animation = undefined;
+    let reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if(before && TELEPLOT.view.ANIMATION_MS > 0 && !reduced) { // So that nobody is lost: the window goes there in a blink (__updateTime)
+        g.animation = { from: before[0], to: before[1], targetFrom: g.timestampFrom, targetTo: g.timestampTo, start: undefined };
+        g.timestampFrom = before[0];
+        g.timestampTo = before[1];
+    }
+    return true;
+}
+
+TELEPLOT.view.setLoop = function(name, on){ TELEPLOT.view.ensureGroup(name).loop = !!on; }
+
+// The previous / next moment (dir -1 / +1) of the same telemetry and level as the moment shown; without one, of the telemetry the line
+// shows at rest, from the time shown. false: there is none.
+TELEPLOT.view.stepMoment = function(name, dir){
+    let g = TELEPLOT.view.ensureGroup(name), current = g.moment;
+    let telem = current ? current.telem : TELEPLOT.moments.primaryOf(TELEPLOT.moments.visible());
+    if(telem === undefined) return false;
+    let list = TELEPLOT.moments.level(telem, current ? current.depth : TELEPLOT.moments.restLevel(telem));
+    let at = current ? current.from : TELEPLOT.view.timeOf(name).at;
+    let next = undefined;
+    for(let moment of list) {
+        if(dir > 0 && moment.from > at) { next = moment; break; }
+        if(dir < 0 && moment.from < at) next = moment;
+    }
+    if(next === undefined) return false;
+    let replaying = g.mode === "replay";
+    TELEPLOT.view.showMoment(name, next);
+    if(replaying) TELEPLOT.view.play(name);
+    return true;
+}
+
+// A click in a view with a time axis: held at that time, the window does not move. A click in the room around a moment shown stays in it
+TELEPLOT.view.pointAt = function(name, at){
+    let g = TELEPLOT.view.ensureGroup(name);
+    if(g.moment) {
+        let end = TELEPLOT.moments.end(g.moment), room = (end - g.moment.from) * 0.03; // (further away, it is another time: the moment ends there)
+        if(at >= g.moment.from - room && at <= end + room) at = Math.min(Math.max(at, g.moment.from), end);
+    }
+    return TELEPLOT.view.seek(name, at, true);
+}
+
+TELEPLOT.view.panBy = function(name, seconds){
+    let g = TELEPLOT.view.ensureGroup(name), extent = TELEPLOT.view.groupExtent(name), span = g.timestampTo - g.timestampFrom;
+    if(extent === undefined || !(span > 0)) return false;
+    let from = Math.max(extent.from, Math.min(extent.to - span, g.timestampFrom + seconds));
+    return TELEPLOT.view.zoomTo(name, from, from + span);
+}
+
+// The window of a group "scale" times shorter, the time "at" staying where it is on screen, within its data
+TELEPLOT.view.zoomAround = function(name, scale, at){
+    let g = TELEPLOT.view.ensureGroup(name), extent = TELEPLOT.view.groupExtent(name);
+    if(extent === undefined || !(g.timestampTo > g.timestampFrom)) return false;
+    let w = TELEPLOT.view.pinchWindow(g.timestampFrom, g.timestampTo, at, scale, 0);
+    return TELEPLOT.view.zoomTo(name, Math.max(extent.from, w.from), Math.min(extent.to, w.to));
+}
+
+TELEPLOT.view.setLoop = function(name, on){ TELEPLOT.view.ensureGroup(name).loop = !!on; }
+
+// The previous / next moment (dir -1 / +1) of the same telemetry and level as the moment shown; without one, of the telemetry the line
+// shows at rest, from the time shown. false: there is none.
+TELEPLOT.view.stepMoment = function(name, dir){
+    let g = TELEPLOT.view.ensureGroup(name), current = g.moment;
+    let telem = current ? current.telem : TELEPLOT.moments.primaryOf(TELEPLOT.moments.visible());
+    if(telem === undefined) return false;
+    let list = TELEPLOT.moments.level(telem, current ? current.depth : TELEPLOT.moments.restLevel(telem));
+    let at = current ? current.from : TELEPLOT.view.timeOf(name).at;
+    let next = undefined;
+    for(let moment of list) {
+        if(dir > 0 && moment.from > at) { next = moment; break; }
+        if(dir < 0 && moment.from < at) next = moment;
+    }
+    if(next === undefined) return false;
+    let replaying = g.mode === "replay";
+    TELEPLOT.view.showMoment(name, next);
+    if(replaying) TELEPLOT.view.play(name);
     return true;
 }
 
@@ -507,6 +649,7 @@ TELEPLOT.view.setSpan = function(name, span){
 // A period selected on a chart or a timeline: the group is held, the window is that period (and its duration the span)
 TELEPLOT.view.zoomTo = function(name, from, to){
     let g = TELEPLOT.view.ensureGroup(name);
+    g.animation = undefined;
     if(!(to > from)) return false;
     let at = g.mode !== "live" ? g.at : (g.cursorTimestamp >= 0 ? g.cursorTimestamp : to);
     at = Math.min(Math.max(at, from), to);
@@ -579,6 +722,14 @@ TELEPLOT.view.__updateTime = function(now = (typeof performance !== "undefined" 
     for(let name in TELEPLOT.view.groups) {
         let g = TELEPLOT.view.groups[name];
         if(g.mode === undefined) Object.assign(g, { mode: "live", at: -1, speed: 1, span: 0 });
+        if(g.animation) {
+            let a = g.animation;
+            if(a.start === undefined) a.start = now;
+            let done = Math.min(1, (now - a.start) / TELEPLOT.view.ANIMATION_MS), eased = 1 - Math.pow(1 - done, 3);
+            g.timestampFrom = a.from + (a.targetFrom - a.from) * eased;
+            g.timestampTo = a.to + (a.targetTo - a.to) * eased;
+            if(done >= 1) g.animation = undefined;
+        }
         if(g.mode === "live" && !g.pending && !(g.span > 0)) continue;
         let extent = TELEPLOT.view.groupExtent(name);
         if(extent === undefined) continue;
@@ -602,6 +753,16 @@ TELEPLOT.view.__updateTime = function(now = (typeof performance !== "undefined" 
             g.lastTick = now;
             if(last === undefined) continue;
             let at = g.at + (now - last) / 1000 * g.speed;
+            if(g.moment) { // Stays in the moment shown, its window does not move
+                let end = TELEPLOT.moments.end(g.moment);
+                if(at >= end) {
+                    if(g.loop) at = g.moment.from;
+                    else { at = end; g.mode = "held"; g.resume = "replay"; }
+                }
+                g.at = at;
+                if(TELEPLOT.view.hoveredGroup !== name) g.cursorTimestamp = at;
+                continue;
+            }
             if(at >= extent.to) { // Caught up: live again (with its span)
                 let span = g.span;
                 _views_live(g);

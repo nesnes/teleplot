@@ -10,6 +10,10 @@ class ViewChart extends ViewTelemetries{
         this.supportedLabel = "number";
         // What can be added to the chart: numbers (its series) and texts (marks on them, see buildOverlay)
         this.acceptedDataTypes = [...this.supportedDataTypes, ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT];
+        this.showsPeriod = true; // (no tag of the moment shown: its line says it, see syncMoments)
+        this.yZoom = undefined;  // {min, max}: the vertical scale moved by hand on its axis (see listenToAxis)
+        this.timeLine = undefined;
+        this.setOption("moments", "show"); // The line of the moments at the bottom of the chart while its group is not live: "show" or "hide"
         this.setOption("decimation", true); // Only give the chart what it can display (see MinMaxDecimator), stored data is untouched
         this.setOption("thresholds", "fit"); // Thresholds of the series: "fit" (drawn, and the scale keeps them in view), "show" (drawn when they are in view), "hide"
         this.setOption("scale", "auto");     // Vertical scale: "auto" (fits what is drawn) or "range" (the range of the telemetries, TELEM_ATTR_RANGE, when they have one)
@@ -104,7 +108,8 @@ class ViewChart extends ViewTelemetries{
     getOptionsSchema() {
         return [...super.getOptionsSchema(), { key: "decimation", label: "Decimation", type: "bool" },
             { key: "thresholds", label: "Thresholds", type: "choice", choices: [["fit", "In view"], ["show", "If in view"], ["hide", "Hidden"]] }, // (kept in view by the scale / drawn when the scale has them in view)
-            { key: "scale", label: "Scale", type: "choice", choices: [["auto", "Auto"], ["range", "Range"]] }]; // (fits what is drawn / the range of the telemetries)
+            { key: "scale", label: "Scale", type: "choice", choices: [["auto", "Auto"], ["range", "Range"]] },
+            { key: "moments", label: "Moments", type: "choice", choices: [["show", "Shown"], ["hide", "Hidden"]] }]; // (fits what is drawn / the range of the telemetries)
     }
 
     destroyChart() {
@@ -347,10 +352,57 @@ class ViewChart extends ViewTelemetries{
             // A click (not a drag): the group is held at that moment
             let down = undefined, u = this.chart;
             this.chart.over.addEventListener("mousedown", (e) => { down = [e.clientX, e.clientY]; });
+            // While the group is not live, the wheel and a drag move through time (a trackpad pinch, a wheel with Ctrl: zoom), instead of
+            // scrolling the page and selecting a period. Back to live gives them back.
+            let browsing = () => !!TELEPLOT.view.groups[this.group].browsing;
+            let secondsPerPixel = () => (u.scales.x.max - u.scales.x.min) / (u.over.clientWidth || 1);
+            this.chart.over.addEventListener("wheel", (e) => {
+                if(!browsing() || !u.scales.x || u.scales.x.min == null) return;
+                e.preventDefault();
+                let scaleOf = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1;
+                if(e.ctrlKey) {
+                    let box = u.over.getBoundingClientRect();
+                    TELEPLOT.view.zoomAround(this.group, Math.exp(-e.deltaY * scaleOf * 0.01), u.posToVal(e.clientX - box.left, "x"));
+                }
+                else TELEPLOT.view.panBy(this.group, (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * scaleOf * secondsPerPixel());
+            }, { passive: false });
+            // A drag belongs to this chart until it ends, wherever the mouse goes: the pointer is captured, nothing gets selected on the page,
+            // no other view reacts, and the cursor of uPlot does not follow it.
+            let panning = undefined;
+            if(u.root && u.root.addEventListener) {
+                u.root.addEventListener("mousedown", (e) => {
+                    if(!browsing() || e.button !== 0 || e.target !== u.over) return;
+                    e.stopPropagation(); // (uPlot would select a period; it then also takes the click for the end of a drag: handled below)
+                    e.preventDefault();
+                }, true);
+                u.root.addEventListener("mousemove", (e) => { if(panning) e.stopPropagation(); }, true);
+            }
+            u.over.addEventListener("pointerdown", (e) => {
+                if(!browsing() || e.button !== 0 || e.pointerType !== "mouse") return;
+                panning = { x: e.clientX, y: e.clientY, last: e.clientX, perPixel: secondsPerPixel() };
+                try { u.over.setPointerCapture(e.pointerId); } catch(error) {}
+                u.over.style.cursor = "grabbing";
+            });
+            u.over.addEventListener("pointermove", (e) => {
+                if(!panning) return;
+                TELEPLOT.view.panBy(this.group, (panning.last - e.clientX) * panning.perPixel);
+                panning.last = e.clientX;
+            });
+            let released = (e) => {
+                if(!panning) return;
+                let pressed = panning;
+                panning = undefined;
+                u.over.style.cursor = "grab";
+                if(e.type !== "pointerup" || Math.abs(e.clientX - pressed.x) > 3 || Math.abs(e.clientY - pressed.y) > 3) return;
+                let at = u.posToVal(e.clientX - u.over.getBoundingClientRect().left, "x");
+                if(at >= 0) TELEPLOT.view.pointAt(this.group, at);
+            };
+            u.over.addEventListener("pointerup", released);
+            u.over.addEventListener("pointercancel", released);
             this.chart.over.addEventListener("click", (e) => {
-                if(!down || Math.abs(e.clientX - down[0]) > 3 || Math.abs(e.clientY - down[1]) > 3 || u.cursor.left < 0) return;
-                let at = u.posToVal(u.cursor.left, "x");
-                if(at >= 0) TELEPLOT.view.seek(this.group, at);
+                if(!down || Math.abs(e.clientX - down[0]) > 3 || Math.abs(e.clientY - down[1]) > 3) return;
+                let at = u.posToVal(e.clientX - u.over.getBoundingClientRect().left, "x");
+                if(at >= 0) TELEPLOT.view.pointAt(this.group, at);
             });
             // A finger (109-touch.js): one scrolls the page (a tap holds, as a click), two pinch the time, a double tap is back to live
             this.chart.over.style.touchAction = "pan-x pan-y";
@@ -365,9 +417,11 @@ class ViewChart extends ViewTelemetries{
                     TELEPLOT.view.zoomTo(this.group, pinched.from, pinched.to);
                 },
                 pinchEnd: () => { pinched = undefined; },
+                swipe: (dx) => { if(browsing()) TELEPLOT.view.panBy(this.group, -dx * secondsPerPixel()); }, // (touch-action is pan-y then: see syncMoments)
                 doubleTap: () => TELEPLOT.view.backToLive(this.group),
             });
         }
+        this.listenToAxis(this.chart);
         // The moment shown when the group is not live: a line over the chart, moved without drawing the chart again (doc/time.md)
         this.headLine = undefined;
         this.headKey = "";
@@ -377,6 +431,55 @@ class ViewChart extends ViewTelemetries{
             this.headLine.hidden = true;
             this.chart.over.appendChild(this.headLine);
         }
+    }
+
+    // The vertical axis moves its scale: a drag moves it, a trackpad pinch or the wheel with Ctrl zoom around the pointer, fingers do the
+    // same, live or not; the wheel moves it too while not live (live, it scrolls the page). Double click, Esc or back to live give the
+    // automatic scale back.
+    listenToAxis(u) {
+        let axis = u.root && u.root.querySelectorAll ? Array.from(u.root.querySelectorAll(".u-axis"))[1] : undefined;
+        if(!axis || !axis.addEventListener) return;
+        axis.title = "Drag or pinch to move this scale, scroll too while paused. Double click to reset it";
+        axis.style.cursor = "ns-resize";
+        axis.style.touchAction = "none";
+        let current = () => this.yZoom || { min: u.scales.y.min, max: u.scales.y.max };
+        let apply = (zoom) => {
+            if(!(zoom.max > zoom.min)) return;
+            this.yZoom = zoom;
+            u.setScale("y", { min: zoom.min, max: zoom.max });
+        };
+        let move = (pixels) => { let z = current(), value = pixels * (z.max - z.min) / (u.over.clientHeight || 1); apply({ min: z.min + value, max: z.max + value }); };
+        let zoom = (scale, y) => { let z = current(), w = TELEPLOT.view.pinchWindow(z.min, z.max, u.posToVal(y, "y"), scale, 0, 1e-9); apply({ min: w.from, max: w.to }); };
+        let local = (event) => event.clientY - u.over.getBoundingClientRect().top;
+        axis.addEventListener("wheel", (event) => {
+            if(!event.ctrlKey && TELEPLOT.view.isLive(this.group)) return; // (live, the wheel scrolls the page, even over the axis)
+            event.preventDefault();
+            let unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 300 : 1;
+            if(event.ctrlKey) zoom(Math.exp(-event.deltaY * unit * 0.01), local(event));
+            else move(-event.deltaY * unit);
+        }, { passive: false });
+        let last = undefined;
+        axis.addEventListener("mousedown", (event) => event.preventDefault()); // (nothing gets selected on the page)
+        axis.addEventListener("pointerdown", (event) => { if(event.pointerType === "mouse" && event.button === 0) { last = event.clientY; axis.setPointerCapture(event.pointerId); } });
+        axis.addEventListener("pointermove", (event) => { if(last !== undefined) { move(event.clientY - last); last = event.clientY; } });
+        let up = () => { last = undefined; };
+        axis.addEventListener("pointerup", up);
+        axis.addEventListener("pointercancel", up);
+        axis.addEventListener("dblclick", () => this.resetAxis());
+        TELEPLOT.view.touchGestures(axis, {
+            pinch: (step) => { zoom(step.scale, step.cy); move(step.dy); },
+            swipe: (dx, dy) => move(dy),
+            doubleTap: () => this.resetAxis(),
+        });
+    }
+
+    // The automatic vertical scale again. Returns true when it was moved by hand.
+    resetAxis() {
+        if(!this.yZoom) return false;
+        this.yZoom = undefined;
+        this.updateForced = true;
+        if(this.chart && this.chart.setData) this.chart.setData(this.chartData); // (uPlot asks getScaleRange again)
+        return true;
     }
 
     // Up to when the data of the series was thinned out to save memory (Telemetry.thinOldest), 0 when it never was
@@ -442,6 +545,7 @@ class ViewChart extends ViewTelemetries{
     // Vertical scale from the lowest and highest values drawn: thresholds are kept in view (option "thresholds": "fit"), and the
     // range of the telemetries replaces it on the sides it gives (option "scale": "range")
     getScaleRange(min, max) {
+        if(this.yZoom) return [this.yZoom.min, this.yZoom.max];
         if(this.getOption("thresholds") === "fit") {
             for(let item of this.overlay.thresholds) for(let line of item.lines) for(let step of line.steps) {
                 if(min == null || step.value < min) min = step.value;
@@ -649,6 +753,41 @@ class ViewChart extends ViewTelemetries{
         line.classList.toggle("teleplot-js-chart-head-replay", group.mode === "replay");
     }
 
+    // The line of the moments (doc/moments.md "On charts"): at the very bottom of the chart, aligned on the plot, while the group is not
+    // live. Its room is kept as soon as there are moments, so that a curve never jumps when it shows.
+    syncMoments() {
+        let host = document.getElementById(this.chartDivId), u = this.chart;
+        let container = host ? host.parentElement : null;
+        if(!container) return;
+        let list = this.getOption("moments") === "hide" ? [] : TELEPLOT.moments.forView(this);
+        container.classList.toggle("teleplot-js-chart-has-moments", list.length > 0);
+        let group = TELEPLOT.view.groups[this.group], shown = list.length > 0 && !TELEPLOT.view.isLive(this.group);
+        if(u && u.over) { // One finger moves through time once a moment was shown (sideways: up and down still scrolls the page)
+            u.over.style.touchAction = group.browsing ? "pan-y" : "pan-x pan-y";
+            if(u.over.style.cursor !== "grabbing") u.over.style.cursor = group.browsing ? "grab" : "";
+        }
+        if(!shown) {
+            if(this.timeLine) this.timeLine.element.hidden = true;
+            return;
+        }
+        if(!this.timeLine) {
+            this.timeLine = TELEPLOT.Vue.markRaw(new TELEPLOT.TimeLine({
+                hoverOpens: true, pickOnLine: true, rowHeight: 14,
+                onPick: (moment) => TELEPLOT.view.showMoment(this.group, moment),
+                onPan: (seconds) => { TELEPLOT.view.groups[this.group].browsing = true; TELEPLOT.view.panBy(this.group, seconds); },
+                onZoom: (scale, at) => { TELEPLOT.view.groups[this.group].browsing = true; TELEPLOT.view.zoomAround(this.group, scale, at); },
+            }));
+            this.timeLine.element.classList.add("teleplot-js-chart-moments");
+        }
+        let line = this.timeLine;
+        if(line.element.parentElement !== container) container.appendChild(line.element);
+        line.element.hidden = false;
+        if(!u || !u.over || !u.scales || !u.scales.x || u.scales.x.min == null) return;
+        let width = container.clientWidth;
+        let moment = group.moment || TELEPLOT.moments.at(group.at, TELEPLOT.moments.primaryOf(list));
+        line.draw({ map: TELEPLOT.timeLine.window(u.scales.x.min, u.scales.x.max, u.over.clientWidth, u.over.offsetLeft), width, height: 4, mode: group.mode, knob: -1, gaps: [], data: false, show: true, moments: list, open: false, selected: group.moment, caption: moment ? TELEPLOT.moments.pathText(moment) : "moments of " + list.length + " telemetr" + (list.length > 1 ? "ies" : "y") });
+    }
+
     // A series with an explicit null inside each hole left by a stop of reception (gaps: the last sample before, the first one after,
     // see Telemetry.gapsOf; a decimated series keeps samples on both sides): uPlot breaks its line at a null (and spans the undefined
     // that uPlot.join puts where a series has no sample at a time of another). Fresh arrays.
@@ -842,6 +981,7 @@ class ViewChart extends ViewTelemetries{
         }
         this.syncCursor();
         this.syncHead();
+        this.syncMoments();
         // Used to ignore hooks triggered by updating the chart
         queueMicrotask(()=>{this.updateRunning = false;}); // Need to use queueMicrotask to make sure to run after uPlot hooks are fired
     }
@@ -976,6 +1116,15 @@ class ViewChart extends ViewTelemetries{
                 width: 100%;
                 display: flex;
                 flex-direction: column;
+            }
+            .teleplot-js-chart-has-moments { padding-bottom: 6px; box-sizing: border-box; }
+            .teleplot-js-chart-moments { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding-top: 6px; }
+            .teleplot-js-chart-moments .teleplot-js-timebar-line { height: 4px; }
+            .teleplot-js-chart-moments { cursor: grab; }
+            .teleplot-js-chart-moments .teleplot-js-timebar-caption { bottom: calc(100% + 2.4em); } /* (above the times of the axis) */
+            @media (pointer: coarse) { /* A finger: more than the line to aim at, and a press that stays on it never selects the view */
+                .teleplot-js-chart-container { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+                .teleplot-js-chart-moments { padding-top: 20px; }
             }
             .u-select { background: color-mix(in srgb, var(--teleplot-primary) 18%, transparent); }
             .teleplot-js-chart-uplot {

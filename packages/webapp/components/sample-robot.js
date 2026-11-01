@@ -341,6 +341,7 @@ function createRobotSample(TP) {
         else if (bot.state == "turning") tick = ["root/hold/not_auto=failure", "root/hold=failure", "root/command/has_goal=failure", "root/command=failure", "root/wander/avoid/wall_close=success", "root/wander/avoid/turn"];
         else tick = ["root/hold/not_auto=failure", "root/hold=failure", "root/command/has_goal=failure", "root/command=failure", "root/wander/avoid/wall_close=failure", "root/wander/avoid=failure", "root/wander/forward"];
         put("robot.bt", TEXT, [tick.join(",")]);
+        sendMission();
     }
 
     function publishSlow() { // 5 Hz
@@ -402,6 +403,27 @@ function createRobotSample(TP) {
         put("robot.camera", IMAGE, [P.IMAGE_TYPE_PNG, camera(eye)]);
         put("robot.depth", IMAGE, [P.IMAGE_TYPE_RAW, TP.pictures.toBase64(depthBytes)]); // (measured by camera() too)
         publishPipeline(seen);
+    }
+
+    // Its legs of patrol as moments (doc/moments.md): one every 8 s, a phase inside it, the result at its end, and one leg in five fails
+    let missionTicks = 0, missionText = "";
+    function sendMission() {
+        const leg = Math.floor(missionTicks / 40) + 1, step = missionTicks % 40;
+        missionTicks++;
+        const path = "patrol/leg#" + leg;
+        const text = step >= 36 ? path + (leg % 5 == 0 ? "=failed" : "=ok") : path + (step < 24 ? "/drive" : "/scan");
+        if (text === missionText) return;
+        missionText = text;
+        const telem = TP.datastore.getTelemetry("robot.mission");
+        if (!telem || telem.getAttribute(P.TELEM_ATTR_MOMENT) !== true) {
+            put("robot.mission", TEXT, [text]);
+            const created = TP.datastore.getTelemetry("robot.mission");
+            created.setAttribute(P.TELEM_ATTR_STACK, true);
+            created.setAttribute(P.TELEM_ATTR_MOMENT, true);
+            created.setAttribute(P.TELEM_ATTR_DESC, "Legs of the patrol: moments to step through, replay and export");
+            return;
+        }
+        put("robot.mission", TEXT, [text]);
     }
 
     // What the camera does for each picture, as a stack (the path of what is running: a row per level in the timeline), dated like a
@@ -497,7 +519,7 @@ function createRobotSample(TP) {
         dashboard.setView(main);
         main.addView(top);
         // (numbers can have a lane too: the distance has a threshold, it is a band while a wall is too close; the gyro is a plain line)
-        const timeline = new TP.view.ViewTimeline("", ["robot.state", "robot.mode", "robot.goto", "robot.camera.task", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
+        const timeline = new TP.view.ViewTimeline("", ["robot.mission", "robot.state", "robot.mode", "robot.goto", "robot.camera.task", "robot.zone", "robot.distance", "robot.gyro.z", "robot.nav.log", "robot.motor.log"], group);
         timeline.setSize(9, 5);
         main.addView(middle);
         middle.addView(timeline);

@@ -290,6 +290,11 @@ function _parseDataBinary_parseTELEM_ATTR(view, offset, clientId) {
                 offset++;
                 break;
             }
+            case TELEPLOT.protocol.TELEM_ATTR_MOMENT: {
+                telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_MOMENT, view.getUint8(offset) !== 0);
+                offset += 1;
+                break;
+            }
             case TELEPLOT.protocol.TELEM_ATTR_STACK: {
                 telemetry.setAttribute(TELEPLOT.protocol.TELEM_ATTR_STACK, view.getUint8(offset) !== 0);
                 offset++;

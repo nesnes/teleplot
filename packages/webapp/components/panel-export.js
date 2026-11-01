@@ -111,6 +111,53 @@ function exportDownload(parts, name, type) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// What an export holds, for its recap: { periods: [texts], telemetries: [{name, samples}, biggest first], dashboards }
+function exportDescribe(TP, format, options, now = Date.now()) {
+    let periods = [];
+    if (options.ranges) periods = TP.files.mergeRanges(options.ranges).filter((range) => range.to >= range.from).map((range) => exportFormatPeriod(range.from, range.to, now));
+    else if (options.from !== undefined) periods = [exportFormatPeriod(options.from, options.to !== undefined ? options.to : (TP.datastore.getTimeSpan() || {}).newest, now)];
+    const ids = options.telemetries || Object.values(TP.datastore.telemetries).map((telem) => telem.id);
+    const telemetries = [];
+    for (const id of ids) {
+        const telem = TP.datastore.getTelemetry(id);
+        const samples = telem ? TP.files.estimate(format, Object.assign({}, options, { telemetries: [id], dashboards: false })).samples : 0;
+        if (samples) telemetries.push({ name: telem.getName(), samples });
+    }
+    telemetries.sort((a, b) => b.samples - a.samples);
+    return { periods, telemetries, dashboards: options.dashboards || [] };
+}
+
+// A moment, as a key of the list
+function exportMomentKey(moment) { return moment.telem.id + "|" + moment.path + "|" + moment.from; }
+// Ticks or unticks a moment in "picked" (key -> moment). What is inside a moment is part of its period, so it follows it; and a moment
+// loses its tick when something inside it is unticked: its period would still hold it.
+function exportPickMoment(picked, moment, on, mark = (m) => m) {
+    const down = (m) => {
+        if (on) picked[exportMomentKey(m)] = mark(m); else delete picked[exportMomentKey(m)];
+        m.children.forEach(down);
+    };
+    down(moment);
+    if (!on) for (let up = moment.parent; up; up = up.parent) delete picked[exportMomentKey(up)];
+}
+// Ticked itself, or only some of what is inside it
+function exportMomentPartial(picked, moment) {
+    const any = (m) => m.children.some((child) => picked[exportMomentKey(child)] || any(child));
+    return !picked[exportMomentKey(moment)] && any(moment);
+}
+// Whose data is saved with moments: what comes from the same source, or has the same label, as their telemetries, and those themselves
+function exportMomentScope(TP, moments, scope, among) {
+    const P = TP.protocol, own = new Map(moments.map((moment) => [moment.telem.id, moment.telem]));
+    const sources = new Set(Array.from(own.values()).map((telem) => telem.sourceId));
+    const labels = new Set(Array.from(own.values()).map((telem) => telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL)).filter((label) => label));
+    const list = among === undefined ? Object.values(TP.datastore.telemetries).map((telem) => telem.id) : among;
+    const kept = list.filter((id) => {
+        const telem = TP.datastore.getTelemetry(id);
+        return telem && (scope === "source" ? sources.has(telem.sourceId) : labels.has(telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL)));
+    });
+    for (const id of own.keys()) if (!kept.includes(id)) kept.push(id);
+    return kept;
+}
+
 function initComponent_panel_export(vue) {
     let name = "panel-export";
 
@@ -156,6 +203,29 @@ function initComponent_panel_export(vue) {
                         </div>
                     </div>
 
+                    <!-- Moments: the periods to save, by telemetry, as a tree; then whose data -->
+                    <div v-if="when == 'moments'" class="export-inset">
+                        <div class="export-inset-head"><b>Moments</b><span>{{momentCount}} of {{momentRows.total}}</span><span class="export-grow"></span>
+                            <button type="button" @click="pickMoments(true)">All</button><button type="button" @click="pickMoments(false)">None</button>
+                        </div>
+                        <div class="export-moment-filters">
+                            <select v-model="momentKind" aria-label="Kind of moment"><option value="">All kinds</option><option v-for="k in momentKinds" :key="k" :value="k">{{k}}</option></select>
+                            <select v-model="momentResult" aria-label="Result"><option value="">All results</option><option value="failed">Failed</option><option value="ok">Ended well</option><option value="none">No result</option></select>
+                        </div>
+                        <div class="export-list">
+                            <template v-for="block in momentRows.blocks" :key="block.name">
+                                <div class="export-moment-telem">{{block.name}}</div>
+                                <label v-for="row in block.rows" :key="row.key" class="export-check" :style="{'padding-left': row.depth + 'rem'}">
+                                    <input type="checkbox" :checked="!!momentPicked[row.key]" :indeterminate.prop="momentPartial(row)" @change="pickMoment(row, $event.target.checked)">
+                                    <span class="export-row-name">{{row.label}}</span>
+                                    <small class="export-mono" :class="{'export-failed': row.failed}">{{row.text}}</small>
+                                </label>
+                            </template>
+                            <div v-if="momentRows.more" class="export-sub">{{momentRows.more}} more: filter to reach them.</div>
+                        </div>
+                        <div class="export-field export-moment-scope"><label>Data of</label>${seg("momentScope", "scopeOptions")}</div>
+                    </div>
+
                     <!-- CSV: its settings, and the first lines of the file -->
                     <div v-if="format == 'csv'" class="export-inset">
                         <div class="export-inset-head"><b>CSV</b></div>
@@ -176,6 +246,13 @@ function initComponent_panel_export(vue) {
                     </div>
                     <div v-if="format == 'csv' && estimate.leftOut" class="export-note"><b>!</b><span>A CSV holds numbers and text: {{estimate.leftOut}} {{estimate.leftOut == 1 ? 'telemetry is' : 'telemetries are'}} left out (images, 3D, point clouds). The binary file keeps everything.</span></div>
 
+                    <div v-if="estimate.samples" class="export-contents">
+                        <template v-if="contents.periods.length"><b>{{contents.periods.length}} {{contents.periods.length == 1 ? 'period' : 'periods'}}</b><div v-for="(period, i) in contents.periods" :key="i">{{period}}</div></template>
+                        <b>{{contents.telemetries.length}} {{contents.telemetries.length == 1 ? 'telemetry' : 'telemetries'}}</b>
+                        <div v-for="item in contents.telemetries" :key="item.name" class="export-contents-row"><span>{{item.name}}</span><small class="export-mono">{{count(item.samples)}}</small></div>
+                        <template v-if="contents.dashboards.length"><b>{{contents.dashboards.length == 1 ? 'Dashboard' : 'Dashboards'}}</b><div v-for="name in contents.dashboards" :key="name">{{name}}</div></template>
+                        <div v-if="noLabel" class="export-sub">These moments have no label: only their own telemetry is saved.</div>
+                    </div>
                     <div class="export-recap">
                         <div class="export-grow">
                             <div><b class="export-mono">{{count(estimate.samples)}}</b> {{format == 'csv' ? 'values' : 'samples'}}<template v-if="periodText"> · {{periodText}}</template></div>
@@ -351,6 +428,11 @@ function initComponent_panel_export(vue) {
         .export-inset-head button:disabled { opacity: 0.4; cursor: default; }
         .export-inset > .export-sub { margin-top: 0.35rem; }
         .export-preview-head { margin-top: 0.55rem; }
+        .export-moment-filters { display: flex; gap: 0.4rem; margin-bottom: 0.35rem; }
+        .export-moment-filters select { flex: 1 1 0; min-width: 0; }
+        .export-moment-telem { font-weight: 600; font-size: 0.9rem; padding-top: 0.2rem; }
+        .export-failed { color: var(--color-danger); }
+        .export-moment-scope { margin-top: 0.5rem; }
         .export-list { max-height: 14rem; overflow-y: auto; scrollbar-width: thin; }
         .export-list .export-check { padding: 0.12rem 0; }
         .export-row-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -363,6 +445,11 @@ function initComponent_panel_export(vue) {
 
         .export-note { display: flex; gap: 0.45rem; margin-top: 0.5rem; padding: 0.4rem 0.55rem; border-radius: 0.5rem; background: color-mix(in srgb, var(--color-warning) 16%, transparent); font-size: 0.9rem; line-height: 1.35; }
         .export-note.good { background: color-mix(in srgb, var(--color-success) 14%, transparent); }
+        .export-contents { max-height: 9rem; margin-top: 0.6rem; padding: 0.3rem 0.5rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; border-radius: 0.5rem; background: var(--color-bg); font-size: 0.9rem; } /* (long lists scroll here: the panel keeps its size) */
+        .export-contents b { display: block; margin-top: 0.3rem; font-size: 0.82rem; color: var(--color-text-muted); }
+        .export-contents b:first-child { margin-top: 0; }
+        .export-contents-row { display: flex; justify-content: space-between; gap: 0.6rem; }
+        .export-contents-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .export-recap { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--color-bg-dark); }
         .export-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.4rem 0.9rem; border-radius: 0.7rem; border: 1px solid var(--color-bg-dark); background: var(--color-bg-light); font-weight: 600 !important; white-space: nowrap; cursor: pointer; }
         .export-btn:hover { border-color: var(--color-primary); }
@@ -434,6 +521,10 @@ function initComponent_panel_export(vue) {
                 queue: [],            // Files waiting for their turn
                 dragging: false,      // A file is being dragged over the page
                 confirmRemove: 0,     // Id of the file whose removal is being confirmed
+                momentKind: "",       // Moments: the list is filtered on a kind...
+                momentResult: "",     // ...and a result
+                momentPicked: {},     // Key of a moment -> the moment, for when == "moments"
+                momentScope: "all",   // Whose data: "all", "source" or "label"
             };
         },
         computed: {
@@ -443,8 +534,34 @@ function initComponent_panel_export(vue) {
             },
             whenOptions() {
                 this.tick;
-                return [{ id: "all", label: "All" }, { id: "zoom", label: "Zoomed", disabled: !exportZoom(this.TP, this.ctx.activeDashboard), title: "The period the dashboard is zoomed on (drag on a chart to zoom)" }, { id: "last", label: "Last min" }];
+                return [{ id: "all", label: "All" }, { id: "zoom", label: "Zoomed", disabled: !exportZoom(this.TP, this.ctx.activeDashboard), title: "The period the dashboard is zoomed on (drag on a chart to zoom)" }, { id: "last", label: "Last min" },
+                    { id: "moments", label: "Moments", disabled: !this.TP.moments.telemetries().length, title: "Periods the devices declared" }];
             },
+            scopeOptions() { return [{ id: "all", label: "All", title: "Every telemetry" }, { id: "source", label: "Same source", title: "What comes from the same source as these moments" }, { id: "label", label: "Same label", title: "What has the same label as these moments" }]; },
+            momentKinds() { this.tick; return this.TP.moments.kinds(this.TP.moments.telemetries()); },
+            // The moments of the list, by telemetry, the ones inside others under them (cut at 400 lines: a filter reaches the others)
+            momentRows() {
+                this.tick;
+                const M = this.TP.moments, blocks = [];
+                let total = 0, shown = 0;
+                for (const telem of M.telemetries()) {
+                    const rows = [];
+                    for (const moment of M.of(telem).moments) {
+                        if (this.momentKind && moment.kind !== this.momentKind) continue;
+                        if (this.momentResult === "failed" && !moment.failed) continue;
+                        if (this.momentResult === "ok" && (moment.failed || !moment.result)) continue;
+                        if (this.momentResult === "none" && moment.result) continue;
+                        total++;
+                        if (shown++ >= 400) continue;
+                        rows.push({ key: exportMomentKey(moment), moment, label: M.label(moment), depth: moment.depth, failed: moment.failed, text: M.describe(moment).slice(M.label(moment).length + 1) });
+                    }
+                    if (rows.length) blocks.push({ name: telem.getName(), rows });
+                }
+                return { blocks, total, more: Math.max(0, shown - 400) };
+            },
+            momentCount() { return Object.keys(this.momentPicked).length; },
+            // Moments in the recap: those not already inside another one that is ticked
+            momentTops() { return Object.values(this.momentPicked).filter((moment) => !moment.parent || !this.momentPicked[exportMomentKey(moment.parent)]).length; },
             formatOptions() { return EXPORT_FORMATS.map((f) => ({ id: f.id, label: f.label, title: f.note })); },
             layoutOptions() { return [{ id: "columns", label: "Columns" }, { id: "lines", label: "Lines" }]; },
             formatNote() { return EXPORT_FORMATS.find((f) => f.id === this.format).note; },
@@ -486,6 +603,11 @@ function initComponent_panel_export(vue) {
                 else if (this.what === "choose") options.telemetries = Object.keys(this.chosen).filter((id) => this.chosen[id]).map(Number);
                 if (this.when === "zoom") { const zoom = exportZoom(this.TP, this.ctx.activeDashboard); if (zoom) Object.assign(options, zoom); }
                 else if (this.when === "last") { const span = this.TP.datastore.getTimeSpan(); if (span) options.from = span.newest - 60; }
+                else if (this.when === "moments") {
+                    const picked = Object.values(this.momentPicked);
+                    options.ranges = picked.length ? picked.map((moment) => ({ from: moment.from, to: this.TP.moments.end(moment) })) : [{ from: -2, to: -1 }]; // (nothing ticked: nothing to save)
+                    if (this.momentScope !== "all") options.telemetries = exportMomentScope(this.TP, picked, this.momentScope, options.telemetries);
+                }
                 if (this.format === "csv") Object.assign(options, this.csv);
                 return options;
             },
@@ -494,10 +616,17 @@ function initComponent_panel_export(vue) {
                 this.tick;
                 if (this.when === "zoom" && this.options.from !== undefined) return exportFormatDuration(this.options.to - this.options.from) + ", as zoomed";
                 if (this.when === "last") return "the last minute";
+                if (this.when === "moments") return this.momentTops + (this.momentTops == 1 ? " moment" : " moments") + " · " + exportFormatDuration(this.TP.files.mergeRanges(this.options.ranges || []).reduce((sum, r) => sum + Math.max(0, r.to - r.from), 0));
                 const span = this.TP.datastore.getTimeSpan();
                 return span ? exportFormatDuration(span.duration) : "";
             },
             fileName() { this.tick; return exportFileName(this.format); },
+            // What the file will hold, written out under the recap
+            contents() { this.tick; return exportDescribe(this.TP, this.format, this.options); },
+            noLabel() {
+                const P = this.TP.protocol;
+                return this.when === "moments" && this.momentScope === "label" && !Object.values(this.momentPicked).some((moment) => moment.telem.getAttribute(P.TELEM_ATTR_VIEW_LABEL));
+            },
             canSave() { return this.estimate.samples > 0 || (this.options.dashboards && this.options.dashboards.length > 0); },
             // The first lines of the CSV, a few columns of them
             preview() {
@@ -521,6 +650,17 @@ function initComponent_panel_export(vue) {
             whatOptions(options) { if (options.find((o) => o.id === this.what).disabled) this.what = "all"; },
             what(value) { this.saved = null; if (value === "choose" && !Object.keys(this.chosen).length) this.chooseAll(true); },
             when() { this.saved = null; },
+            // A moment to export, from the top menu
+            "ctx.exportMoment": {
+                immediate: true, // (the panel may not be there yet when it is asked)
+                handler(moment) {
+                    if (!moment) return;
+                    this.when = "moments";
+                    this.momentPicked = {};
+                    exportPickMoment(this.momentPicked, moment, true, Vue.markRaw);
+                    this.ctx.exportMoment = null;
+                },
+            },
             format() { this.saved = null; },
             // Files dropped on the page (main.js) come here
             "ctx.droppedFiles"(files) { this.takeDropped(files); },
@@ -548,6 +688,12 @@ function initComponent_panel_export(vue) {
             bytes: exportFormatBytes,
             duration: exportFormatDuration,
             period(from, to) { return exportFormatPeriod(from, to); },
+            pickMoment(row, on) { exportPickMoment(this.momentPicked, row.moment, on, Vue.markRaw); },
+            momentPartial(row) { return exportMomentPartial(this.momentPicked, row.moment); },
+            pickMoments(on) {
+                if (!on) { this.momentPicked = {}; return; }
+                for (const block of this.momentRows.blocks) for (const row of block.rows) this.pickMoment(row, true);
+            },
             sameEra(info) { return (info.from < 978307200) === (info.to < 978307200); }, // Both times of a device, or both dates
             clock(date) { return [date.getHours(), date.getMinutes()].map((n) => String(n).padStart(2, "0")).join(":"); },
             formatName(info) {

@@ -8,6 +8,8 @@ let _datastore_offCount = 0;           // Counts the times reception was stopped
 let _datastore_serial = 0;             // Counts the telemetries created: tells one from another one that took its id (objects are not compared: an application may wrap them)
 
 class Telemetry {
+    getName() { return this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(this.id); }
+
     constructor(id) {
         this.id = id;
         this.serial = ++_datastore_serial;
@@ -429,6 +431,7 @@ class Telemetry {
     // at those times is what was displayed before (an image keeps the pose it was taken from).
     // "thinnedBefore" of a data type tells up to when its data has been thinned. Returns the number of samples removed.
     thinOldest(fraction=0.5) {
+        if (this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_MOMENT) === true) return 0; // (the boundaries of moments are kept)
         const GROUP = 4;
         let primary = undefined, heaviest = -1;
         for (let dataType in this.data) {
@@ -494,6 +497,7 @@ class Telemetry {
 
     // Makes room by forgetting the oldest part of the data (the first "fraction" of the samples of each data type). Returns the number of samples removed.
     forgetOldest(fraction=0.25) {
+        if (this.getAttribute(TELEPLOT.protocol.TELEM_ATTR_MOMENT) === true) return 0; // (the boundaries of moments are kept)
         let removed = 0;
         for (let dataType in this.data) {
             if (TELEPLOT.protocol.isMetaDataType(dataType)) continue; // (limits and structures stay: see thinOldest)

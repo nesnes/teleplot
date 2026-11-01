@@ -210,6 +210,7 @@ Everything about commands: [doc/telecmd.md](doc/telecmd.md).
   at the bottom of the top menu goes back in time and replays it.
 - **Files**: export data and dashboards as binary, text or CSV, and open them again ([doc/files.md](doc/files.md)).
 - **Sources**: Teleplot servers and serial ports, their state and their console ([doc/sources.md](doc/sources.md)).
+- **Moments**: periods your device declares (a cycle, a phase) to step through, replay and export ([doc/moments.md](doc/moments.md)).
 - **Top menu**: reception on or off, the time line (hold, replay at several speeds, live), data window and memory, panels, shortcuts
   ([doc/top-menu.md](doc/top-menu.md), [doc/time.md](doc/time.md)).
 
