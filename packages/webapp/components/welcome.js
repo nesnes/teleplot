@@ -135,6 +135,7 @@ function initComponent_welcome(vue) {
             top: calc(var(--logo-h) * ${(LOGO.junctionY - 1).toFixed(3)} + var(--logo-w) * ${(LOGO.ring / 2).toFixed(4)} + 0.4rem - 1.4rem);
             border-left: 1.5px solid color-mix(in srgb, var(--color-text) 22%, transparent);
         }
+        :root[data-theme="dark"] .welcome-cols::before { top: calc(0.6rem - 1.4rem); } /* (on a dark page, from under the light plate of the logo: a light line across it showed as a scratch) */
         .welcome-col { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
         .welcome-h { margin: 0 0 0.1rem; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
         .welcome-h-send { color: #2980b9; } .welcome-h-see { color: #e74c3c; }
@@ -151,7 +152,7 @@ function initComponent_welcome(vue) {
         .welcome-icon.bad { --ic: var(--color-danger); } .welcome-icon.off { --ic: var(--color-text-muted); }
         .welcome-sample .welcome-icon { --ic: var(--try); }
         .welcome-langs { display: flex; align-items: center; gap: 0.3rem; margin-top: 0.2rem; }
-        .welcome-langs .welcome-seg { flex: 1; margin-top: 0; }
+        .welcome-langs .welcome-seg { flex: 1; min-width: 0; flex-wrap: wrap; margin-top: 0; } /* (narrow card: the languages wrap, they never push the "?" out of it) */
         .welcome-help { flex: none; border: none; background: none; color: var(--color-primary); font-size: 1.25rem; cursor: pointer; padding: 0 0.1rem; line-height: 1; }
         .welcome-help:hover { color: color-mix(in srgb, var(--color-primary) 75%, var(--color-text)); }
         .welcome-src-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }

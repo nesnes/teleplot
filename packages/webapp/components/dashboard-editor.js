@@ -814,8 +814,9 @@ function initDashboardEditor(TP) {
             if (view) view.el.classList.add("tp-droptarget");
             markLooseTarget(target.loose);
         };
+        if (event.pointerType !== "touch") return false; // (the mouse keeps the drag and drop of the browser: its tile must stay draggable)
         if (source) source.draggable = false; // (the browser would start its own drag on a long press)
-        return E.touchLift(event, {
+        let started = E.touchLift(event, {
             onLift(x, y) {
                 ghost = document.createElement("div");
                 ghost.className = "tp-ghost tp-ghost-touch";
@@ -846,6 +847,8 @@ function initDashboardEditor(TP) {
                 E.refresh();
             },
         });
+        if (!started && source) source.draggable = true; // (another finger was already lifting something)
+        return started;
     };
 
     // ------------------------------------------------------------------ Events (one set of listeners for the whole page)
