@@ -63,7 +63,7 @@ In `100-views.js`: `TELEPLOT.view.hold(group[, at])`, `play(group[, speed])` (fr
 
 The line of the top menu and of charts is one component of the library; moments, periods a device declares, are drawn on it and can be replayed alone: see [moments.md](moments.md).
 
-The vertical axis of a chart moves its own scale, live or not: drag to move it, a trackpad pinch or Ctrl + wheel to zoom around the pointer, fingers the same. The wheel moves it too, only while not live (live, it scrolls the page). A double click on it resets that chart; Esc, a double click on the chart and back to live reset them all (`ViewChart.yZoom`, `listenToAxis`, `resetAxis`, and `TELEPLOT.view.isZoomed` counts them).
+A drag on a chart selects a period; with Ctrl (or ⌘) it selects a region, the period and the values, and the vertical scale keeps those values until it is reset like below. The vertical axis of a chart moves its own scale, live or not: drag to move it, a trackpad pinch or Ctrl + wheel to zoom around the pointer, fingers the same. The wheel moves it too, only while not live (live, it scrolls the page). A double click on it resets that chart; Esc, a double click on the chart and back to live reset them all (`ViewChart.yZoom`, `listenToAxis`, `resetAxis`, and `TELEPLOT.view.isZoomed` counts them).
 
 ## The top menu
 
@@ -104,7 +104,7 @@ Proposal A of the mock-ups (see [top-menu.md](top-menu.md) for the rest of the m
 | `R`, record switch | Reception on ↔ off |
 | Click on a chart (not a drag), on a timeline | Its group → Held at that moment |
 | Drag on a chart or a timeline | Its group is held and its window is the selection (`span` = its duration). Resuming plays it with that span. |
-| Double click on a chart or timeline | Back to live, as Esc (that group only). |
+| Double click on a chart or timeline | The whole time again (and on a chart, the automatic vertical scale), without going live: held stays held where it was (`unzoom`). On an axis: that axis only. Esc goes live. |
 | Click a log line, graph chip, timeline band | Its group → Held at that sample, and it becomes the chosen group |
 | Touch a command in a group that is not live | Nothing sent, "Go live" for that group |
 

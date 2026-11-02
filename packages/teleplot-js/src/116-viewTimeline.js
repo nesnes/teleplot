@@ -524,6 +524,9 @@ class ViewTimeline extends ViewTelemetries{
 
     // "850 ms", "12.3 s", "2 min 05 s", "1 h 02 min"
     static formatDuration(seconds) {
+        if(seconds > 0 && seconds < 0.001) return Math.max(1, Math.round(seconds * 1e6)) + " µs"; // (short is not nothing: 0 ms only for an instant)
+        if(seconds < 0.01) return (Math.round(seconds * 1e5) / 100) + " ms";
+        if(seconds < 0.1) return (Math.round(seconds * 1e4) / 10) + " ms";
         if(seconds < 1) return Math.round(seconds * 1000) + " ms";
         if(seconds < 60) return (Math.round(seconds * 10) / 10) + " s";
         if(seconds < 3600) return Math.floor(seconds / 60) + " min " + String(Math.floor(seconds % 60)).padStart(2, "0") + " s";
@@ -554,18 +557,19 @@ class ViewTimeline extends ViewTelemetries{
         let position = (event) => { let box = canvas.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top }; };
         let drag = undefined;
         let secondsPerPixel = () => (this.period.to - this.period.from) / Math.max(1, page.width - page.gutter);
-        let tall = () => host.scrollHeight - host.clientHeight > 4;
-        // Not live, the wheel moves through time, as on a chart (with Ctrl, or a trackpad pinch: zoom). A timeline taller than its view goes
-        // in two dimensions: sideways the time, up and down its lanes.
+        // As on a chart: a drag of the mouse on the lanes selects a period, the time axis at the bottom moves through time (a drag, held
+        // first when live; the wheel while not live; a trackpad pinch or Ctrl + wheel zooms), and over the lanes, while not live, two
+        // fingers sideways on a trackpad move through time and a pinch zooms. Up and down scroll the lanes, then the page.
+        let onAxis = (at) => at.y >= Math.min(page.height, host.scrollTop + host.clientHeight) - ViewTimeline.AXIS;
+        let held = () => { if(TELEPLOT.view.isLive(this.group)) TELEPLOT.view.hold(this.group); };
         listen(canvas, "wheel", (event) => {
-            if(TELEPLOT.view.isLive(this.group)) return;
+            let at = position(event), axis = onAxis(at), live = TELEPLOT.view.isLive(this.group);
             let unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 300 : 1, sideways = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+            if(event.ctrlKey) { if(live && !axis) return; }
+            else if(live || (!axis && !sideways)) return;
             event.preventDefault();
-            if(event.ctrlKey) TELEPLOT.view.zoomAround(this.group, Math.exp(-event.deltaY * unit * 0.01), this.__timeAt(position(event).x));
-            else if(tall()) {
-                host.scrollTop += event.deltaY * unit;
-                if(event.deltaX) TELEPLOT.view.panBy(this.group, event.deltaX * unit * secondsPerPixel());
-            }
+            held();
+            if(event.ctrlKey) TELEPLOT.view.zoomAround(this.group, Math.exp(-event.deltaY * unit * 0.01), this.__timeAt(at.x));
             else TELEPLOT.view.panBy(this.group, (sideways ? event.deltaX : event.deltaY) * unit * secondsPerPixel());
             this.__draw();
         });
@@ -575,18 +579,17 @@ class ViewTimeline extends ViewTelemetries{
             let at = position(event);
             if(at.x < page.gutter) return;
             if(event.pointerType === "touch") { drag = { x: at.x, y: at.y, touch: true }; return; } // A finger: a tap holds, a swipe scrolls the page (two fingers zoom: below)
-            drag = { x: at.x, y: at.y, pan: !TELEPLOT.view.isLive(this.group), last: at.x, lastY: event.clientY }; // (not live: it moves through time, as on a chart)
+            drag = { x: at.x, y: at.y, axis: onAxis(at), last: at.x };
             try { canvas.setPointerCapture(event.pointerId); } catch(e) {}
         });
         listen(canvas, "pointermove", (event) => {
             let at = position(event);
             if(drag && drag.touch) { if(Math.hypot(at.x - drag.x, at.y - drag.y) > TELEPLOT.view.TAP_SLOP) drag.moved = true; return; }
-            if(drag && drag.pan) {
-                TELEPLOT.view.panBy(this.group, (drag.last - at.x) * secondsPerPixel());
-                if(tall()) host.scrollTop += drag.lastY - event.clientY;
+            if(!drag) canvas.style.cursor = at.x >= page.gutter && onAxis(at) ? "ew-resize" : "";
+            if(drag && drag.axis) {
+                if(Math.abs(at.x - drag.x) > 3) drag.moved = true;
+                if(drag.moved) { held(); TELEPLOT.view.panBy(this.group, (drag.last - at.x) * secondsPerPixel()); }
                 drag.last = at.x;
-                drag.lastY = event.clientY;
-                drag.moved = drag.moved || Math.abs(at.x - drag.x) > 3;
             }
             else if(drag) this.selection = { from: Math.min(drag.x, at.x), to: Math.max(drag.x, at.x) };
             this.__hover(at);
@@ -605,7 +608,7 @@ class ViewTimeline extends ViewTelemetries{
             drag = undefined;
             this.selection = undefined;
             try { canvas.releasePointerCapture(event.pointerId); } catch(e) {}
-            if(pressed.pan && pressed.moved) { this.__draw(); return; }
+            if(pressed.axis) { this.__draw(); return; }
             if(selection && selection.to - selection.from >= 4) { // A period was selected: the views of the group are held on it
                 let from = this.__timeAt(selection.from), to = this.__timeAt(selection.to);
                 if(from < to) TELEPLOT.view.zoomTo(this.group, from, to);
@@ -621,7 +624,7 @@ class ViewTimeline extends ViewTelemetries{
             TELEPLOT.view.hoveredGroup = "";
             TELEPLOT.view.pointerLeft(this.group); // (the views show the moment of the group again)
         });
-        listen(canvas, "dblclick", () => TELEPLOT.view.backToLive(this.group)); // Back to live, as Esc
+        listen(canvas, "dblclick", () => TELEPLOT.view.unzoom(this.group)); // The whole time again, without going live (Esc does that)
         // Two fingers pinch the time, a double tap is back to live (109-touch.js)
         let pinched = undefined;
         page.untouch = TELEPLOT.view.touchGestures(canvas, {
@@ -636,7 +639,7 @@ class ViewTimeline extends ViewTelemetries{
             },
             pinchEnd: () => { pinched = undefined; },
             swipe: (dx) => { if(!TELEPLOT.view.isLive(this.group)) { TELEPLOT.view.panBy(this.group, -dx * secondsPerPixel()); this.__draw(); } }, // (touch-action is pan-y then)
-            doubleTap: () => { TELEPLOT.view.backToLive(this.group); this.__draw(); },
+            doubleTap: () => { TELEPLOT.view.unzoom(this.group); this.__draw(); },
         });
         listen(host, "scroll", () => this.__draw()); // (the time axis stays at the bottom of what is visible)
         if(typeof ResizeObserver === "function") { page.observer = new ResizeObserver(() => this.__resize()); page.observer.observe(host); }
@@ -680,7 +683,6 @@ class ViewTimeline extends ViewTelemetries{
         let paused = !TELEPLOT.view.isLive(this.group), key = paused ? "pan-y" : "";
         if(canvas.style.touchAction === (key || "pan-x pan-y")) return;
         canvas.style.touchAction = key || "pan-x pan-y";
-        canvas.style.cursor = paused ? "grab" : "";
     }
 
     __detach() {

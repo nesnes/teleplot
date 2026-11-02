@@ -536,6 +536,18 @@ function _views_show(name, start, end, moment) {
     return true;
 }
 
+// The zoom of a group dropped, without going live (a double click on a chart or a timeline): live, the whole data again; held or
+// replaying, the whole data up to where it was held, the time shown unchanged. A moment shown is no longer the window: it ends.
+TELEPLOT.view.unzoom = function(name){
+    let g = TELEPLOT.view.ensureGroup(name);
+    g.span = 0;
+    g.animation = undefined;
+    if(g.mode === "live") { g.cursorActive = false; g.timestampFrom = -1; g.timestampTo = -1; return true; }
+    g.moment = undefined;
+    _views_place(g, TELEPLOT.view.groupExtent(name));
+    return true;
+}
+
 TELEPLOT.view.setLoop = function(name, on){ TELEPLOT.view.ensureGroup(name).loop = !!on; }
 
 // The previous / next moment (dir -1 / +1) of the same telemetry and level as the moment shown; without one, of the telemetry the line

@@ -21,8 +21,10 @@ test('the mom flag makes a stack of moments: starts, results, levels, numbers', 
     assert.equal(T.moments.mark(pick[0]), '✓');
     assert.equal(T.moments.mark(pick[1]), '✕');
     assert.equal(T.moments.mark(pick[2]), '…');
-    assert.equal(T.moments.describe(pick[1]), 'pick #42 ✕ 1.0 s');
-    assert.equal(T.moments.pathText(pick[1]), 'run 7 \u203a pick #42 \u2715 1.0 s');
+    assert.equal(T.moments.describe(pick[1]), 'pick #42 ✕ 1 s');
+    assert.equal(T.moments.pathText(pick[1]), 'run 7 \u203a pick #42 \u2715 1 s');
+    const V = T.view.ViewTimeline;
+    assert.deepEqual([0, 0.00000042, 0.0004, 0.00235, 0.0423, 0.5, 12.34].map(V.formatDuration), ['0 ms', '1 µs', '400 µs', '2.35 ms', '42.3 ms', '500 ms', '12.3 s'], 'a short period is never written as nothing');
 });
 
 test('a new text ends a moment with no result, an empty text ends everything', () => {

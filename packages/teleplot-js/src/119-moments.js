@@ -171,8 +171,7 @@ TELEPLOT.moments = {
     label(moment) { return moment.name.replace("#", " #"); },
     mark(moment) { return moment.to === undefined ? "…" : moment.unknown ? "?" : moment.failed ? "✕" : moment.result ? "✓" : "–"; },
     describe(moment) {
-        let seconds = TELEPLOT.moments.end(moment) - moment.from;
-        return `${TELEPLOT.moments.label(moment)} ${TELEPLOT.moments.mark(moment)} ${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} s`;
+        return `${TELEPLOT.moments.label(moment)} ${TELEPLOT.moments.mark(moment)} ${TELEPLOT.view.ViewTimeline.formatDuration(TELEPLOT.moments.end(moment) - moment.from)}`;
     },
     // A moment with what holds it: "patrol › leg #4 › drive – 5.4 s"
     pathText(moment) {

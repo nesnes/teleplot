@@ -315,12 +315,15 @@ class ViewChart extends ViewTelemetries{
                 setScale: [
                     (u, key) => {
                         if(this.updateRunning) return;
+                        if(key == "y" && this.boxing) { this.yZoom = { min: u.scales.y.min, max: u.scales.y.max }; return; } // (a region selected with Ctrl)
                         if(key != "x") return;
                         const s = u.scales[key];
-                        // Zoom reset (double click: uPlot goes back to all its data): back to live, as Esc (doc/time.md)
+                        // Zoom reset (double click: uPlot goes back to all its data): the whole time and the automatic vertical scale again,
+                        // without going live (Esc does that, doc/time.md)
                         const times = u.data && u.data[0];
                         if(times && times.length && s.min <= times[0] && s.max >= times[times.length - 1]) {
-                            TELEPLOT.view.backToLive(this.group);
+                            TELEPLOT.view.unzoom(this.group);
+                            this.resetAxis();
                             this.updateForced = true; // (uPlot went back to the extent of the numbers: the marks widen it again)
                             return;
                         }
@@ -351,54 +354,32 @@ class ViewChart extends ViewTelemetries{
             this.chart.over.addEventListener("mouseleave", () => { this.pointerInside = false; TELEPLOT.view.hoveredGroup = ""; });
             // A click (not a drag): the group is held at that moment
             let down = undefined, u = this.chart;
+            // A drag selects a period; with Ctrl (or ⌘), a region: the period and the values (the vertical scale then holds them, as when it
+            // is moved on its axis, until a double click, Esc or back to live)
+            if(u.root && u.root.addEventListener && u.cursor && u.cursor.drag) {
+                u.root.addEventListener("mousedown", (e) => {
+                    if(e.target !== u.over || e.button !== 0) return;
+                    this.boxing = e.ctrlKey || e.metaKey;
+                    u.cursor.drag.y = this.boxing;
+                }, true);
+                window.addEventListener("mouseup", () => { if(this.boxing) setTimeout(() => { this.boxing = false; if(u.cursor && u.cursor.drag) u.cursor.drag.y = false; }); });
+                u.over.addEventListener("contextmenu", (e) => { if(e.ctrlKey) e.preventDefault(); }); // (Ctrl + click on a Mac)
+            }
             this.chart.over.addEventListener("mousedown", (e) => { down = [e.clientX, e.clientY]; });
-            // While the group is not live, the wheel and a drag move through time (a trackpad pinch, a wheel with Ctrl: zoom), instead of
-            // scrolling the page and selecting a period. Back to live gives them back.
+            // A drag of the mouse on the plot selects a period and a click points at a time; dragging through time is done on the time axis
+            // (see listenToTimeAxis). The wheel does not conflict with them: while not live, two fingers sideways on a trackpad move
+            // through time and a pinch (or Ctrl + wheel) zooms; up and down still scroll the page. A finger has no axis to aim at: while not live, one going
+            // sideways moves through time here.
             let browsing = () => !!TELEPLOT.view.groups[this.group].browsing;
             let secondsPerPixel = () => (u.scales.x.max - u.scales.x.min) / (u.over.clientWidth || 1);
             this.chart.over.addEventListener("wheel", (e) => {
                 if(!browsing() || !u.scales.x || u.scales.x.min == null) return;
+                if(!e.ctrlKey && Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // (up and down scroll the page)
                 e.preventDefault();
-                let scaleOf = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1;
-                if(e.ctrlKey) {
-                    let box = u.over.getBoundingClientRect();
-                    TELEPLOT.view.zoomAround(this.group, Math.exp(-e.deltaY * scaleOf * 0.01), u.posToVal(e.clientX - box.left, "x"));
-                }
-                else TELEPLOT.view.panBy(this.group, (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * scaleOf * secondsPerPixel());
+                let unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1;
+                if(e.ctrlKey) TELEPLOT.view.zoomAround(this.group, Math.exp(-e.deltaY * unit * 0.01), u.posToVal(e.clientX - u.over.getBoundingClientRect().left, "x"));
+                else TELEPLOT.view.panBy(this.group, e.deltaX * unit * secondsPerPixel());
             }, { passive: false });
-            // A drag belongs to this chart until it ends, wherever the mouse goes: the pointer is captured, nothing gets selected on the page,
-            // no other view reacts, and the cursor of uPlot does not follow it.
-            let panning = undefined;
-            if(u.root && u.root.addEventListener) {
-                u.root.addEventListener("mousedown", (e) => {
-                    if(!browsing() || e.button !== 0 || e.target !== u.over) return;
-                    e.stopPropagation(); // (uPlot would select a period; it then also takes the click for the end of a drag: handled below)
-                    e.preventDefault();
-                }, true);
-                u.root.addEventListener("mousemove", (e) => { if(panning) e.stopPropagation(); }, true);
-            }
-            u.over.addEventListener("pointerdown", (e) => {
-                if(!browsing() || e.button !== 0 || e.pointerType !== "mouse") return;
-                panning = { x: e.clientX, y: e.clientY, last: e.clientX, perPixel: secondsPerPixel() };
-                try { u.over.setPointerCapture(e.pointerId); } catch(error) {}
-                u.over.style.cursor = "grabbing";
-            });
-            u.over.addEventListener("pointermove", (e) => {
-                if(!panning) return;
-                TELEPLOT.view.panBy(this.group, (panning.last - e.clientX) * panning.perPixel);
-                panning.last = e.clientX;
-            });
-            let released = (e) => {
-                if(!panning) return;
-                let pressed = panning;
-                panning = undefined;
-                u.over.style.cursor = "grab";
-                if(e.type !== "pointerup" || Math.abs(e.clientX - pressed.x) > 3 || Math.abs(e.clientY - pressed.y) > 3) return;
-                let at = u.posToVal(e.clientX - u.over.getBoundingClientRect().left, "x");
-                if(at >= 0) TELEPLOT.view.pointAt(this.group, at);
-            };
-            u.over.addEventListener("pointerup", released);
-            u.over.addEventListener("pointercancel", released);
             this.chart.over.addEventListener("click", (e) => {
                 if(!down || Math.abs(e.clientX - down[0]) > 3 || Math.abs(e.clientY - down[1]) > 3) return;
                 let at = u.posToVal(e.clientX - u.over.getBoundingClientRect().left, "x");
@@ -418,10 +399,11 @@ class ViewChart extends ViewTelemetries{
                 },
                 pinchEnd: () => { pinched = undefined; },
                 swipe: (dx) => { if(browsing()) TELEPLOT.view.panBy(this.group, -dx * secondsPerPixel()); }, // (touch-action is pan-y then: see syncMoments)
-                doubleTap: () => TELEPLOT.view.backToLive(this.group),
+                doubleTap: () => { TELEPLOT.view.unzoom(this.group); this.resetAxis(); },
             });
         }
         this.listenToAxis(this.chart);
+        this.listenToTimeAxis(this.chart);
         // The moment shown when the group is not live: a line over the chart, moved without drawing the chart again (doc/time.md)
         this.headLine = undefined;
         this.headKey = "";
@@ -470,6 +452,42 @@ class ViewChart extends ViewTelemetries{
             pinch: (step) => { zoom(step.scale, step.cy); move(step.dy); },
             swipe: (dx, dy) => move(dy),
             doubleTap: () => this.resetAxis(),
+        });
+    }
+
+    // The time axis moves through time, as the vertical axis moves its scale: a drag moves the window, a trackpad pinch or the wheel with
+    // Ctrl zoom around the pointer, fingers the same; the wheel moves it too while not live (live, it scrolls the page). Live, a drag or a
+    // zoom first holds the group. A double click resets the time only (unzoom: not live again).
+    listenToTimeAxis(u) {
+        let axis = u.root && u.root.querySelectorAll ? Array.from(u.root.querySelectorAll(".u-axis"))[0] : undefined;
+        if(!axis || !axis.addEventListener) return;
+        axis.title = "Drag or pinch to move through time, scroll too while paused. Double click to reset the time";
+        axis.style.cursor = "ew-resize";
+        axis.style.touchAction = "none";
+        let held = () => { if(TELEPLOT.view.isLive(this.group)) TELEPLOT.view.hold(this.group); return u.scales.x && u.scales.x.min != null; };
+        let perPixel = () => (u.scales.x.max - u.scales.x.min) / (u.over.clientWidth || 1);
+        let move = (pixels) => { if(held()) TELEPLOT.view.panBy(this.group, pixels * perPixel()); };
+        let zoom = (scale, x) => { if(held()) TELEPLOT.view.zoomAround(this.group, scale, u.posToVal(x, "x")); };
+        let local = (event) => event.clientX - u.over.getBoundingClientRect().left;
+        axis.addEventListener("wheel", (event) => {
+            if(!event.ctrlKey && TELEPLOT.view.isLive(this.group)) return; // (live, the wheel scrolls the page, even over the axis)
+            event.preventDefault();
+            let unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 300 : 1;
+            if(event.ctrlKey) zoom(Math.exp(-event.deltaY * unit * 0.01), local(event));
+            else move((Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY) * unit);
+        }, { passive: false });
+        let last = undefined;
+        axis.addEventListener("mousedown", (event) => event.preventDefault()); // (nothing gets selected on the page)
+        axis.addEventListener("pointerdown", (event) => { if(event.pointerType === "mouse" && event.button === 0) { last = event.clientX; axis.setPointerCapture(event.pointerId); } });
+        axis.addEventListener("pointermove", (event) => { if(last !== undefined) { move(last - event.clientX); last = event.clientX; } });
+        let up = () => { last = undefined; };
+        axis.addEventListener("pointerup", up);
+        axis.addEventListener("pointercancel", up);
+        axis.addEventListener("dblclick", () => TELEPLOT.view.unzoom(this.group));
+        TELEPLOT.view.touchGestures(axis, {
+            pinch: (step) => { zoom(step.scale, step.cx); move(-step.dx); },
+            swipe: (dx) => move(-dx),
+            doubleTap: () => TELEPLOT.view.unzoom(this.group),
         });
     }
 
@@ -764,7 +782,6 @@ class ViewChart extends ViewTelemetries{
         let group = TELEPLOT.view.groups[this.group], shown = list.length > 0 && !TELEPLOT.view.isLive(this.group);
         if(u && u.over) { // One finger moves through time once a moment was shown (sideways: up and down still scrolls the page)
             u.over.style.touchAction = group.browsing ? "pan-y" : "pan-x pan-y";
-            if(u.over.style.cursor !== "grabbing") u.over.style.cursor = group.browsing ? "grab" : "";
         }
         if(!shown) {
             if(this.timeLine) this.timeLine.element.hidden = true;

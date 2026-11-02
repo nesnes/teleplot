@@ -88,7 +88,9 @@ Nothing while the group is live. Otherwise a 4 px line at the very bottom of the
 
 A click in a chart or a timeline does not move the window (`pointAt`). While a moment is shown, a click in the room around it stays in it; further away, it is another time and the moment ends.
 
-While a group is not live, its charts and timeline views move through time: the wheel and a drag pan (`panBy`), a trackpad pinch or the wheel with Ctrl zoom around the pointer (`zoomAround`). With a finger, a swipe sideways pans (up and down still scrolls the page) and two fingers pinch, as they always do. Live, a drag selects a period and the wheel scrolls the page, as usual. A timeline taller than its view goes in two dimensions while not live: sideways the time, up and down its lanes, with the wheel, a drag or a finger.
+On a chart, time is moved on its time axis, as the vertical scale is on its vertical axis: a drag moves the window (live, it holds the group first), a trackpad pinch or Ctrl + wheel zooms around the pointer, the wheel moves it too while not live, and a double click resets the time (without going live). The plot keeps the mouse drag for selecting a period (live or not) and the click for pointing at a time: the same input never means two things. The wheel does not conflict with them: while not live, two fingers sideways on a trackpad move through time over the plot too, and a pinch (or Ctrl + wheel) zooms; up and down still scroll the page. A finger has no axis to aim at, so on the plot, while not live, one finger sideways moves through time and two pinch it.
+
+A timeline view works as a chart: a drag of the mouse on its lanes selects a period, live or not; its time axis (at the bottom) moves through time with a drag (holding first when live), the wheel while not live, a trackpad pinch or Ctrl + wheel; over the lanes, while not live, two fingers sideways on a trackpad move through time and a pinch zooms. Up and down scroll its lanes when they do not fit, then the page. A finger: while not live, one sideways moves through time, two pinch it.
 
 The time of a group includes the moment telemetries, even when no view shows them.
 
