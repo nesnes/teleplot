@@ -1,5 +1,10 @@
 // 25. Graphs: a state machine (its states, its transitions, where it is) and a behavior tree (its nodes, then each tick with the
 // result of each node). The page draws them in a graph view, and their stacks on a timeline. See doc/graph.md.
+// Its lists take RAM on an Uno: the tables it does not use are left out (see 31_SmallBoards)
+#define TELEPLOT_MAX_TELEMETRIES 2
+#define TELEPLOT_MAX_PARAMS 0
+#define TELEPLOT_MAX_ACTIONS 0
+#define TELEPLOT_MAX_THRESHOLDS 0
 #include <Teleplot.h>
 
 Teleplot tp(Serial);
