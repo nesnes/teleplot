@@ -104,8 +104,7 @@ test('auto dashboard: telemetries with the same view label share a view per kind
         ['teleplot-current-value', 'motors', [id('state')]],     // same label, but text is not plotted
         ['teleplot-3d', 'robot', [id('arm'), id('leg')]],
         ['teleplot-3d', '', [id('free')]],                       // shapes without label keep sharing their scene
-        ['teleplot-image', '', [id('front')]],                   // an image view shows one picture
-        ['teleplot-image', '', [id('rear')]],
+        ['teleplot-image', 'cams', [id('front'), id('rear')]],   // the pictures of a label share an image view (its filmstrip shows them all)
     ]);
     // The view of a label was removed by the user: the next telemetry of the label gets a new one
     layout.removeView(layout.views[0].id);

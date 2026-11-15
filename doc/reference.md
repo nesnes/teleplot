@@ -578,6 +578,8 @@ With CMD on, a setting is changed in place: drag its bar or type a value.
 | writable | `ATTR\|name\|write[=type]` | `tp.param("name", &variable)` | `tp.param("name", initial)` | not writable | The page may change it (switch CMD on): it sends the line your device would send, your device applies it and sends it back. Values: write alone: the type of its data; write= empty: no more. |
 | decimals | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | 3 | Digits after the point of the values written. Values: from 0 to 10. |
 | values in a row | `\|displayLayoutRow=` | `\|displayLayoutRow=` | `\|displayLayoutRow=` | false | The values side by side instead of one under the other. Values: true or false. |
+| colors of values (depth) | `\|colormap=` | `\|colormap=` | `\|colormap=` | turbo | Colors of a values picture. Values: turbo (Turbo), viridis (Viridis), gray (Gray). |
+| colors between | `\|valueRange=` | `\|valueRange=` | `\|valueRange=` | range | Colors spread over the range of the telemetry, or over what each picture holds. Values: range (The range of the telemetry), picture (What each picture holds). |
 | telemetry names | `\|displayTelemetryName=` | `\|displayTelemetryName=` | `\|displayTelemetryName=` | true | The name of each telemetry is written. Values: true or false. |
 | telemetry colors | `\|displayTelemetryColor=` | `\|displayTelemetryColor=` | `\|displayTelemetryColor=` | true | The color of each telemetry is shown. Values: true or false. |
 | range labels | `\|displayScale=` | `\|displayScale=` | `\|displayScale=` | true | The ends of the range and the names of the limits under the bar. Values: true or false. |

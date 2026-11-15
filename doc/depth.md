@@ -51,9 +51,21 @@ give the scale that turns the numbers into the units of the scene (metres, usual
   `range` (default) the range of the telemetry when it has both ends (`ATTR|depth|min=0|max=6`: colors stay put from one picture to
   the next), otherwise what the picture holds: from its 1st to its 99th percentile, pixels without measure left out (an outlier
   does not wash out the others); `picture`: always what each picture holds.
-- The color scale (option `displayColorScale`) under the picture: the two ends and the unit.
+- The color scale (option `displayColorScale`) in the bottom right corner of the picture: the two ends and the unit. When it would
+  hide the pixel under the pointer it moves to the first other corner that does not (bottom left, top right, top left), and comes
+  back when the pointer leaves the picture (`PictureFrame.scaleCorner`).
 - The pointer reads the pixel under it: its value (number x scale, unit) and where it is (u, v), or "no measure".
 - What other telemetries draw over a picture works the same over a depth map (its camera, pixel frames).
+- A depth map and the color picture of the same camera (or any pictures of a group) share one image view: a filmstrip chooses which
+  are shown, Shift+click shows them side by side ([`3d.md`](3d.md) "The image view").
+
+## In a values view
+
+A picture is one more line of the values view, in its order and in its direction (a column, or a row with `displayLayoutRow`), like
+a number: its name, then the picture, drawn by the same piece as in an image view (`PictureFrame`). A depth map is in the same colors
+(the values view has the options `colormap` and `valueRange` too); the value of its line is its color scale, or the value under the
+pointer while the pointer is on the picture. Over a picture the values view draws what is in its pixels (`FPX:`) and the 3D telemetries
+it lists, through the camera of the picture. `RAW|` pictures are shown there too.
 
 ## In 3D and 2D views
 
@@ -86,7 +98,7 @@ Measured in Chromium on the Mac of the project, 640 x 480 ([`doc/performance.md`
 ## Implementation
 
 [`packages/teleplot-js/src/108-pictures.js`](../packages/teleplot-js/src/108-pictures.js) (`TELEPLOT.pictures`: `info`, `settings`, `decode` / `decodeAsync`, `valueAt`, `spread`,
-`colorRange`, `colorize`, `COLORMAPS`, `fromBase64` / `toBase64`), the image view (`114-viewImage.js`: `__drawValues`, readout),
+`colorRange`, `colorize`, `COLORMAPS`, `fromBase64` / `toBase64`), the picture (`114-viewImage.js`: `PictureFrame`, `__drawValues`, readout; used by `ViewImage` and `ViewCurrentValue`),
 the scene (`113-viewScene3D.js`: `depthRays`, `depthPoints`, `__depthSource`, `__updateDepth`; `115-viewScene2D.js`). Tests:
 [`packages/teleplot-js/tests/pictures.test.js`](../packages/teleplot-js/tests/pictures.test.js). C++: `TeleplotImage::Raw{}`, formats `Gray16` / `Float32`, `.depthMap(scale)` /
 `.pixelValues(scale)` ([`doc/cpp-client-api.md`](cpp-client-api.md) "Pictures").

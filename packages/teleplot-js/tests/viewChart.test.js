@@ -398,7 +398,7 @@ test('current value rows can be made interactive (handlers, dimmed rows)', () =>
     assert.deepEqual(view.dimmed, {});
 });
 
-test('current value view: latest value, decimals, image data URI', () => {
+test('current value view: latest value, decimals; a picture is drawn by a PictureFrame of the view', () => {
     const T = loadTeleplot();
     const n = T.datastore.getOrCreateTelemetry('n'), img = T.datastore.getOrCreateTelemetry('img');
     n.addData(NUMBER, [1, 2], [[1, 3.14159]]);
@@ -407,7 +407,13 @@ test('current value view: latest value, decimals, image data URI', () => {
     view.update();
     assert.deepEqual(view.telemetries[n.id].data[NUMBER].lastDisplayValue, ['3.142']);
     assert.equal(view.telemetries[n.id].data[NUMBER].timestamp, 2);
-    assert.deepEqual(view.telemetries[img.id].data[24].lastDisplayValue[1], 'data:image/png;base64,QUJD');
+    assert.equal(view.telemetries[img.id].data[24].timestamp, 1);
+    const frame = view.pictureFrames.get(img.id);
+    assert.ok(frame instanceof T.view.PictureFrame && frame.picture === img.id && frame.chrome === false, 'a frame for the picture line, whose scale and reading the line writes');
+    assert.equal(view.telemetries[img.id].pictureDiv, frame.divId);
+    assert.deepEqual(frame.telemetryIdOrNameList, ['n', 'img'], 'the telemetries of the view: what it lists is drawn over the picture');
+    view.removeTelemetry('img'); view.update();
+    assert.equal(view.pictureFrames.size, 0, 'a picture removed: its frame goes');
     view.setOption('displayNumberDecimals', 0, 'n');
     view.update();
     assert.deepEqual(view.telemetries[n.id].data[NUMBER].lastDisplayValue, ['3']);

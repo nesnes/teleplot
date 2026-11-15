@@ -35,6 +35,7 @@ DASH|<dashboard>[/<view>...][:<type>[:<telemetry>,<telemetry>...]][|<option>=<va
 | `title` | views | the text in the corner of the view, when it is not the name of the path (`title=` for none) |
 | `time` | everything | time group: `inherit` (default), `dashboard`, or the name of a group shared by the views that name it |
 | `follow` | views | labels the view follows, separated by commas: the telemetries with one of these labels join the view, those already received and those to come |
+| `show` | image views | the pictures shown, by name, separated by commas (`show=camera,depth`: side by side); none: the first picture of the view. What the filmstrip of the view sets |
 | `align`, `justify`, `gap`, `columnWidth`, `appearance`, `accent` | layouts | as in the edit panel (`align=stretch` is the default of layouts made by lines) |
 | any option of the view | views | `maxLines`, `displayGrid`, `displayNumberDecimals`, `decimation`, `thresholds` (`fit` / `show` / `hide`), `scale` (`auto` / `range`), `numbers` (`auto` / `text`) and `stackDepth` (of a timeline), `trail`, `events`, `kinds` (of a graph), `trailLength`, `pointSize`... (the names of `view.options`); booleans are `true` / `false` |
 
@@ -62,7 +63,7 @@ depth.map,depth:...
 depth.boxes,depth:...
 ```
 
-- The view takes every telemetry of these groups that it can display: numbers and texts for a chart (texts are its marks), anything that has a value for a values view (numbers, texts, positions, pictures, commands), texts for a log, texts and numbers for a timeline, structures and stacks for a graph, shapes, points and clouds for a 2D or 3D view (and the pictures of the group for a 3D view: its cameras), what is drawn over a picture for an image view, and a picture while it has none.
+- The view takes every telemetry of these groups that it can display: numbers and texts for a chart (texts are its marks), anything that has a value for a values view (numbers, texts, positions, pictures, commands), texts for a log, texts and numbers for a timeline, structures and stacks for a graph, shapes, points and clouds for a 2D or 3D view (and the pictures of the group for a 3D view: its cameras), and for an image view the pictures (its filmstrip shows them all) and what is drawn over them.
 - The views that Teleplot makes by itself for a group, one per kind of view (the automatic "Live" dashboard, a label card dropped in the editor), take only what their kind shows by default (`view.followOwnKinds`): nothing is shown twice.
 - Those already received and those to come: the result does not depend on what came first, data or dashboard.
 - The name of the view and its place are free: only the group ties it to the data. A view can follow several groups (`follow=depth,camera`) and several views can follow one group.

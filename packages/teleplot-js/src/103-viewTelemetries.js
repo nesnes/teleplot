@@ -80,13 +80,13 @@ class ViewTelemetries extends Views {
     // Is a telemetry something a view that follows its label should take ? Everything this view can display: a chart its numbers and
     // its texts (marks), a values view anything that has a value (and the commands), a log and a timeline texts (and numbers for a
     // timeline), a graph structures and stacks, a 2D or 3D view what has a place in a scene (a 3D view also the pictures: its cameras),
-    // an image view what can be drawn over its picture, and a picture while it has none. A view with followOwnKinds (the views the
+    // an image view the pictures (its filmstrip shows them all) and what can be drawn over them. A view with followOwnKinds (the views the
     // automatic dashboard makes for a label: one per kind, they would show the same telemetries twice) only takes what its kind is the
     // default display of (suggestViewType).
     suitsTelemetry(telem) {
         const P = TELEPLOT.protocol, S3 = TELEPLOT.view.ViewScene3D;
         const has = (type) => telem.data[type] !== undefined;
-        if(this.type == "teleplot-image" && has(P.SECTION_TYPE_TELEM_DATA_IMAGE)) return typeof this.getImageTelemetry === "function" && this.getImageTelemetry() === undefined;
+        if(this.type == "teleplot-image" && has(P.SECTION_TYPE_TELEM_DATA_IMAGE)) return true;
         if(this.type == "teleplot-graph") return telem.hasStructure() || (has(P.SECTION_TYPE_TELEM_DATA_TEXT) && telem.getAttribute(P.TELEM_ATTR_STACK) === true);
         if(this.type == "teleplot-image") return S3.kindOf(telem) !== undefined;
         // 2D and 3D views show the same things (flat ones lie on the ground of a 3D scene, solids are seen from above in a 2D view),

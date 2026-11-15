@@ -172,7 +172,7 @@
       view.setOption("displayLayoutRow", true);
       Teleplot.view.addView(view);
     });
-    demo("Image", "An image telemetry fills the view; its name is written over it.", [200, 200], (id) => {
+    demo("Image", "A picture is a line like any value: its name, then the picture, which fills the room the view has (drawn by a PictureFrame, as image views draw it).", [200, 200], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewCurrentValue(id, ["img1"]));
     });
     demo("Image, in a row", "", [200, 200], (id) => {
@@ -1133,6 +1133,24 @@
     });
     demo("Seen from above", "A 2D view draws the points of the depth maps too.", [420, 330], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewScene2D(id, ["depthdemo.mm", "depthdemo.ball"]));
+    });
+    demo("Several pictures in one image view: a filmstrip", "The view shows its first picture; a filmstrip under it has a thumbnail of each of its pictures (only when there are several). Click a thumbnail: that picture alone. Shift+click: beside the others, or taken away. The choice is the option show (kept in DASH| lines). The ball is drawn over each picture that has a camera, through that camera; the pictures are never drawn over each other.", [520, 330], (id) => {
+      Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.png", binId(80), "depthdemo.ball"]));
+    });
+    demo("Two of them side by side", "show: [\"depthdemo.mm\", \"depthdemo.float\"] (what Shift+click gives): the two depth maps, each with its color scale and its reading under the pointer.", [520, 260], (id) => {
+      const view = new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.png", binId(80)]);
+      view.setOption("show", ["depthdemo.mm", "depthdemo.float"]);
+      Teleplot.view.addView(view);
+    });
+    demo("Pictures in a values view", "A depth map is one more line: its name, its color scale as its value (the value under the pointer while it is on the picture), and the picture as an image view draws it. The camera picture of img demo gets what is drawn over it. In a column (default) and in a row (displayLayoutRow).", ["100%", 360], (id) => {
+      const row = new Teleplot.view.ViewLayout(id); row.layout.type = "row"; row.layout.align = "stretch";
+      Teleplot.view.addView(row);
+      const column = new Teleplot.view.ViewCurrentValue("", ["depthdemo.mm", "depthdemo.ball", "imgdemo.camera.pinhole", "imgdemo.cube"]);
+      column.setSize(3, 1);
+      row.addView(column);
+      const inRow = new Teleplot.view.ViewCurrentValue("", ["depthdemo.mm", "depthdemo.ball", "imgdemo.camera.pinhole", "imgdemo.cube"]);
+      inRow.setOption("displayLayoutRow", true); inRow.setSize(6, 1);
+      row.addView(inRow);
     });
 
     // ====================================================================================================================== Sources

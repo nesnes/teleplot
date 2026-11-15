@@ -270,21 +270,21 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         }
 
         let type = TELEPLOT.view.suggestViewType(telem.id);
-        let label = type == "image" ? undefined : telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL); // An image view shows one picture: images are not grouped
+        let label = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL); // (the pictures of a label share an image view: its filmstrip shows them all)
         let isCommand = type == "values" && TELEPLOT.commands.declaration(telem) !== undefined;
         let shared = label ? labelled[label + "|" + type] : (type == "3d" ? scene : (type == "2d" ? map : (type == "log" ? logs : (type == "timeline" ? stacks : (isCommand ? commands : undefined)))));
         if (shared !== undefined && layout.getViewFromId(shared.id) !== undefined) shared.addTelemetry(telem.id); // (a view the user removed is not used anymore)
         else {
             let view = TELEPLOT.view.createView(type, [telem.id], dashboard.getGroupName());
-            let ownLabel = type == "image" ? telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) : label;
-            if (label) { labelled[label + "|" + type] = view; view.setOption("title", label); }
-            if (ownLabel) {
+            if (label) {
+                labelled[label + "|" + type] = view;
+                view.setOption("title", label);
                 view.followOwnKinds = true; // (one view per kind of a label: each takes what it is the default display of, nothing twice)
-                view.followLabel(ownLabel);
+                view.followLabel(label);
                 // What already has this label and belongs in this view too (the camera of a scene, the shapes to draw over a picture)
                 for (let id in TELEPLOT.datastore.telemetries) {
                     let other = TELEPLOT.datastore.telemetries[id];
-                    if (other.id === telem.id || other.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) !== ownLabel) continue;
+                    if (other.id === telem.id || other.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL) !== label) continue;
                     if (TELEPLOT.view.suggestViewType(other.id) !== type && view.suitsTelemetry(other) && !view.telemetryIdOrNameList.includes(other.id)) view.addTelemetry(other.id);
                 }
             }

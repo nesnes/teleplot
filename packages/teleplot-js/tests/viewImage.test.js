@@ -133,3 +133,91 @@ test('image view: suggested for images, shows the first image telemetry, the oth
     const scene = T.view.createView('3d', ['cam', 'box'], 'g');
     assert.deepEqual(scene.__collectSources(-1).sources.map(s => s.kind), ['camera', 'shape']);
 });
+
+test('image view with several pictures: the first one shown, a filmstrip of all of them, a click shows one, Shift+click adds or takes away', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    T.parseDataText({ data: 'JPG|cam:1000:AAAA\n3D|cam:1000:K:500:480:300.5:250.25:640:480\n3D|box:S:cube:P:2:0:0\n2D|found:S:rect:P:10:10:FPX:cam\nnumber:1', timestamp: 0 });
+    const view = T.view.createView('image', ['box', 'cam'], 'g');
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const names = (list) => list.map((t) => t.getAttribute(P.TELEM_ATTR_NAME));
+    view.update();
+    assert.deepEqual(view.state.shown.map((p) => p.id), [id('cam')]);
+    assert.deepEqual(view.state.strip, [], 'one picture: no filmstrip');
+    assert.deepEqual([...view.frames.keys()], ['shown:' + id('cam')]);
+    assert.ok(Array.from(view.telemetryIdOrNameList).includes(id('found')), 'what is drawn in the pixels of a picture is taken by the view (in its legend)');
+
+    // Two more pictures arrive: the first one stays alone, the filmstrip lists the three of them
+    T.parseDataText({ data: 'RAW|depth:1000:' + Buffer.from([2, 0, 1, 0, 0, 0, 0, 0, 0xe8, 3, 0xd0, 7]).toString('base64') + '\nPNG|rear:1000:BBBB', timestamp: 0 });
+    view.addTelemetry(id('depth')); view.addTelemetry(id('rear'));
+    view.update();
+    assert.deepEqual(names(view.getPictureTelemetries()), ['cam', 'depth', 'rear']);
+    assert.deepEqual(view.state.shown.map((p) => p.id), [id('cam')]);
+    assert.deepEqual(view.state.strip.map((p) => [p.name, p.selected]), [['cam', true], ['depth', false], ['rear', false]]);
+    assert.deepEqual(T.view.ViewImage.shortNames(['robot.camera', 'robot.depth']), ['camera', 'depth'], 'thumbnails: without the beginning they share');
+    assert.deepEqual(T.view.ViewImage.shortNames(['cam', 'cam2']), ['cam', 'cam2']);
+    assert.deepEqual([...view.frames.keys()].sort(), ['shown:' + id('cam'), 'strip:' + id('cam'), 'strip:' + id('depth'), 'strip:' + id('rear')].sort());
+    const thumb = view.frames.get('strip:' + id('depth'));
+    assert.deepEqual([thumb.chrome, thumb.overlays], [false, false], 'a thumbnail: the picture alone');
+
+    // A click shows that one alone; Shift+click adds one beside it, in the order of the view, or takes one away (one always stays)
+    view.choosePicture(id('depth'));
+    assert.deepEqual(Array.from(view.getOption('show')), ['depth']);
+    view.choosePicture(id('cam'), true);
+    assert.deepEqual(Array.from(view.getOption('show')), ['cam', 'depth']);
+    view.update();
+    assert.deepEqual(view.state.shown.map((p) => p.id), [id('cam'), id('depth')]);
+    assert.ok(view.frames.has('shown:' + id('depth')) && view.frames.has('shown:' + id('cam')));
+    view.choosePicture(id('cam'), true); view.choosePicture(id('depth'), true);
+    assert.deepEqual(Array.from(view.getOption('show')), ['depth'], 'the last one shown stays');
+    view.setOption('show', ['gone']);
+    assert.deepEqual(names(view.shownPictures()), ['cam'], 'names that are not pictures of the view: the first picture');
+
+    // The pictures are never drawn over each other; what is in the pixels of a picture only over that one
+    view.setOption('show', ['cam', 'depth']); view.update();
+    const over = (key) => view.frames.get(key).__collectSources(1, view.frames.get(key).getImageTelemetry()).sources.map((s) => s.telem.getAttribute(P.TELEM_ATTR_NAME));
+    assert.deepEqual(over('shown:' + id('cam')), ['box', 'found']);
+    assert.deepEqual(over('shown:' + id('depth')), ['box']);
+    assert.deepEqual(view.__collectSources(1).sources.map((s) => s.telem.getAttribute(P.TELEM_ATTR_NAME)), ['box', 'found'], 'the legend: what is drawn over the pictures');
+
+    // Kept with the dashboard: show=cam,depth
+    const dashboard = T.dashboards.getOrCreateDashboard('Pics');
+    dashboard.setView(new T.view.ViewLayout('', dashboard.getGroupName()));
+    dashboard.getView().addView(view);
+    const text = T.dashboards.exportText('Pics');
+    assert.match(text, /\|show=cam,depth/);
+    const copy = T.dashboards.importText(text).dashboards[0];
+    assert.deepEqual(Array.from(T.dashboards.getDashboard(copy).getView().views[0].getOption('show')), ['cam', 'depth']);
+    view.dispose();
+    assert.equal(view.frames.size, 0, 'disposed with the view');
+});
+
+test('values view: a picture line is drawn by a PictureFrame, with the drawings in its pixels and the 3D telemetries the view lists', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    T.parseDataText({ data: 'JPG|cam:1000:AAAA\n3D|cam:1000:K:500:480:300.5:250.25:640:480\n3D|box:S:cube:P:2:0:0\n3D|wall:S:cube:P:3:0:0\n2D|found:S:rect:P:10:10:FPX:cam\nnumber:1', timestamp: 0 });
+    const view = T.view.createView('values', ['number', 'cam', 'box'], 'g');
+    assert.deepEqual(view.getOptionsSchema().map((o) => o.key).filter((k) => k === 'colormap' || k === 'valueRange'), ['colormap', 'valueRange']);
+    view.update();
+    const frame = view.pictureFrames.get(T.datastore.getTelemetry('cam').id);
+    assert.ok(frame && frame.chrome === false);
+    assert.deepEqual(frame.__collectSources(1, frame.getImageTelemetry()).sources.map((s) => s.telem.getAttribute(P.TELEM_ATTR_NAME)), ['box', 'found'], 'wall is not listed: not drawn');
+    assert.deepEqual(view.displayOrder.map((id) => T.datastore.getTelemetry(id).getAttribute(P.TELEM_ATTR_NAME)), ['number', 'cam', 'box'], 'a picture is one more line, in the order of the view');
+    view.setOption('valueRange', 'picture'); view.update();
+    assert.equal(frame.options.valueRange, 'picture', 'the options of the view reach its pictures');
+});
+
+test('the color scale of a depth map moves to another corner when it would hide the pixel under the pointer', () => {
+    const T = loadTeleplot();
+    const corner = T.view.PictureFrame.scaleCorner;
+    const place = { left: 0, top: 0, right: 400, bottom: 300 };
+    const scale = { left: 290, top: 280, right: 390, bottom: 295 };  // bottom right, 10 px from the right, 5 from the bottom
+    assert.equal(corner({ x: 100, y: 100 }, scale, place), 'br', 'the pointer elsewhere: it stays');
+    assert.equal(corner({ x: 300, y: 290 }, scale, place), 'bl', 'under it: bottom left');
+    const left = { left: 10, top: 280, right: 110, bottom: 295 };   // (now bottom left)
+    assert.equal(corner({ x: 300, y: 290 }, left, place, 'bl'), 'bl', 'it stays where it went while the pointer is not under it');
+    assert.equal(corner({ x: 50, y: 290 }, left, place, 'bl'), 'br', 'under it again: the first free corner');
+    assert.equal(corner({ x: 393, y: 277 }, scale, place), 'bl', 'a few pixels around it count');
+    const wide = { left: 5, top: 280, right: 395, bottom: 295 };    // as wide as the picture: the bottom is never free
+    assert.equal(corner({ x: 200, y: 290 }, wide, place), 'tr');
+});

@@ -124,6 +124,8 @@ TELEPLOT.dashboards.exportText = function(name) {
         }
         let follow = Array.isArray(view.options.followLabels) ? Array.from(view.options.followLabels) : [];
         if(follow.length) options.push("follow=" + follow.map(encode).join(","));
+        let show = Array.isArray(view.options.show) ? Array.from(view.options.show) : []; // (an image view: the pictures it shows, by name)
+        if(show.length) options.push("show=" + show.map(encode).join(","));
         let mode = view.options.timeGroup, group = String(view.options.timeGroupName || "");
         if(mode === "dashboard") options.push("time=dashboard");
         else if(mode === "custom" && group !== "") {
@@ -352,6 +354,10 @@ function _dashText_apply(dashboard, parsed) {
                     if(view.suitsTelemetry(telem)) view.addTelemetry(telem.id);
                 }
             }
+            else ok = false;
+        }
+        else if(k === "show") {
+            if(leaf && Array.isArray(view.options.show)) view.options.show = text.split(",").filter((n) => n !== "").map((n) => TELEPLOT.dashboards.textDecode(n));
             else ok = false;
         }
         else if(k === "time") {

@@ -293,8 +293,8 @@ function initDashboardEditor(TP) {
     };
 
     // Dropped telemetries (ids) become views at an index of a container: one view per kind of data (numbers together in a chart,
-    // shapes and 3D points together in a 3D scene, the rest together in a values view), in the order the kinds appear. Images get a view
-    // each: an image view shows one picture (the other telemetries of the view are drawn over it). Unknown ids are ignored. Returns the new views.
+    // shapes and 3D points together in a 3D scene, pictures together in an image view (its filmstrip shows them all), the rest together
+    // in a values view), in the order the kinds appear. Unknown ids are ignored. Returns the new views.
     // "label": the ids are the telemetries of a view label (a label card of the Telemetries panel was dropped): the views are titled with
     // it and follow it (the telemetries of that label that come later are added to them, see followOwnKinds below).
     E.dropTelemetries = function(ids, containerId, index = -1, label = "") {
@@ -302,7 +302,7 @@ function initDashboardEditor(TP) {
         for (let id of ids) {
             if (TP.datastore.getTelemetry(id) === undefined) continue;
             let type = TP.view.suggestViewType(id);
-            let key = type === "image" ? "image:" + id : type;
+            let key = type;
             if (!groups.has(key)) groups.set(key, { type, ids: [] });
             if (!groups.get(key).ids.includes(id)) groups.get(key).ids.push(id);
         }

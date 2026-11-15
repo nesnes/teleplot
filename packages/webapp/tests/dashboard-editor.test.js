@@ -197,7 +197,7 @@ test('grid containers: switched in place, added from the menu, a view takes colu
     assert.deepEqual([editor.typeLabel(timeline), editor.ADD_TYPES.includes('timeline'), editor.ADD_LABELS.timeline], ['Timeline', true, 'Timeline']);
 });
 
-test('image views: added from the menu, dropped images get a view each', () => {
+test('image views: added from the menu, dropped pictures share one (its filmstrip shows them all)', () => {
     const { T, editor, root } = setup();
     const view = editor.addView('image', root.id);
     assert.ok(view instanceof T.view.ViewImage);
@@ -206,8 +206,8 @@ test('image views: added from the menu, dropped images get a view each', () => {
     T.parseDataText({ data: 'JPG|front:1000:AAAA\nJPG|rear:1000:BBBB\n3D|box:S:cube', timestamp: 0 });
     const id = (name) => T.datastore.getTelemetry(name).id;
     const created = editor.dropTelemetries([id('front'), id('box'), id('rear'), id('front')], root.id);
-    assert.deepEqual(created.map(editor.typeLabel), ['Image', '3D', 'Image']);
-    assert.deepEqual(created.map(v => Array.from(v.telemetryIdOrNameList)), [[id('front')], [id('box')], [id('rear')]]);
+    assert.deepEqual(created.map(editor.typeLabel), ['Image', '3D']);
+    assert.deepEqual(created.map(v => Array.from(v.telemetryIdOrNameList)), [[id('front'), id('rear')], [id('box')]]);
 });
 
 test('dropTelemetries: telemetries that share a view label give views titled with it', () => {

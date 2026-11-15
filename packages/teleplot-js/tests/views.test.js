@@ -404,9 +404,9 @@ test('views that follow a view label get the new telemetries of that label that 
     assert.deepEqual(names(values), ['right', 'state', 'cam', 'log.b'], 'everything a values view can display, for both groups it follows');
     assert.deepEqual(names(log), ['log.a', 'log.b'], 'a log takes text');
     assert.deepEqual(names(scene), ['arm', 'cam'], 'a 3D scene takes the shapes, and the image telemetries of the label: its cameras');
-    assert.deepEqual(names(image), ['arm', 'cam'], 'an image view takes what can be drawn over its picture, and a picture while it has none');
+    assert.deepEqual(names(image), ['arm', 'cam'], 'an image view takes what can be drawn over its pictures, and the pictures');
     send('JPG|cam2,motors:1000:AAAA');
-    assert.deepEqual(names(image), ['arm', 'cam'], 'not a second picture');
+    assert.deepEqual(names(image), ['arm', 'cam', 'cam2'], 'a second picture too: the filmstrip shows them all');
     assert.deepEqual(names(other), [], 'a view that follows nothing');
 
     // Not followed anymore; copies follow the same labels (and have their own list)

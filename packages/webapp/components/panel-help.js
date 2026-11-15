@@ -468,6 +468,7 @@ const HELP_TILES = [
       ],
       notes: [
           "An image view shows the picture of the time shown: drag on a chart, the picture follows.",
+          "Pictures of the same label share one image view: a filmstrip under it shows them all. Click one to see it, Shift+click to see it beside the others.",
           "Why parts: a UDP packet holds 65 kB at most and is more likely lost above about 1.4 kB (one network frame); a serial line or the buffer of a microcontroller holds even less.",
           "Parts can come in any order; the picture shows when all n are there, and a lost part only loses that picture.",
           "With a time, give every part of a picture the same one: a part with another time starts a new picture.",

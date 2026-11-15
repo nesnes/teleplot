@@ -506,16 +506,17 @@ function createRobotSample(TP) {
         const stack = (w, h) => { const s = new TP.view.ViewStack("", group); s.setSize(w, h); return s; };
         const timeGroup = (view, name) => { view.setOption("timeGroup", "custom"); view.setOption("timeGroupName", name); return view; };
 
-        // On top, where the robot is: the 3D scene over what its camera and its depth camera see; the same telemetries on a map (a 2D
-        // view) over the speeds of its wheels; the camera with the 3D drawn over it, over the commands and the joystick; its state over
-        // the merged logs of all subsystems. The plain camera picture is alone in a time group of its own ("Live"): nothing moves its
-        // cursor, so it keeps showing the latest picture while the rest of the dashboard is zoomed or follows the pointer.
+        // On top, where the robot is: the 3D scene over what its camera and its depth camera see (one image view, both pictures side by
+        // side, a filmstrip to choose); the same telemetries on a map (a 2D view) over the speeds of its wheels; the camera with the 3D
+        // drawn over it, over the commands and the joystick; its state (with the depth map as one of its lines) over the merged logs of
+        // all subsystems. The plain pictures are in a time group of their own ("Live"): nothing moves its cursor, so they keep showing
+        // the latest pictures while the rest of the dashboard is zoomed or follows the pointer.
         // Then the timeline: the states of the robot as bands (where it is leaves holes: it is in no zone most of the time) and two of its
         // logs as ticks, next to its graphs (what it decides, its state machine). At the bottom the currents, and the distance and the
         // gyro in tabs. On the charts, the state and the motor log are marks, and the thresholds are dashed lines.
         // (In a row the widths of the views share out its width, in a column they share out its height.)
         const main = layout("column"), top = layout("row"), middle = layout("row"), bottom = layout("row");
-        const sight = layout("column", 4, 7), places = layout("column", 4, 7), pictures = layout("row", 2, 2), cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(4, 5);
+        const sight = layout("column", 4, 7), places = layout("column", 4, 7), cameras = layout("column", 2, 7), state = layout("column", 3, 7), tabs = stack(4, 5);
         dashboard.setView(main);
         main.addView(top);
         // (numbers can have a lane too: the distance has a threshold, it is a band while a wall is too close; the gyro is a plain line)
@@ -530,6 +531,13 @@ function createRobotSample(TP) {
         scene.setOption("trailLength", 500);
         top.addView(sight);
         sight.addView(scene);
+        // What its two cameras see, as they see it: the picture and the depth map side by side (Shift+click in the filmstrip), nothing
+        // drawn over them (the other camera view takes what is drawn in the pixels of the picture). Point at the depth map: the distance.
+        const pictures = timeGroup(new TP.view.ViewImage("", ["robot.camera", "robot.depth"], group), "Live");
+        pictures.setSize(2, 2);
+        pictures.setOption("pixelDrawings", false);
+        pictures.setOption("show", ["robot.camera", "robot.depth"]);
+        pictures.setOption("title", "Cameras");
         sight.addView(pictures); // (3 against 2: the scene takes most of the height)
         // The map: the same telemetries seen from above (solids are drawn as what they cover on the ground). Nothing is sent twice.
         const map = new TP.view.ViewScene2D("", ["robot.3d.floor", "robot.map.dock", "robot.map.dock.name", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.map.reach", "robot.path", "robot.lidar", "robot.3d.body", "robot.3d.wheel.left", "robot.3d.wheel.right", "robot.camera", "robot.map.heading", "robot.3d.obstacle", "robot.map.obstacle.name", "robot.pose"], group);
@@ -543,16 +551,6 @@ function createRobotSample(TP) {
         top.addView(cameras);
         top.addView(state);
 
-        const rawView = timeGroup(new TP.view.ViewImage("", ["robot.camera"], group), "Live"); // The pictures, with nothing over them
-        rawView.setSize(2, 2);
-        rawView.setOption("pixelDrawings", false); // (the other camera view takes what is drawn in the pixels of the picture)
-        rawView.setOption("title", "Camera");
-        // Next to it, the depth map: what each pixel measured, in colors (point at it: the distance). Its points are in the 3D scene.
-        const depthView = timeGroup(new TP.view.ViewImage("", ["robot.depth"], group), "Live");
-        depthView.setSize(2, 2);
-        depthView.setOption("title", "Depth");
-        pictures.addView(rawView);
-        pictures.addView(depthView);
         // The same pictures with what the 3D telemetries say drawn over them: the walls must fall on the walls of the picture
         const cameraView = new TP.view.ViewImage("", ["robot.camera", "robot.3d.wall.back", "robot.3d.wall.front", "robot.3d.wall.right", "robot.3d.wall.left", "robot.3d.obstacle", "robot.lidar"], group);
         cameraView.setSize(2, 2);
@@ -561,7 +559,7 @@ function createRobotSample(TP) {
         cameraView.setOption("title", "Camera + 3D");
         cameras.addView(cameraView);
 
-        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery", "robot.distance"], 3, 3));
+        state.addView(values(["robot.state", "robot.position", "robot.heading", "robot.battery", "robot.distance", "robot.depth"], 3, 4)); // (a picture is one more line: the depth map as the image views draw it)
         const logView = new TP.view.ViewLog("", ["robot.nav.log", "robot.motor.log", "robot.power.log", "robot.camera.log", "commands.sent", "robot.goto", "robot.dock", "robot.stop", "robot.odometry.reset"], group);
         logView.setSize(3, 4);
         state.addView(logView);

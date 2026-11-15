@@ -10,6 +10,9 @@ class ViewCurrentValue extends ViewTelemetries{
         this.options.displayTelemetryColor = true; // Show telemetry color
         this.options.displayScale = true; // Under the bar of a number that has a range: its minimum, its maximum and the names of its thresholds
         this.scaleKey = "";               // What those labels are made of, to lay them out again only when it changes
+        this.options.colormap = "turbo";   // Pictures of values (depth maps): their colors, as in an image view
+        this.options.valueRange = "range"; // Pictures of values: colors between the ends of the range of the telemetry ("range") or what each picture holds ("picture")
+        this.pictureFrames = TELEPLOT.Vue.markRaw(new Map()); // telemetry id -> PictureFrame: a picture line is drawn as an image view draws it (114-viewImage.js)
 
         // Reduce default size
         this.layout.width = 1;
@@ -94,10 +97,43 @@ class ViewCurrentValue extends ViewTelemetries{
         this.vue.mount(`#${this.divId}`);
     }
 
+    // The picture lines: a PictureFrame each (the picture, a depth map in colors, what is drawn over it: the drawings in its pixels and
+    // the 3D telemetries this view lists), and what it says (the color scale of a depth map, the value under the pointer) as the value
+    // of the line
+    __updatePictures(shown) {
+        const P = TELEPLOT.protocol;
+        let pictures = shown.filter((id) => this.telemetries[id].data[P.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined);
+        for(let [id, frame] of this.pictureFrames) if(!pictures.includes(id)) { frame.dispose(); this.pictureFrames.delete(id); }
+        for(let id of pictures) {
+            let row = this.telemetries[id];
+            let frame = this.pictureFrames.get(id);
+            if(frame === undefined) {
+                frame = new TELEPLOT.view.PictureFrame(this.id + "-picture-" + String(id).replace(/[^A-Za-z0-9_-]/g, "_"), this);
+                frame.picture = id;
+                frame.chrome = false;
+                this.pictureFrames.set(id, frame);
+            }
+            if(row.pictureDiv !== frame.divId) row.pictureDiv = frame.divId;
+            frame.update();
+            let state = frame.state;
+            let info = state.readout ? { reading: state.readout.text } : (state.colorScale && state.valuesShown ? { scale: state.colorScale } : {});
+            if(state.note) info.note = state.note;
+            if(JSON.stringify(info) !== JSON.stringify(row.picture)) row.picture = info;
+        }
+    }
+
+    dispose() {
+        for(let frame of this.pictureFrames.values()) frame.dispose();
+        this.pictureFrames.clear();
+        super.dispose();
+    }
+
     getOptionsSchema() {
         return [
             ...super.getOptionsSchema(),
             { key: "displayLayoutRow", label: "Values in a row", type: "bool" },
+            { key: "colormap", label: "Colors of values (depth)", type: "choice", choices: TELEPLOT.pictures.COLORMAP_NAMES },
+            { key: "valueRange", label: "Colors between", type: "choice", choices: [["range", "The range of the telemetry"], ["picture", "What each picture holds"]] },
             { key: "displayTelemetryName", label: "Telemetry names", type: "bool" },
             { key: "displayTelemetryColor", label: "Telemetry colors", type: "bool" },
             { key: "displayScale", label: "Range labels", type: "bool" },
@@ -134,7 +170,7 @@ class ViewCurrentValue extends ViewTelemetries{
             this.telemetries[telem.id].unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);
             let dataTypes = Object.keys(telem.data).filter((type) => !TELEPLOT.protocol.isMetaDataType(type)); // (thresholds and a structure are not a value: they describe it)
             this.telemetries[telem.id].empty = dataTypes.length == 0;
-            this.telemetries[telem.id].imageOnly = dataTypes.length == 1 && dataTypes[0] == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE; // The image fills the block, the name is overlaid on it
+            this.telemetries[telem.id].imageOnly = dataTypes.length == 1 && dataTypes[0] == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE;
             for(let dataType of dataTypes) {
                 if(this.telemetries[telem.id].data[dataType] === undefined) {
                     this.telemetries[telem.id].data[dataType] = { timestamp:0, lastValue: [], lastDisplayValue: [] };
@@ -145,6 +181,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 if (dataPoint.index === undefined) continue;
 
                 this.telemetries[telem.id].data[dataType].timestamp = dataPoint.timestamp;
+                if(dataType == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE) continue; // A picture is drawn by its PictureFrame (below)
 
                 // Get latest value of each channel and compute string representation
                 let formatter = new Intl.NumberFormat('en-US', {
@@ -167,13 +204,6 @@ class ViewCurrentValue extends ViewTelemetries{
                     let displayStr = ""+lastValue;
                     // Per type conversion to lastDisplayValue
                     if(typeof lastValue === "number") displayStr = formatter.format(lastValue);
-                    if(dataChannel == "1" && dataType == ""+TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE) {
-                        //console.log("img", targetTimestamp, dataPoint.timestamp)
-                        let imgType = this.telemetries[telem.id].data[dataType].lastValue[0];
-                        let imgTypeStr = "jpeg";
-                        if (imgType == TELEPLOT.protocol.IMAGE_TYPE_PNG) imgTypeStr = "png";
-                        displayStr = "data:image/" + imgTypeStr + ";base64," + displayStr;
-                    }
                     this.telemetries[telem.id].data[dataType].lastDisplayValue[channelIdx] = displayStr;
                     channelIdx++;
                 }
@@ -203,6 +233,7 @@ class ViewCurrentValue extends ViewTelemetries{
             if(shownTelem.cmdKey !== cmdKey) { shownTelem.cmdKey = cmdKey; shownTelem.cmd = cmd; }
         }
         this.syncDisplayOrder(shown);
+        this.__updatePictures(shown);
 
         // Labels under the bars (ends of the range, names of the thresholds): placed again when they or the width of the view change
         let scaleKey = "";
@@ -509,7 +540,7 @@ class ViewCurrentValue extends ViewTelemetries{
                 <div v-if="options.displayTelemetryColor && ordered.length>1" class="teleplot-js-current-value-color" v-bind:style="{'background-color': telem.color}"></div>
                 
                 <!-- NAME (the unit is written after the value); a pen when it can be written (CMD on) -->
-                <div v-if="options.displayTelemetryName && !telem.imageOnly" class="teleplot-js-current-value-name" v-bind:title="telem.tip">
+                <div v-if="options.displayTelemetryName" class="teleplot-js-current-value-name" v-bind:title="telem.tip">
                     <span>{{telem.name}}</span><span v-if="telem.cmd && telem.cmd.on && telem.cmd.kind == 'setting'" class="teleplot-js-cmd-pen"
                         v-bind:title="telem.cmd.why || (telem.cmd.continuous ? 'Driven from a joystick view' : 'Can be changed: drag the bar or click the value')">✎</span>
                 </div>
@@ -549,10 +580,14 @@ class ViewCurrentValue extends ViewTelemetries{
                     <span v-if="ui.error" class="teleplot-js-cmd-error">{{ui.error}}</span>
                 </div>
                     
-                <!-- NUMBERS & TEXT (one line per data type) -->
+                <!-- NUMBERS, TEXT, what a picture says (one line per data type) -->
                 <div v-else-if="!(telem.cmd && telem.cmd.kind == 'action')" class="teleplot-js-current-value-values"
                     v-bind:class="{'teleplot-js-cmd-editable': telem.cmd && telem.cmd.editable && telem.cmd.kind == 'setting' && !telem.cmd.continuous && telem.cmd.type != 'bool', 'teleplot-js-cmd-choosable': telem.cmd && telem.cmd.editable && telem.cmd.choices.length > 0}"
                     v-on:click="startEdit(telem, $event)">
+                    <div v-if="telem.picture && (telem.picture.reading || telem.picture.scale)" class="teleplot-js-current-value-value teleplot-js-current-value-picture-value" v-bind:title="telem.picture.note || ''">
+                        <span v-if="telem.picture.reading">{{telem.picture.reading}}</span>
+                        <template v-else><span>{{telem.picture.scale.low}}</span><i v-bind:style="{background: telem.picture.scale.gradient}"></i><span>{{telem.picture.scale.high}}</span><span v-if="telem.picture.scale.unit" class="teleplot-js-current-value-unit">{{telem.picture.scale.unit}}</span></template>
+                    </div>
                     <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}] != undefined" class="teleplot-js-current-value-value teleplot-js-current-value-text" 
                         v-bind:title="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].lastValue[0]">
                         <span>{{telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_TEXT}].lastDisplayValue[0]}}</span><span v-if="telem.unit" class="teleplot-js-current-value-unit">{{telem.unit}}</span>
@@ -635,13 +670,9 @@ class ViewCurrentValue extends ViewTelemetries{
                     </div>
                 </div>
 
-                <!-- IMAGE -->
-                <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE}] != undefined" class="teleplot-js-current-value-image">
-                    <img v-bind:src="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE}].lastDisplayValue[1]"/>
-                    <div v-if="telem.imageOnly && options.displayTelemetryName" class="teleplot-js-current-value-name" v-bind:title="telem.tip">
-                        <span>{{telem.name}}</span>
-                        <span v-if="telem.unit"> ({{telem.unit}})</span>
-                    </div>
+                <!-- PICTURE: drawn by its PictureFrame, as an image view draws it -->
+                <div v-if="telem.data[${TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE}] != undefined" class="teleplot-js-current-value-image" v-on:click.stop>
+                    <div v-if="telem.pictureDiv" v-bind:id="telem.pictureDiv" class="teleplot-js-current-value-picture"></div>
                 </div>
             </div>
             <!-- A setting touched while commands are off: nothing is sent, and the view says why (at its bottom, visible however it scrolls) -->
@@ -661,7 +692,9 @@ class ViewCurrentValue extends ViewTelemetries{
      * 1. Values are never clipped: text wraps, numbers don't (they are short). Names come second: at most 2 lines, the full name is in the tooltip.
      * 2. When a view is too small for its content, it scrolls instead of cutting the content.
      * 3. A telemetry with several kinds of data (number + text + image...) shows one line per kind.
-     * 4. An image fills the room it is given (the view's, or what the other values leave); the name of an image-only telemetry is overlaid on it.
+     * 4. A picture fills the room it is given (the view's, or what the other values leave), under its name like any value: never anything over it
+ *    but what is drawn in it (a depth map in colors, the scene through its camera). The value of its line is its color scale, or the
+ *    value under the pointer.
      */
     static vueCSS = `
         @scope (.teleplot-js-style)
@@ -879,39 +912,10 @@ class ViewCurrentValue extends ViewTelemetries{
             .teleplot-js-current-value-block:has(.teleplot-js-current-value-image) {
                 flex-grow: 4; /* Images are what people look at: they get more of the free height than numbers */
             }
-            .teleplot-js-current-value-image img {
-                border-radius: 4px;
-                position: absolute;
-                inset: 0;
-                width: 100%;
-                height: 100%;
-                object-fit: contain;
-            }
-            .teleplot-js-current-value-image .teleplot-js-current-value-name {
-                position: absolute;
-                top: 0.1em;
-                left: 0.1em;
-                max-width: calc(100% - 0.2em);
-                color: var(--teleplot-text);
-                background: color-mix(in srgb, var(--teleplot-surface) 65%, transparent);
-                backdrop-filter: blur(5px);
-                border-radius: 3px;
-                box-sizing: border-box;
-                padding: 0.1em;
-                transition: opacity .1s ease-in-out;
-            }
-            .teleplot-js-current-value-image img:hover + .teleplot-js-current-value-name {
-                opacity: 0;
-            }
-            .teleplot-js-current-value-block-image-only {
-                padding: 0;
-            }
-            .teleplot-js-current-value-block-image-only .teleplot-js-current-value-values {
-                display: none;
-            }
-            .teleplot-js-current-value-block-image-only .teleplot-js-current-value-image {
-                min-height: 4em;
-            }
+            .teleplot-js-current-value-picture { position: absolute; inset: 0; }
+            .teleplot-js-current-value-picture .teleplot-js-image-frame img, .teleplot-js-current-value-picture .teleplot-js-image-frame canvas.teleplot-js-image-values { border-radius: 4px; }
+            .teleplot-js-current-value-picture-value { display: inline-flex; flex-wrap: nowrap; white-space: nowrap; align-items: center; gap: 0.35em; font-variant-numeric: tabular-nums; } /* (a number never breaks) */
+            .teleplot-js-current-value-picture-value i { display: inline-block; flex: 0 1 4em; min-width: 1.5em; height: 0.55em; border-radius: 0.3em; }
             
             /* Row mode: one column per telemetry */
             .teleplot-js-current-value-container.teleplot-js-current-value-row {
@@ -962,8 +966,7 @@ class ViewCurrentValue extends ViewTelemetries{
                     flex: 2 1 8em;
                 }
                 .teleplot-js-current-value-block-image-only {
-                    padding: 0;
-                    min-width: 0; /* An image has no content width to protect: it shrinks first, so a vertical scrollbar appearing does not push the columns into a horizontal scroll */
+                    min-width: 0; /* A picture has no content width to protect: it shrinks first, so a vertical scrollbar appearing does not push the columns into a horizontal scroll */
                 }
             }
         }

@@ -598,6 +598,7 @@ class ViewScene3D extends ViewTelemetries {
                 onDoubleClick() { self.fitCamera(); },
                 onImageLoad(event) { if(self.__imageLoaded) self.__imageLoaded(event.target); },
                 onFramePointer(event) { if(self.__framePointer) self.__framePointer(event); },
+                onPictureChoose(id, event) { if(self.choosePicture) self.choosePicture(id, !!(event && event.shiftKey)); },
                 onFrameLeave() { if(self.__framePointer) self.__framePointer(undefined); },
                 onLegendClick(id) { self.toggleTelemetry(id); },
                 onLegendEnter(id) { self.highlightTelemetry(id); },
@@ -918,6 +919,7 @@ class ViewScene3D extends ViewTelemetries {
             if(telem === undefined) continue;
             serieIdx++;
             if(exclude !== undefined && telem.id == exclude.id) continue;
+            if(this.__skipsTelemetry(telem)) continue; // (after counting it: the others keep their colors)
             let kind = ViewScene3D.kindOf(telem);
             if(kind === undefined) continue;
             if(!this.__takesFrame(ViewScene3D.pixelFrame(telem))) continue; // Drawn in the pixels of a picture: not something of this scene
@@ -964,6 +966,9 @@ class ViewScene3D extends ViewTelemetries {
         }
         return { sources, key };
     }
+
+    // Is a telemetry of the view left out of the scene ? (Image views: their pictures are not drawn over each other.)
+    __skipsTelemetry(telem) { return false; }
 
     // Shape types that are drawn (lines, a surface, a text) instead of being a solid
     static DRAWN_TYPES = [5, 6, 7, 8];
