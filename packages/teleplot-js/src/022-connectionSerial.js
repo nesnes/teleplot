@@ -5,6 +5,9 @@
  * - What the port sends is read line by line. Like in Teleplot V1, a line starting with ">" is telemetry (">name:value", the text
  *   protocol after the ">"), any other line is a log line of the port.
  * - Every line received or sent is also kept as it is in a console (the last maxConsoleLines lines), for applications to display.
+ * - A device unplugged and plugged again is a new SerialPort for the browser: the old one can never be opened again ("gone"). A port
+ *   with the same USB ids that appears (navigator.serial "connect") or is chosen again is given to the connection that lost its own
+ *   (adopt), so the connection, its console and the telemetries it sent stay the same. See doc/sources.md "Lost port".
  */
 class ConnectionSerial extends Connection {
     constructor(port, baudRate=115200) {
@@ -14,7 +17,8 @@ class ConnectionSerial extends Connection {
         this.baudRate = baudRate;
         this.name = ConnectionSerial.portName(port);
         this.error = "";  // Why it is not connected, when it should be
-        this.closed = true;
+        this.closed = true; // Closed by the application (disconnect): false while it should be open, even when the device is lost
+        this.gone = false;  // Its SerialPort can never be opened again (the device was unplugged): it waits for a replacement
         // What the text parser needs to know about where a line comes from: serial lines follow the ">" rule, and logs are named after the port
         this.input = TELEPLOT.Vue.markRaw({ type: "serial", port: this.name, connection: this });
         this.inputs = [];
@@ -24,6 +28,8 @@ class ConnectionSerial extends Connection {
         this.maxConsoleLines = 2000;
         this.reader = undefined;
         this.reading = undefined; // Promise of the read loop
+        this.opening = undefined; // Promise of connect() while it runs
+        this.retry = undefined;   // Timer of the next try to open a port that just appeared
     }
 
     static isSupported() {
@@ -31,6 +37,12 @@ class ConnectionSerial extends Connection {
     }
 
     // A name for a port. Browsers only tell the USB ids of a port, not its name: a few common chips are recognised.
+    // Do two ports have the same USB ids (the same kind of device, most likely the same one plugged again) ?
+    static sameDevice(a, b) {
+        let ia = (a && typeof a.getInfo === "function") ? a.getInfo() : {}, ib = (b && typeof b.getInfo === "function") ? b.getInfo() : {};
+        return ia.usbVendorId !== undefined && ia.usbVendorId === ib.usbVendorId && ia.usbProductId === ib.usbProductId;
+    }
+
     static portName(port) {
         let info = (port && typeof port.getInfo === "function") ? port.getInfo() : {};
         if(info.usbVendorId === undefined) return "Serial port";
@@ -60,18 +72,71 @@ class ConnectionSerial extends Connection {
     }
 
     // Opens the port and reads it until disconnect() or until it is lost. Resolves once the port is open (false when it could not be).
-    async connect() {
-        if(this.connected) return true;
+    connect() {
+        if(this.connected) return Promise.resolve(true);
+        if(!this.opening) this.opening = this.__open().finally(() => { this.opening = undefined; });
+        return this.opening;
+    }
+
+    async __open() {
         this.error = "";
         this.closed = false;
-        try { await this.port.open({ baudRate: Number(this.baudRate) || 115200 }); }
+        if(this.reading) await this.reading; // The read loop of a port that was lost closes it: wait, it would be "already open"
+        if(this.closed) return false;        // (disconnected meanwhile)
+        let port = this.port;
+        try { await port.open({ baudRate: Number(this.baudRate) || 115200 }); }
         catch(e) {
+            if(e && (e.name === "NetworkError" || e.name === "NotFoundError")) this.gone = true;
             this.error = ConnectionSerial.explain(e);
             return false;
         }
+        if(this.closed || port !== this.port) { try { await port.close(); } catch(e) { /* already gone */ } return false; }
+        this.gone = false;
         this.connected = true;
         this.reading = this.__read();
         return true;
+    }
+
+    // Takes a new SerialPort for this connection (the same device plugged again). Opened when the connection should be open.
+    adopt(port) {
+        if(port === this.port) return;
+        if(this.retry !== undefined) { clearTimeout(this.retry); this.retry = undefined; }
+        this.port = TELEPLOT.Vue.markRaw(port);
+        this.gone = false;
+        this.name = ConnectionSerial.portName(port);
+        this.input.port = this.name;
+    }
+
+    // What the Reconnect button does (from a click): opens the port, or a port with the same USB ids the user already allowed, or
+    // asks the browser's dialog for one when the port is gone (filtered on its ids). Resolves to true once open.
+    async reconnect() {
+        if(this.connected) return true;
+        if(!this.gone && await this.connect()) return true;
+        if(!this.gone || !ConnectionSerial.isSupported()) return false;
+        let port = (await navigator.serial.getPorts()).find((p) => ConnectionSerial.sameDevice(p, this.port) && !_serial_connectionOf(p));
+        if(port === undefined) {
+            let info = this.port.getInfo ? this.port.getInfo() : {};
+            let filters = info.usbVendorId !== undefined ? [{ usbVendorId: info.usbVendorId, usbProductId: info.usbProductId }] : [];
+            try { port = await navigator.serial.requestPort({ filters }); }
+            catch(e) {
+                if(e && e.name === "NotFoundError") return false; // The dialog was closed without a choice
+                this.error = ConnectionSerial.explain(e);
+                return false;
+            }
+            let other = _serial_connectionOf(port);
+            if(other && other.id !== this.id) { this.error = "This port is read by another source: " + other.name; return false; }
+        }
+        this.adopt(port);
+        return this.connect();
+    }
+
+    // A port that just appeared may need a moment before it opens: tries a few times
+    __openSoon(tries=5) {
+        this.retry = undefined;
+        this.connect().then((ok) => {
+            if(ok || this.closed || this.connected || tries <= 1) return;
+            this.retry = setTimeout(() => this.__openSoon(tries - 1), 500);
+        });
     }
 
     async __read() {
@@ -96,15 +161,20 @@ class ConnectionSerial extends Connection {
             }
         }
         catch(e) {
-            if(!this.closed) this.error = ConnectionSerial.explain(e); // Unplugged, most of the time
+            if(!this.closed) {
+                this.error = ConnectionSerial.explain(e); // Unplugged, most of the time
+                if(e && e.name === "NetworkError") this.gone = true;
+            }
         }
         if(pending.length && !this.closed) this.__onLine(pending);
         this.connected = false;
         if(!this.closed) { try { await this.port.close(); } catch(e) { /* already gone */ } }
+        this.reading = undefined;
     }
 
     // Closes the port. It can be opened again with connect().
     async disconnect() {
+        if(this.retry !== undefined) { clearTimeout(this.retry); this.retry = undefined; }
         if(this.closed) return;
         this.closed = true;
         try {
@@ -163,10 +233,45 @@ TELEPLOT.connection.serialSupported = function() {
     return ConnectionSerial.isSupported();
 }
 
-// Reads a serial port (a SerialPort of the Web Serial API). A port that already has a connection gets it back, opened again if needed.
+function _serial_connectionOf(port) {
+    return TELEPLOT.connection.connections.find((c) => c.type === "serial" && c.port === port);
+}
+
+// A connection whose port is gone and that a new port with the same USB ids replaces (the device plugged again)
+function _serial_waitingFor(port) {
+    return TELEPLOT.connection.connections.find((c) => c.type === "serial" && c.gone && !c.connected && ConnectionSerial.sameDevice(c.port, port));
+}
+
+// Follows the ports the browser sees come and go (only ports the user allowed are told): a device plugged again is read again by its
+// connection, without a click. Set up once, when the page first uses a serial port.
+let _serial_watched = undefined;
+function _serial_watch() {
+    if(!ConnectionSerial.isSupported() || _serial_watched === navigator.serial || typeof navigator.serial.addEventListener !== "function") return;
+    _serial_watched = navigator.serial;
+    navigator.serial.addEventListener("connect", (event) => TELEPLOT.connection.serialPortAppeared(event.target));
+    navigator.serial.addEventListener("disconnect", (event) => {
+        let conn = _serial_connectionOf(event.target);
+        if(conn) conn.gone = true;
+    });
+}
+
+// A port appeared (navigator.serial "connect"): the connection that lost it or its twin opens it, unless it was closed on purpose.
+// Returns that connection (undefined: none was waiting for it).
+TELEPLOT.connection.serialPortAppeared = function(port) {
+    let conn = _serial_connectionOf(port) || _serial_waitingFor(port);
+    if(conn === undefined || conn.closed || conn.connected) return undefined;
+    conn.adopt(port);
+    conn.__openSoon();
+    return conn;
+}
+
+// Reads a serial port (a SerialPort of the Web Serial API). A port that already has a connection gets it back, opened again if needed;
+// so does a port that replaces the gone port of a connection (the same device plugged again: same USB ids).
 // Returns the connection; its "connected" and "error" tell how opening went (it is asynchronous).
 TELEPLOT.connection.addConnectionSerial = function(port, baudRate=115200) {
-    let conn = TELEPLOT.connection.connections.find((c) => c.type === "serial" && c.port === port);
+    _serial_watch();
+    let conn = _serial_connectionOf(port);
+    if(conn === undefined && (conn = _serial_waitingFor(port)) !== undefined) conn.adopt(port);
     if(conn === undefined) {
         conn = new ConnectionSerial(port, baudRate);
         TELEPLOT.connection.connections.push(conn);
@@ -193,6 +298,7 @@ TELEPLOT.connection.requestSerialPort = async function(baudRate=115200) {
 // Ports the user already allowed for this page and that are not read yet: [{port, name}]. They can be given to addConnectionSerial without a dialog.
 TELEPLOT.connection.getGrantedSerialPorts = async function() {
     if(!ConnectionSerial.isSupported()) return [];
+    _serial_watch();
     let ports = await navigator.serial.getPorts();
     return ports.filter((port) => !TELEPLOT.connection.connections.some((c) => c.type === "serial" && c.port === port))
                 .map((port) => ({ port, name: ConnectionSerial.portName(port) }));

@@ -14,7 +14,7 @@ class Telemetry {
         this.id = id;
         this.serial = ++_datastore_serial;
         this.clientId = -1;
-        this.sourceId = _datastore_currentSourceId; // Connection that first sent it (undefined: created by the application itself)
+        this.sourceId = _datastore_currentSourceId; // Connection that sent it last (undefined: created by the application itself, or from a file)
         this.endpoint = _datastore_currentEndpoint; // The device of that connection that sent it last (where commands go back: doc/telecmd.md)
         this.attributes = {};
         // Raw (not reactive): a UI framework wrapping the datastore in proxies would make ingestion ~100x slower. Views read it through update().
@@ -22,7 +22,7 @@ class Telemetry {
     }
     setAttribute(code, data) {
         this.attributes[code] = data;
-        if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
+        if(_datastore_currentSourceId !== undefined) { this.sourceId = _datastore_currentSourceId; this.endpoint = _datastore_currentEndpoint; }
         if(this.__unannounced && (code === TELEPLOT.protocol.TELEM_ATTR_SHAPE || (code === TELEPLOT.protocol.TELEM_ATTR_WRITE && data !== undefined))) _datastore_announce(this);
     }
     // Has the telemetry something to display ? Data (thresholds and a structure are not: they describe other data), a shape, or
@@ -112,7 +112,7 @@ class Telemetry {
 
         if (gapFrom !== undefined) Telemetry.__addGap(stored, gapFrom);
         stored.lastUpdate = Date.now();
-        if(_datastore_currentEndpoint !== undefined) this.endpoint = _datastore_currentEndpoint;
+        if(_datastore_currentSourceId !== undefined) { this.sourceId = _datastore_currentSourceId; this.endpoint = _datastore_currentEndpoint; }
         if(_datastore_addWatcher !== undefined) _datastore_addWatcher(this, dataType, timestamps);
         if(this.__unannounced && !TELEPLOT.protocol.isMetaDataType(dataType)) _datastore_announce(this);
     };

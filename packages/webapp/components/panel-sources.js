@@ -101,7 +101,7 @@ function initComponent_panel_sources(vue) {
                 <span class="sources-badge" :class="'sources-badge-' + s.kind">{{s.badge}}</span>
                 <span class="sources-grow"></span>
                 <button v-if="s.kind == 'server' && !s.connected" class="sources-btn" @click.stop="s.conn.retry()">Retry now</button>
-                <button v-else-if="s.kind == 'serial' && !s.connected" class="sources-btn sources-primary" @click.stop="s.conn.connect()">Reconnect</button>
+                <button v-else-if="s.kind == 'serial' && !s.connected" class="sources-btn sources-primary" @click.stop="s.conn.reconnect()">Reconnect</button>
                 <template v-else><span v-if="s.bytesText" class="sources-bytes" :title="bytesTitle">{{s.bytesText}}</span><span class="sources-rate">{{s.rateText}}</span></template>
               </div>
               <div class="sources-sub">{{s.summary}}</div>
@@ -373,6 +373,7 @@ function initComponent_panel_sources(vue) {
                     };
                     if (serial) {
                         if (conn.connected) source.summary = `This browser (Web Serial) · ${conn.baudRate} baud · ${last}`;
+                        else if (conn.gone && !conn.closed) source.summary = `${conn.error || "The device was lost"} · read again when it is plugged back`;
                         else if (conn.error) source.summary = conn.error;
                         else { source.summary = `Disconnected · ${conn.baudRate} baud · its data is kept`; source.state = "idle"; }
                         if (this.isOpen(source)) Object.assign(source, this.consoleLines(conn));

@@ -167,7 +167,8 @@ motors on.
 
 ## Where it goes: the way the data came
 
-A write goes back through the source of its telemetry (`telemetry.sourceId`), to the device that sent it (the client id in binary,
+A write goes back through the source of its telemetry (`telemetry.sourceId`: the connection that sent it last, so a device read
+again through another connection, a serial port plugged back, keeps its commands), to the device that sent it (the client id in binary,
 the sender address for text), in the protocol that device speaks.
 
 | Source | Return path |

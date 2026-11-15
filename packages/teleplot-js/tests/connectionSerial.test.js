@@ -13,6 +13,7 @@ function fakePort(info = { usbVendorId: 0x10c4, usbProductId: 0xea60 }) {
         getInfo: () => info,
         async open(options) {
             if (port.failOpen) throw Object.assign(new Error('Failed to open serial port'), { name: 'NetworkError' });
+            if (port.readable) throw Object.assign(new Error('The port is already open.'), { name: 'InvalidStateError' });
             port.options = options;
             port.readable = new ReadableStream({ start(c) { controller = c; } });
             port.writable = new WritableStream({ write(chunk) { port.written.push(Buffer.from(chunk).toString()); } });
@@ -168,4 +169,166 @@ test('requestSerialPort and getGrantedSerialPorts go through the browser (naviga
         await conn.disconnect();
     }
     finally { if (saved) Object.defineProperty(globalThis, 'navigator', saved); else delete globalThis.navigator; }
+});
+
+// A navigator.serial that tells which ports come and go, as the browser does (only ports the user allowed)
+function fakeSerial(ports = []) {
+    const listeners = { connect: [], disconnect: [] };
+    const serial = {
+        ports, requested: [], chosen: undefined,
+        addEventListener(type, fn) { listeners[type].push(fn); },
+        async getPorts() { return serial.ports.slice(); },
+        async requestPort(options) {
+            serial.requested.push(options);
+            if (!serial.chosen) throw Object.assign(new Error('No port selected by the user.'), { name: 'NotFoundError' });
+            return serial.chosen;
+        },
+        // The device is unplugged: its port is lost for good. Plugged again: a new SerialPort with the same USB ids.
+        unplug(port) { serial.ports = serial.ports.filter(p => p !== port); port.lose(); port.failOpen = true; listeners.disconnect.forEach(fn => fn({ target: port })); },
+        plug(port) { serial.ports.push(port); listeners.connect.forEach(fn => fn({ target: port })); },
+    };
+    return serial;
+}
+async function withSerial(serial, fn) {
+    const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { value: { serial }, configurable: true, writable: true });
+    try { await fn(); }
+    finally { if (saved) Object.defineProperty(globalThis, 'navigator', saved); else delete globalThis.navigator; }
+}
+
+test('a device plugged again is read again by the same connection: its telemetries and commands keep working', async () => {
+    const T = loadTeleplot();
+    const first = fakePort(), serial = fakeSerial([first]);
+    await withSerial(serial, async () => {
+        const conn = T.connection.addConnectionSerial(first);
+        await tick();
+        first.feed('>ATTR|speed|write|min=0|max=10\n>speed:1\n');
+        await tick();
+        T.state.commands = true;
+        assert.equal(T.commands.whyNot(T.datastore.getTelemetry('speed')), '');
+
+        serial.unplug(first);
+        await tick();
+        assert.deepEqual([conn.connected, conn.gone], [false, true]);
+        assert.equal(T.commands.whyNot(T.datastore.getTelemetry('speed')), 'The port is not open');
+        assert.equal(await first.open({}).catch(e => e.name), 'NetworkError', 'the old port can never be opened again');
+
+        const second = fakePort();
+        serial.plug(second);
+        await tick();
+        assert.deepEqual([conn.connected, conn.gone, conn.port === second, T.connection.connections.length], [true, false, true, 1]);
+        assert.equal(T.commands.whyNot(T.datastore.getTelemetry('speed')), '', 'commands go to the new port');
+        second.feed('>speed:2\n');
+        await tick();
+        assert.deepEqual(T.datastore.getTelemetry('speed').data[20].data[0], [1, 2]);
+
+        // A port of another kind of device, or a connection closed on purpose, is left alone
+        await conn.disconnect();
+        assert.equal(T.connection.serialPortAppeared(fakePort()), undefined);
+        assert.equal(T.connection.serialPortAppeared(fakePort({ usbVendorId: 0x1a86, usbProductId: 0x7523 })), undefined);
+        assert.equal(conn.port, second);
+    });
+});
+
+test('a port that appears but does not open at once is tried again', async () => {
+    const T = loadTeleplot();
+    const first = fakePort(), serial = fakeSerial([first]);
+    await withSerial(serial, async () => {
+        const conn = T.connection.addConnectionSerial(first);
+        await tick();
+        serial.unplug(first);
+        await tick();
+        const second = fakePort();
+        second.failOpen = true; // (the system is not ready yet)
+        const planned = T.__timers.pending.size;
+        serial.plug(second);
+        await tick();
+        assert.equal(conn.connected, false);
+        assert.equal(T.__timers.pending.size, planned + 1, 'one more try is planned');
+        second.failOpen = false;
+        T.__timers.run();
+        await tick();
+        assert.equal(conn.connected, true);
+        await conn.disconnect();
+    });
+});
+
+test('Reconnect takes a port with the same USB ids the user allowed, else asks the browser for one', async () => {
+    const T = loadTeleplot();
+    const first = fakePort(), serial = fakeSerial([first]);
+    await withSerial(serial, async () => {
+        const conn = T.connection.addConnectionSerial(first);
+        await tick();
+        serial.unplug(first);
+        await tick();
+        // Not allowed again (no "connect" event): the dialog, filtered on the device
+        assert.equal(await conn.reconnect(), false, 'the dialog was closed');
+        assert.deepEqual(serial.requested, [{ filters: [{ usbVendorId: 0x10c4, usbProductId: 0xea60 }] }]);
+        serial.chosen = fakePort();
+        assert.equal(await conn.reconnect(), true);
+        assert.equal(conn.port, serial.chosen);
+        serial.unplug(serial.chosen);
+        await tick();
+        // Already allowed: no dialog
+        const granted = fakePort();
+        serial.ports.push(granted);
+        assert.equal(await conn.reconnect(), true);
+        assert.deepEqual([conn.port === granted, serial.requested.length], [true, 2], 'no third dialog');
+        await conn.disconnect();
+    });
+});
+
+test('a port chosen again in Add a source replaces the gone port of its connection', async () => {
+    const T = loadTeleplot();
+    const first = fakePort(), serial = fakeSerial([first]);
+    await withSerial(serial, async () => {
+        const conn = T.connection.addConnectionSerial(first);
+        await tick();
+        serial.unplug(first);
+        await tick();
+        const second = fakePort();
+        serial.ports.push(second); // (no "connect" event: the browser forgot the permission)
+        assert.deepEqual((await T.connection.getGrantedSerialPorts()).map(p => p.name), ['CP210x 10c4:ea60']);
+        assert.equal(T.connection.addConnectionSerial(second).id, conn.id);
+        await tick();
+        assert.deepEqual([conn.connected, T.connection.connections.length], [true, 1]);
+        await conn.disconnect();
+    });
+});
+
+test('telemetries follow the source that sends them: a device read again by a new connection gets its commands back', async () => {
+    const { T, port, conn } = await open();
+    port.feed('>ATTR|gain|write\n>gain:1\n');
+    await tick();
+    T.connection.removeConnection(conn);
+    await tick();
+    T.state.commands = true;
+    const gain = T.datastore.getTelemetry('gain');
+    assert.equal(T.commands.whyNot(gain), 'Its source is gone');
+    const again = fakePort({ usbVendorId: 0x1a86, usbProductId: 0x7523 });
+    const other = T.connection.addConnectionSerial(again);
+    await tick();
+    again.feed('>gain:2\n');
+    await tick();
+    assert.deepEqual([gain.sourceId, T.commands.whyNot(gain)], [other.id, '']);
+    T.files.importData('gain:3:4\n');
+    assert.equal(gain.sourceId, other.id, 'what a file adds does not change where commands go');
+    await other.disconnect();
+});
+
+test('Reconnect right after the port was lost waits for it to be closed', async () => {
+    const { T, port, conn } = await open();
+    const close = port.close;
+    let release;
+    port.close = () => new Promise(r => { release = r; }).then(() => { port.close = close; return close(); });
+    port.lose();
+    await tick();
+    assert.deepEqual([conn.connected, port.readable !== null], [false, true], 'lost, not closed yet');
+    const opening = conn.connect();
+    release();
+    assert.equal(await opening, true, 'not "already open"');
+    port.feed('>a:1\n');
+    await tick();
+    assert.equal(T.datastore.hasTelemetry('a'), true);
+    await conn.disconnect();
 });

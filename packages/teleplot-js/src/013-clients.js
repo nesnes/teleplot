@@ -23,7 +23,7 @@ TELEPLOT.clients.addClient = function(id) {
         return;
     }
     let client = new Client(id);
-    client.sourceId = _datastore_currentSourceId; // Connection it was first seen on
+    client.sourceId = _datastore_currentSourceId; // Connection it was last seen on
     TELEPLOT.clients.clients[id] = client;
     return client;
 }
@@ -33,5 +33,6 @@ TELEPLOT.clients.getOrCreateClient = function(id) {
     if(client === undefined) {
         client = TELEPLOT.clients.addClient(id);
     }
+    else if(_datastore_currentSourceId !== undefined) client.sourceId = _datastore_currentSourceId; // A device that comes back through another connection
     return client;
 }
