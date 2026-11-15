@@ -110,18 +110,17 @@ test('replay: the moment moves by elapsed x speed on each update, and the group 
     assert.equal(group.at, 0);
 });
 
-test('a span places the moment at 70 % of the window, within the data; the oldest sample gets some room before it', () => {
+test('a span chosen places the moment at 70 % of the window; after that the window moves only when the time leaves it, just enough', () => {
     const { T, group, name } = setup();
     T.view.seek(name, 50);
     T.view.setSpan(name, 10);
     assert.deepEqual([group.timestampFrom, group.timestampTo], [43, 53]);
+    T.view.seek(name, 51);
+    assert.deepEqual([group.timestampFrom, group.timestampTo], [43, 53], 'inside: the window does not move');
     T.view.seek(name, 99);
-    assert.deepEqual([group.timestampFrom, group.timestampTo], [90, 100], 'not after the newest sample');
+    assert.deepEqual([group.timestampFrom, group.timestampTo].map((t) => Math.round(t * 10) / 10), [89.2, 99.2], 'past its end: brought back with 2 % of room, same length');
     T.view.seek(name, 2);
-    assert.deepEqual([group.timestampFrom, group.timestampTo], [0, 10], 'not before the oldest one');
-    T.view.seek(name, 0);
-    assert.ok(group.timestampFrom < 0 && group.timestampTo === 10, 'room before the oldest sample');
-    assert.ok(Math.abs((0 - group.timestampFrom) / (group.timestampTo - group.timestampFrom) - T.view.ROOM) < 1e-9);
+    assert.deepEqual([group.timestampFrom, group.timestampTo].map((t) => Math.round(t * 10) / 10), [1.8, 11.8], 'past its start: the same');
     T.view.setSpan(name, 0);
     assert.deepEqual([group.mode, group.timestampTo], ['held', 100], 'the whole window, still held');
 });
@@ -227,4 +226,24 @@ test('commands: a view of a group that is not live sends nothing and says why', 
     assert.deepEqual([state.editable, state.notLive], [false, true]);
     T.view.backToLive('G');
     assert.equal(T.commands.whyNotIn(telem, 'G'), '');
+});
+
+test('a replay shows what is played even with the pointer resting on a view; the pointer previews again once it stops', () => {
+    const T = loadTeleplot();
+    for (const line of ['v:1000:1', 'v:5000:2', 'v:9000:3']) T.parseDataText(line);
+    const chart = new T.view.ViewChart('', ['v'], 'g');
+    T.view.views.push(chart);
+    T.view.seek('g', 2);
+    T.view.hoveredGroup = 'g';
+    T.view.preview('g', 2);
+    T.view.play('g');
+    T.view.__updateTime(0);
+    T.view.__updateTime(1000);
+    const g = T.view.groups.g;
+    assert.equal(g.cursorTimestamp, 3, 'the time played, not the pointer');
+    T.view.preview('g', 7);
+    assert.equal(g.cursorTimestamp, 3, 'no preview while replaying');
+    T.view.hold('g');
+    T.view.preview('g', 7);
+    assert.equal(g.cursorTimestamp, 7);
 });

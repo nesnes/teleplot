@@ -84,7 +84,7 @@ class ViewLog extends ViewTelemetries{
     hoverRow(row) {
         this.hovering = true;
         TELEPLOT.view.hoveredGroup = this.group;
-        TELEPLOT.view.groups[this.group].cursorTimestamp = row.t;
+        TELEPLOT.view.preview(this.group, row.t);
     }
     hoverEnd() {
         this.hovering = false;

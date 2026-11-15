@@ -47,11 +47,11 @@ Each time group keeps its own time: one can replay while another is live (the ro
 
 ### What the views show
 
-- **Charts**: every sample of their window is drawn, before and after `t`. A cursor line at `t` in the color of the mode (blue held, purple replay) tells which moment the other views show. With a span, the window is placed so that `t` sits at 70 % of its width (data before it, and what comes next). The window never starts before the oldest sample: near it, `t` moves to the left. When `t` is the oldest sample itself, the axis starts 6 % of its width before it (empty room, as the room charts and timelines already leave after a latest state), so the cursor line is never on the frame.
+- **Charts**: every sample of their window is drawn, before and after `t`. A cursor line at `t` in the color of the mode (blue held, purple replay) tells which moment the other views show. The window stays where it is and moves only when `t` leaves it (see "The window and the time shown"); a span chosen places `t` at 70 % of it.
 - **Timelines**: the same window and cursor line as charts.
 - **Logs**: the lines of the window; the line at `t` is highlighted and scrolled into view, as the cursor already does.
 - **Values, 2D, 3D, images, graphs**: what was current at `t`.
-- **Pointer preview**: hovering a chart, timeline or log of a group previews that moment in the other views of the group (`cursorTimestamp`, as today). When the pointer leaves, they show `t` again. A preview never changes the mode.
+- **Pointer preview**: hovering a chart, timeline or log of a group previews that moment in the other views of the group (`cursorTimestamp`, as today). When the pointer leaves, they show `t` again. A preview never changes the mode, and there is none while the group replays: the views show what is played, wherever the pointer is (`TELEPLOT.view.preview`).
 
 ### Commands
 
@@ -91,6 +91,10 @@ Proposal A of the mock-ups (see [top-menu.md](top-menu.md) for the rest of the m
 - **Not receiving**: the rate chip turns amber ("not receiving", or "memory full") and a tab under the menu says "data sent now is lost · Receive" (or "Memory full (1 GB) · not receiving · Data menu").
 - **Menu away**: the line and the tab fade out with the menu (after 3 s without activity, see [top-menu.md](top-menu.md) "Auto-hide"). Nothing stays on screen: the cursor lines and the times written in the views tell that a group is not live, and any mouse move brings the menu back. The amber "Paused" chip of today is removed.
 
+## The window and the time shown
+
+One rule (since 2026-11-16): the window of a group that is not live stays where it is, and moves only when the time shown leaves it, just enough to bring it back (2 % of room on the side it left by), keeping its length. A click, the arrows, a replay and a held moment that the data window passes all follow it. Holding from live keeps what was on screen (the last span, or the whole data). Only what sets a window on purpose places it: a zoom, a moment or a section shown, a span chosen (`setSpan` puts the time at 70 %), a double click (the whole data).
+
 ## Actions and keys
 
 | Action | Effect |
@@ -112,7 +116,7 @@ Change from the mock-ups: they had "drag on a chart sets the span, Live stays li
 
 **When the time line is active** (its row is open under the pointer, or the keyboard focus is in the menu):
 
-- `Home`: the oldest sample. `End`: live. (The arrows work anywhere: `←` `→` previous / next real sample, `Shift + ←` `→` by 1 % of the period of the line; and `-` `+` the replay speed. These keys are typed without Shift or AltGr on every layout, unlike `,` `.` `[` `]` on AZERTY.)
+- `Home`: the oldest sample. `End`: live. (The arrows work anywhere: `←` `→` move the time by 1 % of what the views show, so a step means the same at any zoom, `Shift` 10 %, `Alt` the previous / next real sample; and `-` `+` the replay speed. These keys are typed without Shift or AltGr on every layout, unlike `,` `.` `[` `]` on AZERTY.)
 - **Mouse wheel** over the menu: each notch moves the time shown by 1 % of the period of the line (a trackpad moves it in proportion to its delta). Down or right: later. Up or left: earlier. `Alt +` wheel: one real sample per notch. Leaving Live this way holds the group. The wheel is taken (`preventDefault`, on a non-passive listener of the menu only) so the page does not scroll meanwhile. Elsewhere the wheel keeps its uses (zoom of 2D, 3D and graph views, scrolling the page).
 - Not while typing in a field, nor while a joystick view has the focus (it keeps its keys: `TELEPLOT.commands.keyboardCaptured`).
 

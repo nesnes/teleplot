@@ -957,7 +957,7 @@ const HELP_SENDERS = [
 
 const HELP_SHORTCUTS = [
     { keys: "Space", label: "Hold or resume the display (data keeps being received)" },
-    { keys: "← →", label: "Previous / next sample (Shift: a bigger step)" },
+    { keys: "← →", label: "Move the time by 1 % of what is shown (Shift: 10 %, Alt: one sample)" },
     { keys: "- +", label: "Replay slower / faster" },
     { keys: "← →", label: "Move the time shown, on the time line of the top menu (also the wheel)" },
     { keys: "R", label: "Reception on or off" },

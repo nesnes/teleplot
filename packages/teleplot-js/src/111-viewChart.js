@@ -308,7 +308,7 @@ class ViewChart extends ViewTelemetries{
                         if (idx != null) {
                             // (beyond the last number, where marks widened the chart: the time pointed at, so that the views show what was then)
                             const times = u.data[0], at = u.posToVal(u.cursor.left, "x");
-                            TELEPLOT.view.groups[this.group].cursorTimestamp = times.length && at > times[times.length - 1] ? at : times[idx];
+                            TELEPLOT.view.preview(this.group, times.length && at > times[times.length - 1] ? at : times[idx]);
                         }
                         }
                 ],

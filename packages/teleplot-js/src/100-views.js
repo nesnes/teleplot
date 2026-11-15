@@ -420,6 +420,20 @@ TELEPLOT.view.groupExtent = function(name){
     return to === -Infinity ? undefined : { from, to };
 }
 
+// One rule for the window of a group that is not live: it stays where it is, and moves only when the time shown leaves it, just enough
+// to bring it back (a little room on the side it left by). Its length never changes. What sets a window on purpose (a zoom, a moment
+// shown, a span chosen) does it directly. Without any window yet: _views_place.
+function _views_follow(g, extent) {
+    let from = g.timestampFrom, to = g.timestampTo, at = g.at;
+    if(!g.cursorActive || !(to > from)) { _views_place(g, extent); return; }
+    let span = to - from, room = span * 0.02;
+    if(at < from) from = at - room;
+    else if(at > to) from = at + room - span;
+    else return;
+    g.timestampFrom = from;
+    g.timestampTo = from + span;
+}
+
 // The window of a group that is not live, for its moment: a span placed with the moment at PLACE (within the data), or the whole
 // data up to the newest sample when it was held (or up to the moment, when a replay goes further). Room is left before a moment that
 // is the oldest sample.
@@ -473,7 +487,12 @@ TELEPLOT.view.hold = function(name, at, keepWindow){
     g.at = at;
     g.movedWithWindow = false;
     g.cursorTimestamp = at;
-    if(wasLive || !(keepWindow || g.moment) || at < g.timestampFrom || at > g.timestampTo) _views_place(g, extent); // (a click, or inside a moment: the window is where it was brought)
+    if(wasLive) { // What was on screen while live: the last span, or the whole data
+        g.timestampFrom = g.span > 0 ? extent.to - g.span : extent.from;
+        g.timestampTo = extent.to;
+        g.cursorActive = true;
+    }
+    _views_follow(g, extent);
     g.browsing = true; // Not live: charts and timelines then move through time (see panBy, zoomAround)
     TELEPLOT.view.lastHeld = { name, count: (TELEPLOT.view.lastHeld ? TELEPLOT.view.lastHeld.count : 0) + 1 }; // (a GUI can follow the group last held: a click in one of its views)
     return true;
@@ -714,6 +733,14 @@ TELEPLOT.view.allLive = function(base){
     return changed;
 }
 
+// The pointer on a view of a group shows the time under it in the other views of the group (a preview), except while the group
+// replays: then they show what is played, wherever the pointer is
+TELEPLOT.view.preview = function(name, t){
+    let g = TELEPLOT.view.ensureGroup(name);
+    if(g.mode === "replay") return;
+    g.cursorTimestamp = t;
+}
+
 // The pointer left a view of the group: the views show the group's moment again (the latest one when live)
 TELEPLOT.view.pointerLeft = function(name){
     let g = TELEPLOT.view.ensureGroup(name);
@@ -772,7 +799,7 @@ TELEPLOT.view.__updateTime = function(now = (typeof performance !== "undefined" 
                     else { at = end; g.mode = "held"; g.resume = "replay"; }
                 }
                 g.at = at;
-                if(TELEPLOT.view.hoveredGroup !== name) g.cursorTimestamp = at;
+                g.cursorTimestamp = at; // (a replay shows its time, even under the pointer: see preview)
                 continue;
             }
             if(at >= extent.to) { // Caught up: live again (with its span)
@@ -784,15 +811,15 @@ TELEPLOT.view.__updateTime = function(now = (typeof performance !== "undefined" 
                 continue;
             }
             g.at = at;
-            if(TELEPLOT.view.hoveredGroup !== name) g.cursorTimestamp = at;
-            _views_place(g, extent);
+            g.cursorTimestamp = at; // (a replay shows its time, even under the pointer: see preview)
+            _views_follow(g, extent); // (the window moves only when the time played leaves it)
             continue;
         }
         if(g.at < extent.from) { // Held: older than the data window
             g.at = extent.from;
             g.movedWithWindow = true;
             if(TELEPLOT.view.hoveredGroup !== name) g.cursorTimestamp = g.at;
-            _views_place(g, extent);
+            _views_follow(g, extent);
         }
     }
 }

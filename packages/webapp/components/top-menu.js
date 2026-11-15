@@ -285,7 +285,7 @@ function initComponent_top_menu(vue) {
                                 <div class="tm-choice" role="group" aria-label="Replay speed">
                                     <button v-for="s in speeds" :key="s" :class="{on: timeline.mode == 'replay' && timeline.speed == s}" :aria-pressed="timeline.mode == 'replay' && timeline.speed == s" @click="setSpeed(s)">{{s}}×</button>
                                 </div>
-                                <h5>Step <span class="tm-h5-value tm-sub"><kbd>←</kbd> <kbd>→</kbd></span></h5>
+                                <h5>Step <span class="tm-h5-value tm-sub"><kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd></span></h5>
                                 <div class="tm-line">
                                     <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(-1)">‹ Previous sample</button>
                                     <button class="tm-action tm-grow" :disabled="!timeline.hasData" @click="step(1)">Next sample ›</button>
@@ -1300,15 +1300,17 @@ function initComponent_top_menu(vue) {
                 this.ctx.topPanel = "";
             },
             onKeyDown(event) {
-                if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
+                const altArrow = event.altKey && !event.ctrlKey && !event.metaKey && (event.key == "ArrowLeft" || event.key == "ArrowRight"); // (Alt: one sample)
+                if ((event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) && !altArrow) return;
                 if (this.TP.commands.keyboardCaptured) return; // (a joystick drives with the keys)
                 const t = event.target;
                 if (t && (t.isContentEditable || (t.closest && t.closest("input, textarea, select")))) return; // Typing
                 if (event.key == " " && t && t.closest && t.closest("button, summary, a")) return; // Space activates a focused control, as usual
                 if (event.key == " ") { event.preventDefault(); this.togglePlay(); return; }
                 const T = Vue.toRaw(this.TP), group = this.chosenGroup;
-                // The arrows move the time shown (one sample, Shift: 1 % of the line), unless a control that uses them has the focus;
-                // while the time line is open, Home goes to the oldest sample and End to live
+                // The arrows move the time shown by a share of what the views show (1 %, Shift: 10 %; Alt: one sample), so that a step means
+                // the same at any zoom; unless a control that uses them has the focus. While the time line is open, Home goes to the oldest
+                // sample and End to live
                 const arrow = event.key == "ArrowLeft" || event.key == "ArrowRight";
                 const controlFocused = t && t.closest && t.closest(".tm-popup, [role=slider], [role=tablist], [role=listbox], [role=menu], [role=radiogroup]");
                 const homeEnd = this.timelineOpen && (event.key == "Home" || event.key == "End");
@@ -1317,8 +1319,11 @@ function initComponent_top_menu(vue) {
                     const dir = event.key == "ArrowLeft" ? -1 : 1;
                     if (event.key == "Home") T.view.seek(group, this._map.from);
                     else if (event.key == "End") T.view.backToLive(group);
-                    else if (event.shiftKey) T.view.move(group, { seconds: dir * 0.01 * Math.max(1e-3, this._map.to - this._map.from) });
-                    else T.view.move(group, { samples: dir });
+                    else if (event.altKey) T.view.move(group, { samples: dir });
+                    else {
+                        const shown = T.view.timeOf(group);
+                        T.view.move(group, { seconds: dir * (event.shiftKey ? 0.1 : 0.01) * Math.max(1e-3, shown.to - shown.from) });
+                    }
                     return;
                 }
                 // Moments: PageUp and PageDown, on the same telemetry and level

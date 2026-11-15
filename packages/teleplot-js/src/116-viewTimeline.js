@@ -780,7 +780,7 @@ class ViewTimeline extends ViewTelemetries{
         }
         let time = this.__timeAt(at.x);
         TELEPLOT.view.hoveredGroup = this.group;
-        TELEPLOT.view.groups[this.group].cursorTimestamp = time;
+        TELEPLOT.view.preview(this.group, time);
         let lane = this.lanes.find((candidate) => at.y >= candidate.top && at.y < candidate.top + candidate.height);
         let row = lane && lane.rows ? Math.min(lane.rows.length - 1, Math.floor((at.y - lane.top) / lane.rowHeight)) : -1; // (of a stack: the level under the pointer)
         let perPixel = (this.period.to - this.period.from) / Math.max(1, page.width - page.gutter);

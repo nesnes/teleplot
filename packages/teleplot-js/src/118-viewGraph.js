@@ -519,7 +519,7 @@ class ViewGraph extends ViewTelemetries {
             let group = TELEPLOT.view.groups[this.group];
             this.__trailHover = true;
             TELEPLOT.view.hoveredGroup = this.group;
-            group.cursorTimestamp = chip.run.time;
+            TELEPLOT.view.preview(this.group, chip.run.time);
             Object.assign(tip, { name: TELEPLOT.view.telemetryTip(telem).split("\n")[0], desc: "", text: chip.run.leaves.join(", ") || chip.run.results.map((r) => r.name + " " + r.status).join(", "),
                 detail: "from " + TELEPLOT.view.ViewLog.formatTime(chip.run.time) + (chip.run.end !== undefined ? ", for " + TELEPLOT.view.ViewTimeline.formatDuration(chip.run.end - chip.run.time) : ", still the latest") });
             place();
