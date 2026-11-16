@@ -65,7 +65,7 @@ depth.boxes,depth:...
 
 - The view takes every telemetry of these groups that it can display: numbers and texts for a chart (texts are its marks), anything that has a value for a values view (numbers, texts, positions, pictures, commands), texts for a log, texts and numbers for a timeline, structures and stacks for a graph, shapes, points and clouds for a 2D or 3D view (and the pictures of the group for a 3D view: its cameras), and for an image view the pictures (its filmstrip shows them all) and what is drawn over them.
 - The views that Teleplot makes by itself for a group, one per kind of view (the automatic "Live" dashboard, a label card dropped in the editor), take only what their kind shows by default (`view.followOwnKinds`): nothing is shown twice.
-- Those already received and those to come: the result does not depend on what came first, data or dashboard.
+- Those already received and those to come: the result does not depend on what came first, data or dashboard. A telemetry that changes after it came is looked at again: a label that comes after its data (a page that joins a device that runs: descriptions are sent again only every few seconds), a structure after its states, a shape on a number (`TELEPLOT.datastore.onChangedTelemetryHooks`: a new value of an attribute, or the first sample of a kind of data; a description sent again with the same value is not a change, so what was removed by hand stays removed).
 - The name of the view and its place are free: only the group ties it to the data. A view can follow several groups (`follow=depth,camera`) and several views can follow one group.
 - Without dashboard lines, the automatic "Live" dashboard gives each group its views (titled with the group), and they follow it.
 

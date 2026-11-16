@@ -231,6 +231,35 @@ test('a view takes from a group everything it can display; the automatic dashboa
     assert.deepEqual(tree(T, T.dashboards.getDashboard('Live').getView()), { grid: ['chart(speed)', 'current-value(mode)'] });
 });
 
+test('what changes after it came reaches the views that follow its group: a label after the data, a structure, a shape', () => {
+    const run = (steps) => {
+        const T = loadTeleplot();
+        T.dashboards.enableAutoDashboard('Live');
+        for (const step of steps) { if (step === 'wait') T.__timers.run(); else if (typeof step === 'string') T.parseDataText(step); else T.parseDataBinary(step); }
+        T.__timers.run();
+        return tree(T, T.dashboards.getDashboard('Robot').getView());
+    };
+    assert.deepEqual(run(['speed:1', 'wait', 'DASH|Robot/S:chart|follow=g', 'speed,g:2']), { grid: ['chart(speed)'] }, 'a label that comes after the data and after the dashboard');
+    assert.deepEqual(run(['DASH|Robot/G:graph|follow=g', 'mode,g:idle|t', 'wait', 'mode,g:idle,run|enum']), { grid: ['graph(mode)'] }, 'a structure after the states');
+    assert.deepEqual(run(['DASH|Robot/S:3d|follow=g', 'box,g:1', 'wait', '3D|box,g:S:cube:P:1:0:0']), { grid: ['3d(box)'] }, 'a shape on a number');
+    // Binary, as a device that a page joins while it runs: samples first, its descriptions (the label) a few seconds later
+    const sample = new PacketBuilder(1).attrs(5, [[ATTR.NAME, 'temp']]).numbers(5, 1000000000n, [[0, 20]]).build();
+    const label = new PacketBuilder(1).attrs(5, [[ATTR.NAME, 'temp'], [6, 'env']]).build();
+    assert.deepEqual(run([sample, 'wait', new PacketBuilder(1).dashboard('DASH|Robot/T:chart|follow=env').build(), label]), { grid: ['chart(temp)'] }, 'binary');
+});
+
+test('a description sent again with the same value does not bring back what was removed from a view by hand', () => {
+    const T = loadTeleplot();
+    T.parseDataText('DASH|Robot/S:chart|follow=g');
+    T.parseDataText('3D|box,g:S:cube:P:1:0:0\nspeed,g:1');
+    T.__timers.run();
+    const chart = T.dashboards.getDashboard('Robot').getView().views[0];
+    assert.equal(chart.removeTelemetry('speed') !== false, true);
+    T.parseDataText('speed,g:2\n3D|box,g:S:cube:P:2:0:0');
+    T.__timers.run();
+    assert.deepEqual(namesOf(T, chart), []);
+});
+
 test('a group ties a camera to its scene: the views that follow it take what they can draw', () => {
     for (const layoutFirst of [true, false]) {
         const T = loadTeleplot();

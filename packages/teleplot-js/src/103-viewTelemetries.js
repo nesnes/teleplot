@@ -258,15 +258,19 @@ class ViewTelemetries extends Views {
 
 TELEPLOT.view.ViewTelemetries = ViewTelemetries;
 
-// New telemetries go to the views that follow their label (the hook runs a moment after the telemetry shows up: its label and its first data are there)
-TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
+// New telemetries go to the views that follow their label (the hook runs a moment after the telemetry shows up: its label and its
+// first data are there), and so do telemetries that changed since: a label that came after the data, a structure, a shape or a picture
+// that makes a view able to display them
+function _viewTelemetries_follow(telem) {
     let label = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_VIEW_LABEL);
     if(!label) return;
     for(let view of TELEPLOT.view.views) {
         if(!view.options || !Array.isArray(view.options.followLabels) || !view.options.followLabels.includes(label)) continue;
         if(typeof view.suitsTelemetry === "function" && view.suitsTelemetry(telem)) view.addTelemetry(telem.id);
     }
-});
+}
+TELEPLOT.datastore.onNewTelemetryHooks.push(_viewTelemetries_follow);
+TELEPLOT.datastore.onChangedTelemetryHooks.push(_viewTelemetries_follow);
 
 // Views can be given the name of a telemetry that does not exist yet (a dashboard described before its data). Telemetries of the
 // text protocol are found by their name; the others (binary protocol: an id, and a name as an attribute) take their place here.

@@ -21,6 +21,7 @@ class Telemetry {
         this.data = TELEPLOT.Vue.markRaw({});
     }
     setAttribute(code, data) {
+        if(this.__announced && !_datastore_dry && !_datastore_sameValue(this.attributes[code], data)) _datastore_changed(this);
         this.attributes[code] = data;
         if(_datastore_currentSourceId !== undefined) { this.sourceId = _datastore_currentSourceId; this.endpoint = _datastore_currentEndpoint; }
         if(this.__unannounced && (code === TELEPLOT.protocol.TELEM_ATTR_SHAPE || (code === TELEPLOT.protocol.TELEM_ATTR_WRITE && data !== undefined))) _datastore_announce(this);
@@ -65,6 +66,7 @@ class Telemetry {
             for(let i=0;i<dataList.length;i++) {
                 this.data[dataType].data[i] = [];
             }
+            if(this.__announced) _datastore_changed(this); // A new kind of data: views may take it now (a structure, a shape, a picture...)
         }
         // For each incoming data, insert ordered
         let stored = this.data[dataType];
@@ -823,11 +825,42 @@ function _datastore_announce(telem) {
         let stored = TELEPLOT.datastore.telemetries[telem.id];
         if(stored === undefined || stored.serial !== telem.serial) return;
         if(!telem.hasContent()) { telem.__unannounced = true; return; }
+        telem.__announced = true;
         for(let hook of TELEPLOT.datastore.onNewTelemetryHooks) {
             try { hook(telem); }
             catch(e) { console.error("Teleplot new telemetry hook failed:", e); }
         }
     }, 100);
+}
+
+// Called with a telemetry that was announced and changed in a way that can change where it is shown: an attribute got another value
+// (its label came after its data, a shape, a frame, a stack...) or it got its first sample of a kind of data (a structure, a picture).
+// Called once for several changes, a moment after them, like the new telemetry hooks.
+TELEPLOT.datastore.onChangedTelemetryHooks = [];
+let _datastore_changedSet = new Set(), _datastore_changedTimer = undefined;
+function _datastore_changed(telem) {
+    _datastore_changedSet.add(telem);
+    if(_datastore_changedTimer !== undefined) return;
+    _datastore_changedTimer = setTimeout(() => {
+        _datastore_changedTimer = undefined;
+        let changed = Array.from(_datastore_changedSet);
+        _datastore_changedSet.clear();
+        for(let telem of changed) {
+            let stored = TELEPLOT.datastore.telemetries[telem.id];
+            if(stored === undefined || stored.serial !== telem.serial) continue; // (forgotten meanwhile)
+            for(let hook of TELEPLOT.datastore.onChangedTelemetryHooks) {
+                try { hook(telem); }
+                catch(e) { console.error("Teleplot changed telemetry hook failed:", e); }
+            }
+        }
+    }, 50);
+}
+// Is an attribute given the value it already has ? (Descriptions are sent again and again: objects are compared by their content.)
+function _datastore_sameValue(a, b) {
+    if(a === b) return true;
+    if(a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+    try { return JSON.stringify(a) === JSON.stringify(b); }
+    catch(e) { return false; }
 }
 
 // The telemetry of a name, whichever protocol it came from: telemetries of the text protocol are known by their name, the others have
