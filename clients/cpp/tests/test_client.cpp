@@ -19,6 +19,18 @@ static std::uint16_t idOf(std::string const& name) { // (as the client gives ids
     for (char c : name) { h ^= static_cast<std::uint8_t>(c); h *= 16777619u; }
     return static_cast<std::uint16_t>((h >> 16) ^ (h & 0xFFFF));
 }
+// The dashboard lines in packets, in order, each once (a packet holds a line as "DASH|..." then a null)
+static std::vector<std::string> dashLines(std::vector<std::vector<std::byte>> const& sent) {
+    std::vector<std::string> lines;
+    for (auto const& p : sent) {
+        std::string s(reinterpret_cast<const char*>(p.data()), p.size());
+        for (std::size_t at = s.find("DASH|"); at != std::string::npos; at = s.find("DASH|", at + 1)) {
+            std::string line(s.c_str() + at);
+            if (std::find(lines.begin(), lines.end(), line) == lines.end()) { lines.push_back(line); }
+        }
+    }
+    return lines;
+}
 static int answers(std::vector<std::vector<std::byte>> const& sent, std::uint8_t status) {
     int n = 0;
     for (auto const& p : sent) { if (p.size() > 9 && p[4] == std::byte{42} && p[9] == std::byte{status}) { n++; } }
@@ -136,6 +148,23 @@ int main() {
         shared.update("v", 1);
         shared.flush();
         CHECK("disable(): nothing is sent", packets == before);
+    }
+    // Dashboard lines: sent again with the descriptions (a page opened later gets them), the latest of each path
+    {
+        std::vector<std::vector<std::byte>> out;
+        Teleplot d(Teleplot::Options().name("dash").clientId(9).flushInterval(std::chrono::milliseconds(0)).describeInterval(std::chrono::milliseconds(0))
+            .output([&](const std::byte* p, std::size_t n) { out.emplace_back(p, p + n); }));
+        d.dashboard("DASH|Robot:row\nDASH|Robot/Motion:chart:speed|w=2\nDASH|Lab/T:chart:t");
+        d.dashboard("DASH|Robot/Motion:chart:speed,accel"); // the same path: it replaces the first line
+        d.flush();
+        out.clear();
+        d.flush();
+        CHECK("dashboard lines are sent again, the latest of each path", dashLines(out) == std::vector<std::string>({ "DASH|Robot:row", "DASH|Robot/Motion:chart:speed,accel", "DASH|Lab/T:chart:t" }));
+        d.dashboard("DASH|Robot:none");
+        d.flush();
+        out.clear();
+        d.flush();
+        CHECK("a none line forgets what it removes", dashLines(out) == std::vector<std::string>({ "DASH|Lab/T:chart:t", "DASH|Robot:none" }));
     }
     std::cout << "cpp client ok" << std::endl;
     return 0;

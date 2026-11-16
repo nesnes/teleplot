@@ -436,7 +436,7 @@ A source whose times are before 1973 (under 1e11 ms) is dated by the page from w
 | `update(name, value[, time])` | a sample: number, bool, text, `Number2D`, `Number3D` | ✓ |
 | `log([name,] text[, time])` | a log line (default name `log`) | ✓ |
 | `stack(name, path[, time])` | what runs | ✓ |
-| `dashboard(lines)` | dashboard lines (`DASH|Robot/Motion:chart:battery|w=2`, see [`dashboard-text.md`](dashboard-text.md)) | ✓ |
+| `dashboard(lines)` | dashboard lines (`DASH|Robot/Motion:chart:battery|w=2`, see [`dashboard-text.md`](dashboard-text.md)), sent again with the descriptions so that a page opened later gets them: the latest line of each path (`none` forgets what it removes). On a microcontroller, `TELEPLOT_MAX_DASHBOARD_LINES` (16; 0 on AVR) and the text must live (a literal) | ✓ |
 | `param(name, &variable)` → `Param` | a setting the page may write | ✓ |
 | `action(name, handler)` → `Action` | an action the page may call | ✓ |
 | `poll()` | read what came back, apply, answer, publish settings, send | ✓ |

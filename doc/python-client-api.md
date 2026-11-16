@@ -260,6 +260,9 @@ options are the keyword arguments of the same names (`flushInterval=`, `sendFrom
 `statsInterval()`, `enable()`, `disable()`, `clock(fn)`, `currentTime()`, `threadPriority([p])`, `threadAffinity([a])`,
 `setOptions(**options)`, `options()`, `close()` (and `with Teleplot(...) as tp:`).
 
+Dashboard lines are sent again with the descriptions (every `describeInterval`), so that a page opened later gets them: the latest
+line of each path (`DASH|Robot/Motion`); a `none` line forgets what it removes.
+
 ### `Telemetry` (chainable; `at(time)` first)
 
 The same calls as C++, with the same names and rules (one chain, one time; `color()` is the color of the telemetry until it is a

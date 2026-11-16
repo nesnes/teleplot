@@ -17,6 +17,8 @@
 //   TELEPLOT_MAX_STACKS (4, 1) and TELEPLOT_STACK_SIZE (longest path: 64, 32)
 //   TELEPLOT_RESEND             0: samples sent once (a shape's size, position, color, thresholds, a camera) are not sent again
 //                               (default 1, 0 on AVR: it keeps their values, about 100 bytes per telemetry)
+//   TELEPLOT_MAX_DASHBOARD_LINES dashboard lines kept to be sent again every 5 s (16; 0 where TELEPLOT_RESEND is 0): pointers into
+//                               the text given to dashboard(), which must live as long (a literal)
 //   TELEPLOT_LINE_SIZE          longest line read from the page (128, 64 on AVR)
 //   TELEPLOT_RESULT_SIZE        longest text an action answers with (40, 16 on AVR)
 // Memory: about 5 KB with the defaults, about 1 KB on AVR (an Uno has 2 KB): lower the limits above for what the sketch uses.
@@ -96,6 +98,13 @@
         #define TELEPLOT_RESEND 0
     #else
         #define TELEPLOT_RESEND 1
+    #endif
+#endif
+#ifndef TELEPLOT_MAX_DASHBOARD_LINES
+    #if TELEPLOT_RESEND
+        #define TELEPLOT_MAX_DASHBOARD_LINES 16
+    #else
+        #define TELEPLOT_MAX_DASHBOARD_LINES 0
     #endif
 #endif
 #ifndef TELEPLOT_LINE_SIZE
@@ -479,12 +488,14 @@ public:
     void stack(const char* name, const char* path) { stackAt_(name, path, false, Time()); }
     void stack(const char* name, const char* path, Time t) { stackAt_(name, path, true, t); }
 
-    // Dashboard lines (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds
+    // Dashboard lines (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds. Sent again every 5 s with the descriptions
+    // (a page opened later gets the dashboard: TELEPLOT_MAX_DASHBOARD_LINES), the latest line of each path; "none" forgets what it
+    // removes. Kept as pointers: give a literal. The page applies a line only when it changed: sending them again does nothing more.
     void dashboard(const char* lines) {
         if (!active_()) { return; }
         bool start = true;
         for (const char* c = lines; *c; ++c) {
-            if (start) { lineStart_(); start = false; }
+            if (start) { lineStart_(); start = false; keepDashboardLine_(c); }
             if (*c == '\n') { lineEnd_(); start = true; }
             else { put_(*c); }
         }
@@ -648,6 +659,10 @@ private:
     Entry_ entries_[(TELEPLOT_MAX_TELEMETRIES) > 0 ? (TELEPLOT_MAX_TELEMETRIES) : 1]; // (0: none, the table keeps one unused slot)
     uint8_t entryCount_;
     Threshold_ thresholds_[(TELEPLOT_MAX_THRESHOLDS) > 0 ? (TELEPLOT_MAX_THRESHOLDS) : 1]; // (0: none, the table keeps one unused slot)
+#if TELEPLOT_MAX_DASHBOARD_LINES > 0
+    const char* dashboardLines_[TELEPLOT_MAX_DASHBOARD_LINES]; // the latest line of each path, in the text given (it ends at "\n" or 0)
+    uint8_t dashboardLineCount_;
+#endif
     uint8_t thresholdCount_;
     Param_ params_[(TELEPLOT_MAX_PARAMS) > 0 ? (TELEPLOT_MAX_PARAMS) : 1]; // (0: none, the table keeps one unused slot)
     uint8_t paramCount_;
@@ -667,7 +682,11 @@ private:
     Stats stats_;
 
     void init_() {
-        outputCount_ = 0; input_ = 0; entryCount_ = 0; thresholdCount_ = 0; paramCount_ = 0; actionCount_ = 0; stackCount_ = 0; lineLength_ = 0; lineTooLong_ = false;
+        outputCount_ = 0; input_ = 0; entryCount_ = 0; thresholdCount_ = 0;
+#if TELEPLOT_MAX_DASHBOARD_LINES > 0
+        dashboardLineCount_ = 0;
+#endif
+        paramCount_ = 0; actionCount_ = 0; stackCount_ = 0; lineLength_ = 0; lineTooLong_ = false;
         enabled_ = true; declareDue_ = false; clock_ = 0; describedAt_ = 0; publishedAt_ = 0; statsEveryMs_ = 0; statsAtMs_ = 0; statsDescribedAt_ = 0;
     }
     static constexpr bool disabled_() {
@@ -1058,6 +1077,44 @@ private:
 #endif
         for (uint8_t i = 0; i < paramCount_; ++i) { declare_(params_[i]); }
         for (uint8_t i = 0; i < actionCount_; ++i) { declare_(actions_[i]); }
+#if TELEPLOT_MAX_DASHBOARD_LINES > 0
+        for (uint8_t i = 0; i < dashboardLineCount_; ++i) {
+            lineStart_();
+            for (const char* c = dashboardLines_[i]; *c && *c != '\n'; ++c) { put_(*c); }
+            lineEnd_();
+        }
+#endif
+    }
+    // A dashboard line (it ends at "\n" or 0) kept to be sent again: it replaces the line of the same path (DASH|Robot/Motion), and a
+    // "none" line forgets the lines of what it removes
+    static uint8_t dashboardPath_(const char* line) {
+        uint8_t n = strncmp(line, "DASH|", 5) == 0 ? 5 : 0;
+        while (line[n] && line[n] != '\n' && line[n] != ':' && line[n] != '|' && n < 255) { n++; }
+        return n;
+    }
+    void keepDashboardLine_(const char* line) {
+#if TELEPLOT_MAX_DASHBOARD_LINES > 0
+        uint8_t n = dashboardPath_(line);
+        bool none = line[n] == ':' && strncmp(line + n + 1, "none", 4) == 0 && (line[n + 5] == 0 || line[n + 5] == '\n' || line[n + 5] == ':' || line[n + 5] == '|');
+        uint8_t kept = 0;
+        bool replaced = false;
+        for (uint8_t i = 0; i < dashboardLineCount_; ++i) {
+            const char* other = dashboardLines_[i];
+            uint8_t m = dashboardPath_(other);
+            bool same = m == n && strncmp(other, line, n) == 0;
+            bool under = none && m > n && strncmp(other, line, n) == 0 && other[n] == '/';
+            if (same && !none && !replaced) { dashboardLines_[kept++] = line; replaced = true; continue; }
+            if (same || under) { continue; }
+            dashboardLines_[kept++] = other;
+        }
+        dashboardLineCount_ = kept;
+        if (!replaced) {
+            if (dashboardLineCount_ < TELEPLOT_MAX_DASHBOARD_LINES) { dashboardLines_[dashboardLineCount_++] = line; }
+            else { stats_.tooBig++; }
+        }
+#else
+        (void)line;
+#endif
     }
 #if TELEPLOT_RESEND
     void again_(Entry_& e, uint8_t index, Time t, const char* property, const float* v, uint8_t count) {

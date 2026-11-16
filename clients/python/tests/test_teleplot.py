@@ -322,5 +322,39 @@ sent = b"".join(sent)
 check("binary: a depth map is flagged 0, other values 1 (as in C++)",
       bytes([16]) + struct.pack("<ddB", 0.001, 0, 0) in sent and bytes([16]) + struct.pack("<ddB", 0.5, math.nan, 1) in sent)
 
+# ------------------------------------------------------------------------------------------------ dashboard lines sent again
+def dash_lines(chunks):  # the dashboard lines sent, in order, each once
+    found = []
+    for chunk in chunks:
+        text = chunk if isinstance(chunk, str) else bytes(chunk).decode("latin-1")
+        at = text.find("DASH|")
+        while at >= 0:
+            end = min([i for i in (text.find("\0", at), text.find("\n", at)) if i >= 0], default=len(text))
+            if text[at:end] not in found:
+                found.append(text[at:end])
+            at = text.find("DASH|", at + 1)
+    return found
+
+
+for protocol in (Teleplot.BINARY_PROTOCOL, Teleplot.TEXT_PROTOCOL):
+    got = []
+    td = Teleplot(protocol=protocol, output=got.append, flushInterval=0, describeInterval=0)
+    td.dashboard("DASH|Robot:row\nDASH|Robot/Motion:chart:speed|w=2\nDASH|Lab/T:chart:t")
+    td.dashboard("DASH|Robot/Motion:chart:speed,accel")
+    td.flush()
+    got.clear()
+    td.update("x", 1)
+    td.flush()
+    name = "binary" if protocol == Teleplot.BINARY_PROTOCOL else "text"
+    check(name + ": dashboard lines are sent again, the latest of each path",
+          dash_lines(got) == ["DASH|Robot:row", "DASH|Robot/Motion:chart:speed,accel", "DASH|Lab/T:chart:t"])
+    td.dashboard("DASH|Robot:none")
+    td.flush()
+    got.clear()
+    td.update("x", 2)
+    td.flush()
+    check(name + ": a none line forgets what it removes", dash_lines(got) == ["DASH|Lab/T:chart:t", "DASH|Robot:none"])
+    td.close()
+
 print("%d failed" % failures if failures else "python client ok")
 sys.exit(1 if failures else 0)

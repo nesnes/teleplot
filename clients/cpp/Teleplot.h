@@ -607,6 +607,7 @@ public:
             if (clientId_ == 0xFFFF) { clientId_ = 0xFFFE; } // (0xFFFF: telemetries identified by name)
             openOutputs_();
             nameSentMs_ = std::numeric_limits<std::int64_t>::min() / 2;
+            dashboardsSentMs_ = nameSentMs_;
         }
         { std::lock_guard<std::mutex> l(threadMutex_); threadPriority_ = options_.threadPriority_; threadAffinity_ = options_.threadAffinity_; threadReference_ = Scheduling::ofCurrentThread(); threadGeneration_++; }
         if (options_.sendFrom_ == Thread) { startThread_(); }
@@ -672,7 +673,9 @@ public:
     // The name of the calling thread, for the telemetries of its stacks ("robot.task.control")
     static void threadName(std::string name) { threadName_() = std::move(name); }
 
-    // Dashboard lines of the text protocol (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds
+    // Dashboard lines of the text protocol (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds. Sent again with the
+    // descriptions (every describeInterval: a page opened later gets the dashboard), the latest line of each path; "none" forgets what
+    // it removes. The page applies a line only when it changed: sending them again does nothing more.
     void dashboard(std::string_view lines) {
         if (!active_()) { return; }
         std::lock_guard<Lock_> g(lock_);
@@ -683,7 +686,7 @@ public:
             std::string_view line = lines.substr(at, end - at);
             if (!line.empty()) {
                 if (line.size() > MAX_TEXT_) { stats_.tooBig++; }
-                else { dashboards_.emplace_back(line); }
+                else { keepDashboardLine_(line); dashboards_.emplace_back(line); }
             }
             at = end + 1;
         }
@@ -996,6 +999,8 @@ private:
     std::unordered_map<std::string_view, std::uint32_t> byName_;
     std::unordered_map<std::uint16_t, std::uint32_t> byId_;
     std::deque<std::string> dashboards_;
+    std::vector<std::pair<std::string, std::string>> dashboardLines_; // path -> its latest line, in the order they came (sent again)
+    std::int64_t dashboardsSentMs_ = 0;
     std::map<std::uint16_t, std::shared_ptr<ParamBase_>> params_;
     std::map<std::uint16_t, std::shared_ptr<ActionImpl_>> actions_;
     std::size_t queued_ = 0, rr_ = 0;
@@ -1517,6 +1522,20 @@ private:
         inSend_() = false;
     }
 
+    // A dashboard line kept to be sent again: it replaces the line of the same path (DASH|Robot/Motion), and a "none" line forgets the
+    // lines of what it removes (lock held)
+    void keepDashboardLine_(std::string_view line) {
+        std::size_t from = line.rfind("DASH|", 0) == 0 ? 5 : 0;
+        std::size_t end = line.find_first_of(":|", from);
+        std::string path(line.substr(0, end));
+        std::string_view type = end != std::string_view::npos && line[end] == ':' ? line.substr(end + 1, line.find_first_of(":|", end + 1) - end - 1) : std::string_view();
+        auto under = [&](std::string const& other) { return other == path || (type == "none" && other.size() > path.size() && other.compare(0, path.size(), path) == 0 && other[path.size()] == '/'); };
+        auto same = std::find_if(dashboardLines_.begin(), dashboardLines_.end(), [&](auto const& kept) { return kept.first == path; });
+        if (same != dashboardLines_.end() && type != "none") { same->second = std::string(line); return; }
+        dashboardLines_.erase(std::remove_if(dashboardLines_.begin(), dashboardLines_.end(), [&](auto const& kept) { return under(kept.first); }), dashboardLines_.end());
+        dashboardLines_.emplace_back(path, std::string(line));
+    }
+
     // The next packet: client name, dashboards, descriptions, then samples (lock held). false: nothing to send.
     bool buildPacket_(std::vector<std::byte>& packet) {
         Bytes_ p;
@@ -1530,6 +1549,10 @@ private:
         if (nowMs - nameSentMs_ >= every) {
             p.u8(SECT_CLIENT_NAME).str(cut_(options_.name_, MAX_NAME_));
             nameSentMs_ = nowMs;
+        }
+        if (nowMs - dashboardsSentMs_ >= every) { // (the lines of the dashboards again, unless some still wait to be sent)
+            if (dashboards_.empty()) { for (auto const& kept : dashboardLines_) { dashboards_.push_back(kept.second); } }
+            dashboardsSentMs_ = nowMs;
         }
         while (!dashboards_.empty() && dashboards_.front().size() + 2 <= room()) {
             p.u8(SECT_DASHBOARD).str(dashboards_.front());

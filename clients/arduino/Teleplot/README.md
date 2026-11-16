@@ -74,6 +74,7 @@ computers does not have:
   | `TELEPLOT_MAX_ACTIONS` / `TELEPLOT_MAX_ARGS`: buttons, and arguments of each | 4 / 4 | 1 / 2 |
   | `TELEPLOT_MAX_THRESHOLDS` | 8 | 2 |
   | `TELEPLOT_MAX_STACKS` / `TELEPLOT_STACK_SIZE`: stacks, longest path | 4 / 64 | 1 / 32 |
+  | `TELEPLOT_MAX_DASHBOARD_LINES`: dashboard lines sent again (pointers into the text: give a literal) | 16 | 0 |
   | `TELEPLOT_LINE_SIZE`: longest line the page writes (longer: ignored) | 128 | 64 |
   | `TELEPLOT_RESULT_SIZE`: longest text an action answers | 40 | 16 |
   | Memory of a `Teleplot` | about 5 KB | about 0.6 KB |
@@ -84,7 +85,7 @@ computers does not have:
   settings, and sends the descriptions again. Handlers and checks run inside it.
 - **What is sent again every 5 s**: descriptions, settings and buttons, the kind and frame of a shape. With `TELEPLOT_RESEND` (on,
   except on AVR, where it would take about 100 bytes per telemetry): also the position, orientation, size and color of a shape, a
-  camera, thresholds. Not: opacity, texture, vector, text, line width, points of a line: send them again yourself if a page may open
+  camera, thresholds, and the dashboard lines (the latest of each path). Not: opacity, texture, vector, text, line width, points of a line: send them again yourself if a page may open
   later.
 - **Times count from the boot** (`micros()`, which the library keeps counting past its 71 minutes). The page dates them when they
   arrive (option "Times since boot" of the source, on by default). A file read later needs a clock that gives the date: `clock()`

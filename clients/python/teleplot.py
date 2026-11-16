@@ -277,6 +277,8 @@ class Teleplot:
         self._entries, self._by_name, self._by_id = [], {}, {}
         self._params, self._actions = {}, {}
         self._dashboards = collections.deque()
+        self._dashboard_lines = {}             # path -> its latest dashboard line, in the order they came (sent again)
+        self._dashboards_sent_ms = -10 ** 12
         self._queued = 0
         self._rr = 0
         self._name_sent_ms = -10 ** 12
@@ -325,6 +327,7 @@ class Teleplot:
                 self._client_id = 0xFFFE
             self._open_outputs()
             self._name_sent_ms = -10 ** 12
+            self._dashboards_sent_ms = -10 ** 12
         with self._thread_lock:
             self._priority = Teleplot.ThreadPriority._of(o["threadPriority"])
             self._affinity = o["threadAffinity"] or Teleplot.ThreadAffinity.automatic()
@@ -426,7 +429,9 @@ class Teleplot:
         return Teleplot.ns(ns)
 
     def dashboard(self, lines):
-        """Dashboard lines of the text protocol (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds"""
+        """Dashboard lines of the text protocol (DASH|Robot/Motion:chart:speed|w=2), several separated by line feeds. Sent again with the
+        descriptions (every describeInterval: a page opened later gets the dashboard), the latest line of each path; "none" forgets what
+        it removes. The page applies a line only when it changed: sending them again does nothing more."""
         if not self._enabled:
             return
         with self._lock:
@@ -435,7 +440,9 @@ class Teleplot:
                     continue
                 if len(line.encode()) > _MAX_TEXT:
                     self._stats["tooBig"] += 1
-                elif self._text:
+                    continue
+                self._keep_dashboard_line(line)
+                if self._text:
                     self._line(line)
                 else:
                     self._dashboards.append(line)
@@ -736,6 +743,19 @@ class Teleplot:
             return struct.pack("<ddB", value[0], value[1], 0 if value[2] else 1)  # flags: 1 = not a depth map
         raise ValueError(code)
 
+    def _keep_dashboard_line(self, line):  # (lock held) kept to be sent again: replaces the line of its path; "none" forgets what it removes
+        body = line[5:] if line.startswith("DASH|") else line
+        cut = min([i for i in (body.find(":"), body.find("|")) if i >= 0], default=len(body))
+        path = line[:len(line) - len(body) + cut]
+        rest = body[cut + 1:] if cut < len(body) and body[cut] == ":" else ""
+        kind = rest.split(":")[0].split("|")[0]
+        if kind != "none" and path in self._dashboard_lines:
+            self._dashboard_lines[path] = line
+            return
+        for other in [p for p in self._dashboard_lines if p == path or (kind == "none" and p.startswith(path + "/"))]:
+            del self._dashboard_lines[other]
+        self._dashboard_lines[path] = line
+
     def _build_packet(self):  # (lock held) the next packet: client name, dashboards, descriptions, samples. None: nothing
         p = bytearray(struct.pack("<BBH", _MARKER, _VERSION, self._client_id))
         start, limit = len(p), _PACKET_SIZE - 2
@@ -744,6 +764,10 @@ class Teleplot:
         if now - self._name_sent_ms >= every:
             p += bytes([S_CLIENT_NAME]) + _cstr(self._options["name"][:_MAX_NAME])
             self._name_sent_ms = now
+        if now - self._dashboards_sent_ms >= every:  # (the lines of the dashboards again, unless some still wait to be sent)
+            if not self._dashboards:
+                self._dashboards.extend(self._dashboard_lines.values())
+            self._dashboards_sent_ms = now
         while self._dashboards and len(self._dashboards[0].encode()) + 2 <= limit - len(p):
             p += bytes([S_DASHBOARD]) + _cstr(self._dashboards.popleft())
         full = False
@@ -1022,6 +1046,8 @@ class Teleplot:
                     self._text_describe(e)
             return
         self._described_ms = now
+        for line in self._dashboard_lines.values():
+            self._line(line)
         for e in self._entries:
             if e.attrs:
                 self._text_describe(e)
@@ -1126,7 +1152,9 @@ class Teleplot:
                     break
                 try:
                     if self._text:
-                        self._text_tick()
+                        if packets == 0:  # (once a flush: what it queues again must not keep the loop going)
+                            self._text_tick()
+                        packets += 1
                         data = self._text_packet()
                     else:
                         if limit is None:  # (at most what was queued when it started)

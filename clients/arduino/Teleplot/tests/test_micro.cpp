@@ -47,6 +47,17 @@ int main() {
         CHECK("micros() wraps after 71 min: the time keeps going", has(Serial.written, ">speed:4294968.296:2\n"));
         tp.dashboard("DASH|A/B:chart:speed\nDASH|A/C:log:x");
         CHECK("dashboard lines, each after \">\"", has(Serial.written, ">DASH|A/B:chart:speed\n>DASH|A/C:log:x\n"));
+        tp.dashboard("DASH|A/B:chart:speed,accel"); // the same path: it replaces the first line
+        Serial.written.clear();
+        fakeMillis += 6000;
+        tp.poll();
+        CHECK("dashboard lines are sent again every 5 s, the latest of each path", count(Serial.written, "DASH|") == 2
+            && has(Serial.written, ">DASH|A/B:chart:speed,accel\n") && has(Serial.written, ">DASH|A/C:log:x\n"));
+        tp.dashboard("DASH|A:none");
+        Serial.written.clear();
+        fakeMillis += 6000;
+        tp.poll();
+        CHECK("a none line forgets what it removes", count(Serial.written, "DASH|") == 1 && has(Serial.written, ">DASH|A:none\n"));
     }
 
     // Numbers written the shortest way, without printf
