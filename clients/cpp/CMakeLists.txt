@@ -35,3 +35,13 @@ foreach(example ${TELEPLOT_EXAMPLES})
         target_link_libraries(example_${name} ws2_32)
     endif()
 endforeach()
+
+# The lines of the Help panel written with this client (clients/tools/help_lines.js writes the program, tests/help.test.js reads its
+# files): only when the CI generated it before configuring, -DTELEPLOT_HELP_LINES=<file>
+if(TELEPLOT_HELP_LINES)
+    add_executable(teleplot_help_lines ${TELEPLOT_HELP_LINES})
+    target_link_libraries(teleplot_help_lines Threads::Threads)
+    if(WIN32)
+        target_link_libraries(teleplot_help_lines ws2_32)
+    endif()
+endif()

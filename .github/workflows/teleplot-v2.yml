@@ -42,7 +42,10 @@ jobs:
         shell: bash
         working-directory: clients/cpp
         run: |
-          cmake -S . -B build
+          rm -rf build/help
+          mkdir -p build
+          node ../tools/help_lines.js cpp build/help_lines.cpp build/help
+          cmake -S . -B build -DTELEPLOT_HELP_LINES=build/help_lines.cpp
           cmake --build build --config Release
           ./build/Release/teleplot_test_client.exe
           ./build/Release/teleplot_test_scenarios.exe build
@@ -53,6 +56,7 @@ jobs:
             name=$(basename "$example" .cpp)
             (cd build/examples && python ../../../tools/capture_udp.py 1.5 "$name" "../Release/example_$name.exe")
           done
+          ./build/Release/teleplot_help_lines.exe build/help
           TELEPLOT_CPP_OUT="$PWD/build" node tests/run.js
 
   # The microcontroller library (clients/arduino/Teleplot): its tests on a computer (with the C++ client: one API), and its examples
