@@ -128,9 +128,11 @@ jobs:
         include:
           - python: "3.9"
             extras: ""
+            os: ubuntu-24.04 # (no Python 3.9 for Ubuntu 26.04, which ubuntu-latest is since 2026-10-19)
           - python: "3.13"
             extras: "numpy pillow"
-    runs-on: ubuntu-latest
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
