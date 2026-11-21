@@ -351,3 +351,15 @@ test('a dashboard received after its telemetries: the views it describes take th
     assert.deepEqual(namesOf(T, motion), ['speed', 'accel', 'jerk']);
 });
 
+
+test('a view that names a telemetry and follows its label lists it once when the binary telemetry comes', () => {
+    const T = loadTeleplot();
+    T.parseDataText('DASH|Robot/C:image:box,cam|follow=color');
+    const packet = new PacketBuilder(1).attrs(5, [[ATTR.NAME, 'box'], [6, 'color']]).shapeFloats('SHAPE_POSITION', 5, 1000000000n, [[0, 1, 0, 0]]).build();
+    T.parseDataBinary(packet);
+    T.__timers.run();
+    const view = T.dashboards.getDashboard('Robot').getView().views[0];
+    const list = Array.from(view.telemetryIdOrNameList);
+    assert.equal(list.length, new Set(list.map((e) => { const t = T.datastore.getTelemetry(e); return t ? t.id : e; })).size, 'no telemetry twice: ' + JSON.stringify(list));
+    assert.deepEqual(namesOf(T, view), ['box', 'cam'], 'where the dashboard line put it');
+});

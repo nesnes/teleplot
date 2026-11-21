@@ -281,7 +281,11 @@ TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         let list = view.telemetryIdOrNameList;
         if(!list) continue;
         let index = list.indexOf(name);
-        if(index >= 0) list.splice(index, 1, telem.id);
+        if(index < 0) continue;
+        list.splice(index, 1, telem.id);
+        let again = list.indexOf(telem.id, index + 1); // A view that follows its label took it already: once, where its name was
+        if(again < 0) again = list.indexOf(telem.id);
+        if(again >= 0 && again !== index) list.splice(again, 1);
     }
 });
 
