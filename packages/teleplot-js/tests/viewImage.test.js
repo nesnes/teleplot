@@ -117,7 +117,7 @@ test('image view: suggested for images, shows the first image telemetry, the oth
     const view = T.view.createView('image', ['number', 'box', 'cam', 'path', 'other'], 'g');
     assert.equal(view.type, 'teleplot-image');
     assert.equal(view.getImageTelemetry().id, T.datastore.getTelemetry('cam').id);
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['outline', 'outlineWidth', 'overlayOpacity', 'pixelDrawings', 'colormap', 'valueRange', 'displayColorScale', 'cameras', 'cameraCones', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['outline', 'outlineWidth', 'overlayOpacity', 'pixelDrawings', 'colormap', 'valueRange', 'displayColorScale', 'overlays', 'cameras', 'cameraCones', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
     const { sources } = view.__collectSources(1, view.getImageTelemetry());
     assert.deepEqual(sources.map(s => [s.telem.getAttribute(T.protocol.TELEM_ATTR_NAME), s.kind]), [['box', 'shape'], ['path', 'point']], 'the picture is not drawn over itself, images without camera and numbers are not 3D');
 
@@ -265,4 +265,25 @@ test('image view, cameras "over": the first picture selected is the base, depth 
     assert.deepEqual(names(view.shownPictures()), ['cam', 'plan'], 'a picture without camera is beside');
     assert.equal(T.view.ViewScene3D.cameraState(T.datastore.getTelemetry('plan')), undefined, 'it has no camera: nothing 3D can be drawn over it');
     view.dispose();
+});
+
+test('image view: what is drawn over the pictures, 2D (in their pixels), 3D (through their camera), both or none; the filmstrip cycles it', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    T.parseDataText({ data: 'JPG|cam:1000:AAAA\n3D|cam:1000:K:500:480:300.5:250.25:640:480\n3D|box:S:cube:P:2:0:0\n2D|found:S:rect:P:10:10:FPX:cam', timestamp: 0 });
+    const view = T.view.createView('image', ['cam', 'box', 'found'], 'g');
+    const sources = view.__collectSources(1, T.datastore.getTelemetry('cam')).sources;
+    const split = (mode) => { const s = T.view.PictureFrame.splitOverlays(sources, mode); return [s.pixelSources, s.sources].map((list) => list.map((x) => x.telem.getAttribute(P.TELEM_ATTR_NAME))); };
+    assert.deepEqual(split('both'), [['found'], ['box']]);
+    assert.deepEqual(split('2d'), [['found'], []]);
+    assert.deepEqual(split('3d'), [[], ['box']]);
+    assert.deepEqual(split('none'), [[], []]);
+    assert.deepEqual(split(undefined), [['found'], ['box']], 'both by default');
+    assert.equal(view.getOption('overlays'), 'both');
+    const seen = [];
+    for (let i = 0; i < 4; i++) { view.cycleOverlays(); seen.push(view.getOption('overlays')); }
+    assert.deepEqual(seen, ['none', '2d', '3d', 'both'], 'the button: nothing, 2D only, 3D only, both again');
+    // The depth points of another camera drawn over the picture ("over") stay whatever the toggle says
+    const depth = { telem: { data: { [P.SECTION_TYPE_TELEM_DATA_IMAGE]: {} }, getAttribute: () => 'depth' }, kind: 'camera' };
+    for (const mode of ['both', '2d', '3d', 'none']) assert.ok(T.view.PictureFrame.splitOverlays(sources.concat([depth]), mode).sources.includes(depth), mode + ': the camera drawn over stays');
 });

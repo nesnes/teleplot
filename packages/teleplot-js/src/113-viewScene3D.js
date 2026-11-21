@@ -604,6 +604,7 @@ class ViewScene3D extends ViewTelemetries {
                 onPictureChoose(id, event) { if(self.choosePicture) self.choosePicture(id, !!(event && event.shiftKey)); },
                 onCamerasToggle() { if(self.toggleCameras) self.toggleCameras(); },
                 onOutlineToggle() { if(self.toggleOutline) self.toggleOutline(); },
+                onOverlaysCycle() { if(self.cycleOverlays) self.cycleOverlays(); },
                 onFrameLeave() { if(self.__framePointer) self.__framePointer(undefined); },
                 onLegendClick(id) { self.toggleTelemetry(id); },
                 onLegendEnter(id) { self.highlightTelemetry(id); },

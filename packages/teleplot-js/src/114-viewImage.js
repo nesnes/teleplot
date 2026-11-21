@@ -11,7 +11,8 @@
  *   drawn in the scene (a depth map with its camera: its points) are drawn over it instead of being shown, the others (plain pictures,
  *   depth maps without camera) are shown beside it; every picture shown then draws the other cameras of the selection, as a 3D view
  *   draws them (their depth points; their cones too when option "cameraCones" is on: off by default here). A toggle at the right end of
- *   the filmstrip switches the option; the one beside it switches "outline".
+ *   the filmstrip switches the option; the one beside it switches "outline", and the first one cycles "overlays" (what is drawn over the
+ *   pictures: 2D + 3D, nothing, 2D only, 3D only; the cameras drawn over in "over" mode stay, whatever it says).
  * - A picture is shown as it was received: never resized in its data, never undistorted.
  * - To draw over it the picture needs a camera: intrinsics (TELEM_DATA_CAMERA_INTRINSICS: fx, fy, cx, cy in pixels, for an image of
  *   width x height), optionally lens distortion (TELEM_DATA_CAMERA_DISTORTION: k1, k2, p1, p2, k3), and where the camera is (the shape
@@ -67,8 +68,21 @@ class PictureFrame extends ViewScene3D {
         colormap: "turbo",       // Pictures of values: their colors
         valueRange: "range",     // Pictures of values: colors between the ends of the range of the telemetry when it has both ("range"), or what each picture holds ("picture")
         displayColorScale: true, // Pictures of values: the colors and their values, under the picture
+        overlays: "both",        // What is drawn over the picture: "both", "2d" (what is given in its pixels), "3d" (the scene, through its camera), "none"
         cameraCones: false,      // Other cameras drawn over the picture ("over" mode): their cones too, not only their depth points (a camera a few centimetres away has a cone that crosses the whole picture)
     };
+    static OVERLAYS = ["both", "2d", "3d", "none"];
+    // What a picture draws over it, for option "overlays": {pixelSources (in its pixels: 2D), sources (in the scene, through its camera: 3D), overlays}.
+    // The other cameras drawn over it (option "cameras" "over": their depth points) are not concerned: their own toggle says.
+    static splitOverlays(all, option) {
+        let overlays = PictureFrame.OVERLAYS.includes(option) ? option : "both";
+        let pixelSources = all.filter((source) => ViewScene3D.pixelFrame(source.telem) !== undefined);
+        let sources = all.filter((source) => !pixelSources.includes(source));
+        let cameras = sources.filter((source) => source.kind === "camera" && source.telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined);
+        if(overlays === "none" || overlays === "3d") pixelSources = [];
+        if(overlays === "none" || overlays === "2d") sources = cameras;
+        return { pixelSources, sources, overlays };
+    }
     // What the frame takes from its owner when the owner has it
     static OWNER_OPTIONS = [...Object.keys(PictureFrame.DEFAULTS), "displayNumberDecimals", "trailLength", "pointSize", "pointColorByHeight", "cloudCount", "cloudInterval", "depthPoints"];
 
@@ -309,8 +323,8 @@ class PictureFrame extends ViewScene3D {
         let timestamp = image ? image.t : cursor;
         let camera = image ? ViewScene3D.cameraState(imageTelem, timestamp) : undefined;
         let collected = this.overlays ? this.__collectSources(timestamp, imageTelem) : { sources: [], key: "" }, key = collected.key;
-        let pixelSources = collected.sources.filter((source) => ViewScene3D.pixelFrame(source.telem) !== undefined); // In the pixels of the picture
-        let sources = collected.sources.filter((source) => !pixelSources.includes(source));                           // In the scene: through the camera
+        let { pixelSources, sources, overlays } = PictureFrame.splitOverlays(collected.sources, this.options.overlays);
+        key += "|" + overlays;
         let note = (image && sources.length && !camera) ? "No camera parameters for this image: nothing can be drawn over it" : "";
         if(values && this.values.error) note = this.values.error;
         if(note != this.state.note) this.state.note = note;
@@ -489,6 +503,7 @@ class ViewImage extends ViewScene3D {
         this.state.strip = []; // [{id, divId, name, tip, selected, order, over}]: the filmstrip, when there are several pictures
         this.state.cameras = "beside"; // The toggles of the filmstrip: option "cameras", option "outline"
         this.state.outline = true;
+        this.state.overlays = "both";
         this.frames = TELEPLOT.Vue.markRaw(new Map()); // "shown:<id>" / "strip:<id>" -> PictureFrame
         this.pixelsKnown = TELEPLOT.Vue.markRaw({ counts: new Map(), taken: new Set() }); // Telemetries drawn in the pixels of its pictures that the view took by itself
     }
@@ -554,6 +569,11 @@ class ViewImage extends ViewScene3D {
     }
     toggleOutline() {
         this.options.outline = !this.options.outline;
+    }
+    // Cycles what is drawn over the pictures: 2D + 3D, nothing, 2D only, 3D only
+    cycleOverlays() {
+        let order = ["both", "none", "2d", "3d"], at = order.indexOf(this.options.overlays);
+        this.options.overlays = order[(at < 0 ? 0 : at + 1) % order.length];
     }
 
     // What is drawn in the pixels of a picture belongs on it: the view takes those telemetries by itself (once each: one that was
@@ -675,6 +695,7 @@ class ViewImage extends ViewScene3D {
             { key: "colormap", label: "Colors of values (depth)", type: "choice", choices: TELEPLOT.pictures.COLORMAP_NAMES },
             { key: "valueRange", label: "Colors between", type: "choice", choices: [["range", "The range of the telemetry"], ["picture", "What each picture holds"]] },
             { key: "displayColorScale", label: "Color scale", type: "bool" },
+            { key: "overlays", label: "Drawn over", type: "choice", choices: [["both", "2D and 3D"], ["2d", "2D only (in its pixels)"], ["3d", "3D only (through its camera)"], ["none", "Nothing"]] },
             { key: "cameras", label: "Other cameras", type: "choice", choices: [["beside", "Beside"], ["over", "Drawn over"]] },
             { key: "cameraCones", label: "Camera cones", type: "bool" },
             { key: "displayLegend", label: "Legend", type: "bool" },
@@ -732,6 +753,8 @@ class ViewImage extends ViewScene3D {
         let cameras = this.options.cameras === "over" ? "over" : "beside";
         if(this.state.cameras !== cameras) this.state.cameras = cameras;
         if(this.state.outline !== !!this.options.outline) this.state.outline = !!this.options.outline;
+        let overlays = PictureFrame.OVERLAYS.includes(this.options.overlays) ? this.options.overlays : "both";
+        if(this.state.overlays !== overlays) this.state.overlays = overlays;
         if(JSON.stringify(shownState) !== JSON.stringify(this.state.shown)) this.state.shown = shownState;
         if(JSON.stringify(stripState) !== JSON.stringify(this.state.strip)) this.state.strip = stripState;
 
@@ -821,12 +844,17 @@ class ViewImage extends ViewScene3D {
               <div v-for="place in state.shown" v-bind:key="place.divId" v-bind:id="place.divId" class="teleplot-js-image-place"></div>
           </div>
           <div v-if="state.strip.length > 0" class="teleplot-js-image-strip">
+              <div class="teleplot-js-image-thumbs">
               <button v-for="thumb in state.strip" v-bind:key="thumb.divId" type="button" class="teleplot-js-image-thumb" v-bind:class="{selected: thumb.selected, over: thumb.over}"
                 v-bind:title="thumb.tip + (thumb.over ? '\\nDrawn over the pictures shown' : '') + (thumb.selected ? '\\nShift+click: take it away' : '\\nClick: show it. Shift+click: add it') + (state.cameras == 'over' ? ' (the first one is the base, depth cameras go over it)' : ' (beside the others)')" v-on:click="onPictureChoose(thumb.id, $event)">
                   <span v-bind:id="thumb.divId" class="teleplot-js-image-thumb-picture"></span><span class="teleplot-js-image-thumb-name">{{thumb.name}}</span>
                   <span v-if="thumb.order" class="teleplot-js-image-thumb-order">{{thumb.order}}</span>
               </button>
+              </div>
               <span class="teleplot-js-image-tools">
+              <button type="button" class="teleplot-js-image-tool teleplot-js-image-tool-text" v-bind:class="{on: state.overlays != 'none'}" v-on:click="onOverlaysCycle()"
+                v-bind:aria-label="'Drawn over the pictures: ' + ({both: '2D and 3D', '2d': '2D only', '3d': '3D only', none: 'nothing'})[state.overlays] + '. Click for the next choice'"
+                v-bind:title="'Drawn over the pictures: ' + ({both: 'what is in their pixels (2D) and the scene through their camera (3D)', '2d': 'what is in their pixels only (2D)', '3d': 'the scene through their camera only (3D)', none: 'nothing'})[state.overlays] + '. Click: ' + ({both: 'nothing', none: '2D only', '2d': '3D only', '3d': '2D and 3D'})[state.overlays]">{{({both: '2D+3D', '2d': '2D', '3d': '3D', none: 'None'})[state.overlays]}}</button>
               <button type="button" class="teleplot-js-image-tool" v-bind:class="{on: state.outline}" v-on:click="onOutlineToggle()"
                 v-bind:aria-label="state.outline ? 'Outlines only: draw the objects whole instead' : 'Objects drawn whole: draw their outlines only instead'"
                 v-bind:title="state.outline ? 'Outlines only over the pictures. Click: the objects whole' : 'Objects drawn whole over the pictures. Click: their outlines only'">
@@ -876,7 +904,10 @@ class ViewImage extends ViewScene3D {
             /* The filmstrip: a band of its own under the pictures, a thumbnail per picture */
             .teleplot-js-image-strip {
                 position: absolute; left: 0; right: 0; bottom: 0; height: 3.4em; box-sizing: border-box; padding: 0.25em 0.5em;
-                display: flex; gap: 0.5em; justify-content: safe center; overflow-x: auto; border-top: 1px solid var(--teleplot-line); padding-right: 6em; /* (room for the toggles) */
+                display: flex; gap: 0.5em; align-items: center; border-top: 1px solid var(--teleplot-line);
+            }
+            .teleplot-js-image-thumbs { /* the thumbnails scroll, the toggles stay at the right end */
+                flex: 1 1 auto; min-width: 0; height: 100%; display: flex; gap: 0.5em; justify-content: safe center; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; box-sizing: border-box; padding: 0.3em 0.4em 0; /* (room for the numbers of the thumbnails) */
             }
             .teleplot-js-image-thumb {
                 all: unset; box-sizing: border-box; flex: none; width: 4.2em; height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 0.1em; position: relative;
@@ -894,14 +925,15 @@ class ViewImage extends ViewScene3D {
                 position: absolute; right: -0.3em; top: -0.2em; z-index: 3; min-width: 1.2em; height: 1.2em; padding: 0 0.2em; box-sizing: border-box; border-radius: 0.6em;
                 font-size: 0.85em; font-weight: 700; line-height: 1.2em; text-align: center; color: #fff; background: var(--teleplot-primary);
             }
-            .teleplot-js-image-tools { /* the toggles at the right end of the filmstrip: outlines, cameras beside / over */
-                position: absolute; right: 0.5em; top: 50%; transform: translateY(-50%); display: flex; gap: 0.3em;
+            .teleplot-js-image-tools { /* the toggles at the right end of the filmstrip: what is drawn over, outlines, cameras beside / over */
+                flex: none; display: flex; gap: 0.3em;
             }
             .teleplot-js-image-tool {
                 all: unset; box-sizing: border-box; width: 2.2em; height: 1.8em; border-radius: 0.4em; cursor: pointer;
                 display: flex; align-items: center; justify-content: center; color: var(--teleplot-muted); border: 1px solid var(--teleplot-line);
             }
             .teleplot-js-image-tool:hover, .teleplot-js-image-tool.on { color: var(--teleplot-primary); }
+            .teleplot-js-image-tool-text { width: auto; min-width: 2.2em; padding: 0 0.45em; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
             .teleplot-js-image-tool:focus-visible { outline: 2px solid var(--teleplot-primary); outline-offset: 1px; }
             /* A picture (PictureFrame), wherever it is */
             .teleplot-js-picture { position: absolute; inset: 0; }
