@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const { loadTeleplot } = require('../../teleplot-js/tests/helpers/load');
 
 const code = fs.readFileSync(path.join(__dirname, '..', 'components', 'panel-export.js'), 'utf8');
-const E = new Function('Vue', code + '\nreturn { exportDescribe, exportPickMoment, exportMomentPartial, exportMomentKey, exportFormatBytes, exportFormatCount, exportFormatDuration, exportFormatPeriod, exportFileName, exportOnScreen, exportZoom, EXPORT_FORMATS, EXPORT_SEPARATORS, EXPORT_TIMES };')({ reactive: (x) => x });
+const E = new Function('Vue', code + '\nreturn { exportDescribe, exportPickMoment, exportMomentPartial, exportMomentKey, exportFormatBytes, exportFormatCount, exportFormatDuration, exportFormatPeriod, exportFileName, exportFilesName, exportBundleName, exportOnScreen, exportZoom, EXPORT_FORMATS, EXPORT_SEPARATORS, EXPORT_TIMES };')({ reactive: (x) => x });
 
 test('what is inside a ticked moment is ticked with it; unticking a part unticks what holds it', () => {
     const T = loadTeleplot();
@@ -89,4 +89,13 @@ test('"On screen" is what the dashboard shows, "Zoomed" the period one of its ti
     Object.assign(T.view.ensureGroup('D' + T.view.TIME_GROUP_SEPARATOR + 'Mine'), { cursorActive: true, timestampFrom: 5, timestampTo: 9 });
     assert.deepEqual(E.exportZoom(T, dashboard), { from: 5, to: 9 });
     assert.equal(E.exportZoom(T, null), undefined);
+});
+
+test('the files the shapes link to go in a zip named after the data file', () => {
+    assert.deepEqual(['session-1407.teleplot', 'session-1407.teleplot.txt', 'session-1407.teleplot.csv', 'robot'].map(E.exportFilesName),
+        ['session-1407.files.zip', 'session-1407.files.zip', 'session-1407.files.zip', 'robot.files.zip']);
+});
+
+test('one zip with the data file and its linked files is named after the data file', () => {
+    assert.deepEqual(['session-1407.teleplot', 'session-1407.teleplot.txt'].map(E.exportBundleName), ['session-1407.zip', 'session-1407.zip']);
 });

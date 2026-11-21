@@ -610,7 +610,7 @@ class ViewScene2D extends ViewScene3D {
         if(!entry) {
             entry = { points: undefined, failed: false };
             this.stl2D.set(url, entry);
-            new TELEPLOT.THREE.STLLoader().load(url, (geometry) => {
+            new TELEPLOT.THREE.STLLoader().load(TELEPLOT.files.resolve(url), (geometry) => {
                 let positions = geometry.getAttribute("position").array;
                 let stride = Math.max(1, Math.ceil(positions.length / 3 / 4000)) * 3;
                 let points = [];
@@ -635,7 +635,7 @@ class ViewScene2D extends ViewScene3D {
             if(this.images2D.size > 8) this.images2D.delete(this.images2D.keys().next().value); // (the pictures of an image telemetry go by)
             entry.image.onload = () => { entry.ready = true; this.__requestDraw(); };
             entry.image.onerror = () => { entry.failed = true; this.__loadFailed(url, "picture"); };
-            entry.image.src = url;
+            entry.image.src = TELEPLOT.files.resolve(url);
         }
         return entry.ready ? entry.image : undefined;
     }
@@ -646,6 +646,7 @@ class ViewScene2D extends ViewScene3D {
         if (!TELEPLOT.view.ViewTelemetries.prototype.__before_update.call(this)) return;
         let page = this.page2D;
         if(!page) return;
+        this.__checkAssets();
         const P = TELEPLOT.protocol;
         let viewGroup = TELEPLOT.view.groups[this.group];
         let timestamp = viewGroup.cursorTimestamp;

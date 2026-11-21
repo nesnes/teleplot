@@ -89,6 +89,15 @@ Opening a CSV: the first line names the columns. One column is the time (the one
 - **An import can be taken back**: `TELEPLOT.files.removeImported(result)` removes, in each telemetry, the samples between the oldest and the newest the file gave it. Samples are not marked with where they come from: what else a telemetry holds in that period goes too. Telemetries the file had created and that are left empty are forgotten.
 - Old data stays old: a file recorded yesterday shows yesterday's times. The data window (`TELEPLOT.state.dataTimeout`) counts from the newest sample of each telemetry, so a file longer than the window loses its start at the next update unless the window is made longer (`extendWindow` option, or the data menu of the webapp). The memory limit applies as usual.
 
+## Files the shapes link to
+
+3D models (STL files) and pictures of textures are links: a shape keeps the url its device gave (`U:"models/arm.stl"`, `T:url:"…"`), and a data file keeps those urls as they are. Opened from another page or computer, they may lead nowhere ("21 files could not be loaded"). So the files can be saved too, in a **zip beside the data file**, and opened with it (decided with the user 2026-11-21: no new message in the protocols, the urls stored never change).
+
+- **Export** (`TELEPLOT.files.exportAssets(options)`, the same options as the data): each url the exported telemetries link to (`TELEPLOT.files.assetUrls`; a `data:` url carries its file) is fetched now and written in the zip, at its url when that is a plain relative path (`models/arm.stl`), otherwise under `files/` (`files/2-floor.png` for `https://example.com/floor.png`). `teleplot-files.json` in the zip says which url each entry is for. A file the page cannot read now is not in it and is listed (`missing`, with why). Entries are deflated when that makes them smaller.
+- **One zip for everything**: `exportAssets(options, [{name, parts}])` puts data files in the same zip, at its root (`teleplot-files.json` lists them in `data`). `TELEPLOT.files.readZip(bytes)` gives back `{data: [{name, bytes}], files: [{url, name, bytes}], skipped}`: the data files (named by the manifest, else by their extension `.teleplot`, `.teleplot.txt`, `.teleplot.csv` at the root) open as any data file (`importData`, `createImport`), the others are the files of the links.
+- **Import** (`TELEPLOT.files.importAssets(bytes or what readZip gave)`): the files are kept in memory by the url they are for (a zip made by hand works too: then its paths are the urls), until the page is reloaded. `TELEPLOT.files.resolve(url)` gives what to load for a url: the file of the zip, else the url. The STL and picture loaders of the 3D, 2D and image views go through it, and a view tries again what it could not load when a zip is opened (`TELEPLOT.files.assetsVersion`, `__checkAssets`): its note goes away.
+- The zip is written and read by the library (no dependency): stored or deflated entries, through the `CompressionStream` / `DecompressionStream` of the browser. `TELEPLOT.files.isZip(bytes)`.
+
 ## Library
 
 [`packages/teleplot-js/src/160-files.js`](../packages/teleplot-js/src/160-files.js):
@@ -116,6 +125,10 @@ An import returns `{ format, samples, telemetries, created, createdIds, from, to
 Measured on a million numbers (4 telemetries, Node): binary 10 MB, written in 45 ms, read in 30 ms; text 34 MB, written in 180 ms, read in 180 ms.
 
 ## In the webapp
+
+- Export: when the telemetries exported link to files (not for CSV), a choice "Linked files": **One zip** (the default: the data file and the files in `session-1407.zip`, one file to share), **Beside** (the data file, then a button "Save ….files.zip": a click of its own, because a browser lets a click save one file and refuses a second download started by the same click, silently where nobody is asked), **Leave out** (the links only). A sentence under it says what the choice does; the recap names the file(s) Save gives. The message after saving says which linked files could not be gathered.
+- Import: a `.zip` (dropped, or chosen) that holds a data file goes through the same receipt as that data file, with a row "Linked files"; Open takes the files of the links first, then the data. A zip of files only (saved beside, or made by hand) is taken at once: the files of the session list it, with how many links still cannot be loaded.
+
 
 The **Export and import** panel (top menu, shortcut X; it opens on the right, in place of Help; [`packages/webapp/components/panel-export.js`](../packages/webapp/components/panel-export.js)) has two sections that cannot be mistaken for one another, then the files of the session.
 

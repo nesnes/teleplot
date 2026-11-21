@@ -8,6 +8,11 @@
  *   The Export section folds to its header while a file is being opened.
  * - Import: a file that is chosen (here, from the "Import…" of the dashboard list, or dropped anywhere on the page) is first read without being stored (a dry run of the library):
  *   the panel shows what it holds and what opening it changes, with the options that matter for its format. Then one button.
+ * - Files the shapes link to (STL models, pictures of textures), a choice of the export when there are some: in one zip with the data
+ *   file (the default: one file to share, "session-1407.zip"), in a zip beside it (a second file, saved by a button of its own: a
+ *   browser lets a click save one file), or left out. TP.files.exportAssets. A zip that is opened goes through the same receipt as a
+ *   data file when it holds one (the files of its links are taken with it), else its files are taken at once (TP.files.readZip /
+ *   importAssets: the urls of the telemetries do not change). See doc/files.md "Files the shapes link to".
  * - Files of this session: what was opened and saved. An opened file can show its period on the dashboard and be taken back.
  *
  * The library does the work (TP.files, see doc/files.md): this file chooses options and displays results.
@@ -69,6 +74,14 @@ function exportFormatPeriod(from, to, now = Date.now()) {
     };
     const a = new Date(from * 1000), b = new Date(to * 1000);
     return day(a) + clock(a) + " → " + (day(b) !== day(a) ? day(b) : "") + clock(b);
+}
+// One zip with a data file and the files its shapes link to: "session-1407.zip"
+function exportBundleName(dataName) {
+    return String(dataName).replace(/\.teleplot(\.txt|\.csv)?$/i, "") + ".zip";
+}
+// The zip of the files its shapes link to, beside a data file: "session-1407.files.zip"
+function exportFilesName(dataName) {
+    return String(dataName).replace(/\.teleplot(\.txt|\.csv)?$/i, "") + ".files.zip";
 }
 // "session-1407.teleplot", "session-1407.teleplot.txt", "session-1407.teleplot.csv"
 function exportFileName(format, date = new Date()) {
@@ -185,8 +198,12 @@ function initComponent_panel_export(vue) {
                             <span v-else-if="!dashboardNames.length">No dashboard to include</span>
                             <span v-else>Include {{dashboardNames.length == 1 ? 'the dashboard "' + dashboardNames[0] + '"' : 'the ' + dashboardNames.length + ' dashboards'}}</span>
                         </label>
+                        <template v-if="linksShown">
+                            <label title="The files its shapes link to (STL models, pictures of textures), as the page reads them now">Linked files</label>${seg("linked", "linkedOptions")}
+                        </template>
                     </div>
                     <div class="export-sub">{{formatNote}}</div>
+                    <div v-if="linksShown" class="export-sub">{{linkedNote}}</div>
 
                     <!-- Choose...: the telemetries, by label, with what each weighs -->
                     <div v-if="what == 'choose'" class="export-inset">
@@ -256,11 +273,16 @@ function initComponent_panel_export(vue) {
                     <div class="export-recap">
                         <div class="export-grow">
                             <div><b class="export-mono">{{count(estimate.samples)}}</b> {{format == 'csv' ? 'values' : 'samples'}}<template v-if="periodText"> · {{periodText}}</template></div>
-                            <div class="export-sub">{{estimate.telemetries}} {{estimate.telemetries == 1 ? 'telemetry' : 'telemetries'}} · about {{bytes(estimate.bytes)}} · {{fileName}}</div>
+                            <div class="export-sub">{{estimate.telemetries}} {{estimate.telemetries == 1 ? 'telemetry' : 'telemetries'}} · about {{bytes(estimate.bytes)}}<template v-if="linked == 'zip' && linksShown"> + {{assetUrls.length}} linked {{assetUrls.length == 1 ? 'file' : 'files'}}</template></div>
+                            <div class="export-sub export-out"><i :class="linksShown && linked == 'zip' ? 'icofont-zipped' : 'icofont-file'"></i> {{linksShown && linked == 'zip' ? bundleName : fileName}}<template v-if="linksShown && linked == 'beside'">, then <i class="icofont-zipped"></i> {{filesName}} <small>(a second save)</small></template></div>
                         </div>
                         <button type="button" class="export-btn export-primary" :disabled="!canSave" @click="save()"><i class="icofont-download"></i> Save</button>
                     </div>
                     <div v-if="saved" class="export-note" :class="{good: !saved.skipped}" role="status"><b>{{saved.skipped ? '!' : '✓'}}</b><span>{{saved.text}}</span></div>
+                    <div v-if="saved && saved.zip" class="export-line export-zip">
+                        <span class="export-grow export-sub">{{saved.zip.count}} linked {{saved.zip.count == 1 ? 'file' : 'files'}} ready · {{bytes(saved.zip.size)}}</span>
+                        <button type="button" class="export-btn export-primary" @click="saveZip()" title="A browser saves one file per click: the files of the links are a second one"><i class="icofont-download"></i> Save {{saved.zip.name}}</button>
+                    </div>
                 </div>
                 </div></div>
             </section>
@@ -273,14 +295,15 @@ function initComponent_panel_export(vue) {
                 <div v-if="!pending" class="export-drop" :class="{over: dragging}">
                     <b>Drop a file anywhere on the page</b>
                     <span>or <button type="button" class="export-link" @click="$refs.file.click()">choose a file…</button></span>
-                    <small>.teleplot (binary), .teleplot.txt (text protocol lines, dashboards), .teleplot.csv, or the log of a device</small>
+                    <small>.teleplot (binary), .teleplot.txt (text protocol lines, dashboards), .teleplot.csv, the log of a device, or a .zip (a data file with the files its shapes link to)</small>
                     <input ref="file" type="file" multiple hidden @change="pick($event.target.files); $event.target.value = ''">
                 </div>
 
                 <!-- A file being described, or its receipt -->
                 <div v-else class="export-card">
                     <div class="export-inset-head export-receipt-head"><b>{{pending.state == 'opening' ? 'Opening' : 'About to open'}}</b><span v-if="queue.length">then {{queue.length}} more</span></div>
-                    <div class="export-line"><b class="export-grow export-name">{{pending.file.name}}</b><span class="export-mono export-sub">{{bytes(pending.file.size)}}</span></div>
+                    <div class="export-line"><b class="export-grow export-name"><i v-if="pending.zip" class="icofont-zipped"></i> {{pending.zip ? pending.zip.name : pending.file.name}}</b><span class="export-mono export-sub">{{bytes(pending.zip ? pending.zip.size : pending.file.size)}}</span></div>
+                    <div v-if="pending.zip" class="export-sub">A zip: the data file {{pending.file.name}}<template v-if="pending.zip.read.files.length"> and the files its shapes link to</template></div>
 
                     <template v-if="pending.state == 'reading' || pending.state == 'opening'">
                         <div class="export-progress" role="progressbar" :aria-valuenow="Math.round(pending.progress * 100)" aria-valuemin="0" aria-valuemax="100"><i :style="{width: (pending.progress * 100) + '%'}"></i></div>
@@ -320,6 +343,10 @@ function initComponent_panel_export(vue) {
                             <template v-if="pending.info.dashboards.length">
                                 <dt>Dashboards</dt>
                                 <dd :class="{'export-left-out': both && !pending.options.dashboards}"><span v-for="(final, original) in pending.info.dashboardNames" :key="original" class="export-dash">"{{original}}"<small v-if="final != original"> becomes "{{final}}"</small></span></dd>
+                            </template>
+                            <template v-if="pending.zip && pending.zip.read.files.length">
+                                <dt>Linked files</dt>
+                                <dd>{{pending.zip.read.files.length}} {{pending.zip.read.files.length == 1 ? 'file' : 'files'}} for its shapes <small>(models, textures: found again at the links that point to them)</small></dd>
                             </template>
                             <template v-if="pending.info.problems">
                                 <dt>Problems</dt>
@@ -380,6 +407,8 @@ function initComponent_panel_export(vue) {
         .export-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
         .export-sub, .export-layout small { color: var(--color-text-muted); font-size: 0.9rem; line-height: 1.35; }
         .export-line { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+        .export-zip { margin-top: 0.45rem; }
+        .export-out { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; } /* what Save gives: the files, by name */
         .export-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* The two sections: each has its color, its badge and its own frame, so that saving and opening cannot be mistaken */
@@ -514,6 +543,8 @@ function initComponent_panel_export(vue) {
                 when: "all",          // "all", "zoom" (what the dashboard is zoomed on) or "last" (the last minute)
                 format: "binary",
                 withDashboards: true,
+                linked: "zip",        // The files its shapes link to: "zip" (one zip with the data file), "beside" (a zip beside it), "none"
+                zipping: false,       // A zip of files is being opened
                 chosen: {},           // Telemetry id -> chosen, for "choose"
                 csv: { layout: "columns", separator: ",", time: "iso" },
                 saved: null,          // What the last save has to say: {text, skipped}
@@ -621,6 +652,23 @@ function initComponent_panel_export(vue) {
                 return span ? exportFormatDuration(span.duration) : "";
             },
             fileName() { this.tick; return exportFileName(this.format); },
+            // The files the shapes of the export link to (models, textures), and the zip they go in
+            assetUrls() { this.tick; return this.format === "csv" ? [] : this.TP.files.assetUrls(this.options); },
+            linksShown() { return this.format !== "csv" && this.assetUrls.length > 0; },
+            linkedOptions() {
+                const n = this.assetUrls.length + (this.assetUrls.length == 1 ? " file" : " files");
+                return [{ id: "zip", label: "One zip", title: "The data file and the " + n + " its shapes link to, in one .zip: one file to share, opened here as one" },
+                    { id: "beside", label: "Beside", title: "The data file as usual, then the " + n + " in a .zip of their own (a second save)" },
+                    { id: "none", label: "Leave out", title: "The data file alone: the links are kept, opened elsewhere they may lead nowhere" }];
+            },
+            linkedNote() {
+                const n = this.assetUrls.length + (this.assetUrls.length == 1 ? " file" : " files");
+                if (this.linked === "zip") return "Its shapes link to " + n + " (models, textures): they go in one .zip with the data. Open that zip here to get both.";
+                if (this.linked === "beside") return "Its shapes link to " + n + " (models, textures): after the data file, a button saves them in a .zip of their own.";
+                return "Its shapes link to " + n + " (models, textures): only the links are saved; opened elsewhere, they may lead nowhere.";
+            },
+            filesName() { return exportFilesName(this.fileName); },
+            bundleName() { return exportBundleName(this.fileName); },
             // What the file will hold, written out under the recap
             contents() { this.tick; return exportDescribe(this.TP, this.format, this.options); },
             noLabel() {
@@ -718,23 +766,55 @@ function initComponent_panel_export(vue) {
                 for (const item of row.items) { if (on && item.usable) chosen[item.id] = true; else delete chosen[item.id]; }
                 this.chosen = chosen;
             },
-            save() {
-                const format = this.format, options = this.options;
+            async save() {
+                const format = this.format, options = this.options, linked = this.linksShown ? this.linked : "none";
                 const run = { binary: this.TP.files.exportBinary, text: this.TP.files.exportText, csv: this.TP.files.exportCSV }[format];
                 const out = run(options);
                 const name = exportFileName(format);
                 const size = out.parts.reduce((sum, part) => sum + part.length, 0);
-                exportDownload(out.parts, name, EXPORT_FORMATS.find((f) => f.id === format).type);
                 const unit = format === "csv" ? "values" : "samples";
-                let text = "Saved " + name + ": " + exportFormatCount(out.samples) + " " + unit + ", " + exportFormatBytes(size) + ".";
-                if (out.skipped) text += " " + exportFormatCount(out.skipped) + " " + (out.skipped === 1 ? "sample" : "samples") + " could not be written in this format" + (format === "binary" ? "." : ": the binary file keeps everything.");
-                this.saved = { text, skipped: out.skipped };
+                const counted = exportFormatCount(out.samples) + " " + unit;
+                const missingText = (files) => !files.missing.length ? "" : " " + files.missing.length + (files.missing.length === 1 ? " linked file" : " linked files") + " could not be gathered (not reachable from this page): " + files.missing.slice(0, 3).map((m) => m.url.split("/").pop()).join(", ") + (files.missing.length > 3 ? "…" : "") + ".";
+                const skippedText = out.skipped ? " " + exportFormatCount(out.skipped) + " " + (out.skipped === 1 ? "sample" : "samples") + " could not be written in this format" + (format === "binary" ? "." : ": the binary file keeps everything.") : "";
+                let text, savedName = name, filesSummary = "", zip = null, problems = out.skipped;
+                if (linked === "zip") { // One zip: the data file and the files of its links (gathered now: the page may have to fetch them)
+                    this.saved = { text: "Gathering the files its shapes link to…", skipped: 0 };
+                    const files = await this.TP.files.exportAssets(options, [{ name, parts: out.parts }]);
+                    savedName = exportBundleName(name);
+                    exportDownload(files.parts, savedName, "application/zip");
+                    const zipSize = files.parts.reduce((sum, part) => sum + part.length, 0);
+                    text = "Saved " + savedName + " (" + exportFormatBytes(zipSize) + "): " + counted + " and " + files.files.length + (files.files.length === 1 ? " linked file." : " linked files.") + missingText(files) + skippedText;
+                    filesSummary = " · " + files.files.length + " linked files, one zip";
+                    problems = problems || files.missing.length;
+                }
+                else {
+                    exportDownload(out.parts, name, EXPORT_FORMATS.find((f) => f.id === format).type);
+                    text = "Saved " + name + ": " + counted + ", " + exportFormatBytes(size) + "." + skippedText;
+                    if (linked === "beside") { // The files of its links in a zip beside it, saved by a click of its own (a browser lets a click save one file)
+                        this.saved = { text: text + " Gathering the files its shapes link to…", skipped: out.skipped };
+                        const files = await this.TP.files.exportAssets(options);
+                        if (files.parts.length) {
+                            zip = Vue.markRaw({ parts: files.parts, name: exportFilesName(name), size: files.parts.reduce((sum, part) => sum + part.length, 0), count: files.files.length });
+                            filesSummary = " · " + files.files.length + " linked files in " + zip.name;
+                        }
+                        text += missingText(files);
+                        problems = problems || files.missing.length;
+                    }
+                }
+                this.saved = { text, skipped: problems, zip };
                 const what = { all: "everything", screen: "what was on screen", choose: (options.telemetries || []).length + " telemetries" }[this.what];
                 exportHistory.list.unshift({
-                    id: exportHistory.nextId++, kind: "saved", name, at: new Date(), problems: 0, periodText: "",
-                    summary: what + (this.periodText ? ", " + this.periodText : "") + " · " + exportFormatCount(out.samples) + " " + unit + " · " + exportFormatBytes(size),
-                    settings: { what: this.what, when: this.when, format, withDashboards: this.withDashboards, chosen: Object.assign({}, this.chosen), csv: Object.assign({}, this.csv) },
+                    id: exportHistory.nextId++, kind: "saved", name: savedName, at: new Date(), problems: 0, periodText: "",
+                    summary: what + (this.periodText ? ", " + this.periodText : "") + " · " + exportFormatCount(out.samples) + " " + unit + " · " + exportFormatBytes(size) + filesSummary,
+                    settings: { what: this.what, when: this.when, format, withDashboards: this.withDashboards, linked: this.linked, chosen: Object.assign({}, this.chosen), csv: Object.assign({}, this.csv) },
                 });
+            },
+            // The zip of the files of the links: a download of its own (a browser lets a click save one file; a second one is refused)
+            saveZip() {
+                const zip = this.saved && this.saved.zip;
+                if (!zip) return;
+                exportDownload(zip.parts, zip.name, "application/zip");
+                this.saved = Object.assign({}, this.saved, { zip: null, text: this.saved.text + " Saved " + zip.name + "." });
             },
             saveAgain(file) {
                 Object.assign(this, file.settings, { chosen: Object.assign({}, file.settings.chosen), csv: Object.assign({}, file.settings.csv) });
@@ -752,8 +832,9 @@ function initComponent_panel_export(vue) {
                 this.next();
             },
             next() {
-                if (this.pending || !this.queue.length) return;
+                if (this.pending || this.zipping || !this.queue.length) return;
                 const file = this.queue.shift();
+                if (/\.zip$/i.test(file.name)) { this.openZip(file); return; } // A zip: a data file with the files of its links, or those files alone
                 this.pending = { file, state: "reading", progress: 0, info: null, error: "", run: 0,
                     options: { data: true, dashboards: true, clear: false, serial: false, separator: "", timeColumn: -1, timeUnit: "", prefix: "", format: /\.csv$/i.test(file.name) ? "csv" : undefined } };
                 this.describe();
@@ -797,9 +878,42 @@ function initComponent_panel_export(vue) {
                 }
                 catch (e) { pending.error = "This file could not be read (" + (e && e.message ? e.message : e) + ")."; pending.state = "error"; }
             },
+            // A zip. With a data file in it (one zip exported with its links): the usual receipt, Open takes the files of the links too
+            // (more data files: each its own receipt). Without: the files of the links alone (exported beside a data file, or made by
+            // hand: its paths are the urls), taken at once.
+            async openZip(file) {
+                this.zipping = true;
+                let summary, problems = 0;
+                try {
+                    const bytes = new Uint8Array(await file.arrayBuffer());
+                    const read = Vue.markRaw(await this.TP.files.readZip(bytes));
+                    if (read.data.length) {
+                        const files = read.data.map((entry) => Vue.markRaw(new File([entry.bytes], entry.name)));
+                        this.queue.unshift(...files.slice(1));
+                        this.zipping = false;
+                        this.pending = { file: files[0], zip: { name: file.name, size: file.size, read }, state: "reading", progress: 0, info: null, error: "", run: 0,
+                            options: { data: true, dashboards: true, clear: false, serial: false, separator: "", timeColumn: -1, timeUnit: "", prefix: "", format: /\.csv$/i.test(files[0].name) ? "csv" : undefined } };
+                        this.describe();
+                        return;
+                    }
+                    const result = await this.TP.files.importAssets(read);
+                    // Still missing: what the views could not load and the zip does not have (a link that loads from here is not missing)
+                    const T = Vue.toRaw(this.TP), failed = new Set();
+                    for (const view of T.view.views) if (view.loadFailures) for (const url of view.loadFailures.keys()) failed.add(url);
+                    const missing = [...failed].filter((url) => !T.files.assets.has(url));
+                    problems = result.skipped.length;
+                    summary = result.files.length + (result.files.length === 1 ? " file" : " files") + " for the shapes that link to them (" + exportFormatBytes(result.files.reduce((sum, f) => sum + f.size, 0)) + ")"
+                        + (missing.length ? " · " + missing.length + " linked " + (missing.length === 1 ? "file is" : "files are") + " still missing" : "");
+                }
+                catch (e) { summary = "Not a zip that could be read (" + (e && e.message ? e.message : e) + ")."; problems = 1; }
+                exportHistory.list.unshift({ id: exportHistory.nextId++, kind: "opened", name: file.name, at: new Date(), problems, removed: 0, periodText: "", summary, dashboards: [], result: Vue.markRaw({ samples: 0 }) });
+                this.zipping = false;
+                this.next();
+            },
             async open() {
                 const pending = this.pending;
                 const take = { data: pending.options.data, dashboards: pending.options.dashboards };
+                const linked = pending.zip && pending.zip.read.files.length ? await this.TP.files.importAssets(pending.zip.read) : null; // (before the data: its shapes find their files at once)
                 if (pending.options.clear && take.data) this.TP.datastore.clearData();
                 pending.state = "opening";
                 let result;
@@ -810,8 +924,9 @@ function initComponent_panel_export(vue) {
                 if (result.samples) parts.push(exportFormatCount(result.samples) + (result.samples === 1 ? " sample · " : " samples · ") + result.telemetries.length + (result.telemetries.length === 1 ? " telemetry" : " telemetries"));
                 if (result.dashboards.length) parts.push((result.dashboards.length === 1 ? "dashboard " : "dashboards ") + result.dashboards.map((d) => '"' + d + '"').join(", "));
                 if (result.windowExtended) parts.push("data window set to " + exportFormatDuration(this.TP.state.dataTimeout));
+                if (linked) parts.push(linked.files.length + (linked.files.length === 1 ? " linked file" : " linked files"));
                 exportHistory.list.unshift({
-                    id: exportHistory.nextId++, kind: "opened", name: pending.file.name, at: new Date(), problems: result.problems, removed: 0,
+                    id: exportHistory.nextId++, kind: "opened", name: pending.zip ? pending.zip.name : pending.file.name, at: new Date(), problems: result.problems, removed: 0,
                     periodText: result.samples ? exportFormatPeriod(result.from, result.to) + (this.sameEra(result) ? " (" + exportFormatDuration(result.to - result.from) + ")" : "") : "",
                     summary: parts.join(" · ") || (take.data || take.dashboards ? "Nothing was understood" : "Nothing was taken"), dashboards: result.dashboards, result: Vue.markRaw(result),
                 });

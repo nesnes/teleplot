@@ -409,3 +409,85 @@ test('thresholds and ranges in files: what a text file cannot say is counted, a 
     const result = report.finish();
     assert.deepEqual([result.samples, Object.keys(V.datastore.telemetries).length], [2, 0]);
 });
+
+// ------------------------------------------------------------------------------------------- Files the shapes link to (a zip)
+const withFetch = async (files, run) => {
+    const saved = global.fetch;
+    global.fetch = async (url) => files[url] !== undefined ? { ok: true, status: 200, arrayBuffer: async () => Uint8Array.from(files[url]).buffer } : (() => { throw new Error('unreachable'); })();
+    try { return await run(); } finally { global.fetch = saved; }
+};
+const blobBytes = async (url, T) => new Uint8Array(await T.files.assets.get(url).blob.arrayBuffer());
+
+test('the files the shapes link to: listed from the telemetries, written to a zip by their url, read back for the same urls', async () => {
+    const T = loadTeleplot();
+    T.parseDataText('3D|arm:S:stl:U:"models/arm.stl"');
+    T.parseDataText('3D|floor:S:rect:T:url:"https://example.com/floor.png"');
+    T.parseDataText('3D|logo:S:rect:T:url:"data:image/png;base64,' + PNG + '"');
+    T.parseDataText('3D|gone:S:stl:U:"missing.stl"');
+    assert.deepEqual(T.files.assetUrls().sort(), ['https://example.com/floor.png', 'missing.stl', 'models/arm.stl'], 'a data url carries its file');
+    assert.deepEqual(T.files.assetUrls({ telemetries: ['arm'] }), ['models/arm.stl'], 'only those of the telemetries exported');
+    const stl = Array.from({ length: 400 }, (_, i) => i % 7), png = [1, 2, 3];
+    const out = await withFetch({ 'models/arm.stl': stl, 'https://example.com/floor.png': png }, () => T.files.exportAssets());
+    assert.deepEqual(out.files.map((f) => [f.url, f.path]).sort(), [['https://example.com/floor.png', 'files/2-floor.png'], ['models/arm.stl', 'models/arm.stl']].sort(), 'a relative path is kept; an address goes under files/');
+    assert.deepEqual(out.missing, [{ url: 'missing.stl', why: 'not reachable from this page' }]);
+    const zip = new Uint8Array(Buffer.concat(out.parts.map((p) => Buffer.from(p))));
+    assert.equal(T.files.isZip(zip), true);
+
+    // Another page opens it: the urls of the telemetries do not change, resolve gives the files
+    const U = loadTeleplot();
+    U.parseDataText('3D|arm:S:stl:U:"models/arm.stl"');
+    assert.equal(U.files.resolve('models/arm.stl'), 'models/arm.stl', 'nothing opened yet: the url');
+    const opened = await U.files.importAssets(zip);
+    assert.deepEqual(opened.files.map((f) => f.url).sort(), ['https://example.com/floor.png', 'models/arm.stl']);
+    assert.match(U.files.resolve('models/arm.stl'), /^blob:/);
+    assert.deepEqual(Array.from(await blobBytes('models/arm.stl', U)), stl, 'the same bytes (deflated in the zip)');
+    assert.deepEqual(Array.from(await blobBytes('https://example.com/floor.png', U)), png, 'the same bytes (stored)');
+    assert.equal(U.datastore.getTelemetry('arm').getAttribute(U.protocol.TELEM_ATTR_SHAPE).data, 'models/arm.stl', 'the url stored is unchanged');
+    assert.equal(U.files.assetsVersion, 1);
+});
+
+test('a zip made by hand: its paths are the urls; a view tries again what it could not load', async () => {
+    // A zip written here, independently of the library: one stored entry, no manifest (CRC left at 0: not checked on reading)
+    const name = Buffer.from('a/b.stl'), data = Buffer.from([9, 8, 7]);
+    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt32LE(3, 18); local.writeUInt32LE(3, 22); local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt32LE(3, 20); central.writeUInt32LE(3, 24); central.writeUInt16LE(name.length, 28);
+    const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10); end.writeUInt32LE(46 + name.length, 12); end.writeUInt32LE(30 + name.length + 3, 16);
+    const zip = new Uint8Array(Buffer.concat([local, name, data, central, name, end]));
+    const U = loadTeleplot();
+    const opened = await U.files.importAssets(zip);
+    assert.deepEqual(opened.files, [{ url: 'a/b.stl', size: 3 }], 'its path is the url');
+    assert.deepEqual(Array.from(await blobBytes('a/b.stl', U)), [9, 8, 7]);
+    // A view that failed on that url forgets the failure and loads it again
+    const view = { assetsSeen: 0, three: { stl: new Map([['a/b.stl', { failed: true }], ['other.stl', { failed: true }]]), objects: new Map([[1, { textureKey: 'a/b.stl' }]]) },
+        loadFailures: new Map([['a/b.stl', 'STL file'], ['other.stl', 'STL file']]), state: { loadNote: 'old' }, lastKey: 'k' };
+    U.view.ViewScene3D.prototype.__checkAssets.call(view);
+    assert.deepEqual([...view.three.stl.keys()], ['other.stl'], 'loaded again (the other one still failed)');
+    assert.equal(view.three.objects.get(1).textureKey, '', 'a texture of that url is loaded again');
+    assert.deepEqual([...view.loadFailures.keys()], ['other.stl']);
+    assert.match(view.state.loadNote, /^other\.stl could not be loaded/);
+    assert.equal(view.lastKey, '');
+    await assert.rejects(U.files.importAssets(new Uint8Array([1, 2, 3, 4])), /Not a zip file/);
+});
+
+test('one zip for everything: the data file and the files of its links, read back apart; the data opens as any data file', async () => {
+    const T = loadTeleplot();
+    T.parseDataText('3D|arm:1000:S:stl:U:"models/arm.stl":P:1:2:3');
+    T.parseDataText('speed:1000:4.5');
+    const data = T.files.exportText({ dashboards: false });
+    const out = await withFetch({ 'models/arm.stl': [1, 2, 3, 4] }, () => T.files.exportAssets({}, [{ name: 'session.teleplot.txt', parts: data.parts }]));
+    const zip = new Uint8Array(Buffer.concat(out.parts.map((p) => Buffer.from(p))));
+    const U = loadTeleplot();
+    const read = await U.files.readZip(zip);
+    assert.deepEqual(read.data.map((d) => d.name), ['session.teleplot.txt'], 'the data file, named in the manifest');
+    assert.deepEqual(read.files.map((f) => f.url), ['models/arm.stl'], 'and the files of the links');
+    assert.equal(new TextDecoder().decode(read.data[0].bytes), data.parts.join(''), 'the data file as it was written');
+    await U.files.importAssets(read);
+    U.files.importData(read.data[0].bytes);
+    assert.equal(U.datastore.getTelemetry('speed').data[20].data[0][0], 4.5);
+    assert.equal(U.datastore.getTelemetry('arm').getAttribute(U.protocol.TELEM_ATTR_SHAPE).data, 'models/arm.stl');
+    assert.match(U.files.resolve('models/arm.stl'), /^blob:/);
+    // A zip made by hand: a data file is known by its extension
+    const hand = await withFetch({}, () => T.files.exportAssets({ telemetries: ['speed'] }, [{ name: 'other.teleplot', parts: [new Uint8Array([1, 2])] }]));
+    const handRead = await U.files.readZip(new Uint8Array(Buffer.concat(hand.parts.map((p) => Buffer.from(p)))));
+    assert.deepEqual([handRead.data.map((d) => d.name), handRead.files.length], [['other.teleplot'], 0]);
+});

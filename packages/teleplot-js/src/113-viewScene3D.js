@@ -837,6 +837,25 @@ class ViewScene3D extends ViewTelemetries {
         super.dispose();
     }
 
+    // Files of a zip were opened (TELEPLOT.files.importAssets): what could not be loaded and is there now is loaded again (once per
+    // new zip; the urls of the telemetries are the same, TELEPLOT.files.resolve gives the file)
+    __checkAssets() {
+        let version = TELEPLOT.files.assetsVersion;
+        if(this.assetsSeen === version) return;
+        this.assetsSeen = version;
+        let has = (url) => TELEPLOT.files.assets.has(url);
+        if(this.three) {
+            for(let [url, entry] of [...this.three.stl]) if(entry.failed && has(url)) this.three.stl.delete(url);
+            for(let object of this.three.objects.values()) if(object.textureKey && has(object.textureKey)) object.textureKey = "";
+        }
+        for(let cache of [this.stl2D, this.images2D]) if(cache) for(let [url, entry] of [...cache]) if(entry.failed && has(url)) cache.delete(url);
+        let found = [...this.loadFailures.keys()].filter(has);
+        if(!found.length) return;
+        for(let url of found) this.loadFailures.delete(url);
+        this.state.loadNote = ViewScene3D.loadNote([...this.loadFailures.keys()], typeof location !== "undefined" ? location.protocol : "");
+        this.lastKey = "";
+    }
+
     // A file the view could not load: said on the view, not only in the console (a shape that is not drawn says nothing by itself)
     __loadFailed(url, what) {
         url = String(url);
@@ -913,6 +932,7 @@ class ViewScene3D extends ViewTelemetries {
         if (!super.__before_update()) return;
         let three = this.three;
         if(!three) return;
+        this.__checkAssets();
 
         const P = TELEPLOT.protocol;
         let viewGroup = TELEPLOT.view.groups[this.group];
@@ -1174,7 +1194,7 @@ class ViewScene3D extends ViewTelemetries {
         if(textureKey != object.textureKey) {
             object.textureKey = textureKey;
             if(!textureUrl) this.__setTexture(object, undefined);
-            else new THREE.TextureLoader().load(textureUrl, (texture) => {
+            else new THREE.TextureLoader().load(TELEPLOT.files.resolve(textureUrl), (texture) => {
                 if(object.textureKey != textureKey || !this.three) { texture.dispose(); return; } // Replaced meanwhile
                 if(!textureUrl.startsWith("data:") && ViewScene3D.isTainted(texture.image)) { texture.dispose(); this.__loadFailed(textureUrl, "picture"); return; }
                 texture.colorSpace = THREE.SRGBColorSpace;
@@ -1207,7 +1227,7 @@ class ViewScene3D extends ViewTelemetries {
         if(!entry) {
             entry = { geometry: undefined, failed: false };
             three.stl.set(url, entry);
-            new TELEPLOT.THREE.STLLoader().load(url, (geometry) => {
+            new TELEPLOT.THREE.STLLoader().load(TELEPLOT.files.resolve(url), (geometry) => { // (the file of a zip opened for that url, else the url)
                 if(this.three !== three) { geometry.dispose(); return; }
                 geometry.computeVertexNormals(); // Many files have no (or null) normals: without them the shape is black
                 entry.geometry = geometry;

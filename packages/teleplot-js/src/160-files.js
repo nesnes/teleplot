@@ -967,3 +967,210 @@ TELEPLOT.files.removeImported = function(result) {
     }
     return removed;
 }
+
+// ---------------------------------------------------------------------------------------------------------------- Files the shapes link to
+/*
+ * 3D models (STL files) and pictures of textures are links: a shape keeps the url the device gave (an attribute, a texture sample).
+ * A data file keeps those urls as they are; opened elsewhere (another page, another computer), they may lead nowhere. So the files can
+ * go in a zip of their own, next to the data file, and be opened with it:
+ * - exportAssets(options): fetches each file the exported telemetries link to and writes a zip of them, each one at the path that is
+ *   its url when that url is a plain relative path ("models/arm.stl"), otherwise under "files/"; "teleplot-files.json" in the zip says
+ *   which url each entry is for. A file the page cannot read now is not in it (and says why).
+ *   The data file itself can go in the same zip (one file to share): exportAssets(options, [{name, parts}]); the manifest lists it.
+ * - readZip(bytes): what a zip holds: its data files (the manifest says which, else their extension: .teleplot, .teleplot.txt,
+ *   .teleplot.csv), to open as any data file, and the files of the links.
+ * - importAssets(bytes or what readZip gave): keeps the files of the links in memory, by the url they are for (a zip made by hand works
+ *   too: then its paths are the urls). The urls of the telemetries never change: TELEPLOT.files.resolve(url) gives what to load
+ *   instead, and the views try again what they could not load (assetsVersion).
+ * The zip is written and read here (no library): entries stored or deflated (CompressionStream / DecompressionStream of the browser).
+ */
+TELEPLOT.files.assets = new Map(); // url -> {blob, objectUrl, size}: the files of the zips opened (until the page is reloaded)
+TELEPLOT.files.assetsVersion = 0;  // Changes when files are added: views try again what they could not load
+TELEPLOT.files.ASSETS_MANIFEST = "teleplot-files.json";
+
+// What to load for a url: the file of a zip opened for it, else the url itself
+TELEPLOT.files.resolve = function(url) {
+    let asset = TELEPLOT.files.assets.get(url);
+    return asset ? asset.objectUrl : url;
+}
+
+// The urls the telemetries of an export link to (STL files, pictures of textures), without the ones that carry their file (data:)
+TELEPLOT.files.assetUrls = function(options = {}) {
+    const P = TELEPLOT.protocol;
+    let urls = new Set();
+    for(let telem of _files_selection(options).telemetries) {
+        let shape = telem.getAttribute(P.TELEM_ATTR_SHAPE);
+        if(shape && shape.type === P.TELEM_ATTR_SHAPE_TYPE_STL && shape.data) urls.add(String(shape.data));
+        let textures = telem.data[P.SECTION_TYPE_TELEM_DATA_SHAPE_TEXTURE];
+        if(textures) for(let i = 0; i < textures.timestamps.length; i++) if(textures.data[0][i] === P.TEXTURE_TYPE_URL && textures.data[1][i]) urls.add(String(textures.data[1][i]));
+    }
+    return [...urls].filter((url) => !/^(data|blob):/i.test(url));
+}
+
+// Where a url goes in the zip: itself when it is a plain relative path, else under "files/" (taken: the paths already used)
+function _files_assetPath(url, index, taken) {
+    let path = url.replace(/^\.\//, "");
+    let plain = !/^[a-z][a-z0-9+.-]*:/i.test(path) && !path.startsWith("/") && !path.includes("\\") && !path.split(/[?#]/)[0].split("/").some((part) => part === ".." || part === "")
+        && !/[?#]/.test(path) && path !== TELEPLOT.files.ASSETS_MANIFEST;
+    if(!plain || taken.has(path)) {
+        let base = url.split(/[?#]/)[0].split("/").filter(Boolean).pop() || "file";
+        path = "files/" + (index + 1) + "-" + base.replace(/[^A-Za-z0-9._-]/g, "_");
+    }
+    taken.add(path);
+    return path;
+}
+
+// A zip of the files the exported telemetries link to: {parts (for a Blob), files: [{url, path, size}], missing: [{url, why}]} (no file
+// and no data: no parts). data: [{name, parts}], data files to put in the same zip (at its root, under their name)
+TELEPLOT.files.exportAssets = async function(options = {}, data = []) {
+    let urls = TELEPLOT.files.assetUrls(options), taken = new Set(data.map((d) => d.name)), entries = [], files = [], missing = [];
+    for(let d of data) { // (parts of text are strings: their bytes, UTF-8)
+        let chunks = d.parts.map((part) => part instanceof Uint8Array ? part : new TextEncoder().encode(String(part)));
+        let bytes = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0)), at = 0;
+        for(let chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
+        entries.push({ name: d.name, bytes });
+    }
+    for(let i = 0; i < urls.length; i++) {
+        let url = urls[i];
+        try {
+            let response = await fetch(TELEPLOT.files.resolve(url));
+            if(!response.ok) { missing.push({ url, why: "not found (" + response.status + ")" }); continue; }
+            let bytes = new Uint8Array(await response.arrayBuffer());
+            let path = _files_assetPath(url, i, taken);
+            entries.push({ name: path, bytes });
+            files.push({ url, path, size: bytes.length });
+        }
+        catch(e) { missing.push({ url, why: "not reachable from this page" }); }
+    }
+    if(!entries.length) return { parts: [], files, missing };
+    let manifest = { version: 1, data: data.map((d) => d.name), files: files.map((f) => ({ path: f.path, url: f.url })) };
+    entries.push({ name: TELEPLOT.files.ASSETS_MANIFEST, bytes: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
+    return { parts: await _files_zip(entries), files, missing };
+}
+
+// What a zip holds: {data: [{name, bytes}] (data files), files: [{url, name, bytes}] (files of the links), skipped: [entry names]}
+TELEPLOT.files.readZip = async function(bytes) {
+    bytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    let { entries, skipped } = await _files_unzip(bytes);
+    let urls = new Map(), dataNames = undefined; // entry name -> url; names of the data files
+    let manifest = entries.find((entry) => entry.name === TELEPLOT.files.ASSETS_MANIFEST);
+    if(manifest) {
+        try {
+            let description = JSON.parse(new TextDecoder().decode(manifest.bytes));
+            for(let file of description.files || []) if(file && file.path && file.url) urls.set(String(file.path), String(file.url));
+            if(Array.isArray(description.data)) dataNames = description.data.map(String);
+        }
+        catch(e) { skipped.push(TELEPLOT.files.ASSETS_MANIFEST); }
+    }
+    let isData = (name) => dataNames ? dataNames.includes(name) : (!name.includes("/") && /\.teleplot(\.txt|\.csv)?$/i.test(name));
+    let data = [], files = [];
+    for(let entry of entries) {
+        if(entry === manifest || entry.name.endsWith("/")) continue;
+        if(isData(entry.name)) data.push({ name: entry.name, bytes: entry.bytes });
+        else files.push({ url: urls.get(entry.name) || entry.name, name: entry.name, bytes: entry.bytes });
+    }
+    return { data, files, skipped };
+}
+
+// Keeps the files of the links of a zip (its bytes, or what readZip gave) for the urls they are for: {files: [{url, size}], skipped}
+TELEPLOT.files.importAssets = async function(zip) {
+    let read = zip && Array.isArray(zip.files) ? zip : await TELEPLOT.files.readZip(zip);
+    let files = [];
+    for(let entry of read.files) {
+        let url = entry.url;
+        let blob = new Blob([entry.bytes], { type: _files_mime(entry.name) });
+        let old = TELEPLOT.files.assets.get(url);
+        if(old && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(old.objectUrl);
+        TELEPLOT.files.assets.set(url, { blob, objectUrl: URL.createObjectURL(blob), size: entry.bytes.length });
+        files.push({ url, size: entry.bytes.length });
+    }
+    if(files.length) TELEPLOT.files.assetsVersion++;
+    return { files, skipped: read.skipped };
+}
+
+// Whether bytes are the start of a zip
+TELEPLOT.files.isZip = function(bytes) {
+    return !!bytes && bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+function _files_mime(name) {
+    let ext = (name.split(".").pop() || "").toLowerCase();
+    return { stl: "model/stl", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp" }[ext] || "application/octet-stream";
+}
+
+// ---------------------------------------------------------------------------------------------------------------- Zip
+
+let _files_crcTable;
+function _files_crc32(bytes) {
+    if(!_files_crcTable) {
+        _files_crcTable = new Uint32Array(256);
+        for(let n = 0; n < 256; n++) { let c = n; for(let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; _files_crcTable[n] = c >>> 0; }
+    }
+    let crc = 0xFFFFFFFF;
+    for(let i = 0; i < bytes.length; i++) crc = _files_crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Bytes through a compression stream of the browser ("deflate-raw": the deflate of zip files)
+async function _files_through(bytes, stream) {
+    let piped = new Blob([bytes]).stream().pipeThrough(stream);
+    return new Uint8Array(await new Response(piped).arrayBuffer());
+}
+
+// A zip of entries [{name, bytes}]: [Uint8Array parts]. Each entry is deflated when that makes it smaller, stored otherwise.
+async function _files_zip(entries) {
+    let parts = [], central = [], offset = 0;
+    let canDeflate = typeof CompressionStream === "function";
+    for(let entry of entries) {
+        let name = new TextEncoder().encode(entry.name), crc = _files_crc32(entry.bytes);
+        let data = entry.bytes, method = 0;
+        if(canDeflate && entry.bytes.length > 64) {
+            let deflated = await _files_through(entry.bytes, new CompressionStream("deflate-raw"));
+            if(deflated.length < entry.bytes.length) { data = deflated; method = 8; }
+        }
+        let local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true); // version, flags: UTF-8 names
+        local.setUint16(8, method, true); local.setUint16(10, 0, true); local.setUint16(12, 0x21, true);     // method, time, date (1980-01-01)
+        local.setUint32(14, crc, true); local.setUint32(18, data.length, true); local.setUint32(22, entry.bytes.length, true);
+        local.setUint16(26, name.length, true); local.setUint16(28, 0, true);
+        parts.push(new Uint8Array(local.buffer), name, data);
+        let record = new DataView(new ArrayBuffer(46));
+        record.setUint32(0, 0x02014b50, true); record.setUint16(4, 20, true); record.setUint16(6, 20, true); record.setUint16(8, 0x0800, true);
+        record.setUint16(10, method, true); record.setUint16(12, 0, true); record.setUint16(14, 0x21, true);
+        record.setUint32(16, crc, true); record.setUint32(20, data.length, true); record.setUint32(24, entry.bytes.length, true);
+        record.setUint16(28, name.length, true); record.setUint32(42, offset, true);
+        central.push(new Uint8Array(record.buffer), name);
+        offset += 30 + name.length + data.length;
+    }
+    let size = central.reduce((sum, part) => sum + part.length, 0);
+    let end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+    end.setUint32(12, size, true); end.setUint32(16, offset, true);
+    return parts.concat(central, [new Uint8Array(end.buffer)]);
+}
+
+// The entries of a zip: {entries: [{name, bytes}], skipped: [names]} (stored or deflated entries; others are skipped)
+async function _files_unzip(bytes) {
+    let view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let end = -1;
+    for(let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i--) if(view.getUint32(i, true) === 0x06054b50) { end = i; break; }
+    if(end < 0) throw new Error("Not a zip file");
+    let count = view.getUint16(end + 10, true), at = view.getUint32(end + 16, true);
+    let entries = [], skipped = [];
+    for(let n = 0; n < count; n++) {
+        if(view.getUint32(at, true) !== 0x02014b50) throw new Error("Damaged zip file");
+        let method = view.getUint16(at + 10, true), size = view.getUint32(at + 20, true), full = view.getUint32(at + 24, true);
+        let nameLength = view.getUint16(at + 28, true), extra = view.getUint16(at + 30, true), comment = view.getUint16(at + 32, true), local = view.getUint32(at + 42, true);
+        let name = new TextDecoder().decode(bytes.subarray(at + 46, at + 46 + nameLength));
+        at += 46 + nameLength + extra + comment;
+        let start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+        let data = bytes.subarray(start, start + size);
+        if(method === 0) entries.push({ name, bytes: data.slice() });
+        else if(method === 8 && typeof DecompressionStream === "function") {
+            try { let inflated = await _files_through(data, new DecompressionStream("deflate-raw")); if(inflated.length === full) entries.push({ name, bytes: inflated }); else skipped.push(name); }
+            catch(e) { skipped.push(name); }
+        }
+        else skipped.push(name);
+    }
+    return { entries, skipped };
+}

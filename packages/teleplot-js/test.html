@@ -797,6 +797,18 @@
     demo("Textures and STL files", "A cube with a picture, upright on its sides. A sphere that follows img1 (it changes every 2 seconds). A purple pyramid from an STL file. The shape whose file cannot be loaded is not drawn (a warning in the console says so).", [560, 320], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewScene3D(id, ["tex3d.url", "tex3d.image", "tex3d.stl", "tex3d.missing"]));
     });
+    demo("A file that is missing here, then given by a zip", "zip.pyramid links to parts/pyramid.stl, which this page does not have: the view says so. Two seconds later a zip with that path is opened (Teleplot.files.importAssets, what the Export panel does with a dropped .zip): the url stays the same, the view loads the file of the zip (Teleplot.files.resolve) and its note goes. A zip saved by the Export panel (exportAssets) holds the files at their urls, and teleplot-files.json for the others.", [420, 260], (id) => {
+      Teleplot.parseDataText('3D|zip.pyramid:S:stl:U:"parts/pyramid.stl":C:#e67e22');
+      Teleplot.view.addView(new Teleplot.view.ViewScene3D(id, ["zip.pyramid"]));
+      // A zip of one stored entry, written by hand: its path is the url it is for
+      const stl = new TextEncoder().encode("solid p\n" + [[[0,0,0],[1,1,0],[1,0,0]], [[0,0,0],[0,1,0],[1,1,0]], [[0,0,0],[1,0,0],[.5,.5,1]], [[1,0,0],[1,1,0],[.5,.5,1]], [[1,1,0],[0,1,0],[.5,.5,1]], [[0,1,0],[0,0,0],[.5,.5,1]]]
+        .map((f) => "facet normal 0 0 0\nouter loop\n" + f.map((v) => "vertex " + v.join(" ")).join("\n") + "\nendloop\nendfacet").join("\n") + "\nendsolid p\n");
+      const name = new TextEncoder().encode("parts/pyramid.stl"), header = (size, signature) => { const v = new DataView(new ArrayBuffer(size)); v.setUint32(0, signature, true); return v; };
+      const local = header(30, 0x04034b50); local.setUint16(4, 20, true); local.setUint32(18, stl.length, true); local.setUint32(22, stl.length, true); local.setUint16(26, name.length, true);
+      const central = header(46, 0x02014b50); central.setUint32(20, stl.length, true); central.setUint32(24, stl.length, true); central.setUint16(28, name.length, true);
+      const end = header(22, 0x06054b50); end.setUint16(8, 1, true); end.setUint16(10, 1, true); end.setUint32(12, 46 + name.length, true); end.setUint32(16, 30 + name.length + stl.length, true);
+      new Blob([local.buffer, name, stl, central.buffer, name, end.buffer]).arrayBuffer().then((buffer) => setTimeout(() => Teleplot.files.importAssets(new Uint8Array(buffer)), 2000));
+    });
 
     data("A 3D point", "The xyz flag of the text protocol: name:x:y:z:timestamp|xyz. In units of 100.", () => {
       setInterval(() => {

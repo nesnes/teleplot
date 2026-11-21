@@ -293,6 +293,7 @@ class PictureFrame extends ViewScene3D {
     update(){
         this.__followOwner();
         if (!super.__before_update()) return;
+        this.__checkAssets();
         let element = document.getElementById(this.divId);
         let viewGroup = TELEPLOT.view.groups[this.group];
         let cursor = viewGroup.cursorTimestamp;
