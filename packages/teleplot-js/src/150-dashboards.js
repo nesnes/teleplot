@@ -254,13 +254,19 @@ TELEPLOT.dashboards.enableAutoDashboard = function(name = "Live", onCreated = ()
         // scene is in the 3D view of its label, and still gets its image view.)
         if (TELEPLOT.view.ViewScene3D.pixelFrame(telem) !== undefined && telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return; // Drawn in the pixels of a picture: the image views of that picture take it
         let ownViewType = { chart: "teleplot-chart", values: "teleplot-current-value", log: "teleplot-log", timeline: "teleplot-timeline", graph: "teleplot-graph", "2d": "teleplot-2d", "3d": "teleplot-3d", image: "teleplot-image", joystick: "teleplot-joystick" }[TELEPLOT.view.suggestViewType(telem.id)];
-        if (layout !== undefined && layout.views.some((v) => v.type === ownViewType && v.telemetryIdOrNameList && v.telemetryIdOrNameList.includes(telem.id))) return;
+        // (by id, or by its name: a dashboard received or opened from a file lists its telemetries by name)
+        let shows = (list) => list.views.some((v) => Array.isArray(v.views) ? shows(v) : v.type === ownViewType && Array.isArray(v.telemetryIdOrNameList)
+            && v.telemetryIdOrNameList.some((entry) => entry === telem.id || (TELEPLOT.datastore.getTelemetry(entry) || {}).id === telem.id)); // (ids: in a page the library may be behind proxies)
+        if (layout !== undefined && shows(layout)) return;
 
         let isNew = layout === undefined;
         let dashboard = TELEPLOT.dashboards.getOrCreateDashboard(name);
         if (isNew) {
             dashboard.isAuto = true;
-            if (dashboard.view && Array.isArray(dashboard.view.views)) layout = dashboard.view; // (a dashboard of that name was received first)
+            if (dashboard.view && Array.isArray(dashboard.view.views)) { // (a dashboard of that name was received first, or opened from a file)
+                layout = dashboard.view;
+                if (shows(layout)) return; // It shows this telemetry already: not twice
+            }
             else {
                 layout = new TELEPLOT.view.ViewLayout("", dashboard.getGroupName());
                 layout.layout.type = "grid";

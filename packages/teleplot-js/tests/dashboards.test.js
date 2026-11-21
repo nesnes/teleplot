@@ -288,3 +288,20 @@ test('auto dashboard: a stack gets a timeline; stacks without label share one, a
     T.__timers.run();
     assert.deepEqual(names(T.dashboards.getDashboard('Robot').getView().views[0]), ['job']);
 });
+
+test('a file that holds the automatic dashboard, opened in a fresh page: each telemetry is shown once', () => {
+    const T = loadTeleplot();
+    T.dashboards.enableAutoDashboard('Live');
+    T.parseDataText('3D|pawn:1000:S:cube:P:1:0:0\nspeed:1000:4.5\nspeed:2000:5');
+    T.__timers.run();
+    const views = (U) => U.dashboards.getDashboard('Live').getView().views.map((v) => v.type.replace('teleplot-', ''));
+    assert.deepEqual(views(T), ['3d', 'chart']);
+    for (const format of ['text', 'binary']) {
+        const out = format === 'text' ? T.files.exportText() : T.files.exportBinary();
+        const U = loadTeleplot();
+        U.dashboards.enableAutoDashboard('Live');
+        U.files.importData(Buffer.concat(out.parts.map((p) => Buffer.from(p))));
+        U.__timers.run();
+        assert.deepEqual(views(U), ['3d', 'chart'], format + ': not twice');
+    }
+});
