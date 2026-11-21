@@ -58,6 +58,7 @@ body {
 	margin: 0px;
 	padding: 0px;
 	background-color: var(--color-bg);
+	color: var(--color-text); /* (else the browser's black: panel titles were black on dark) */
 }
 
 button {
