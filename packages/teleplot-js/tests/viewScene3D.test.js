@@ -244,3 +244,12 @@ test('touchOrbit: two fingers slide, pinch and twist the scene; three turn it up
     m = S.touchOrbit({ position: [0, 0, 10], target: [0, 0, 0] }, { dx: 10, dy: 0, scale: 1, angle: 0 }, 90, 100);
     assert.ok(m.target.every(Number.isFinite) && Math.abs(Math.hypot(m.target[0], m.target[1]) - 2) < 1e-6, String(m.target));
 });
+
+test('a note folds to a short chip: what comes before its first colon', () => {
+    const T = loadTeleplot();
+    const V = T.view.ViewScene3D;
+    const note = V.loadNote(['a/LeftTransverseShoulderLink.STL', 'b/LeftSagittalKneeLink_S.STL', 'c/x.STL'], 'http:');
+    assert.equal(V.noteShort(note), '\u26A0 3 files could not be loaded', 'the names are in the open note');
+    assert.equal(V.noteShort(V.loadNote(['pawn.stl'], 'http:')), '\u26A0 pawn.stl could not be loaded');
+    assert.equal(V.noteShort('3D needs WebGL, which is not available here'), '\u26A0 3D needs WebGL, which is not available here');
+});

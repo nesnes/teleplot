@@ -42,7 +42,8 @@ class ViewScene3D extends ViewTelemetries {
         this.state = TELEPLOT.Vue.reactive({
             legend: [], // [{id, name, unit, color, value, valueChars}]
             error: "",  // Why nothing can be drawn (no WebGL)
-            loadNote: "" // Files that could not be loaded (STL, pictures of textures), and why: see loadNote
+            loadNote: "", // Files that could not be loaded (STL, pictures of textures), and why: see loadNote
+            noteFolded: false // The note is folded to a small chip (a click on it), so that what is under it can be seen
         });
         this.loadFailures = TELEPLOT.Vue.markRaw(new Map()); // url -> what it is, for the files that could not be loaded (tried again once mounted again)
         this.hidden = TELEPLOT.Vue.reactive({});  // { telemetryId: true } telemetries switched off by a click on their legend entry
@@ -603,7 +604,11 @@ class ViewScene3D extends ViewTelemetries {
                 onLegendClick(id) { self.toggleTelemetry(id); },
                 onLegendEnter(id) { self.highlightTelemetry(id); },
                 onLegendLeave() { self.highlightTelemetry(undefined); },
-                onLegendMore() { if(self.legend.open) self.closeLegendList(); else self.openLegendList(); }
+                onLegendMore() { if(self.legend.open) self.closeLegendList(); else self.openLegendList(); },
+                onLegendPin() { self.pinLegendList(); },
+                noteShort: (text) => ViewScene3D.noteShort(text),
+                onNoteClick() { self.state.noteFolded = !self.state.noteFolded; },
+                pinnable() { return TELEPLOT.view.canPinLegend(); }
             },
             template: this.constructor.vueHTML,
         });
@@ -630,10 +635,20 @@ class ViewScene3D extends ViewTelemetries {
         let element = document.getElementById(this.divId);
         let legendEl = element && element.querySelector(".teleplot-js-scene3d-legend > .teleplot-js-chart-legend");
         if(!legendEl) return;
+        TELEPLOT.view.ViewChart.watchLegend(this, legendEl, () => this.layoutLegend());
         let { visible, folded } = TELEPLOT.view.ViewChart.fitLegend(legendEl);
         if(this.legend.visible !== visible) this.legend.visible = visible;
         if(this.legend.folded !== folded) this.legend.folded = folded;
         if(!folded && this.legend.open) this.closeLegendList();
+    }
+
+    // The list goes to a window of the page (TELEPLOT.view.pinLegend), from where it was
+    pinLegendList() {
+        let element = document.getElementById(this.divId);
+        let popover = element && element.querySelector(".teleplot-js-scene3d-popover");
+        let box = popover ? popover.getBoundingClientRect() : undefined;
+        this.closeLegendList();
+        TELEPLOT.view.pinLegend(this, box ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined);
     }
 
     // List of all the telemetries, under the legend: closed by a click elsewhere or Escape
@@ -810,6 +825,7 @@ class ViewScene3D extends ViewTelemetries {
 
     dispose() {
         this.closeLegendList();
+        TELEPLOT.view.ViewChart.unwatchLegend(this);
         this.__disposeThree();
         this.loadFailures.clear(); // (mounted again, the files are loaded again)
         if(this.state.loadNote) this.state.loadNote = "";
@@ -828,6 +844,13 @@ class ViewScene3D extends ViewTelemetries {
 
     // What to say about files that could not be loaded. A page opened from a file (file://) cannot read other files with a request
     // (an STL file: browsers refuse it), nor give a picture of the disk to WebGL: it has to be opened from a server.
+    // A note folded to a chip: "⚠ 21 files could not be loaded" (what comes before its first colon, short)
+    static noteShort(text) {
+        let head = String(text || "").split(": ")[0];
+        if(head.length > 48) head = head.replace(/ \(.*\)/, ""); // (the list of the files: in the note when it is open)
+        return "\u26A0 " + (head.length > 48 ? head.slice(0, 47) + "…" : head);
+    }
+
     static loadNote(urls, protocol) {
         if(!urls.length) return "";
         let name = (url) => {
@@ -1554,6 +1577,7 @@ class ViewScene3D extends ViewTelemetries {
                       title="All the telemetries" v-on:click.stop="onLegendMore()">+{{legend.folded}} <span>&#9662;</span></button>
               </div>
               <div v-if="legend.open" class="teleplot-js-scene3d-popover">
+                  <div v-if="pinnable()" class="teleplot-js-legend-pin-row"><button type="button" class="teleplot-js-legend-pin" title="Pin this list: a window that stays open, and can be moved" v-on:click.stop="onLegendPin()">Pin</button></div>
                   <div v-for="item in state.legend" v-bind:key="item.id" class="teleplot-js-chart-legend-block"
                       v-bind:class="{'teleplot-js-chart-legend-off': hidden[item.id]}" v-bind:style="{'--chip-color': item.color}"
                       v-on:click="onLegendClick(item.id)" v-on:mouseenter="onLegendEnter(item.id)" v-on:mouseleave="onLegendLeave()">
@@ -1574,7 +1598,8 @@ class ViewScene3D extends ViewTelemetries {
               <div class="teleplot-js-empty-title">{{state.error || emptyState.text}}</div>
               <div v-if="emptyState.hint && !state.error" class="teleplot-js-empty-hint">{{emptyState.hint}}</div>
           </div>
-          <div v-if="state.loadNote && !state.error" class="teleplot-js-scene3d-note">{{state.loadNote}}</div>
+          <div v-if="state.loadNote && !state.error" class="teleplot-js-scene3d-note teleplot-js-note" v-bind:class="{'teleplot-js-note-folded': state.noteFolded}"
+              v-bind:title="state.noteFolded ? state.loadNote : 'Click to fold this note'" v-on:click.stop="onNoteClick()">{{state.noteFolded ? noteShort(state.loadNote) : state.loadNote}}</div>
         </div>
     `;
 
@@ -1583,8 +1608,11 @@ class ViewScene3D extends ViewTelemetries {
         {
             .teleplot-js-scene3d-note { /* Files that could not be loaded: at the bottom, over the scene (as the note of an image view) */
                 position: absolute; left: 0.6em; right: 0.6em; bottom: 0.5em; z-index: 2; padding: 0.25em 0.7em; border-radius: 6px; font-size: 0.8em; line-height: 1.35; text-align: center;
-                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 85%, transparent); border: 1px solid var(--teleplot-warn); pointer-events: none;
+                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 85%, transparent); border: 1px solid var(--teleplot-warn);
             }
+            /* A note folds to a chip in its corner on a click, and opens again on a click: what is under it can be seen */
+            .teleplot-js-note { cursor: pointer; pointer-events: auto; }
+            .teleplot-js-note.teleplot-js-note-folded { right: auto; max-width: calc(100% - 1.2em); padding: 0.1em 0.6em; border-radius: 1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .teleplot-js-scene3d-container {
                 position: relative;
                 width: 100%;

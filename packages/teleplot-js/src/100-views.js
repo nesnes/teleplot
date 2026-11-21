@@ -314,6 +314,17 @@ TELEPLOT.view.pruneTimeGroups = function(){
 }
 
 // The tooltip of the name of a telemetry, wherever a view shows it: its name and unit, then its description (ATTR|name|desc=...)
+// Pinning the list of a legend (the popover of the "+N" chip of a chart, a 3D, 2D or image view): what the page does with it is its own
+// (the webapp opens a window that follows the view). The Pin button of the popover only shows when a hook is there.
+TELEPLOT.view.onPinLegendHooks = [];
+TELEPLOT.view.canPinLegend = function(){ return TELEPLOT.view.onPinLegendHooks.length > 0; };
+// rect: where the list was on the page ({left, top, width, height}), for the page to open its window there
+TELEPLOT.view.pinLegend = function(view, rect){
+    for(let hook of TELEPLOT.view.onPinLegendHooks) {
+        try { hook(view, rect); } catch(e) { console.error("Teleplot pin legend hook failed:", e); }
+    }
+};
+
 TELEPLOT.view.telemetryTip = function(telem) {
     if(!telem) return "";
     let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) || String(telem.id), unit = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_UNIT);

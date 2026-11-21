@@ -451,7 +451,8 @@ class PictureFrame extends ViewScene3D {
           <div v-if="self.chrome && state.colorScale && state.valuesShown" class="teleplot-js-image-scale" v-bind:class="'teleplot-js-image-scale-' + state.scaleCorner">
               <span>{{state.colorScale.low}}</span><i v-bind:style="{background: state.colorScale.gradient}"></i><span>{{state.colorScale.high}}<small v-if="state.colorScale.unit"> {{state.colorScale.unit}}</small></span>
           </div>
-          <div v-if="self.chrome && (state.note || state.error || state.loadNote)" class="teleplot-js-image-note">{{state.error || state.note || state.loadNote}}</div>
+          <div v-if="self.chrome && (state.note || state.error || state.loadNote)" class="teleplot-js-image-note teleplot-js-note" v-bind:class="{'teleplot-js-note-folded': state.noteFolded}"
+              v-bind:title="state.noteFolded ? (state.error || state.note || state.loadNote) : 'Click to fold this note'" v-on:click.stop="onNoteClick()">{{state.noteFolded ? noteShort(state.error || state.note || state.loadNote) : (state.error || state.note || state.loadNote)}}</div>
         </div>
     `;
 }
@@ -859,7 +860,7 @@ class ViewImage extends ViewScene3D {
             .teleplot-js-image-container .teleplot-js-chart-legend-more { background: color-mix(in srgb, var(--teleplot-surface) 82%, transparent); }
             .teleplot-js-image-note {
                 position: absolute; left: 0.6em; right: 0.6em; bottom: 0.5em; padding: 0.2em 0.7em; border-radius: 6px; font-size: 0.8em; text-align: center;
-                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 85%, transparent); pointer-events: none;
+                color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-surface) 85%, transparent);
             }
         }
     `;

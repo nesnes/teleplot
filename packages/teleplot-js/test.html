@@ -293,6 +293,18 @@
     demo("Legend in a short view", "The list of series scrolls.", [500, 140], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewChart(id, manySeries));
     });
+    demo("Legend list pinned by the page", "A page can keep the list of a legend: Teleplot.view.onPinLegendHooks gets the view when Pin is pressed in the list of +N (here the list goes to the box under the chart and follows it: ViewChart.createLegendList / syncLegendList; the webapp opens a window). Once a hook is there, every legend list of the page has Pin (3D, 2D and image views too).", [700, 360], (id) => {
+      const host = document.getElementById(id);
+      host.innerHTML = `<div id="${id}-chart" style="height: 200px"></div><div id="${id}-pinned" style="height: 150px; overflow: auto; border-top: 1px dashed var(--teleplot-line)"></div>`;
+      const chart = new Teleplot.view.ViewChart(id + "-chart", manySeries);
+      Teleplot.view.addView(chart);
+      let list;
+      Teleplot.view.onPinLegendHooks.push((view) => {
+        if (view !== chart || list) return;
+        list = chart.createLegendList(id + "-pinned");
+        Teleplot.updates.onUpdateHooks.push(() => { chart.syncLegendList(list); list.update(); });
+      });
+    });
 
     // ====================================================================================================================== Time
     section("Time", "Reception on or off (Teleplot.setReceiving), and the time shown by a time group: live, held at a moment or replaying at a speed (Teleplot.view.hold / seek / step / play / setSpeed / setSpan / backToLive, see doc/time.md). Every view shows the last sample at or before that moment. Held, charts keep their window and draw the data after the moment too, with a line at it.");
@@ -772,7 +784,7 @@
       Teleplot.view.addView(new Teleplot.view.ViewScene3D(id, [binId(1), binId(2), binId(3), binId(4)]));
     });
 
-    data("Textures and STL files", "An url, the image of an image telemetry, an STL file given as a data url (urls go in quotes), an STL file that does not exist.", () => {
+    data("Textures and STL files", "An url, the image of an image telemetry, an STL file given as a data url (urls go in quotes), an STL file that does not exist (its view says so in a note at its bottom: a click folds the note to a chip, another opens it again).", () => {
       const pyramid = "solid pyramid\n" + [ // ASCII STL: square base of 1, apex at z = 1
         [[0,0,0],[1,1,0],[1,0,0]], [[0,0,0],[0,1,0],[1,1,0]], [[0,0,0],[1,0,0],[.5,.5,1]], [[1,0,0],[1,1,0],[.5,.5,1]], [[1,1,0],[0,1,0],[.5,.5,1]], [[0,1,0],[0,0,0],[.5,.5,1]]
       ].map((f) => "facet normal 0 0 0\nouter loop\n" + f.map((v) => "vertex " + v.join(" ")).join("\n") + "\nendloop\nendfacet").join("\n") + "\nendsolid pyramid\n";

@@ -75,6 +75,13 @@ TELEPLOT.theme = {};
                 font-size: 1em;
                 text-wrap-style: balance;
             }
+            /* The Pin button of the list of a legend (charts, 3D, 2D, image views): TELEPLOT.view.pinLegend */
+            .teleplot-js-legend-pin-row { display: flex; justify-content: flex-end; padding: 0.25em 0.4em 0; }
+            .teleplot-js-legend-pin {
+                font: inherit; font-size: 0.85em; color: var(--teleplot-muted); cursor: pointer;
+                background: color-mix(in srgb, var(--teleplot-text) 8%, transparent); border: 0; border-radius: 1em; padding: 0.05em 0.7em;
+            }
+            .teleplot-js-legend-pin:hover { color: var(--teleplot-text); background: color-mix(in srgb, var(--teleplot-text) 16%, transparent); }
             .teleplot-js-telemetry-card-drag-over {
                 box-shadow: inset 0 var(--teleplot-accent-w, 2px) 0 0 var(--teleplot-accent, transparent), 0 0 0 2px #007eff94;
             }

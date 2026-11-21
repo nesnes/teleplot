@@ -73,6 +73,8 @@ class ViewChart extends ViewTelemetries{
                 onLegendEnter: (id) => self.highlightSeries(id),
                 onLegendLeave: () => self.highlightSeries(undefined),
                 onLegendMore: () => self.toggleLegendList(),
+                onLegendPin: () => self.pinLegendList(),
+                pinnable: () => TELEPLOT.view.canPinLegend(),
                 onDragEnter: self.onDragEnter,
                 onDragLeave: self.onDragLeave,
                 onDragDrop: self.onDragDrop
@@ -93,6 +95,7 @@ class ViewChart extends ViewTelemetries{
     
     dispose() {
         this.closeLegendList();
+        ViewChart.unwatchLegend(this);
         this.destroyChart();
         this.updateForced = true;
         super.dispose();
@@ -144,10 +147,35 @@ class ViewChart extends ViewTelemetries{
         let legendEl = document.getElementById(this.chartDivId);
         legendEl = legendEl && legendEl.parentElement && legendEl.parentElement.querySelector(".teleplot-js-chart-legend");
         if(!legendEl) return;
+        ViewChart.watchLegend(this, legendEl, () => this.layoutLegend());
         let { visible, folded } = ViewChart.fitLegend(legendEl);
         if(this.legend.visible !== visible) this.legend.visible = visible;
         if(this.legend.folded !== folded) this.legend.folded = folded;
         if(!folded && this.legend.open) this.closeLegendList();
+    }
+
+    // Measures a legend row again whenever its room or one of its entries changes size. The key of update() only sees the width of the
+    // view and the values: a title that takes the left of the row, a font that loads, a layout that changes the room without changing
+    // the view left entries cut and no "+N" chip to reach them. Shared by the views that have such a legend.
+    static watchLegend(view, legendEl, relayout) {
+        if(typeof ResizeObserver === "undefined" || !legendEl) return;
+        if(view.legendObserver && view.legendObserved !== legendEl) ViewChart.unwatchLegend(view); // (the view was mounted again)
+        if(!view.legendObserver) {
+            let pending = false;
+            let later = (fn) => typeof requestAnimationFrame === "function" ? requestAnimationFrame(fn) : fn();
+            view.legendObserver = TELEPLOT.Vue.markRaw(new ResizeObserver(() => {
+                if(pending) return;
+                pending = true;
+                later(() => { pending = false; relayout(); }); // (next frame: folding changes no size it watches, but never inside the observer)
+            }));
+            view.legendObserved = legendEl;
+            view.legendObserver.observe(legendEl);
+        }
+        for(let block of legendEl.children) view.legendObserver.observe(block); // (entries come and go with the series: observing twice does nothing)
+    }
+    static unwatchLegend(view) {
+        if(view.legendObserver) view.legendObserver.disconnect();
+        view.legendObserver = view.legendObserved = undefined;
     }
 
     // How many entries of a legend row (a ".teleplot-js-chart-legend" element) fit in its width, and how many do not: {visible, folded}.
@@ -178,23 +206,52 @@ class ViewChart extends ViewTelemetries{
         if(this.legend.open) this.closeLegendList(); else this.openLegendList();
     }
 
-    // List of all the series: a ViewCurrentValue on a popover, a row per telemetry that scrolls when there is not enough height
-    openLegendList() {
-        let host = document.getElementById(this.popoverDivId);
-        if(!host || this.popoverView) return;
-        this.legend.open = true;
-        let list = new TELEPLOT.view.ViewCurrentValue(this.popoverDivId, this.getSeriesTelemetries().map(t => t.id), this.group);
+    // The list of all the series of the chart, on the element of id divId: a ViewCurrentValue whose rows show or hide the series (click)
+    // and highlight it (hover). Its popover is one; a page can make one elsewhere (a pinned legend) and keep it in line with syncLegendList.
+    createLegendList(divId) {
+        let list = new TELEPLOT.view.ViewCurrentValue(divId, this.getSeriesTelemetries().map(t => t.id), this.group);
         list.options.displayNumberDecimals = this.options.displayNumberDecimals;
         list.options.displayScale = false; // (a list of series: rows stay short)
         list.commandsUI = false; // (a list to pick series from: nothing is edited there)
         list.dimmed = this.hidden;
         list.rowHandlers = { click: (id) => this.toggleSeries(id), enter: (id) => this.highlightSeries(id), leave: () => this.highlightSeries(undefined) };
+        list.legendKey = this.seriesKey;
+        return list;
+    }
+    // Same telemetries and time group as the chart (series come and go, the view moves to another group)
+    syncLegendList(list) {
+        let key = this.getSeriesTelemetries().map(t => t.id).join();
+        if(list.legendKey !== key) {
+            list.legendKey = key;
+            let ids = this.getSeriesTelemetries().map(t => t.id);
+            list.telemetryIdOrNameList = ids;
+            for(let id of Object.keys(list.telemetries)) if(!ids.includes(Number(id)) && !ids.includes(id)) delete list.telemetries[id];
+        }
+        if(list.group !== this.group) { list.group = this.group; TELEPLOT.view.ensureGroup(this.group); }
+        list.options.displayNumberDecimals = this.options.displayNumberDecimals;
+    }
+
+    // The popover's list goes to a window of the page (TELEPLOT.view.pinLegend), from where it was
+    pinLegendList() {
+        let host = document.getElementById(this.popoverDivId);
+        let frame = host && host.parentElement;
+        let box = frame ? frame.getBoundingClientRect() : undefined;
+        this.closeLegendList();
+        TELEPLOT.view.pinLegend(this, box ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined);
+    }
+
+    // List of all the series: a ViewCurrentValue on a popover, a row per telemetry that scrolls when there is not enough height
+    openLegendList() {
+        let host = document.getElementById(this.popoverDivId);
+        if(!host || this.popoverView) return;
+        this.legend.open = true;
+        let list = this.createLegendList(this.popoverDivId);
         this.popoverView = list;
-        this.popoverKey = this.seriesKey;
         this.updateLegendList();
+        let frame = host.parentElement; // (the list and its Pin button)
         this.outsideHandler = (e) => {
             let path = e.composedPath ? e.composedPath() : [];
-            if(path.includes(host) || path.some(n => n.classList && n.classList.contains("teleplot-js-chart-legend-more"))) return;
+            if(path.includes(frame) || path.some(n => n.classList && n.classList.contains("teleplot-js-chart-legend-more"))) return;
             this.closeLegendList();
         };
         this.keyHandler = (e) => { if(e.key === "Escape") this.closeLegendList(); };
@@ -220,16 +277,11 @@ class ViewChart extends ViewTelemetries{
     updateLegendList() {
         let list = this.popoverView;
         if(!list) return;
-        if(this.popoverKey !== this.seriesKey) {
-            this.popoverKey = this.seriesKey;
-            let ids = this.getSeriesTelemetries().map(t => t.id);
-            list.telemetryIdOrNameList = ids;
-            for(let id of Object.keys(list.telemetries)) if(!ids.includes(Number(id)) && !ids.includes(id)) delete list.telemetries[id];
-        }
+        this.syncLegendList(list);
         let host = document.getElementById(this.popoverDivId);
-        let root = host && host.parentElement;
+        let frame = host && host.parentElement, root = frame && frame.parentElement;
         if(root) {
-            let max = Math.max(60, root.clientHeight - host.offsetTop - 8) + "px"; // What is left under the legend
+            let max = Math.max(60, root.clientHeight - frame.offsetTop - host.offsetTop - 8) + "px"; // What is left under the legend
             if(host.style.getPropertyValue("--pop-max") !== max) host.style.setProperty("--pop-max", max);
         }
         list.update();
@@ -1114,7 +1166,10 @@ class ViewChart extends ViewTelemetries{
                 <button v-if="legend.folded > 0" type="button" class="teleplot-js-chart-legend-more" v-bind:class="{'teleplot-js-chart-legend-more-open': legend.open}"
                     title="All the series" v-on:click.stop="onLegendMore()">+{{legend.folded}} <span>&#9662;</span></button>
             </div>
-            <div class="teleplot-js-chart-popover" v-show="legend.open" v-bind:id="popoverDivId"></div>
+            <div class="teleplot-js-chart-popover" v-show="legend.open">
+                <div v-if="pinnable()" class="teleplot-js-legend-pin-row"><button type="button" class="teleplot-js-legend-pin" title="Pin this list: a window that stays open, and can be moved" v-on:click.stop="onLegendPin()">Pin</button></div>
+                <div class="teleplot-js-chart-popover-list" v-bind:id="popoverDivId"></div>
+            </div>
             <div class="teleplot-js-chart-uplot" v-bind:id="chartDivId"></div>
             <div v-if="emptyState.text" class="teleplot-js-empty">
                 <div class="teleplot-js-empty-title">{{emptyState.text}}</div>
@@ -1189,7 +1244,7 @@ class ViewChart extends ViewTelemetries{
                 /* the list is a view of its own, drawn without card look */
                 --teleplot-card-bg: transparent; --teleplot-card-bw: 0px; --teleplot-card-radius: 0px; --teleplot-card-shadow: none; --teleplot-accent-w: 0px;
             }
-            .teleplot-js-chart-popover > * { display: contents; }
+            .teleplot-js-chart-popover-list > * { display: contents; }
             .teleplot-js-chart-popover .teleplot-js-current-value-container { height: auto; min-height: 0; max-height: var(--pop-max, 20em); justify-content: flex-start; } /* scrolls when the height is short */
             .teleplot-js-chart-legend-name { order: 1; color: var(--teleplot-muted); }
             .teleplot-js-chart-legend-name::before { /* color key of the series */

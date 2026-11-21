@@ -524,3 +524,43 @@ test('current value: labels under a bar (ends of the range, names of the thresho
     assert.ok(view.getOptionsSchema().some(o => o.key === 'displayScale'));
     assert.doesNotThrow(() => { view.update(); view.fitScales(); });
 });
+
+test('a legend is measured again when its room or an entry changes size, not only when the view does', () => {
+    const { T, chart } = setup(['a', 'b']);
+    const saved = global.ResizeObserver, observers = [];
+    global.ResizeObserver = class { constructor(cb) { this.cb = cb; this.seen = new Set(); this.off = false; observers.push(this); } observe(el) { this.seen.add(el); } disconnect() { this.off = true; } };
+    try {
+        const blocks = [{ id: 'a' }, { id: 'b' }], legend = { children: blocks };
+        let layouts = 0;
+        T.view.ViewChart.watchLegend(chart, legend, () => layouts++);
+        T.view.ViewChart.watchLegend(chart, legend, () => layouts++);
+        assert.equal(observers.length, 1, 'one observer per legend');
+        assert.deepEqual([...observers[0].seen], [legend, ...blocks], 'the row and its entries');
+        observers[0].cb([]);
+        assert.equal(layouts, 1, 'a size changed: laid out again');
+        T.view.ViewChart.watchLegend(chart, { children: [] }, () => {});
+        assert.equal(observers[0].off, true, 'a new legend element (mounted again): the old one is no longer watched');
+        chart.dispose();
+        assert.equal(observers[1].off, true, 'disposed: nothing watched');
+    } finally { global.ResizeObserver = saved; }
+});
+
+test('a legend list can be pinned by the page: a hook, and a list that follows the chart', () => {
+    const { T, chart } = setup(['a', 'b']);
+    T.parseDataText('a:1'); T.parseDataText('b:2');
+    assert.equal(T.view.canPinLegend(), false, 'no hook: no Pin button');
+    const pinned = [];
+    T.view.onPinLegendHooks.push((view, rect) => pinned.push([view, rect]));
+    assert.equal(T.view.canPinLegend(), true);
+    chart.pinLegendList();
+    assert.deepEqual(pinned, [[chart, undefined]], 'the hook gets the view (and where the list was, here no DOM)');
+    const list = chart.createLegendList('pinned-list');
+    assert.deepEqual(list.telemetryIdOrNameList, chart.getSeriesTelemetries().map((t) => t.id));
+    assert.equal(list.dimmed, chart.hidden, 'series switched off are dimmed in the list too');
+    list.rowHandlers.click(chart.getSeriesTelemetries()[0].id);
+    assert.equal(chart.hidden[chart.getSeriesTelemetries()[0].id], true, 'a click on a row switches its series off');
+    chart.telemetryIdOrNameList = ['a'];
+    chart.group = 'other';
+    chart.syncLegendList(list);
+    assert.deepEqual([list.telemetryIdOrNameList, list.group], [[T.datastore.getTelemetry('a').id], 'other'], 'series and time group follow the chart');
+});
