@@ -6,7 +6,49 @@
  * - Tiles and group headers are draggable (a group adds all its telemetries to the view it is dropped on).
  * - View labels ("name,label" in the text protocol): each label has a card of its own, to drag all its telemetries at once. The telemetries
  *   of a label are only listed inside its card, which is folded until opened.
+ * - Its card (telemetry-card.js): the pointer resting on a tile shows it (a tap with a finger), dragging the tile hides it, its Pin
+ *   button keeps it open.
  */
+// The kinds of telemetry the panel tells apart: its badges and type selectors (numbers: the data types of the protocol). Also the badges of
+// the cards (telemetry-card.js).
+const TELEMETRY_TYPES = [
+    { code: 20, badge: "NUM", label: "Number" },
+    { code: 21, badge: "2D",  label: "Number 2D" },
+    { code: 22, badge: "3D",  label: "Number 3D" },
+    { code: 23, badge: "TXT", label: "Text" },
+    { code: "log", badge: "LOG", label: "Text emitted as a log (a Log view by default)" }, // Not a data type: a text telemetry with the log attribute
+    { code: 24, badge: "IMG", label: "Image" },
+    { code: 35, badge: "CLOUD", label: "Point cloud" },
+    { code: "shape", badge: "SHAPE", label: "Shape (2D or 3D)" }, // Not one data type: a shape is made of several (position, color...)
+    { code: "camera", badge: "CAM", label: "Camera (intrinsics, to draw 3D telemetries over its images)" },
+    { code: "setting", badge: "SET", label: "Setting: a value the page can change (CMD on)" }, // Commands (doc/telecmd.md): what it is for, not a data type
+    { code: "action", badge: "BUTTON", label: "Action: a button that calls a function of the device (CMD on)" },
+    { code: "graph", badge: "GRAPH", label: "A state machine or a tree: a structure, drawn by a graph view (doc/graph.md)" }, // Not a data type: a text with an enum or edges structure
+];
+
+// The kinds of a telemetry (codes of TELEMETRY_TYPES), the main one first
+function telemetryTypes(TP, telem) {
+    const P = TP.protocol;
+    const known = TELEMETRY_TYPES.map(t => t.code);
+    const types = Object.keys(telem.data).map(Number).filter(t => known.includes(t));
+    const isCloud = TP.view.ViewScene3D.isCloud(telem); // (its position and orientation are the pose of its sensor, not a shape)
+    const isLog = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && telem.attributes[P.TELEM_ATTR_LOG] === true;
+    if (isLog) types.push("log");
+    if (!isCloud && TP.view.ViewScene3D.isShape(telem)) {
+        const points = types.indexOf(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD); // The points of a line or a polygon: part of the shape, not a cloud
+        if (points >= 0) types.splice(points, 1);
+        types.push("shape");
+    }
+    if (TP.view.ViewScene3D.isCamera(telem)) types.push("camera");
+    const control = TP.commands.declaration(telem);
+    if (telem.hasStructure() && telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && !control) types.unshift("graph"); // (a setting with choices is a setting)
+    // Commands: a control is listed as one. A setting keeps the type of its value; an action is a button, whatever its answers
+    // are stored as (log lines of it: they are not what it is)
+    if (control && control.kind == "action") types.splice(0, types.length, "action");
+    else if (control) types.unshift("setting");
+    return types;
+}
+
 function initComponent_panel_telemetries(vue) {
     let name = "panel-telemetries";
 
@@ -19,6 +61,7 @@ function initComponent_panel_telemetries(vue) {
                 <div class="telemetries-pills">
                     <span v-for="t in typeList" :key="t.code" class="telemetries-pill" :class="['telemetries-type-'+t.code, {'on': selectedTypes.includes(t.code), 'off': selectedTypes.length && !selectedTypes.includes(t.code), 'zero': !typeCounts[t.code]}]"
                         :title="t.label" @click="toggleType(t.code)">{{t.badge}} <b>{{typeCounts[t.code]}}</b></span>
+                    <button v-if="pinnedCount" class="telemetries-pinned-count" @click="unpinAll" :title="'Close the ' + pinnedCount + ' pinned cards'">{{pinnedCount}} pinned ✕</button>
                     <span class="telemetries-count">{{shownCount}} / {{allCount}}</span>
                 </div>
             </div>
@@ -33,8 +76,8 @@ function initComponent_panel_telemetries(vue) {
                     <div v-if="section.title" class="telemetries-client">{{section.title}}</div>
 
                     <div v-if="section.ungrouped.length" class="telemetries-tiles">
-                        <div v-for="item in section.ungrouped" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
-                            draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent @pointerdown="onPress($event, [item.id], '', item.name)">
+                        <div v-for="item in section.ungrouped" :key="item.id" class="telemetries-tile" :class="['telemetries-type-'+item.mainType, {'telemetries-pinned': pinned(item.id)}]"
+                            draggable="true" @mouseenter="hoverTile($event, item.id)" @mouseleave="leaveTile" @pointerup="tapTile($event, item.id)" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent @pointerdown="onPress($event, [item.id], '', item.name)">
                             <span class="telemetries-name"><template v-for="seg in segments(item, 0)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template><span v-if="item.command" class="telemetries-cmd" :title="item.commandTitle">{{item.command}}</span></span>
                             <span class="telemetries-value-line">
                                 <span v-for="t in item.types" :key="t" class="telemetries-badge" :class="'telemetries-type-'+t">{{badge(t)}}</span>
@@ -55,8 +98,8 @@ function initComponent_panel_telemetries(vue) {
                             <span class="telemetries-dots"><i v-for="t in group.types" :key="t" :class="'telemetries-type-'+t" :title="typeLabel(t)"></i></span>
                         </summary>
                         <div class="telemetries-tiles">
-                            <div v-for="item in group.items" :key="item.id" class="telemetries-tile" :class="'telemetries-type-'+item.mainType"
-                                draggable="true" :title="item.tooltip" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent @pointerdown="onPress($event, [item.id], '', item.name)">
+                            <div v-for="item in group.items" :key="item.id" class="telemetries-tile" :class="['telemetries-type-'+item.mainType, {'telemetries-pinned': pinned(item.id)}]"
+                                draggable="true" @mouseenter="hoverTile($event, item.id)" @mouseleave="leaveTile" @pointerup="tapTile($event, item.id)" @dragstart.stop="onDragStart($event, [item.id])" @dragover.stop.prevent @pointerdown="onPress($event, [item.id], '', item.name)">
                                 <span class="telemetries-name">
                                     <span class="telemetries-dim"><template v-for="seg in segments(item, 0, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template></span><template v-for="seg in segments(item, group.isLabel ? 0 : item.dimLength)"><mark v-if="seg.m">{{seg.t}}</mark><template v-else>{{seg.t}}</template></template><span v-if="item.command" class="telemetries-cmd" :title="item.commandTitle">{{item.command}}</span>
                                 </span>
@@ -161,6 +204,9 @@ function initComponent_panel_telemetries(vue) {
             cursor: grab; user-select: none;
         }
         .telemetries-tile:hover { background: var(--color-bg); }
+        .telemetries-tile.telemetries-pinned { outline: 1px solid var(--color-primary); }
+        .telemetries-pinned-count { font: inherit; font-size: 0.8rem; border: none; border-radius: 1rem; padding: 0.05rem 0.55rem; background: var(--color-primary); color: #fff; cursor: pointer; margin-left: auto; }
+        .telemetries-pinned-count + .telemetries-count { margin-left: 0.4rem; }
         .telemetries-tile:active { cursor: grabbing; }
         .telemetries-name { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; line-height: 1.25; }
         .telemetries-dim { font-weight: 400; color: var(--color-text-muted); }
@@ -198,20 +244,7 @@ function initComponent_panel_telemetries(vue) {
                 openGroups: {},      // Group key -> open ? (default: open)
                 tick: 0,             // Values are not reactive (raw datastore): refreshed on a timer
                 timer: null,
-                typeList: [
-                    { code: P.SECTION_TYPE_TELEM_DATA_NUMBER,    badge: "NUM", label: "Number" },
-                    { code: P.SECTION_TYPE_TELEM_DATA_NUMBER_2D, badge: "2D",  label: "Number 2D" },
-                    { code: P.SECTION_TYPE_TELEM_DATA_NUMBER_3D, badge: "3D",  label: "Number 3D" },
-                    { code: P.SECTION_TYPE_TELEM_DATA_TEXT,      badge: "TXT", label: "Text" },
-                    { code: "log",                               badge: "LOG", label: "Text emitted as a log (a Log view by default)" }, // Not a data type: a text telemetry with the log attribute
-                    { code: P.SECTION_TYPE_TELEM_DATA_IMAGE,     badge: "IMG", label: "Image" },
-                    { code: P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD, badge: "CLOUD", label: "Point cloud" },
-                    { code: "shape",                             badge: "SHAPE", label: "Shape (2D or 3D)" }, // Not one data type: a shape is made of several (position, color...)
-                    { code: "camera",                            badge: "CAM", label: "Camera (intrinsics, to draw 3D telemetries over its images)" },
-                    { code: "setting",                           badge: "SET", label: "Setting: a value the page can change (CMD on)" }, // Commands (doc/telecmd.md): what it is for, not a data type
-                    { code: "action",                            badge: "BUTTON", label: "Action: a button that calls a function of the device (CMD on)" },
-                    { code: "graph",                             badge: "GRAPH", label: "A state machine or a tree: a structure, drawn by a graph view (doc/graph.md)" }, // Not a data type: a text with an enum or edges structure
-                ],
+                typeList: TELEMETRY_TYPES,
             }
         },
         mounted() { this.timer = setInterval(() => { this.tick++; }, 250); },
@@ -223,31 +256,17 @@ function initComponent_panel_telemetries(vue) {
             items() {
                 this.tick; // Refresh values
                 const P = this.TP.protocol;
-                const known = this.typeList.map(t => t.code);
                 const list = [];
                 for (const id in this.TP.datastore.telemetries) {
                     const telem = this.TP.datastore.telemetries[id];
                     const name = String(telem.attributes[P.TELEM_ATTR_NAME] ?? ("telemetry " + telem.id));
                     const unit = telem.attributes[P.TELEM_ATTR_UNIT] || "";
-                    const types = Object.keys(telem.data).map(Number).filter(t => known.includes(t));
-                    const isCloud = this.TP.view.ViewScene3D.isCloud(telem); // (its position and orientation are the pose of its sensor, not a shape)
-                    const isLog = telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && telem.attributes[P.TELEM_ATTR_LOG] === true;
-                    if (isLog) types.push("log");
-                    if (!isCloud && this.TP.view.ViewScene3D.isShape(telem)) {
-                        const points = types.indexOf(P.SECTION_TYPE_TELEM_DATA_POINT_CLOUD); // The points of a line or a polygon: part of the shape, not a cloud
-                        if (points >= 0) types.splice(points, 1);
-                        types.push("shape");
-                    }
-                    if (this.TP.view.ViewScene3D.isCamera(telem)) types.push("camera");
-                    if (telem.hasStructure() && telem.data[P.SECTION_TYPE_TELEM_DATA_TEXT] !== undefined && !this.TP.commands.declaration(telem)) types.unshift("graph"); // (a setting with choices is a setting)
+                    const types = telemetryTypes(this.TP, telem);
+                    const isLog = types.includes("log");
                     const sep = name.startsWith("/") ? "/" : ".";
                     const path = (name.startsWith("/") ? name.slice(1) : name).split(sep);
                     const rest = path.slice(1).join(sep);
-                    // Commands: a control is listed as one. A setting keeps the type of its value; an action is a button, whatever its answers
-                    // are stored as (log lines of it: they are not what it is)
                     const control = this.TP.commands.declaration(telem);
-                    if (control && control.kind == "action") types.splice(0, types.length, "action");
-                    else if (control) types.unshift("setting");
                     const mainType = control ? (control.kind == "action" ? "action" : "setting") : (isLog ? "log" : (types.length ? types[0] : "other"));
                     const label = telem.attributes[P.TELEM_ATTR_VIEW_LABEL] || "";
                     const rate = this.rateText(telem, types);
@@ -271,6 +290,7 @@ function initComponent_panel_telemetries(vue) {
             shown() { return this.selectedTypes.length ? this.matchingName.filter(i => i.types.some(t => this.selectedTypes.includes(t))) : this.matchingName; },
             allCount() { return this.items.length; },
             shownCount() { return this.shown.length; },
+            pinnedCount() { return tcardState.pinned.length; },
             typeCounts() {
                 const counts = {};
                 for (const t of this.typeList) counts[t.code] = this.matchingName.filter(i => i.types.includes(t.code)).length;
@@ -308,6 +328,12 @@ function initComponent_panel_telemetries(vue) {
             },
         },
         methods:{
+            // Cards (telemetry-card.js): resting on a tile shows its card; a finger has no hover: a tap shows it. Only its Pin button pins it.
+            hoverTile(event, id) { tcardHoverStart(id, event.currentTarget); },
+            leaveTile() { tcardHoverEnd(); },
+            tapTile(event, id) { if (event.pointerType === "touch") tcardShow(id, event.currentTarget); },
+            pinned(id) { return tcardIsPinned(id); },
+            unpinAll() { tcardUnpinAll(); },
             valueText(telem, types) {
                 const P = this.TP.protocol;
                 if (types[0] == "action") { // How its last call went
@@ -376,8 +402,12 @@ function initComponent_panel_telemetries(vue) {
             segments(item, from, to) { return this.segmentsOf(item.name, from, to === undefined ? item.name.length : to); },
             // label: the ids are all the telemetries of a view label; the views they are dropped on will follow that label
             // With a finger: press, then drag (dashboard-editor.js, E.pressTelemetries): the mouse keeps the drag and drop of the browser
-            onPress(event, ids, label, title) { this.editor.pressTelemetries(event, ids, label, title); },
+            onPress(event, ids, label, title) {
+                if (event.pointerType === "touch") tcardDragStarted(); // (a finger may lift the tile: its card goes; a tap shows it again when lifted)
+                this.editor.pressTelemetries(event, ids, label, title);
+            },
             onDragStart(event, ids, label = "") {
+                tcardDragStarted(); // Dragging hides the card that is not pinned
                 event.dataTransfer.setData("text/x-teleplot-drag-type-telemetry", "");
                 if (label) event.dataTransfer.setData("text/x-teleplot-drag-label", label);
                 event.dataTransfer.setData("text/x-teleplot-drag-id", ids[0]);

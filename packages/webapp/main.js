@@ -236,6 +236,7 @@ initComponent_panel_help(app);
 initComponent_panel_sources(app);
 initComponent_panel_export(app);
 initComponent_panel_telemetries(app);
+initComponent_telemetry_cards(app);
 initComponent_panel_edit(app);
 initComponent_dashboard(app);
 
