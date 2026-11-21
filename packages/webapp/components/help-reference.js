@@ -359,6 +359,8 @@ const REF_OPTIONS = {
     colormap: "Colors of a values picture.",
     valueRange: "Colors spread over the range of the telemetry, or over what each picture holds.",
     displayColorScale: "The scale of the colors with its values.",
+    cameras: "Beside: the pictures selected side by side. Drawn over: the first one selected is the base, the depth cameras of the selection are drawn over the pictures shown (the button at the right of the filmstrip).",
+    cameraCones: "Cameras drawn with the pyramid of what they see (their depth points either way).",
     keyboard: "Drive it with the keyboard while the view has the focus.",
     orientation: "Rocker of a number: horizontal (right for +) or vertical (up for +).",
 };

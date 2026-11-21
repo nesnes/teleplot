@@ -5,8 +5,13 @@
  *   thumbnail of its filmstrip) and the values view (one per picture line). It is not a view of a dashboard: its owner (the view it is in)
  *   gives it its picture, its options and its group, and updates it.
  * - ViewImage shows one picture of its telemetries (the first at first); when it has several, a filmstrip under the pictures shows
- *   a thumbnail of each: a click shows that one, Shift+click adds it beside the others or takes it away (option "show": the names of the
- *   pictures shown, kept with the dashboard). The pictures of a view are never drawn over each other.
+ *   a thumbnail of each: a click shows that one, Shift+click adds it to the selection or takes it away (option "show": the names of the
+ *   pictures selected, in the order they were clicked, kept with the dashboard). Option "cameras": "beside" (default), every picture
+ *   selected is shown side by side and none is drawn over another; "over", the first one selected is the base, the next ones that can be
+ *   drawn in the scene (a depth map with its camera: its points) are drawn over it instead of being shown, the others (plain pictures,
+ *   depth maps without camera) are shown beside it; every picture shown then draws the other cameras of the selection, as a 3D view
+ *   draws them (their depth points; their cones too when option "cameraCones" is on: off by default here). A toggle at the right end of
+ *   the filmstrip switches the option; the one beside it switches "outline".
  * - A picture is shown as it was received: never resized in its data, never undistorted.
  * - To draw over it the picture needs a camera: intrinsics (TELEM_DATA_CAMERA_INTRINSICS: fx, fy, cx, cy in pixels, for an image of
  *   width x height), optionally lens distortion (TELEM_DATA_CAMERA_DISTORTION: k1, k2, p1, p2, k3), and where the camera is (the shape
@@ -55,13 +60,14 @@ class PictureFrame extends ViewScene3D {
 
     // Options of a picture (the image view has them; another owner, the values view, may not: these are used then)
     static DEFAULTS = {
-        overlayOpacity: 70,      // Percent: how much what is drawn over the picture hides it
+        overlayOpacity: 50,      // Percent: how much what is drawn over the picture hides it
         outline: true,           // Only the outlines of the objects (the picture stays visible inside them), not the objects themselves
         outlineWidth: 3,         // Width of those outlines, in pixels of the page
         pixelDrawings: true,     // What is drawn in the pixels of the picture (frame FRAME_TYPE_PIXELS) is drawn over it
         colormap: "turbo",       // Pictures of values: their colors
         valueRange: "range",     // Pictures of values: colors between the ends of the range of the telemetry when it has both ("range"), or what each picture holds ("picture")
         displayColorScale: true, // Pictures of values: the colors and their values, under the picture
+        cameraCones: false,      // Other cameras drawn over the picture ("over" mode): their cones too, not only their depth points (a camera a few centimetres away has a cone that crosses the whole picture)
     };
     // What the frame takes from its owner when the owner has it
     static OWNER_OPTIONS = [...Object.keys(PictureFrame.DEFAULTS), "displayNumberDecimals", "trailLength", "pointSize", "pointColorByHeight", "cloudCount", "cloudInterval", "depthPoints"];
@@ -110,8 +116,12 @@ class PictureFrame extends ViewScene3D {
         let telem = this.getImageTelemetry();
         return telem !== undefined && telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) === pixels;
     }
+    // Pictures are not drawn over each other, but in "over" mode the other cameras of the owner's selection are (its own is not)
     __skipsTelemetry(telem) {
-        return telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined;
+        if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return false;
+        let owner = this.owner;
+        if(!this.overlays || !owner || owner.options.cameras !== "over" || typeof owner.selectedPictures !== "function") return true;
+        return telem.id === this.picture || !ViewScene3D.isCamera(telem) || !owner.selectedPictures().includes(telem);
     }
 
     getEmptyState() { return { text: "", hint: "" }; }
@@ -469,13 +479,16 @@ class ViewImage extends ViewScene3D {
         this.supportedLabel = "image";
 
         for(let key in PictureFrame.DEFAULTS) this.options[key] = PictureFrame.DEFAULTS[key]; // (see PictureFrame.DEFAULTS; pixelDrawings: the view also takes those telemetries in its list)
-        this.options.show = []; // Names of the pictures shown (none: the first one). A click on a thumbnail of the filmstrip sets it.
+        this.options.show = []; // Names of the pictures selected, in the order they were clicked (none: the first one). The filmstrip sets it.
+        this.options.cameras = "beside"; // "beside": the pictures selected side by side; "over": the first is the base, the cameras that can be drawn go over it (see above)
 
         this.layout.width = 2;
         this.layout.height = 6;
 
         this.state.shown = []; // [{id, divId}]: the places of the pictures shown
-        this.state.strip = []; // [{id, divId, name, tip, selected}]: the filmstrip, when there are several pictures
+        this.state.strip = []; // [{id, divId, name, tip, selected, order, over}]: the filmstrip, when there are several pictures
+        this.state.cameras = "beside"; // The toggles of the filmstrip: option "cameras", option "outline"
+        this.state.outline = true;
         this.frames = TELEPLOT.Vue.markRaw(new Map()); // "shown:<id>" / "strip:<id>" -> PictureFrame
         this.pixelsKnown = TELEPLOT.Vue.markRaw({ counts: new Map(), taken: new Set() }); // Telemetries drawn in the pixels of its pictures that the view took by itself
     }
@@ -495,26 +508,52 @@ class ViewImage extends ViewScene3D {
         return this.getPictureTelemetries()[0];
     }
 
-    // The pictures shown: the ones the option "show" names, in the order of the view; the first one when it names none of them
-    shownPictures(pictures = this.getPictureTelemetries()) {
+    // The pictures selected: the ones the option "show" names, in its order (the order they were clicked); the first picture of the
+    // view when it names none of them
+    selectedPictures(pictures = this.getPictureTelemetries()) {
         let names = Array.isArray(this.options.show) ? this.options.show : [];
-        let shown = pictures.filter((telem) => names.includes(telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME)));
-        return shown.length ? shown : pictures.slice(0, 1);
+        let selected = [];
+        for(let name of names) {
+            let telem = pictures.find((t) => t.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) === name);
+            if(telem !== undefined && !selected.includes(telem)) selected.push(telem);
+        }
+        return selected.length ? selected : pictures.slice(0, 1);
     }
 
-    // A click on a thumbnail: that picture alone (add: beside the others, or taken away when it is shown; one is always shown)
+    // Can a picture be drawn over another one ("over" mode) ? A depth map with its camera: its points are placed in the scene
+    static drawsOver(telem) {
+        if(!ViewScene3D.isCamera(telem) || !TELEPLOT.pictures.settings(telem).depth) return false;
+        let entry = telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE];
+        return !!entry && TELEPLOT.pictures.isValues(entry, entry.timestamps.length - 1);
+    }
+
+    // The pictures shown: the selection ("beside"); in "over" mode its first one and those that cannot be drawn over it
+    shownPictures(pictures = this.getPictureTelemetries()) {
+        let selected = this.selectedPictures(pictures);
+        if(this.options.cameras !== "over") return selected;
+        return selected.filter((telem, i) => i === 0 || !ViewImage.drawsOver(telem));
+    }
+
+    // A click on a thumbnail: that picture alone (add: after the others, or taken away when it is selected; one always stays)
     choosePicture(id, add=false) {
         let pictures = this.getPictureTelemetries();
         let telem = pictures.find((t) => t.id == id);
         if(telem === undefined) return;
-        let shown = this.shownPictures(pictures);
+        let selected = this.selectedPictures(pictures);
         let next = [telem];
         if(add) {
-            next = shown.includes(telem) ? shown.filter((t) => t !== telem) : shown.concat([telem]);
+            next = selected.includes(telem) ? selected.filter((t) => t !== telem) : selected.concat([telem]);
             if(next.length === 0) return;
-            next = pictures.filter((t) => next.includes(t));
         }
         this.options.show = next.map((t) => t.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME));
+    }
+
+    // The toggles of the filmstrip: the other cameras beside, or over the base; what is drawn over the pictures as outlines, or whole
+    toggleCameras() {
+        this.options.cameras = this.options.cameras === "over" ? "beside" : "over";
+    }
+    toggleOutline() {
+        this.options.outline = !this.options.outline;
     }
 
     // What is drawn in the pixels of a picture belongs on it: the view takes those telemetries by itself (once each: one that was
@@ -535,8 +574,12 @@ class ViewImage extends ViewScene3D {
     __takesFrame(pixels) {
         return pixels === undefined || this.getPictureTelemetries().some((telem) => telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME) === pixels);
     }
+    // (and, in "over" mode with several pictures selected, the cameras drawn over the others)
     __skipsTelemetry(telem) {
-        return telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] !== undefined;
+        if(telem.data[TELEPLOT.protocol.SECTION_TYPE_TELEM_DATA_IMAGE] === undefined) return false;
+        if(this.options.cameras !== "over") return true;
+        let selected = this.selectedPictures();
+        return selected.length < 2 || !selected.includes(telem) || !ViewScene3D.isCamera(telem);
     }
 
     getEmptyState() {
@@ -632,6 +675,8 @@ class ViewImage extends ViewScene3D {
             { key: "colormap", label: "Colors of values (depth)", type: "choice", choices: TELEPLOT.pictures.COLORMAP_NAMES },
             { key: "valueRange", label: "Colors between", type: "choice", choices: [["range", "The range of the telemetry"], ["picture", "What each picture holds"]] },
             { key: "displayColorScale", label: "Color scale", type: "bool" },
+            { key: "cameras", label: "Other cameras", type: "choice", choices: [["beside", "Beside"], ["over", "Drawn over"]] },
+            { key: "cameraCones", label: "Camera cones", type: "bool" },
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
@@ -676,12 +721,17 @@ class ViewImage extends ViewScene3D {
         if(this.options.pixelDrawings) for(let telem of pictures) this.__takePixelTelemetries(telem);
 
         // Places of the pictures shown, and the filmstrip (only with several pictures)
-        let shown = this.shownPictures(pictures);
+        let selected = this.selectedPictures(pictures), shown = this.shownPictures(pictures);
         let strip = pictures.length >= 2 ? pictures : [];
         let shownState = shown.map((telem) => ({ id: telem.id, divId: this.__frameDivId("shown", telem.id) }));
         let short = ViewImage.shortNames(strip.map((telem) => telem.getAttribute(P.TELEM_ATTR_NAME) || String(telem.id)));
+        // A thumbnail: its place in the selection (1 = the base, in "over" mode) and whether it is drawn over the pictures shown
         let stripState = strip.map((telem, i) => ({ id: telem.id, divId: this.__frameDivId("strip", telem.id), name: short[i],
-            tip: TELEPLOT.view.telemetryTip(telem), selected: shown.includes(telem) }));
+            tip: TELEPLOT.view.telemetryTip(telem), selected: selected.includes(telem), order: selected.length > 1 ? selected.indexOf(telem) + 1 : 0,
+            over: selected.includes(telem) && !shown.includes(telem) }));
+        let cameras = this.options.cameras === "over" ? "over" : "beside";
+        if(this.state.cameras !== cameras) this.state.cameras = cameras;
+        if(this.state.outline !== !!this.options.outline) this.state.outline = !!this.options.outline;
         if(JSON.stringify(shownState) !== JSON.stringify(this.state.shown)) this.state.shown = shownState;
         if(JSON.stringify(stripState) !== JSON.stringify(this.state.strip)) this.state.strip = stripState;
 
@@ -771,10 +821,25 @@ class ViewImage extends ViewScene3D {
               <div v-for="place in state.shown" v-bind:key="place.divId" v-bind:id="place.divId" class="teleplot-js-image-place"></div>
           </div>
           <div v-if="state.strip.length > 0" class="teleplot-js-image-strip">
-              <button v-for="thumb in state.strip" v-bind:key="thumb.divId" type="button" class="teleplot-js-image-thumb" v-bind:class="{selected: thumb.selected}"
-                v-bind:title="thumb.tip + (thumb.selected ? '' : '\\nClick: show it. Shift+click: show it beside the others')" v-on:click="onPictureChoose(thumb.id, $event)">
+              <button v-for="thumb in state.strip" v-bind:key="thumb.divId" type="button" class="teleplot-js-image-thumb" v-bind:class="{selected: thumb.selected, over: thumb.over}"
+                v-bind:title="thumb.tip + (thumb.over ? '\\nDrawn over the pictures shown' : '') + (thumb.selected ? '\\nShift+click: take it away' : '\\nClick: show it. Shift+click: add it') + (state.cameras == 'over' ? ' (the first one is the base, depth cameras go over it)' : ' (beside the others)')" v-on:click="onPictureChoose(thumb.id, $event)">
                   <span v-bind:id="thumb.divId" class="teleplot-js-image-thumb-picture"></span><span class="teleplot-js-image-thumb-name">{{thumb.name}}</span>
+                  <span v-if="thumb.order" class="teleplot-js-image-thumb-order">{{thumb.order}}</span>
               </button>
+              <span class="teleplot-js-image-tools">
+              <button type="button" class="teleplot-js-image-tool" v-bind:class="{on: state.outline}" v-on:click="onOutlineToggle()"
+                v-bind:aria-label="state.outline ? 'Outlines only: draw the objects whole instead' : 'Objects drawn whole: draw their outlines only instead'"
+                v-bind:title="state.outline ? 'Outlines only over the pictures. Click: the objects whole' : 'Objects drawn whole over the pictures. Click: their outlines only'">
+                  <svg v-if="state.outline" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 L14 5 V11.5 L8 15 L2 11.5 V5 Z M8 8.2 V15 M8 8.2 L2 5 M8 8.2 L14 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+                  <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 L14 5 L8 8.2 L2 5 Z" fill="currentColor" fill-opacity="0.9"></path><path d="M2 5 L8 8.2 V15 L2 11.5 Z" fill="currentColor" fill-opacity="0.55"></path><path d="M8 8.2 L14 5 V11.5 L8 15 Z" fill="currentColor" fill-opacity="0.3"></path></svg>
+              </button>
+              <button type="button" class="teleplot-js-image-tool" v-bind:class="{on: state.cameras == 'over'}" v-on:click="onCamerasToggle()"
+                v-bind:aria-label="state.cameras == 'over' ? 'Cameras drawn over the first picture: show them beside instead' : 'Pictures beside each other: draw the depth cameras over the first picture instead'"
+                v-bind:title="state.cameras == 'over' ? 'Cameras drawn over the first picture selected. Click: beside each other' : 'Pictures beside each other. Click: depth cameras drawn over the first picture selected'">
+                  <svg v-if="state.cameras == 'over'" width="18" height="13" viewBox="0 0 20 14" aria-hidden="true"><rect x="2" y="1" width="12" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="6" y="4" width="12" height="9" rx="1" fill="var(--teleplot-surface)" stroke="currentColor" stroke-width="1.6"></rect></svg>
+                  <svg v-else width="18" height="13" viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="2" width="8" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="11" y="2" width="8" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"></rect></svg>
+              </button>
+              </span>
           </div>
           ${ViewScene3D.legendHTML}
           <div v-if="emptyState.text" class="teleplot-js-empty">
@@ -811,10 +876,10 @@ class ViewImage extends ViewScene3D {
             /* The filmstrip: a band of its own under the pictures, a thumbnail per picture */
             .teleplot-js-image-strip {
                 position: absolute; left: 0; right: 0; bottom: 0; height: 3.4em; box-sizing: border-box; padding: 0.25em 0.5em;
-                display: flex; gap: 0.5em; justify-content: safe center; overflow-x: auto; border-top: 1px solid var(--teleplot-line);
+                display: flex; gap: 0.5em; justify-content: safe center; overflow-x: auto; border-top: 1px solid var(--teleplot-line); padding-right: 6em; /* (room for the toggles) */
             }
             .teleplot-js-image-thumb {
-                all: unset; box-sizing: border-box; flex: none; width: 4.2em; height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 0.1em;
+                all: unset; box-sizing: border-box; flex: none; width: 4.2em; height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 0.1em; position: relative;
                 cursor: pointer; font-size: 0.8em; color: var(--teleplot-muted); text-align: center;
             }
             .teleplot-js-image-thumb:focus-visible { outline: 2px solid var(--teleplot-primary); outline-offset: 1px; border-radius: 3px; }
@@ -824,6 +889,20 @@ class ViewImage extends ViewScene3D {
             .teleplot-js-image-thumb:not(.selected) .teleplot-js-image-thumb-picture { opacity: 0.6; }
             .teleplot-js-image-thumb:hover .teleplot-js-image-thumb-picture { opacity: 1; }
             .teleplot-js-image-thumb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+            .teleplot-js-image-thumb.over .teleplot-js-image-thumb-picture { outline: 1px dashed var(--teleplot-primary); outline-offset: 2px; } /* drawn over the pictures shown */
+            .teleplot-js-image-thumb-order { /* its place in the selection: 1 is the base (beside the picture's element: a frame mounts in that one) */
+                position: absolute; right: -0.3em; top: -0.2em; z-index: 3; min-width: 1.2em; height: 1.2em; padding: 0 0.2em; box-sizing: border-box; border-radius: 0.6em;
+                font-size: 0.85em; font-weight: 700; line-height: 1.2em; text-align: center; color: #fff; background: var(--teleplot-primary);
+            }
+            .teleplot-js-image-tools { /* the toggles at the right end of the filmstrip: outlines, cameras beside / over */
+                position: absolute; right: 0.5em; top: 50%; transform: translateY(-50%); display: flex; gap: 0.3em;
+            }
+            .teleplot-js-image-tool {
+                all: unset; box-sizing: border-box; width: 2.2em; height: 1.8em; border-radius: 0.4em; cursor: pointer;
+                display: flex; align-items: center; justify-content: center; color: var(--teleplot-muted); border: 1px solid var(--teleplot-line);
+            }
+            .teleplot-js-image-tool:hover, .teleplot-js-image-tool.on { color: var(--teleplot-primary); }
+            .teleplot-js-image-tool:focus-visible { outline: 2px solid var(--teleplot-primary); outline-offset: 1px; }
             /* A picture (PictureFrame), wherever it is */
             .teleplot-js-picture { position: absolute; inset: 0; }
             .teleplot-js-image-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }

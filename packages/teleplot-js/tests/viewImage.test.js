@@ -117,7 +117,7 @@ test('image view: suggested for images, shows the first image telemetry, the oth
     const view = T.view.createView('image', ['number', 'box', 'cam', 'path', 'other'], 'g');
     assert.equal(view.type, 'teleplot-image');
     assert.equal(view.getImageTelemetry().id, T.datastore.getTelemetry('cam').id);
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['outline', 'outlineWidth', 'overlayOpacity', 'pixelDrawings', 'colormap', 'valueRange', 'displayColorScale', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['outline', 'outlineWidth', 'overlayOpacity', 'pixelDrawings', 'colormap', 'valueRange', 'displayColorScale', 'cameras', 'cameraCones', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
     const { sources } = view.__collectSources(1, view.getImageTelemetry());
     assert.deepEqual(sources.map(s => [s.telem.getAttribute(T.protocol.TELEM_ATTR_NAME), s.kind]), [['box', 'shape'], ['path', 'point']], 'the picture is not drawn over itself, images without camera and numbers are not 3D');
 
@@ -160,13 +160,14 @@ test('image view with several pictures: the first one shown, a filmstrip of all 
     const thumb = view.frames.get('strip:' + id('depth'));
     assert.deepEqual([thumb.chrome, thumb.overlays], [false, false], 'a thumbnail: the picture alone');
 
-    // A click shows that one alone; Shift+click adds one beside it, in the order of the view, or takes one away (one always stays)
+    // A click shows that one alone; Shift+click adds one after the others, in the order of the clicks, or takes one away (one always stays)
     view.choosePicture(id('depth'));
     assert.deepEqual(Array.from(view.getOption('show')), ['depth']);
     view.choosePicture(id('cam'), true);
-    assert.deepEqual(Array.from(view.getOption('show')), ['cam', 'depth']);
+    assert.deepEqual(Array.from(view.getOption('show')), ['depth', 'cam'], 'in the order of the clicks');
     view.update();
-    assert.deepEqual(view.state.shown.map((p) => p.id), [id('cam'), id('depth')]);
+    assert.deepEqual(view.state.shown.map((p) => p.id), [id('depth'), id('cam')]);
+    assert.deepEqual(view.state.strip.map((p) => [p.name, p.order]), [['cam', 2], ['depth', 1], ['rear', 0]], 'the thumbnails say the order');
     assert.ok(view.frames.has('shown:' + id('depth')) && view.frames.has('shown:' + id('cam')));
     view.choosePicture(id('cam'), true); view.choosePicture(id('depth'), true);
     assert.deepEqual(Array.from(view.getOption('show')), ['depth'], 'the last one shown stays');
@@ -220,4 +221,48 @@ test('the color scale of a depth map moves to another corner when it would hide 
     assert.equal(corner({ x: 393, y: 277 }, scale, place), 'bl', 'a few pixels around it count');
     const wide = { left: 5, top: 280, right: 395, bottom: 295 };    // as wide as the picture: the bottom is never free
     assert.equal(corner({ x: 200, y: 290 }, wide, place), 'tr');
+});
+
+test('image view, cameras "over": the first picture selected is the base, depth cameras go over every picture shown, plain pictures stay beside', () => {
+    const T = loadTeleplot();
+    const P = T.protocol;
+    const raw = 'RAW|depth:1000:' + Buffer.from([2, 0, 1, 0, 0, 0, 0, 0, 0xe8, 3, 0xd0, 7]).toString('base64');
+    T.parseDataText({ data: ['JPG|cam:1000:AAAA', '3D|cam:1000:K:500:480:300.5:250.25:640:480', raw, '3D|depth:1000:K:2:2:0.5:0:2:1:P:0:0.05:0',
+        'JPG|cam2:1000:AAAA', '3D|cam2:1000:K:500:480:300.5:250.25:640:480:P:0:-1:0', 'PNG|plan:1000:BBBB', '3D|box:S:cube:P:2:0:0'].join('\n'), timestamp: 0 });
+    const view = T.view.createView('image', ['cam', 'depth', 'cam2', 'plan', 'box'], 'g');
+    const id = (name) => T.datastore.getTelemetry(name).id;
+    const names = (list) => list.map((t) => t.getAttribute(P.TELEM_ATTR_NAME));
+    const drawn = (name) => { const f = view.frames.get('shown:' + id(name)); return f.__collectSources(1, f.getImageTelemetry()).sources.map((s) => s.telem.getAttribute(P.TELEM_ATTR_NAME)); };
+    assert.equal(view.getOption('cameras'), 'beside', 'beside by default');
+    assert.deepEqual([view.getOption('cameraCones'), T.view.createView('3d', [], 'g').getOption('cameraCones')], [false, true], 'cones: hidden over pictures, shown in a scene');
+    assert.deepEqual([T.view.ViewImage.drawsOver(T.datastore.getTelemetry('depth')), T.view.ViewImage.drawsOver(T.datastore.getTelemetry('cam'))], [true, false]);
+
+    view.setOption('show', ['cam', 'depth', 'cam2']);
+    view.update();
+    assert.deepEqual(names(view.shownPictures()), ['cam', 'depth', 'cam2'], 'beside: all of them');
+    assert.deepEqual(drawn('cam'), ['box'], 'beside: no picture is drawn over another');
+
+    assert.deepEqual([view.getOption('outline'), view.getOption('overlayOpacity')], [true, 50], 'outlines, half opaque, by default');
+    view.toggleOutline();
+    view.update();
+    assert.deepEqual([view.getOption('outline'), view.state.outline], [false, false], 'the other toggle of the filmstrip: the objects whole');
+    view.toggleOutline();
+    view.toggleCameras();
+    assert.equal(view.getOption('cameras'), 'over');
+    view.update();
+    assert.deepEqual(names(view.shownPictures()), ['cam', 'cam2'], 'over: the base, and the plain picture beside it');
+    assert.deepEqual(view.state.strip.filter((t) => t.over).map((t) => t.name), ['depth'], 'its thumbnail says it is drawn over');
+    assert.deepEqual(drawn('cam'), ['depth', 'cam2', 'box'], 'the other cameras of the selection, its own picture never');
+    assert.deepEqual(drawn('cam2'), ['cam', 'depth', 'box'], 'the picture beside gets them too (A)');
+    assert.ok(!drawn('cam').includes('plan'), 'a picture that is not selected is not drawn');
+
+    view.setOption('show', ['depth', 'cam']);
+    view.update();
+    assert.deepEqual(names(view.shownPictures()), ['depth', 'cam'], 'a depth map first is the base: shown, as a picture');
+    assert.deepEqual(drawn('cam'), ['depth', 'box'], 'and its points go over the color picture beside it');
+    view.setOption('show', ['cam', 'plan']);
+    view.update();
+    assert.deepEqual(names(view.shownPictures()), ['cam', 'plan'], 'a picture without camera is beside');
+    assert.equal(T.view.ViewScene3D.cameraState(T.datastore.getTelemetry('plan')), undefined, 'it has no camera: nothing 3D can be drawn over it');
+    view.dispose();
 });

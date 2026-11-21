@@ -34,6 +34,7 @@ class ViewScene3D extends ViewTelemetries {
         this.options.cloudCount = 1;        // Point clouds: how many clouds are drawn together (1: the current one only, more: accumulation)
         this.options.cloudInterval = 0;     // Accumulation: minimum time between two of the clouds drawn, in seconds (0: every cloud)
         this.options.depthPoints = 250000;  // Depth maps: at most this many of their pixels are placed in the scene (every n-th pixel, along both axes)
+        this.options.cameraCones = true;    // Cameras: the pyramid of what they see (their depth points are drawn either way)
 
         this.layout.width = 2;
         this.layout.height = 6;
@@ -530,6 +531,7 @@ class ViewScene3D extends ViewTelemetries {
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
+            { key: "cameraCones", label: "Camera cones", type: "bool" },
             ...ViewScene3D.CLOUD_OPTIONS_SCHEMA,
         ];
     }
@@ -600,6 +602,8 @@ class ViewScene3D extends ViewTelemetries {
                 onImageLoad(event) { if(self.__imageLoaded) self.__imageLoaded(event.target); },
                 onFramePointer(event) { if(self.__framePointer) self.__framePointer(event); },
                 onPictureChoose(id, event) { if(self.choosePicture) self.choosePicture(id, !!(event && event.shiftKey)); },
+                onCamerasToggle() { if(self.toggleCameras) self.toggleCameras(); },
+                onOutlineToggle() { if(self.toggleOutline) self.toggleOutline(); },
                 onFrameLeave() { if(self.__framePointer) self.__framePointer(undefined); },
                 onLegendClick(id) { self.toggleTelemetry(id); },
                 onLegendEnter(id) { self.highlightTelemetry(id); },
@@ -955,7 +959,7 @@ class ViewScene3D extends ViewTelemetries {
                 source.camera = ViewScene3D.cameraState(telem, timestamp);
                 if(!source.camera) continue; // Intrinsics that make no sense
                 source.position = source.camera.position;
-                key += ":" + JSON.stringify(source.camera);
+                key += ":" + JSON.stringify(source.camera) + ":" + (this.options.cameraCones !== false);
                 source.depth = this.__depthSource(telem, timestamp, source.camera); // Its picture is a depth map: its points
                 if(source.depth) key += ":" + source.depth.key;
             }
@@ -990,7 +994,8 @@ class ViewScene3D extends ViewTelemetries {
         return { sources, key };
     }
 
-    // Is a telemetry of the view left out of the scene ? (Image views: their pictures are not drawn over each other.)
+    // Is a telemetry of the view left out of the scene ? (Image views: their pictures are not drawn over each other, but for the cameras
+    // of the selection in "over" mode.)
     __skipsTelemetry(telem) { return false; }
 
     // Shape types that are drawn (lines, a surface, a text) instead of being a solid
@@ -1065,7 +1070,7 @@ class ViewScene3D extends ViewTelemetries {
         }
         object.lines.position.set(camera.position[0], camera.position[1], camera.position[2]);
         object.lines.quaternion.set(camera.quaternion[1], camera.quaternion[2], camera.quaternion[3], camera.quaternion[0]);
-        object.lines.visible = !source.hidden;
+        object.lines.visible = !source.hidden && this.options.cameraCones !== false; // (option: the cone can be hidden, its depth points stay)
         object.lines.material.opacity = source.faded ? 0.15 : 1;
         if(object.color != source.color) {
             object.color = source.color;

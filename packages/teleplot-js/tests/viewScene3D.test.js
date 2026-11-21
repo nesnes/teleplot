@@ -106,7 +106,7 @@ test('3D view: suggested for shapes and 3D numbers, options, clone, empty state'
 
     const view = T.view.createView('3d', ['shape', 'point'], 'g');
     assert.equal(view.type, 'teleplot-3d');
-    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayGrid', 'displayAxes', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
+    assert.deepEqual(view.getOptionsSchema().map(o => o.key), ['displayGrid', 'displayAxes', 'displayLegend', 'displayNumberDecimals', 'trailLength', 'cameraCones', 'pointSize', 'pointColorByHeight', 'cloudCount', 'cloudInterval', 'depthPoints']);
     view.setOption('trailLength', 50);
     const copy = view.clone();
     assert.ok(copy instanceof T.view.ViewScene3D);

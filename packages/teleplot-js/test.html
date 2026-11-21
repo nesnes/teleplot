@@ -1146,12 +1146,25 @@
     demo("Seen from above", "A 2D view draws the points of the depth maps too.", [420, 330], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewScene2D(id, ["depthdemo.mm", "depthdemo.ball"]));
     });
-    demo("Several pictures in one image view: a filmstrip", "The view shows its first picture; a filmstrip under it has a thumbnail of each of its pictures (only when there are several). Click a thumbnail: that picture alone. Shift+click: beside the others, or taken away. The choice is the option show (kept in DASH| lines). The ball is drawn over each picture that has a camera, through that camera; the pictures are never drawn over each other.", [520, 330], (id) => {
+    demo("Several pictures in one image view: a filmstrip", "The view shows its first picture; a filmstrip under it has a thumbnail of each of its pictures (only when there are several). Click a thumbnail: that picture alone. Shift+click: added after the others (numbered in the order of the clicks), or taken away. The choice is the option show (kept in DASH| lines). The ball is drawn over each picture that has a camera, through that camera. The button at the right end of the filmstrip switches the option cameras: beside (no picture drawn over another) or over (see the next demos).", [520, 330], (id) => {
       Teleplot.view.addView(new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.png", binId(80), "depthdemo.ball"]));
     });
     demo("Two of them side by side", "show: [\"depthdemo.mm\", \"depthdemo.float\"] (what Shift+click gives): the two depth maps, each with its color scale and its reading under the pointer.", [520, 260], (id) => {
       const view = new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.png", binId(80)]);
       view.setOption("show", ["depthdemo.mm", "depthdemo.float"]);
+      Teleplot.view.addView(view);
+    });
+    demo("Cameras drawn over the base", "cameras: \"over\", show: [\"depthdemo.png\", \"depthdemo.float\"]. The first picture selected is the base; the other depth camera is not shown as a picture but drawn over it, as its points (with its lens), and they must lie on the base's own picture of the ball. Its thumbnail is dashed; the numbers are the order of the selection. Toggle the button at the right of the filmstrip: back side by side.", [420, 330], (id) => {
+      const view = new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.png", binId(80), "depthdemo.ball"]);
+      view.setOption("show", ["depthdemo.png", "depthdemo.float"]);
+      view.setOption("cameras", "over");
+      Teleplot.view.addView(view);
+    });
+    demo("Over, with the cones", "The same, option cameraCones on (off by default in an image view, on in 2D and 3D views): the pyramid of what the other camera sees, seen from the base. A camera close to the base has a cone that crosses the whole picture.", [420, 330], (id) => {
+      const view = new Teleplot.view.ViewImage(id, ["depthdemo.mm", "depthdemo.png", binId(80), "depthdemo.ball"]);
+      view.setOption("show", ["depthdemo.png", "depthdemo.float"]);
+      view.setOption("cameras", "over");
+      view.setOption("cameraCones", true);
       Teleplot.view.addView(view);
     });
     demo("Pictures in a values view", "A depth map is one more line: its name, its color scale as its value (the value under the pointer while it is on the picture), and the picture as an image view draws it. The camera picture of img demo gets what is drawn over it. In a column (default) and in a row (displayLayoutRow).", ["100%", 360], (id) => {

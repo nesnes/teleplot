@@ -677,6 +677,7 @@ Drag: move · wheel: zoom · double click: fit · with CMD on, a writable pose i
 | legend | `\|displayLegend=` | `\|displayLegend=` | `\|displayLegend=` | true | The names and values of what it shows. Values: true or false. |
 | decimals | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | 2 | Digits after the point of the values written. Values: from 0 to 10. |
 | trail length | `\|trailLength=` | `\|trailLength=` | `\|trailLength=` | 200 | Positions drawn behind a moving point (0: none). Values: from 0 to 100000. |
+| camera cones | `\|cameraCones=` | `\|cameraCones=` | `\|cameraCones=` | true | Cameras drawn with the pyramid of what they see (their depth points either way). Values: true or false. |
 | point size (px) | `\|pointSize=` | `\|pointSize=` | `\|pointSize=` | 3 | Size of the points of positions and clouds, in pixels. Values: from 1 to 20. |
 | points colored by height | `\|pointColorByHeight=` | `\|pointColorByHeight=` | `\|pointColorByHeight=` | false | Points of clouds colored by their height instead of their intensity or color. Values: true or false. |
 | clouds drawn together | `\|cloudCount=` | `\|cloudCount=` | `\|cloudCount=` | 1 | Clouds drawn together: the latest and the ones before it. Values: from 1 to 500. |
@@ -707,6 +708,7 @@ Drag: turn · right drag: move · wheel: zoom.
 | legend | `\|displayLegend=` | `\|displayLegend=` | `\|displayLegend=` | true | The names and values of what it shows. Values: true or false. |
 | decimals | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | 2 | Digits after the point of the values written. Values: from 0 to 10. |
 | trail length | `\|trailLength=` | `\|trailLength=` | `\|trailLength=` | 200 | Positions drawn behind a moving point (0: none). Values: from 0 to 100000. |
+| camera cones | `\|cameraCones=` | `\|cameraCones=` | `\|cameraCones=` | true | Cameras drawn with the pyramid of what they see (their depth points either way). Values: true or false. |
 | point size (px) | `\|pointSize=` | `\|pointSize=` | `\|pointSize=` | 3 | Size of the points of positions and clouds, in pixels. Values: from 1 to 20. |
 | points colored by height | `\|pointColorByHeight=` | `\|pointColorByHeight=` | `\|pointColorByHeight=` | false | Points of clouds colored by their height instead of their intensity or color. Values: true or false. |
 | clouds drawn together | `\|cloudCount=` | `\|cloudCount=` | `\|cloudCount=` | 1 | Clouds drawn together: the latest and the ones before it. Values: from 1 to 500. |
@@ -734,11 +736,13 @@ Point at a values picture: the value under the pointer.
 | value scale | `ATTR\|name\|scale=0.001` | `.depthMap(0.001)` | `.depthMap(0.001)` | 1 | What a number of the picture is worth: number x scale, in the unit of the telemetry. Values: a number, not 0. |
 | outlines only | `\|outline=` | `\|outline=` | `\|outline=` | true | Shapes over the picture drawn as outlines only. Values: true or false. |
 | outline width (px) | `\|outlineWidth=` | `\|outlineWidth=` | `\|outlineWidth=` | 3 | Width of those outlines, in pixels. Values: from 1 to 20. |
-| overlay opacity (%) | `\|overlayOpacity=` | `\|overlayOpacity=` | `\|overlayOpacity=` | 70 | How much of the shapes and points is drawn over the picture. Values: from 0 to 100. |
+| overlay opacity (%) | `\|overlayOpacity=` | `\|overlayOpacity=` | `\|overlayOpacity=` | 50 | How much of the shapes and points is drawn over the picture. Values: from 0 to 100. |
 | takes what is drawn in its pixels | `\|pixelDrawings=` | `\|pixelDrawings=` | `\|pixelDrawings=` | true | Draws what is sent in the pixels of its picture (FPX). Values: true or false. |
 | colors of values (depth) | `\|colormap=` | `\|colormap=` | `\|colormap=` | turbo | Colors of a values picture. Values: turbo (Turbo), viridis (Viridis), gray (Gray). |
 | colors between | `\|valueRange=` | `\|valueRange=` | `\|valueRange=` | range | Colors spread over the range of the telemetry, or over what each picture holds. Values: range (The range of the telemetry), picture (What each picture holds). |
 | color scale | `\|displayColorScale=` | `\|displayColorScale=` | `\|displayColorScale=` | true | The scale of the colors with its values. Values: true or false. |
+| other cameras | `\|cameras=` | `\|cameras=` | `\|cameras=` | beside | Beside: the pictures selected side by side. Drawn over: the first one selected is the base, the depth cameras of the selection are drawn over the pictures shown (the button at the right of the filmstrip). Values: beside (Beside), over (Drawn over). |
+| camera cones | `\|cameraCones=` | `\|cameraCones=` | `\|cameraCones=` | false | Cameras drawn with the pyramid of what they see (their depth points either way). Values: true or false. |
 | legend | `\|displayLegend=` | `\|displayLegend=` | `\|displayLegend=` | true | The names and values of what it shows. Values: true or false. |
 | decimals | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | `\|displayNumberDecimals=` | 2 | Digits after the point of the values written. Values: from 0 to 10. |
 | trail length | `\|trailLength=` | `\|trailLength=` | `\|trailLength=` | 200 | Positions drawn behind a moving point (0: none). Values: from 0 to 100000. |

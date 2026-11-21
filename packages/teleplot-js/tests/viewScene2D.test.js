@@ -332,3 +332,14 @@ test('poses of frames are computed once per update of the views, and never kept 
     assert.equal(S.__poseCache, undefined);
     S.__poseOf = original;
 });
+
+test('cameras: the triangle of what they see, unless cones are hidden (their depth points stay)', () => {
+    const T = loadTeleplot();
+    T.parseDataText({ data: 'JPG|cam:1000:AAAA\n3D|cam:1000:K:500:480:300.5:250.25:640:480', timestamp: 0 });
+    const view = T.view.createView('2d', ['cam'], 'g');
+    assert.equal(view.getOption('cameraCones'), true, 'shown in a scene by default');
+    const { sources } = view.__collectSources(1);
+    const kinds = (options) => T.view.ViewScene2D.buildItems(sources, options).map((item) => item.kind);
+    assert.deepEqual(kinds({}), ['polygon', 'dot']);
+    assert.deepEqual(kinds({ cameraCones: false }), []);
+});

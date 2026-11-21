@@ -49,6 +49,7 @@ class ViewScene2D extends ViewScene3D {
             { key: "displayLegend", label: "Legend", type: "bool" },
             { key: "displayNumberDecimals", label: "Decimals", type: "int", min: 0, max: 10, step: 1 },
             { key: "trailLength", label: "Trail length", type: "int", min: 0, max: 100000, step: 50 },
+            { key: "cameraCones", label: "Camera cones", type: "bool" },
             ...ViewScene3D.CLOUD_OPTIONS_SCHEMA,
         ];
     }
@@ -138,11 +139,13 @@ class ViewScene2D extends ViewScene3D {
             let fade = source.faded ? 0.15 : 1;
             let place = (pose, local) => { let t = ViewScene3D.rotateVector(pose.quaternion, local); return [pose.position[0] + t[0], pose.position[1] + t[1], pose.position[2] + t[2]]; };
 
-            if(source.kind == "camera") { // The triangle of what it sees
+            if(source.kind == "camera") { // The triangle of what it sees (unless cones are hidden: options.cameraCones false)
                 let camera = source.camera;
-                let corners = ViewScene3D.cameraCorners(camera).map((corner) => place(camera, corner));
-                items.push({ id, kind: "polygon", points: ViewScene2D.hull(corners.concat([camera.position]).map(project)), fill: false, color: source.color, opacity: fade, z: depth(camera.position) });
-                items.push({ id, kind: "dot", at: project(camera.position), color: source.color, opacity: fade, z: depth(camera.position) });
+                if(options.cameraCones !== false) {
+                    let corners = ViewScene3D.cameraCorners(camera).map((corner) => place(camera, corner));
+                    items.push({ id, kind: "polygon", points: ViewScene2D.hull(corners.concat([camera.position]).map(project)), fill: false, color: source.color, opacity: fade, z: depth(camera.position) });
+                    items.push({ id, kind: "dot", at: project(camera.position), color: source.color, opacity: fade, z: depth(camera.position) });
+                }
                 if(source.depth && source.depth.count) { // Its depth map: the points it measured, seen from above
                     let d = source.depth, count = d.count, out = new Float32Array(count * 2), positions = d.positions;
                     let origin = project(camera.position);
@@ -662,7 +665,7 @@ class ViewScene2D extends ViewScene3D {
         this.lastKey = key;
 
         // (raw: an application that wraps the library in proxies must not wrap what is drawn, see doc/performance.md)
-        this.items = TELEPLOT.Vue.markRaw(ViewScene2D.buildItems(sources, { axes: ViewScene2D.axes(this.options.axisRight, this.options.axisUp), timestamp, since, trailLength: this.options.trailLength,
+        this.items = TELEPLOT.Vue.markRaw(ViewScene2D.buildItems(sources, { axes: ViewScene2D.axes(this.options.axisRight, this.options.axisUp), timestamp, since, trailLength: this.options.trailLength, cameraCones: this.options.cameraCones,
             pointColorByHeight: this.options.pointColorByHeight, stl: (url) => this.__stl2D(url) }));
         this.__updateLegend(sources, element);
         this.editables = TELEPLOT.Vue.markRaw(this.__editables(sources));
