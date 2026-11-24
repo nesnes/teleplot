@@ -304,6 +304,24 @@ test('binary protocol: a dashboard section carries the same lines, telemetries a
     assert.deepEqual(tree(T, T.dashboards.getDashboard('Robot').getView().views[0]), { row: ['chart(speed,accel)', 'chart(temp)'] });
 });
 
+test('binary protocol, a page that connects while the device runs: samples without names, then the dashboard, then the names', () => {
+    const T = loadTeleplot();
+    // (a device describes its telemetries every few seconds, dashboard lines first: a page that came late gets samples before names)
+    T.parseDataBinary(new PacketBuilder(1).numbers(5, 1000000000n, [[0, 1.5]]).numbers(6, 1000000000n, [[0, 2]]).build());
+    T.__timers.run();
+    T.datastore.findByName('anything'); // (the names known are looked up while the telemetries have none yet)
+    T.parseDataBinary(new PacketBuilder(1).dashboard(ROBOT.slice(0, 3).join('\n')).attrs(5, [[ATTR.NAME, 'speed']]).build());
+    T.parseDataBinary(new PacketBuilder(1).attrs(6, [[ATTR.NAME, 'accel']]).build());
+    T.__timers.run();
+    const chart = T.dashboards.getDashboard('Robot').getView().views[0].views[0];
+    assert.deepEqual(Array.from(chart.telemetryIdOrNameList).map((e) => typeof e), ['number', 'number'], 'the names gave their place to the telemetries');
+    assert.deepEqual(namesOf(T, chart), ['speed', 'accel']);
+    // A line received once the names are known finds them at once
+    T.parseDataBinary(new PacketBuilder(1).dashboard('DASH|Robot/top/Side:values:accel').build());
+    const side = T.dashboards.getDashboard('Robot').getView().views[0].views[1];
+    assert.deepEqual(Array.from(side.telemetryIdOrNameList).map((e) => typeof e), ['number']);
+});
+
 test('the automatic dashboard uses the layout of a dashboard received under its name', () => {
     const T = loadTeleplot();
     T.dashboards.enableAutoDashboard('Live');

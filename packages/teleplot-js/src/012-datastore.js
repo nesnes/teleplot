@@ -22,6 +22,7 @@ class Telemetry {
     }
     setAttribute(code, data) {
         if(this.__announced && !_datastore_dry && !_datastore_sameValue(this.attributes[code], data)) _datastore_changed(this);
+        if(code === TELEPLOT.protocol.TELEM_ATTR_NAME && this.attributes[code] !== data) _datastore_names.count = -1; // (findByName looks again)
         this.attributes[code] = data;
         if(_datastore_currentSourceId !== undefined) { this.sourceId = _datastore_currentSourceId; this.endpoint = _datastore_currentEndpoint; }
         if(this.__unannounced && (code === TELEPLOT.protocol.TELEM_ATTR_SHAPE || (code === TELEPLOT.protocol.TELEM_ATTR_WRITE && data !== undefined))) _datastore_announce(this);

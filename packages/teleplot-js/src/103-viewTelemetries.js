@@ -273,8 +273,10 @@ TELEPLOT.datastore.onNewTelemetryHooks.push(_viewTelemetries_follow);
 TELEPLOT.datastore.onChangedTelemetryHooks.push(_viewTelemetries_follow);
 
 // Views can be given the name of a telemetry that does not exist yet (a dashboard described before its data). Telemetries of the
-// text protocol are found by their name; the others (binary protocol: an id, and a name as an attribute) take their place here.
-TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
+// text protocol are found by their name; the others (binary protocol: an id, and a name as an attribute) take their place here, when
+// they show up or when they get their name (a page that connects while a device runs gets samples before the names, and the dashboard
+// lines of a device come before its names)
+function _viewTelemetries_takeName(telem) {
     let name = telem.getAttribute(TELEPLOT.protocol.TELEM_ATTR_NAME);
     if(!name || TELEPLOT.datastore.getTelemetry(name) !== undefined) return;
     for(let view of TELEPLOT.view.views) {
@@ -287,7 +289,9 @@ TELEPLOT.datastore.onNewTelemetryHooks.push((telem) => {
         if(again < 0) again = list.indexOf(telem.id);
         if(again >= 0 && again !== index) list.splice(again, 1);
     }
-});
+}
+TELEPLOT.datastore.onNewTelemetryHooks.push(_viewTelemetries_takeName);
+TELEPLOT.datastore.onChangedTelemetryHooks.push(_viewTelemetries_takeName);
 
 // Add css to head
 {
